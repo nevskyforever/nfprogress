@@ -13,10 +13,14 @@ from .passwords import MAX_PASSWORD_LENGTH
 
 
 _BASE64URL_RE = re.compile(r'^[A-Za-z0-9_-]*$')
+MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES = 8_388_624
+MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES = 16_777_216
+MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES = 33_554_432
 
 
 def decode_canonical_base64url(value: str, *, expected_length: int | None = None,
-                               minimum_length: int | None = None) -> bytes:
+                               minimum_length: int | None = None,
+                               maximum_length: int | None = None) -> bytes:
     """Decode only canonical, unpadded Base64URL binary wire values."""
     if not isinstance(value, str) or not _BASE64URL_RE.fullmatch(value) or len(value) % 4 == 1:
         raise ValueError('Invalid binary encoding.')
@@ -30,6 +34,8 @@ def decode_canonical_base64url(value: str, *, expected_length: int | None = None
         raise ValueError('Invalid binary encoding.')
     if minimum_length is not None and len(decoded) < minimum_length:
         raise ValueError('Invalid binary encoding.')
+    if maximum_length is not None and len(decoded) > maximum_length:
+        raise ValueError('Invalid binary encoding.')
     return decoded
 
 
@@ -39,9 +45,11 @@ def encode_canonical_base64url(value: bytes) -> str:
 
 
 def _validate_binary(*, expected_length: int | None = None,
-                     minimum_length: int | None = None):
+                     minimum_length: int | None = None,
+                     maximum_length: int | None = None):
     def validator(value: str) -> str:
-        decode_canonical_base64url(value, expected_length=expected_length, minimum_length=minimum_length)
+        decode_canonical_base64url(value, expected_length=expected_length, minimum_length=minimum_length,
+                                   maximum_length=maximum_length)
         return value
     return validator
 
@@ -178,7 +186,9 @@ class ObjectEnvelopeDto(BaseModel):
     ciphertext: str
 
     _nonce = field_validator('nonce')(_validate_binary(expected_length=24))
-    _ciphertext = field_validator('ciphertext')(_validate_binary(minimum_length=16))
+    _ciphertext = field_validator('ciphertext')(_validate_binary(
+        minimum_length=16, maximum_length=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
+    ))
 
 
 SYNC_PROTOCOL_VERSION = 1
@@ -264,6 +274,16 @@ class EncryptedSyncPushRequest(BaseModel):
     encrypted_sync_version: int
     device_id: UUID
     items: list[EncryptedSyncPushItem] = Field(max_length=100)
+
+    @model_validator(mode='after')
+    def validate_ciphertext_budget(self) -> 'EncryptedSyncPushRequest':
+        total = sum(len(decode_canonical_base64url(
+            item.object.ciphertext, minimum_length=16,
+            maximum_length=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
+        )) for item in self.items)
+        if total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
+            raise ValueError('Encrypted sync batch exceeds ciphertext size limit.')
+        return self
 
 
 class EncryptedSyncPushResponse(BaseModel):

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import asyncio
+import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from threading import Barrier
@@ -8,9 +10,16 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
+from starlette.requests import Request
 
 from backend.app.cloud.models import EncryptedObject, SyncEvent, SyncUserState
-from backend.app.cloud.schemas import EncryptedSyncPushItem
+from backend.app.cloud.schemas import (MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES,
+                                       MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
+                                       MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES,
+                                       EncryptedSyncPushItem, EncryptedSyncPushRequest,
+                                       ObjectEnvelopeDto)
+from backend.app.cloud.sync_router import _read_encrypted_push_body
 from backend.app.cloud.services import SyncProtocolError, SyncService
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
 
@@ -68,6 +77,66 @@ def _encrypted_request(device_id: str, *items: tuple[dict[str, object], dict[str
 
 def _push_item(event: dict[str, object], envelope: dict[str, object]) -> EncryptedSyncPushItem:
     return EncryptedSyncPushItem.model_validate({'event': event, 'object': envelope})
+
+
+def _stream_request(chunks: list[bytes], *, content_length: int | None = None) -> tuple[Request, list[int]]:
+    received: list[int] = []
+
+    async def receive():
+        index = len(received)
+        received.append(index)
+        chunk = chunks[index] if index < len(chunks) else b''
+        return {'type': 'http.request', 'body': chunk, 'more_body': index < len(chunks) - 1}
+
+    headers = [] if content_length is None else [(b'content-length', str(content_length).encode('ascii'))]
+    return Request({'type': 'http', 'method': 'POST', 'path': '/', 'headers': headers}, receive), received
+
+
+def test_c15_encrypted_push_bounded_stream_exact_limit_content_length_and_chunk_bypass():
+    exact_request, _received = _stream_request([b'a' * MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES])
+    assert len(asyncio.run(_read_encrypted_push_body(exact_request))) == MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES
+
+    early_request, early_received = _stream_request([b'not-read'], content_length=MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES + 1)
+    try:
+        asyncio.run(_read_encrypted_push_body(early_request))
+        raise AssertionError('expected HTTP 413')
+    except HTTPException as error:
+        assert error.status_code == 413 and error.detail['code'] == 'encrypted_sync_batch_too_large'
+    assert early_received == []
+
+    bypass_request, bypass_received = _stream_request(
+        [b'a' * MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES, b'b', b'must-not-be-read'], content_length=1,
+    )
+    try:
+        asyncio.run(_read_encrypted_push_body(bypass_request))
+        raise AssertionError('expected HTTP 413')
+    except HTTPException as error:
+        assert error.status_code == 413 and error.detail['code'] == 'encrypted_sync_batch_too_large'
+    assert len(bypass_received) == 2
+
+
+def test_c15_encrypted_schema_exact_object_and_aggregate_decoded_boundaries():
+    exact_object = _object(ciphertext=b'x' * MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES)
+    assert len(base64.urlsafe_b64decode(exact_object['ciphertext'] + '==')) == MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES
+    ObjectEnvelopeDto.model_validate(exact_object)
+    try:
+        ObjectEnvelopeDto.model_validate(_object(ciphertext=b'x' * (MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES + 1)))
+        raise AssertionError('expected individual ciphertext rejection')
+    except ValueError:
+        pass
+
+    device_id = str(uuid4())
+    half = MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES // 2
+    exact = _encrypted_request(device_id, (_event(entity_id='first'), _object(ciphertext=b'a' * half)),
+                               (_event(entity_id='second'), _object(ciphertext=b'b' * half)))
+    EncryptedSyncPushRequest.model_validate(exact)
+    oversized = _encrypted_request(device_id, (_event(entity_id='first'), _object(ciphertext=b'a' * half)),
+                                   (_event(entity_id='second'), _object(ciphertext=b'b' * (half + 1))))
+    try:
+        EncryptedSyncPushRequest.model_validate(oversized)
+        raise AssertionError('expected aggregate ciphertext rejection')
+    except ValueError:
+        pass
 
 
 def test_c15_encrypted_push_upsert_delete_retry_and_immutable_conflict(cloud_client):
@@ -447,3 +516,129 @@ def test_c15_owner_isolation_future_type_pull_and_mixed_global_pagination(cloud_
     }).json()
     assert all(item['object'] != second_object for item in first_pull['items'])
     assert all(item['object'] != first_object for item in second_pull['items'])
+
+
+def test_c15_encrypted_push_manual_validation_preserves_openapi_and_safe_malformed_contract(cloud_client):
+    client, _engine = cloud_client
+    token = login(client).json()['access_token']
+    malformed = client.post('/api/v1/sync/encrypted/push', headers={
+        **_headers(token), 'Content-Type': 'application/json',
+    }, content=b'{"protocol_version":')
+    assert malformed.status_code == 422
+    assert isinstance(malformed.json()['detail'], list)
+
+    schema = client.get('/openapi.json').json()
+    request_body = schema['paths']['/api/v1/sync/encrypted/push']['post']['requestBody']
+    body_schema = request_body['content']['application/json']['schema']
+    assert request_body['required'] is True
+    assert set(body_schema['properties']) == {
+        'protocol_version', 'encrypted_sync_version', 'device_id', 'items',
+    }
+
+
+def test_c15_encrypted_push_rejects_actual_raw_body_over_limit_despite_small_content_length(cloud_client):
+    client, _engine = cloud_client
+    token = login(client).json()['access_token']
+    body = json.dumps({'protocol_version': 1}).encode() + b' ' * MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES
+    response = client.post('/api/v1/sync/encrypted/push', headers={
+        **_headers(token), 'Content-Type': 'application/json', 'Content-Length': '1',
+    }, content=body)
+    assert response.status_code == 413
+    assert response.json()['detail']['code'] == 'encrypted_sync_batch_too_large'
+
+
+def test_c15_descriptor_first_pull_blocks_oversized_object_without_skipping_cursor(cloud_client):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+
+    safe_event = _event(entity_id='safe')
+    assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token), json=_encrypted_request(
+        device, (safe_event, _object(ciphertext=b'safe encrypted object')),
+    )).status_code == 200
+    blocked_event = _event(entity_id='blocked')
+    assert client.post('/api/v1/sync/push', headers=_headers(token), json={
+        'protocol_version': 1, 'device_id': device, 'events': [blocked_event],
+    }).status_code == 200
+    with Session(engine) as session:
+        with session.begin():
+            session.add(EncryptedObject(
+                user_id=user_id, event_id=UUID(str(blocked_event['event_id'])), crypto_version=1, aad_version=1,
+                nonce=b'o' * 24, ciphertext=b'x' * (MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES + 1),
+            ))
+
+    prefix = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 0,
+    })
+    assert prefix.status_code == 200
+    assert [item['event']['entity_id'] for item in prefix.json()['items']] == ['safe']
+    assert prefix.json()['next_cursor'] == 1 and prefix.json()['has_more'] is True
+
+    blocked = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 1,
+    })
+    assert blocked.status_code == 413
+    assert blocked.json()['detail']['code'] == 'encrypted_sync_object_too_large'
+    retry = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 1,
+    })
+    assert retry.status_code == 413
+
+
+def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_ciphertext_query(cloud_client):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+    object_size = MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES // 2
+    event_ids = []
+    with Session(engine) as session:
+        with session.begin():
+            state = session.get(SyncUserState, user_id)
+            for sequence in range(1, 4):
+                event_id = uuid4()
+                event_ids.append(event_id)
+                session.add(SyncEvent(
+                    user_id=user_id, event_id=event_id, device_id=UUID(device), project_id='project-1',
+                    entity_id=f'note-{sequence}', entity_type='note', operation='upsert', revision=1,
+                    updated_at=datetime.now(timezone.utc), deleted_at=None, server_sequence=sequence,
+                ))
+                session.flush()
+                session.add(EncryptedObject(
+                    user_id=user_id, event_id=event_id, crypto_version=1, aad_version=1,
+                    nonce=bytes([sequence]) * 24, ciphertext=bytes([sequence]) * object_size,
+                ))
+            state.current_sequence = 3
+
+    statements: list[str] = []
+
+    def capture(_connection, _cursor, statement, _parameters, _context, _executemany):
+        if 'sync_events' in statement and 'encrypted_objects' in statement:
+            statements.append(statement)
+
+    from sqlalchemy import event as sqlalchemy_event
+    sqlalchemy_event.listen(engine, 'before_cursor_execute', capture)
+    try:
+        response = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+            'device_id': device, 'since': 0,
+        })
+    finally:
+        sqlalchemy_event.remove(engine, 'before_cursor_execute', capture)
+    assert response.status_code == 200
+    page = response.json()
+    assert [item['event']['server_sequence'] for item in page['items']] == [1, 2]
+    assert page['next_cursor'] == 2 and page['has_more'] is True
+    assert len(base64.urlsafe_b64decode(page['items'][0]['object']['ciphertext'] + '==')) == object_size
+    assert len(statements) == 2
+    assert 'octet_length(encrypted_objects.ciphertext)' in statements[0]
+    assert 'encrypted_objects.ciphertext AS encrypted_objects_ciphertext' not in statements[0]
+    assert 'encrypted_objects.ciphertext AS encrypted_objects_ciphertext' in statements[1]
+
+    final = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 2,
+    }).json()
+    assert [item['event']['server_sequence'] for item in final['items']] == [3]
+    assert final['next_cursor'] == 3 and final['has_more'] is False

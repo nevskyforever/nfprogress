@@ -193,13 +193,30 @@ class SyncRepository:
             SyncEvent.user_id == user_id, SyncEvent.server_sequence > since,
         ).order_by(SyncEvent.server_sequence).limit(limit + 1)).all()
 
-    def pull_encrypted(self, session: Session, user_id: object, since: int, limit: int):
-        return session.execute(select(SyncEvent, EncryptedObject).outerjoin(
+    def pull_encrypted_descriptors(self, session: Session, user_id: object, since: int, limit: int):
+        return session.execute(select(
+            SyncEvent,
+            EncryptedObject.event_id.label('object_event_id'),
+            EncryptedObject.crypto_version.label('crypto_version'),
+            EncryptedObject.aad_version.label('aad_version'),
+            EncryptedObject.nonce.label('nonce'),
+            func.octet_length(EncryptedObject.ciphertext).label('ciphertext_size'),
+        ).outerjoin(
             EncryptedObject,
             and_(EncryptedObject.user_id == SyncEvent.user_id, EncryptedObject.event_id == SyncEvent.event_id),
         ).where(
             SyncEvent.user_id == user_id, SyncEvent.server_sequence > since,
         ).order_by(SyncEvent.server_sequence).limit(limit + 1)).all()
+
+    def pull_encrypted_objects(self, session: Session, user_id: object, event_ids: list[object]):
+        if not event_ids:
+            return []
+        return session.execute(select(SyncEvent, EncryptedObject).outerjoin(
+            EncryptedObject,
+            and_(EncryptedObject.user_id == SyncEvent.user_id, EncryptedObject.event_id == SyncEvent.event_id),
+        ).where(
+            SyncEvent.user_id == user_id, SyncEvent.event_id.in_(event_ids),
+        ).order_by(SyncEvent.server_sequence)).all()
 
 
 class AuthRepository:

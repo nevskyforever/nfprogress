@@ -12,4 +12,13 @@ describe('encrypted cover API', () => {
     await expect(encryptedCoversApi.download('token', 'project', 'blob')).resolves.toMatchObject({ ciphertext: new Uint8Array(16) })
     fetchMock.mockRestore()
   })
+
+  it('rejects noncanonical nonce headers through the shared Base64URL boundary', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(new Uint8Array(16), {
+      status: 200,
+      headers: { 'X-WORTA-Crypto-Version': '1', 'X-WORTA-AAD-Version': '1', 'X-WORTA-Nonce': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' },
+    }))
+    await expect(encryptedCoversApi.download('token', 'project', 'blob')).rejects.toThrow(TypeError)
+    fetchMock.mockRestore()
+  })
 })

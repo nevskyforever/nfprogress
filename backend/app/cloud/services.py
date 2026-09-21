@@ -17,7 +17,8 @@ from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsR
                            SyncRepository, UserLimitOverridesRepository, UserRepository,
                            lock_username_namespace, normalize_email,
                            normalize_username)
-from .schemas import (ENCRYPTED_SYNC_VERSION, SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION,
+from .schemas import (ENCRYPTED_SYNC_VERSION, MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES,
+                      MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION,
                       EncryptedSyncPushItem, SyncEventEnvelope, decode_canonical_base64url)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
@@ -265,9 +266,24 @@ class SyncService:
         if item.object.crypto_version != 1 or item.object.aad_version != 1:
             raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted object version.', 422)
 
+    @classmethod
+    def _validate_encrypted_batch(cls, items: list[EncryptedSyncPushItem]) -> None:
+        total = 0
+        for item in items:
+            cls._validate_encrypted_item(item)
+            total += len(decode_canonical_base64url(
+                item.object.ciphertext, minimum_length=16,
+                maximum_length=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
+            ))
+            if total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
+                raise SyncProtocolError(
+                    'encrypted_sync_batch_too_large', 'Encrypted sync batch exceeds ciphertext size limit.', 413,
+                )
+
     def push_encrypted(self, session: Session, user_id: object, device_id: object,
                        items: list[EncryptedSyncPushItem]) -> tuple[list[SyncPushResult], int]:
         try:
+            self._validate_encrypted_batch(items)
             session.commit()
             with session.begin():
                 device = self._registered_device(session, user_id, device_id)
@@ -275,7 +291,6 @@ class SyncService:
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
                 results: list[SyncPushResult] = []
                 for item in items:
-                    self._validate_encrypted_item(item)
                     event = item.event
                     existing = self._sync.event(session, user_id, event.event_id)
                     if existing is not None:
@@ -338,9 +353,26 @@ class SyncService:
         state = self._sync.ensure_user_state(session, user_id)
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
-        rows = self._sync.pull_encrypted(session, user_id, since, limit)
-        has_more = len(rows) > limit
-        visible = rows[:limit]
+        descriptors = self._sync.pull_encrypted_descriptors(session, user_id, since, limit)
+        selected_event_ids: list[object] = []
+        ciphertext_total = 0
+        stopped_for_size = False
+        for descriptor in descriptors[:limit]:
+            ciphertext_size = descriptor.ciphertext_size if descriptor.object_event_id is not None else 0
+            if ciphertext_size is not None and ciphertext_size > MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES:
+                if not selected_event_ids:
+                    raise SyncProtocolError(
+                        'encrypted_sync_object_too_large', 'Encrypted sync object exceeds size limit.', 413,
+                    )
+                stopped_for_size = True
+                break
+            if ciphertext_size is not None and ciphertext_total + ciphertext_size > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
+                stopped_for_size = True
+                break
+            ciphertext_total += ciphertext_size or 0
+            selected_event_ids.append(descriptor[0].event_id)
+        visible = self._sync.pull_encrypted_objects(session, user_id, selected_event_ids)
+        has_more = stopped_for_size or len(descriptors) > len(selected_event_ids)
         next_cursor = visible[-1][0].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence
 

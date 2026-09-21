@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
-from .schemas import (ENCRYPTED_SYNC_VERSION, SYNC_PROTOCOL_VERSION, EncryptedSyncPullItem,
+from .schemas import (ENCRYPTED_SYNC_VERSION, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES,
+                      SYNC_PROTOCOL_VERSION, EncryptedSyncPullItem,
                       EncryptedSyncPullResponse, EncryptedSyncPushRequest,
                       EncryptedSyncPushResponse, ObjectEnvelopeDto, SyncAckRequest,
                       SyncDeviceResponse, SyncPullEvent, SyncPullResponse,
@@ -18,8 +22,52 @@ from .services import SyncProtocolError, SyncService
 router = APIRouter(prefix='/api/v1/sync', tags=['cloud sync'])
 
 
+def _inline_json_schema(model: type[EncryptedSyncPushRequest]) -> dict:
+    schema = model.model_json_schema()
+    definitions = schema.pop('$defs', {})
+
+    def resolve(value):
+        if isinstance(value, list):
+            return [resolve(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        reference = value.get('$ref')
+        if isinstance(reference, str) and reference.startswith('#/$defs/'):
+            definition = definitions[reference.removeprefix('#/$defs/')]
+            return resolve({**definition, **{key: item for key, item in value.items() if key != '$ref'}})
+        return {key: resolve(item) for key, item in value.items()}
+
+    return resolve(schema)
+
+
+_ENCRYPTED_PUSH_OPENAPI_SCHEMA = _inline_json_schema(EncryptedSyncPushRequest)
+
+
 def _error(error: SyncProtocolError) -> HTTPException:
     return HTTPException(status_code=error.status_code, detail={'code': error.code, 'message': error.message})
+
+
+def _body_too_large() -> HTTPException:
+    return HTTPException(status_code=413, detail={
+        'code': 'encrypted_sync_batch_too_large',
+        'message': 'Encrypted sync request exceeds wire size limit.',
+    })
+
+
+async def _read_encrypted_push_body(request: Request) -> bytes:
+    content_length = request.headers.get('content-length')
+    if content_length is not None:
+        try:
+            if int(content_length) > MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES:
+                raise _body_too_large()
+        except ValueError:
+            pass
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES:
+            raise _body_too_large()
+        body.extend(chunk)
+    return bytes(body)
 
 
 @router.put('/devices/{device_id}', response_model=SyncDeviceResponse)
@@ -42,14 +90,28 @@ def push(request: SyncPushRequest, current: AuthenticatedUser = Depends(get_curr
                                                     duplicate=row.duplicate) for row in results], current_cursor=cursor)
 
 
-@router.post('/encrypted/push', response_model=EncryptedSyncPushResponse)
-def encrypted_push(request: EncryptedSyncPushRequest, current: AuthenticatedUser = Depends(get_current_user),
-                   session: Session = Depends(get_cloud_session)) -> EncryptedSyncPushResponse:
-    service = SyncService()
+@router.post('/encrypted/push', response_model=EncryptedSyncPushResponse, openapi_extra={
+    'requestBody': {
+        'required': True,
+        'content': {'application/json': {'schema': _ENCRYPTED_PUSH_OPENAPI_SCHEMA}},
+    },
+})
+async def encrypted_push(http_request: Request, current: AuthenticatedUser = Depends(get_current_user),
+                         session: Session = Depends(get_cloud_session)) -> EncryptedSyncPushResponse:
+    body = await _read_encrypted_push_body(http_request)
     try:
+        request = EncryptedSyncPushRequest.model_validate_json(body)
+    except ValidationError as error:
+        raise RequestValidationError(error.errors()) from None
+
+    def push_in_worker() -> tuple[list, int]:
+        service = SyncService()
         service.require_protocol(request.protocol_version)
         service.require_encrypted_protocol(request.encrypted_sync_version)
-        results, cursor = service.push_encrypted(session, current.user.id, request.device_id, request.items)
+        return service.push_encrypted(session, current.user.id, request.device_id, request.items)
+
+    try:
+        results, cursor = await run_in_threadpool(push_in_worker)
     except SyncProtocolError as error:
         raise _error(error) from None
     return EncryptedSyncPushResponse(
