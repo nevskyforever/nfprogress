@@ -57,6 +57,9 @@ interface WirePullResponse extends Omit<EncryptedSyncPullResponse, 'items'> {
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const C9_EVENT_KEYS = [
+  'event_id', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at',
+] as const
 
 function canonicalUuid(value: string): string {
   if (typeof value !== 'string' || !UUID.test(value)) throw new TypeError('Invalid encrypted sync UUID.')
@@ -65,6 +68,21 @@ function canonicalUuid(value: string): string {
 
 function invalidEnvelope(): never {
   throw new TypeError('Invalid encrypted sync envelope.')
+}
+
+function eventToWire(event: SyncEventEnvelope): SyncEventEnvelope {
+  if (typeof event !== 'object' || event === null || Object.keys(event).length !== C9_EVENT_KEYS.length
+    || !C9_EVENT_KEYS.every(key => Object.prototype.hasOwnProperty.call(event, key))) invalidEnvelope()
+  return {
+    event_id: canonicalUuid(event.event_id),
+    project_id: event.project_id,
+    entity_id: event.entity_id,
+    entity_type: event.entity_type,
+    operation: event.operation,
+    revision: event.revision,
+    updated_at: event.updated_at,
+    deleted_at: event.deleted_at,
+  }
 }
 
 function validateObject(envelope: ObjectCryptoEnvelope): void {
@@ -117,7 +135,7 @@ function encodePushBody(request: EncryptedSyncPushRequest): string {
     encrypted_sync_version: request.encrypted_sync_version,
     device_id: canonicalUuid(request.device_id),
     items: request.items.map(item => ({
-      event: { ...item.event, event_id: canonicalUuid(item.event.event_id) },
+      event: eventToWire(item.event),
       object: objectToWire(item.object),
     })),
   })

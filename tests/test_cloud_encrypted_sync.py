@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from backend.app.cloud.models import EncryptedObject, SyncEvent, SyncUserState
+from backend.app.cloud.repositories import SyncRepository
 from backend.app.cloud.schemas import (MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES,
                                        MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
                                        MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES,
@@ -129,14 +130,46 @@ def test_c15_encrypted_schema_exact_object_and_aggregate_decoded_boundaries():
     half = MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES // 2
     exact = _encrypted_request(device_id, (_event(entity_id='first'), _object(ciphertext=b'a' * half)),
                                (_event(entity_id='second'), _object(ciphertext=b'b' * half)))
-    EncryptedSyncPushRequest.model_validate(exact)
+    exact_request = EncryptedSyncPushRequest.model_validate(exact)
+    SyncService._validate_encrypted_batch(exact_request.items)
     oversized = _encrypted_request(device_id, (_event(entity_id='first'), _object(ciphertext=b'a' * half)),
                                    (_event(entity_id='second'), _object(ciphertext=b'b' * (half + 1))))
     try:
-        EncryptedSyncPushRequest.model_validate(oversized)
+        oversized_request = EncryptedSyncPushRequest.model_validate(oversized)
+        SyncService._validate_encrypted_batch(oversized_request.items)
         raise AssertionError('expected aggregate ciphertext rejection')
-    except ValueError:
-        pass
+    except SyncProtocolError as error:
+        assert error.status_code == 413 and error.code == 'encrypted_sync_batch_too_large'
+
+
+def test_c15_encrypted_push_decoded_aggregate_boundaries_have_typed_endpoint_error(cloud_client):
+    client, engine = cloud_client
+    create_user(engine)
+    token = login(client).json()['access_token']
+    unregistered_device = str(uuid4())
+    first_size = MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES
+
+    for aggregate_size in (
+        MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES - 1,
+        MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES,
+        MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES + 1,
+    ):
+        request = _encrypted_request(
+            unregistered_device,
+            (_event(entity_id=f'first-{aggregate_size}'), _object(ciphertext=b'a' * first_size)),
+            (_event(entity_id=f'second-{aggregate_size}'), _object(ciphertext=b'b' * (aggregate_size - first_size))),
+        )
+        body = json.dumps(request, separators=(',', ':')).encode()
+        assert len(body) <= MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES
+        response = client.post('/api/v1/sync/encrypted/push', headers={
+            **_headers(token), 'Content-Type': 'application/json',
+        }, content=body)
+        if aggregate_size <= MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
+            assert response.status_code == 409
+            assert response.json()['detail']['code'] == 'sync_device_not_registered'
+        else:
+            assert response.status_code == 413
+            assert response.json()['detail']['code'] == 'encrypted_sync_batch_too_large'
 
 
 def test_c15_encrypted_push_upsert_delete_retry_and_immutable_conflict(cloud_client):
@@ -593,6 +626,77 @@ def test_c15_descriptor_first_pull_blocks_oversized_object_without_skipping_curs
         'device_id': device, 'since': 1,
     })
     assert retry.status_code == 413
+
+
+def test_c15_descriptor_pull_fails_closed_if_selected_object_disappears(cloud_client, monkeypatch):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+    event = _event(entity_id='deleted-between-queries')
+    assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token), json=_encrypted_request(
+        device, (event, _object(ciphertext=b'object present in descriptor query')),
+    )).status_code == 200
+
+    original = SyncRepository.pull_encrypted_objects
+    mutated = False
+
+    def delete_before_materialization(repository, session, owner_id, event_ids):
+        nonlocal mutated
+        assert not mutated
+        mutated = True
+        with Session(engine) as mutation_session:
+            stored = mutation_session.get(EncryptedObject, (user_id, event['event_id']))
+            assert stored is not None
+            mutation_session.delete(stored)
+            mutation_session.commit()
+        return original(repository, session, owner_id, event_ids)
+
+    monkeypatch.setattr(SyncRepository, 'pull_encrypted_objects', delete_before_materialization)
+    response = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 0,
+    })
+    assert mutated is True
+    assert response.status_code == 409
+    assert response.json()['detail']['code'] == 'encrypted_sync_pull_inconsistent'
+    assert 'next_cursor' not in response.json()
+
+
+def test_c15_descriptor_pull_fails_closed_if_selected_ciphertext_size_changes(cloud_client, monkeypatch):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+    event = _event(entity_id='replaced-between-queries')
+    original_ciphertext = b'original descriptor ciphertext'
+    assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token), json=_encrypted_request(
+        device, (event, _object(ciphertext=original_ciphertext)),
+    )).status_code == 200
+
+    original = SyncRepository.pull_encrypted_objects
+    mutated = False
+
+    def replace_before_materialization(repository, session, owner_id, event_ids):
+        nonlocal mutated
+        assert not mutated
+        mutated = True
+        with Session(engine) as mutation_session:
+            stored = mutation_session.get(EncryptedObject, (user_id, event['event_id']))
+            assert stored is not None
+            stored.ciphertext = original_ciphertext + b'-changed-size'
+            mutation_session.commit()
+        return original(repository, session, owner_id, event_ids)
+
+    monkeypatch.setattr(SyncRepository, 'pull_encrypted_objects', replace_before_materialization)
+    response = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 0,
+    })
+    assert mutated is True
+    assert response.status_code == 409
+    assert response.json()['detail']['code'] == 'encrypted_sync_pull_inconsistent'
+    assert 'next_cursor' not in response.json()
 
 
 def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_ciphertext_query(cloud_client):

@@ -211,12 +211,13 @@ class SyncRepository:
     def pull_encrypted_objects(self, session: Session, user_id: object, event_ids: list[object]):
         if not event_ids:
             return []
-        return session.execute(select(SyncEvent, EncryptedObject).outerjoin(
+        statement = select(SyncEvent, EncryptedObject).outerjoin(
             EncryptedObject,
             and_(EncryptedObject.user_id == SyncEvent.user_id, EncryptedObject.event_id == SyncEvent.event_id),
         ).where(
             SyncEvent.user_id == user_id, SyncEvent.event_id.in_(event_ids),
-        ).order_by(SyncEvent.server_sequence)).all()
+        ).order_by(SyncEvent.server_sequence).execution_options(populate_existing=True)
+        return session.execute(statement).all()
 
 
 class AuthRepository:

@@ -54,10 +54,20 @@ export class EncryptedSyncProtocolError extends Error {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const ENTITY_TYPE = /^[a-z][a-z0-9_:-]*$/
+const C9_EVENT_KEYS = [
+  'event_id', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at',
+] as const
 const encoder = new TextEncoder()
 
 function protocolError(code: EncryptedSyncProtocolErrorCode): never {
   throw new EncryptedSyncProtocolError(code)
+}
+
+function assertExactC9Event(value: SyncEventEnvelope): void {
+  if (typeof value !== 'object' || value === null || Object.keys(value).length !== C9_EVENT_KEYS.length
+    || !C9_EVENT_KEYS.every(key => Object.prototype.hasOwnProperty.call(value, key))) {
+    protocolError('invalid_sync_metadata')
+  }
 }
 
 export function normalizeSyncUuid(value: string): string {
@@ -95,7 +105,9 @@ export function normalizeC15SyncEvent(event: SyncEventEnvelope): SyncEventEnvelo
   if (typeof event !== 'object' || event === null || typeof event.project_id !== 'string' || event.project_id.length === 0
     || typeof event.entity_id !== 'string' || event.entity_id.length === 0 || typeof event.entity_type !== 'string'
     || !ENTITY_TYPE.test(event.entity_type) || !Number.isSafeInteger(event.revision) || event.revision < 1
-    || !['upsert', 'delete', 'event'].includes(event.operation)) protocolError('invalid_sync_metadata')
+    || !['upsert', 'delete', 'event'].includes(event.operation)) {
+    protocolError('invalid_sync_metadata')
+  }
   let updatedAt: string
   let deletedAt: string | null
   try {
@@ -105,7 +117,16 @@ export function normalizeC15SyncEvent(event: SyncEventEnvelope): SyncEventEnvelo
     protocolError('invalid_sync_metadata')
   }
   if ((event.operation === 'delete') !== (deletedAt !== null)) protocolError('invalid_sync_metadata')
-  return { ...event, event_id: normalizeSyncUuid(event.event_id), updated_at: updatedAt, deleted_at: deletedAt }
+  return {
+    event_id: normalizeSyncUuid(event.event_id),
+    project_id: event.project_id,
+    entity_id: event.entity_id,
+    entity_type: event.entity_type,
+    operation: event.operation,
+    revision: event.revision,
+    updated_at: updatedAt,
+    deleted_at: deletedAt,
+  }
 }
 
 function context(userId: string, event: SyncEventEnvelope): ObjectCryptoContext {
@@ -128,6 +149,7 @@ export function createNoteSyncPlaintext(
   parentEventId: string | null,
   noteInput: NoteSyncRecord | NoteSyncTombstone,
 ): { event: SyncEventEnvelope; plaintext: NoteSyncPlaintext } {
+  assertExactC9Event(eventInput)
   const event = normalizeC15SyncEvent(eventInput)
   if (event.entity_type !== 'note' || (event.operation !== 'upsert' && event.operation !== 'delete')) {
     protocolError('invalid_sync_metadata')

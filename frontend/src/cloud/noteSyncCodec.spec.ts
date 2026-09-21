@@ -70,4 +70,26 @@ describe('C15 Note plaintext codec', () => {
     const canonical = canonicalNoteSyncJson(create())
     expect(() => decodeNoteSyncPlaintext(new TextEncoder().encode(` ${canonical}`))).toThrow()
   })
+
+  it('rejects sparse arrays without changing dense canonical data', () => {
+    const emptyHole = new Array<string>(1)
+    const leadingHole = new Array<string>(2)
+    leadingHole[1] = 'x'
+    const sparseChecklist = new Array<{ id: string; text: string; checked: boolean }>(1)
+    const nestedSparse = new Array<null | string>(1)
+
+    for (const payload of [
+      create(note({ tags: emptyHole })),
+      create(note({ tags: leadingHole })),
+      create(note({ checklist: sparseChecklist })),
+      create(note({ metadata: { nested: nestedSparse } })),
+    ]) {
+      expect(() => encodeNoteSyncPlaintext(payload)).toThrowError(expect.objectContaining({
+        name: 'invalid_note_payload',
+      }))
+    }
+
+    const dense = create(note({ tags: ['', 'x'], metadata: { nested: [null, 'x'] } }))
+    expect(decodeNoteSyncPlaintext(encodeNoteSyncPlaintext(dense))).toEqual(dense)
+  })
 })

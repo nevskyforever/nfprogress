@@ -38,6 +38,10 @@ describe('C15 encrypted Note protocol', () => {
     await expect(openNoteSyncEvent(amk, 'user-1', uppercase, sealed.object)).resolves.toMatchObject({
       header: { event_id: eventId, updated_at: canonicalTime }, mutation: 'create',
     })
+    const pulled = { ...uppercase, device_id: eventId, server_sequence: 1 } as SyncEventEnvelope
+    await expect(openNoteSyncEvent(amk, 'user-1', pulled, sealed.object)).resolves.toMatchObject({
+      header: { event_id: eventId, updated_at: canonicalTime }, mutation: 'create',
+    })
   })
 
   it('enforces revision parent rules before encryption', () => {
@@ -45,6 +49,13 @@ describe('C15 encrypted Note protocol', () => {
     expect(() => createNoteSyncPlaintext(event({ revision: 2 }), null, note())).toThrowError(expect.objectContaining({ code: 'invalid_sync_metadata' }))
     expect(() => createNoteSyncPlaintext(event({ revision: 2 }), eventId, note())).toThrowError(expect.objectContaining({ code: 'invalid_sync_metadata' }))
     expect(createNoteSyncPlaintext(event({ revision: 2 }), '123e4567-e89b-42d3-a456-426614174001', note()).plaintext.mutation).toBe('update')
+  })
+
+  it('rejects runtime event extras at the sealing boundary', () => {
+    const hostile = { ...event(), content: 'C15_PROTECTED_PLAINTEXT_MARKER' } as SyncEventEnvelope
+    expect(() => createNoteSyncPlaintext(hostile, null, note())).toThrowError(expect.objectContaining({
+      code: 'invalid_sync_metadata',
+    }))
   })
 
   it('checks C11 context limits as UTF-8 bytes and defers unsynchronized dependencies', async () => {

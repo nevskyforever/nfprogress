@@ -275,16 +275,6 @@ class EncryptedSyncPushRequest(BaseModel):
     device_id: UUID
     items: list[EncryptedSyncPushItem] = Field(max_length=100)
 
-    @model_validator(mode='after')
-    def validate_ciphertext_budget(self) -> 'EncryptedSyncPushRequest':
-        total = sum(len(decode_canonical_base64url(
-            item.object.ciphertext, minimum_length=16,
-            maximum_length=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
-        )) for item in self.items)
-        if total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
-            raise ValueError('Encrypted sync batch exceeds ciphertext size limit.')
-        return self
-
 
 class EncryptedSyncPushResponse(BaseModel):
     protocol_version: int = SYNC_PROTOCOL_VERSION

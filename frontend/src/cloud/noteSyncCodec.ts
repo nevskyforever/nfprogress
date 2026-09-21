@@ -76,13 +76,23 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
   return actual.length === expected.length && actual.every((key, index) => key === expected[index])
 }
 
+function isDenseArray(value: readonly unknown[]): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) return false
+  }
+  return true
+}
+
 function canonicalJson(value: NoteSyncJson): string {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value)
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) codecError('invalid_note_payload')
     return JSON.stringify(value)
   }
-  if (Array.isArray(value)) return `[${value.map(item => canonicalJson(item)).join(',')}]`
+  if (Array.isArray(value)) {
+    if (!isDenseArray(value)) codecError('invalid_note_payload')
+    return `[${value.map(item => canonicalJson(item)).join(',')}]`
+  }
   const entries = Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key]!)}`)
   return `{${entries.join(',')}}`
 }
@@ -134,10 +144,12 @@ function validateRecord(value: unknown): asserts value is NoteSyncRecord {
   ])) codecError('invalid_note_payload')
   validateRoute(value)
   if (typeof value.title !== 'string' || typeof value.content !== 'string' || !Array.isArray(value.checklist)
+    || !isDenseArray(value.checklist)
     || !value.checklist.every(item => isObject(item) && hasExactKeys(item, ['id', 'text', 'checked'])
       && requiredString(item.id) && typeof item.text === 'string' && typeof item.checked === 'boolean')
     || typeof value.color !== 'string' || typeof value.pinned !== 'boolean' || typeof value.archived !== 'boolean'
-    || !Number.isSafeInteger(value.sort_order) || !Array.isArray(value.tags) || !value.tags.every(tag => typeof tag === 'string')
+    || !Number.isSafeInteger(value.sort_order) || !Array.isArray(value.tags) || !isDenseArray(value.tags)
+    || !value.tags.every(tag => typeof tag === 'string')
     || !requiredString(value.created_at) || !requiredString(value.updated_at) || !isObject(value.metadata)) {
     codecError('invalid_note_payload')
   }

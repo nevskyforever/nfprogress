@@ -48,6 +48,10 @@ describe('encrypted sync transport boundary', () => {
       items: [{ ...item(new Uint8Array(16)), event: { ...event, event_id: event.event_id.toUpperCase() } }],
     })
     const body = String(fetchMock.mock.calls[0]![1]?.body)
+    const wireEvent = JSON.parse(body).items[0].event
+    expect(Object.keys(wireEvent).sort()).toEqual([
+      'event_id', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at',
+    ].sort())
     expect(body).toContain('"nonce":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"')
     expect(body).toContain(`"device_id":"${event.event_id}"`)
     expect(body).toContain(`"event_id":"${event.event_id}"`)
@@ -56,6 +60,23 @@ describe('encrypted sync transport boundary', () => {
     await expect(encryptedSyncApi.pull('token', event.event_id, 0)).resolves.toMatchObject({
       items: [{ event, object: { ciphertext: new Uint8Array(16) } }],
     })
+    fetchMock.mockRestore()
+  })
+
+  it('rejects unexpected event fields before protected plaintext can reach the network', () => {
+    const protectedContent = 'C15_PROTECTED_PLAINTEXT_MARKER'
+    const protectedTitle = 'C15_PROTECTED_TITLE_MARKER'
+    const hostileEvent = { ...event, content: protectedContent, title: protectedTitle } as SyncEventEnvelope
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+    expect(() => encryptedSyncApi.push('token', {
+      protocol_version: 1,
+      encrypted_sync_version: 1,
+      device_id: event.event_id,
+      items: [{ ...item(new Uint8Array(16)), event: hostileEvent }],
+    })).toThrow(TypeError)
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain(protectedContent)
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain(protectedTitle)
     fetchMock.mockRestore()
   })
 })

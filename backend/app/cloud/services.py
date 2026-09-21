@@ -167,6 +167,38 @@ class SyncPushResult:
     duplicate: bool
 
 
+@dataclass(frozen=True, slots=True)
+class EncryptedPullDescriptor:
+    user_id: object
+    event_id: object
+    device_id: object
+    project_id: str
+    entity_id: str
+    entity_type: str
+    operation: str
+    revision: int
+    updated_at: datetime
+    deleted_at: datetime | None
+    server_sequence: int
+    object_event_id: object | None
+    crypto_version: int | None
+    aad_version: int | None
+    nonce: bytes | None
+    ciphertext_size: int | None
+
+    @classmethod
+    def from_row(cls, row) -> 'EncryptedPullDescriptor':
+        event = row[0]
+        return cls(
+            user_id=event.user_id, event_id=event.event_id, device_id=event.device_id,
+            project_id=event.project_id, entity_id=event.entity_id, entity_type=event.entity_type,
+            operation=event.operation, revision=event.revision, updated_at=event.updated_at,
+            deleted_at=event.deleted_at, server_sequence=event.server_sequence,
+            object_event_id=row.object_event_id, crypto_version=row.crypto_version,
+            aad_version=row.aad_version, nonce=row.nonce, ciphertext_size=row.ciphertext_size,
+        )
+
+
 class SyncService:
     """C9 metadata-only transport; server order is not conflict resolution."""
 
@@ -346,6 +378,45 @@ class SyncService:
         next_cursor = visible[-1].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence
 
+    @staticmethod
+    def _encrypted_pull_inconsistent() -> SyncProtocolError:
+        return SyncProtocolError(
+            'encrypted_sync_pull_inconsistent',
+            'Encrypted sync pull changed during materialization.',
+            409,
+        )
+
+    @classmethod
+    def _validate_materialized_encrypted_prefix(cls, descriptors: list[EncryptedPullDescriptor], rows) -> None:
+        if len(rows) != len(descriptors):
+            raise cls._encrypted_pull_inconsistent()
+        ciphertext_total = 0
+        for descriptor, row in zip(descriptors, rows, strict=True):
+            event, encrypted = row
+            if (event.user_id != descriptor.user_id or event.event_id != descriptor.event_id
+                    or event.device_id != descriptor.device_id or event.project_id != descriptor.project_id
+                    or event.entity_id != descriptor.entity_id or event.entity_type != descriptor.entity_type
+                    or event.operation != descriptor.operation or event.revision != descriptor.revision
+                    or event.updated_at != descriptor.updated_at or event.deleted_at != descriptor.deleted_at
+                    or event.server_sequence != descriptor.server_sequence):
+                raise cls._encrypted_pull_inconsistent()
+            expected_object = descriptor.object_event_id is not None
+            if expected_object != (encrypted is not None):
+                raise cls._encrypted_pull_inconsistent()
+            if encrypted is None:
+                continue
+            actual_size = len(encrypted.ciphertext)
+            if (encrypted.event_id != descriptor.object_event_id
+                    or encrypted.crypto_version != descriptor.crypto_version
+                    or encrypted.aad_version != descriptor.aad_version
+                    or encrypted.nonce != descriptor.nonce
+                    or actual_size != descriptor.ciphertext_size
+                    or actual_size > MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES):
+                raise cls._encrypted_pull_inconsistent()
+            ciphertext_total += actual_size
+            if ciphertext_total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
+                raise cls._encrypted_pull_inconsistent()
+
     def pull_encrypted(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
         device = self._sync.get_device(session, user_id, device_id)
         if device is None:
@@ -354,13 +425,16 @@ class SyncService:
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
         descriptors = self._sync.pull_encrypted_descriptors(session, user_id, since, limit)
-        selected_event_ids: list[object] = []
+        selected_descriptors: list[EncryptedPullDescriptor] = []
         ciphertext_total = 0
         stopped_for_size = False
-        for descriptor in descriptors[:limit]:
+        for row in descriptors[:limit]:
+            descriptor = EncryptedPullDescriptor.from_row(row)
+            if descriptor.object_event_id is not None and descriptor.ciphertext_size is None:
+                raise self._encrypted_pull_inconsistent()
             ciphertext_size = descriptor.ciphertext_size if descriptor.object_event_id is not None else 0
             if ciphertext_size is not None and ciphertext_size > MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES:
-                if not selected_event_ids:
+                if not selected_descriptors:
                     raise SyncProtocolError(
                         'encrypted_sync_object_too_large', 'Encrypted sync object exceeds size limit.', 413,
                     )
@@ -370,9 +444,11 @@ class SyncService:
                 stopped_for_size = True
                 break
             ciphertext_total += ciphertext_size or 0
-            selected_event_ids.append(descriptor[0].event_id)
+            selected_descriptors.append(descriptor)
+        selected_event_ids = [descriptor.event_id for descriptor in selected_descriptors]
         visible = self._sync.pull_encrypted_objects(session, user_id, selected_event_ids)
-        has_more = stopped_for_size or len(descriptors) > len(selected_event_ids)
+        self._validate_materialized_encrypted_prefix(selected_descriptors, visible)
+        has_more = stopped_for_size or len(descriptors) > len(selected_descriptors)
         next_cursor = visible[-1][0].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence
 
