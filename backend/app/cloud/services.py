@@ -185,6 +185,7 @@ class EncryptedPullDescriptor:
     aad_version: int | None
     nonce: bytes | None
     ciphertext_size: int | None
+    object_row_version: str | None
 
     @classmethod
     def from_row(cls, row) -> 'EncryptedPullDescriptor':
@@ -196,6 +197,7 @@ class EncryptedPullDescriptor:
             deleted_at=event.deleted_at, server_sequence=event.server_sequence,
             object_event_id=row.object_event_id, crypto_version=row.crypto_version,
             aad_version=row.aad_version, nonce=row.nonce, ciphertext_size=row.ciphertext_size,
+            object_row_version=row.object_row_version,
         )
 
 
@@ -392,7 +394,7 @@ class SyncService:
             raise cls._encrypted_pull_inconsistent()
         ciphertext_total = 0
         for descriptor, row in zip(descriptors, rows, strict=True):
-            event, encrypted = row
+            event, encrypted, object_row_version = row
             if (event.user_id != descriptor.user_id or event.event_id != descriptor.event_id
                     or event.device_id != descriptor.device_id or event.project_id != descriptor.project_id
                     or event.entity_id != descriptor.entity_id or event.entity_type != descriptor.entity_type
@@ -401,12 +403,14 @@ class SyncService:
                     or event.server_sequence != descriptor.server_sequence):
                 raise cls._encrypted_pull_inconsistent()
             expected_object = descriptor.object_event_id is not None
-            if expected_object != (encrypted is not None):
+            if (expected_object != (encrypted is not None)
+                    or expected_object != (object_row_version is not None)):
                 raise cls._encrypted_pull_inconsistent()
             if encrypted is None:
                 continue
             actual_size = len(encrypted.ciphertext)
             if (encrypted.event_id != descriptor.object_event_id
+                    or object_row_version != descriptor.object_row_version
                     or encrypted.crypto_version != descriptor.crypto_version
                     or encrypted.aad_version != descriptor.aad_version
                     or encrypted.nonce != descriptor.nonce
@@ -430,7 +434,8 @@ class SyncService:
         stopped_for_size = False
         for row in descriptors[:limit]:
             descriptor = EncryptedPullDescriptor.from_row(row)
-            if descriptor.object_event_id is not None and descriptor.ciphertext_size is None:
+            if descriptor.object_event_id is not None and (
+                    descriptor.ciphertext_size is None or descriptor.object_row_version is None):
                 raise self._encrypted_pull_inconsistent()
             ciphertext_size = descriptor.ciphertext_size if descriptor.object_event_id is not None else 0
             if ciphertext_size is not None and ciphertext_size > MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES:
@@ -446,8 +451,9 @@ class SyncService:
             ciphertext_total += ciphertext_size or 0
             selected_descriptors.append(descriptor)
         selected_event_ids = [descriptor.event_id for descriptor in selected_descriptors]
-        visible = self._sync.pull_encrypted_objects(session, user_id, selected_event_ids)
-        self._validate_materialized_encrypted_prefix(selected_descriptors, visible)
+        materialized = self._sync.pull_encrypted_objects(session, user_id, selected_event_ids)
+        self._validate_materialized_encrypted_prefix(selected_descriptors, materialized)
+        visible = [(row[0], row[1]) for row in materialized]
         has_more = stopped_for_size or len(descriptors) > len(selected_descriptors)
         next_cursor = visible[-1][0].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence

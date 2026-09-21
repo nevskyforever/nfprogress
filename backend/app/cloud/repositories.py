@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import and_, delete, func, select, text, update
+from sqlalchemy import String, and_, delete, func, literal_column, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -201,6 +201,7 @@ class SyncRepository:
             EncryptedObject.aad_version.label('aad_version'),
             EncryptedObject.nonce.label('nonce'),
             func.octet_length(EncryptedObject.ciphertext).label('ciphertext_size'),
+            literal_column('encrypted_objects.xmin::text', type_=String).label('object_row_version'),
         ).outerjoin(
             EncryptedObject,
             and_(EncryptedObject.user_id == SyncEvent.user_id, EncryptedObject.event_id == SyncEvent.event_id),
@@ -211,7 +212,11 @@ class SyncRepository:
     def pull_encrypted_objects(self, session: Session, user_id: object, event_ids: list[object]):
         if not event_ids:
             return []
-        statement = select(SyncEvent, EncryptedObject).outerjoin(
+        statement = select(
+            SyncEvent,
+            EncryptedObject,
+            literal_column('encrypted_objects.xmin::text', type_=String).label('object_row_version'),
+        ).outerjoin(
             EncryptedObject,
             and_(EncryptedObject.user_id == SyncEvent.user_id, EncryptedObject.event_id == SyncEvent.event_id),
         ).where(

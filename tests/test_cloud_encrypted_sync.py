@@ -699,6 +699,57 @@ def test_c15_descriptor_pull_fails_closed_if_selected_ciphertext_size_changes(cl
     assert 'next_cursor' not in response.json()
 
 
+def test_c15_descriptor_pull_fails_closed_if_selected_ciphertext_changes_at_same_size(cloud_client, monkeypatch):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+    event = _event(entity_id='same-size-replacement-between-queries')
+    original_ciphertext = b'original same-size ciphertext'
+    replacement_ciphertext = b'replaced same-size ciphertext'
+    assert len(original_ciphertext) == len(replacement_ciphertext)
+    assert original_ciphertext != replacement_ciphertext
+    assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token), json=_encrypted_request(
+        device, (event, _object(ciphertext=original_ciphertext)),
+    )).status_code == 200
+
+    original = SyncRepository.pull_encrypted_objects
+    mutated = False
+
+    def replace_before_materialization(repository, session, owner_id, event_ids):
+        nonlocal mutated
+        assert not mutated
+        mutated = True
+        with Session(engine) as mutation_session:
+            stored = mutation_session.get(EncryptedObject, (user_id, event['event_id']))
+            assert stored is not None
+            assert stored.nonce == b'n' * 24
+            assert stored.crypto_version == 1 and stored.aad_version == 1
+            stored.ciphertext = replacement_ciphertext
+            mutation_session.commit()
+        return original(repository, session, owner_id, event_ids)
+
+    monkeypatch.setattr(SyncRepository, 'pull_encrypted_objects', replace_before_materialization)
+    response = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 0,
+    })
+    assert mutated is True
+    assert response.status_code == 409
+    assert response.json()['detail']['code'] == 'encrypted_sync_pull_inconsistent'
+    assert 'next_cursor' not in response.json()
+
+    monkeypatch.setattr(SyncRepository, 'pull_encrypted_objects', original)
+    retry = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': device, 'since': 0,
+    })
+    assert retry.status_code == 200
+    page = retry.json()
+    assert [item['event']['event_id'] for item in page['items']] == [event['event_id']]
+    assert page['items'][0]['object']['ciphertext'] == _b64url(replacement_ciphertext)
+    assert page['next_cursor'] == 1 and page['has_more'] is False
+
+
 def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_ciphertext_query(cloud_client):
     client, engine = cloud_client
     user_id = create_user(engine)
@@ -750,12 +801,14 @@ def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_cipher
     materialized_columns, materialized_parameters = queries[1]
     ciphertext_column = EncryptedObject.__table__.c.ciphertext
     assert not any(column.shares_lineage(ciphertext_column) for column in descriptor_columns)
+    assert any(column.name == 'object_row_version' for column in descriptor_columns)
     assert any(
         getattr(getattr(column, 'element', None), 'name', None) == 'octet_length'
         and any(argument.shares_lineage(ciphertext_column) for argument in column.element.clauses)
         for column in descriptor_columns
     )
     assert any(column.shares_lineage(ciphertext_column) for column in materialized_columns)
+    assert any(column.name == 'object_row_version' for column in materialized_columns)
 
     def parameter_values(value):
         if isinstance(value, dict):
