@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import sodium from 'libsodium-wrappers-sumo'
 
 import {
@@ -10,6 +10,7 @@ import {
   asAccountMasterKey,
   asRecoveryKey,
   decryptObjectBytes,
+  deriveKek,
   deriveObjectKey,
   encodeFixedAad,
   encodeObjectAad,
@@ -130,7 +131,7 @@ describe('C12 password and Recovery wrapping contract', () => {
   it('fails closed for malformed password KDF/wrapping fields before expensive allocation', async () => {
     const amk = asAccountMasterKey(new Uint8Array(32).fill(1))
     const record = await wrapAmkWithPassphrase(amk, 'correct')
-    for (const kdf of [null, [], { ...record.kdf, salt: new Uint8Array(15) }, { ...record.kdf, opslimit: Number.NaN }, { ...record.kdf, opslimit: 1.5 }, { ...record.kdf, opslimit: 0 }, { ...record.kdf, memlimit: -1 }, { ...record.kdf, memlimit: Number.MAX_SAFE_INTEGER }]) {
+    for (const kdf of [null, [], {}, { ...record.kdf, kdf_version: undefined }, { ...record.kdf, algorithm: undefined }, { ...record.kdf, kdf_version: '1' }, { ...record.kdf, algorithm: 1 }, { ...record.kdf, salt: new Uint8Array(15) }, { ...record.kdf, opslimit: Number.NaN }, { ...record.kdf, opslimit: 1.5 }, { ...record.kdf, opslimit: 0 }, { ...record.kdf, memlimit: -1 }, { ...record.kdf, memlimit: Number.MAX_SAFE_INTEGER }]) {
       await expectCryptoError(() => unwrapAmkWithPassphrase('correct', { ...record, kdf } as never), 'invalid_format')
     }
     await expectCryptoError(() => unwrapAmkWithPassphrase('correct', { ...record, kdf: { ...record.kdf, algorithm: 'argon2i13' } } as never), 'unsupported_version')
@@ -142,6 +143,30 @@ describe('C12 password and Recovery wrapping contract', () => {
     await expectCryptoError(() => unwrapAmkWithPassphrase('correct', { ...record, ciphertext: Uint8Array.from(record.ciphertext, (byte, index) => index === 0 ? byte ^ 1 : byte) }), 'decrypt_failed')
     await expectCryptoError(() => unwrapAmkWithPassphrase('correct', { ...record, nonce: Uint8Array.from(record.nonce, (byte, index) => index === 0 ? byte ^ 1 : byte) }), 'decrypt_failed')
     await expectCryptoError(() => unwrapAmkWithPassphrase('correct', { ...record, kdf: { ...record.kdf, salt: Uint8Array.from(record.kdf.salt, (byte, index) => index === 0 ? byte ^ 1 : byte) } }), 'decrypt_failed')
+  })
+
+  it('enforces the complete runtime Argon2id minimum and maximum range before crypto_pwhash', async () => {
+    await sodium.ready
+    const kdf = { kdf_version: 1 as const, algorithm: 'argon2id13' as const, salt: new Uint8Array(16), opslimit: sodium.crypto_pwhash_OPSLIMIT_MIN, memlimit: sodium.crypto_pwhash_MEMLIMIT_MIN }
+    const pwhashSpy = vi.spyOn(sodium, 'crypto_pwhash')
+    if (sodium.crypto_pwhash_OPSLIMIT_MIN > 0) {
+      await expectCryptoError(() => deriveKek('minimum', { ...kdf, opslimit: sodium.crypto_pwhash_OPSLIMIT_MIN - 1 }), 'invalid_format')
+    }
+    await expectCryptoError(() => deriveKek('minimum', { ...kdf, memlimit: sodium.crypto_pwhash_MEMLIMIT_MIN - 1 }), 'invalid_format')
+    expect(pwhashSpy).not.toHaveBeenCalled()
+    pwhashSpy.mockRestore()
+    expect(await deriveKek('minimum', kdf)).toHaveLength(32)
+  })
+
+  it('requires exact 48-byte combined ciphertext for password and Recovery AMK wrappers', async () => {
+    const amk = await generateAccountMasterKey(); const recovery = await generateRecoveryKey()
+    const password = await wrapAmkWithPassphrase(amk, 'correct'); const recoveryRecord = await wrapAmkWithRecoveryKey(amk, recovery)
+    expect(password.ciphertext).toHaveLength(48); expect(recoveryRecord.ciphertext).toHaveLength(48)
+    expect(await unwrapAmkWithPassphrase('correct', password)).toEqual(amk); expect(await unwrapAmkWithRecoveryKey(recovery, recoveryRecord)).toEqual(amk)
+    for (const size of [47, 49]) {
+      await expectCryptoError(() => unwrapAmkWithPassphrase('correct', { ...password, ciphertext: new Uint8Array(size) }), 'invalid_format')
+      await expectCryptoError(() => unwrapAmkWithRecoveryKey(recovery, { ...recoveryRecord, ciphertext: new Uint8Array(size) }), 'invalid_format')
+    }
   })
 
   it('keeps password and Recovery wrapping domains non-interchangeable even with identical key material', async () => {

@@ -26,7 +26,7 @@ function validateNonce(value: unknown): asserts value is Uint8Array {
 }
 
 function validateCiphertext(value: unknown): asserts value is Uint8Array {
-  if (!isUint8Array(value) || value.length < KEY_BYTES + 16) throw new CryptoError('invalid_format')
+  if (!isUint8Array(value) || value.length !== KEY_BYTES + 16) throw new CryptoError('invalid_format')
 }
 
 async function validatePasswordRecord(record: PasswordWrappedAmkRecord): Promise<void> {

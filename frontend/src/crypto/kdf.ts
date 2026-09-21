@@ -17,26 +17,30 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function validateKdfRecordShape(record: unknown): asserts record is Argon2idKdfRecord {
   const candidate = record as Partial<Argon2idKdfRecord>
-  if (!isRecord(record) || candidate.kdf_version !== KDF_VERSION || candidate.algorithm !== ARGON2ID13
+  if (!isRecord(record) || typeof candidate.kdf_version !== 'number' || !Number.isSafeInteger(candidate.kdf_version) || candidate.kdf_version < 1
+    || typeof candidate.algorithm !== 'string' || candidate.algorithm.length === 0
     || !isUint8Array(candidate.salt) || candidate.salt.length !== ARGON2ID_SALT_BYTES
     || typeof candidate.opslimit !== 'number' || !Number.isSafeInteger(candidate.opslimit) || candidate.opslimit < 1
     || typeof candidate.memlimit !== 'number' || !Number.isSafeInteger(candidate.memlimit) || candidate.memlimit < 1) {
-    throw new CryptoError(isRecord(record) && (candidate.kdf_version !== KDF_VERSION || candidate.algorithm !== ARGON2ID13)
-      ? 'unsupported_version'
-      : 'invalid_format')
+    throw new CryptoError('invalid_format')
   }
+  if (candidate.kdf_version !== KDF_VERSION || candidate.algorithm !== ARGON2ID13) {
+    throw new CryptoError('unsupported_version')
+  }
+}
+
+function normalizeUnsignedWasmLimit(value: number): number {
+  return value >= 0 ? value : value >>> 0
 }
 
 async function validateKdfRecord(record: unknown): Promise<Argon2idKdfRecord> {
   validateKdfRecordShape(record)
   const sodium = await getSodium()
-  // libsodium exposes size_t maxima through the WASM bridge as signed i32 values.
-  // Normalize those exported runtime constants instead of inventing a product cap.
-  const opslimitMaximum = sodium.crypto_pwhash_OPSLIMIT_MAX >= 0
-    ? sodium.crypto_pwhash_OPSLIMIT_MAX : sodium.crypto_pwhash_OPSLIMIT_MAX >>> 0
-  const memlimitMaximum = sodium.crypto_pwhash_MEMLIMIT_MAX >= 0
-    ? sodium.crypto_pwhash_MEMLIMIT_MAX : sodium.crypto_pwhash_MEMLIMIT_MAX >>> 0
-  if (record.opslimit > opslimitMaximum || record.memlimit > memlimitMaximum) {
+  // WASM exposes size_t maxima as signed i32 values. Normalize only those limits.
+  const opslimitMaximum = normalizeUnsignedWasmLimit(sodium.crypto_pwhash_OPSLIMIT_MAX)
+  const memlimitMaximum = normalizeUnsignedWasmLimit(sodium.crypto_pwhash_MEMLIMIT_MAX)
+  if (record.opslimit < sodium.crypto_pwhash_OPSLIMIT_MIN || record.opslimit > opslimitMaximum
+    || record.memlimit < sodium.crypto_pwhash_MEMLIMIT_MIN || record.memlimit > memlimitMaximum) {
     throw new CryptoError('invalid_format')
   }
   return record
