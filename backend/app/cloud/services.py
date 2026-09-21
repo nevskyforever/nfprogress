@@ -17,7 +17,8 @@ from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsR
                            SyncRepository, UserLimitOverridesRepository, UserRepository,
                            lock_username_namespace, normalize_email,
                            normalize_username)
-from .schemas import SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION, SyncEventEnvelope
+from .schemas import (ENCRYPTED_SYNC_VERSION, SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION,
+                      EncryptedSyncPushItem, SyncEventEnvelope, decode_canonical_base64url)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -177,6 +178,11 @@ class SyncService:
         if version != SYNC_PROTOCOL_VERSION:
             raise SyncProtocolError('sync_protocol_version_unsupported', 'Unsupported sync protocol version.', 422)
 
+    @staticmethod
+    def require_encrypted_protocol(version: int) -> None:
+        if version != ENCRYPTED_SYNC_VERSION:
+            raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted sync version.', 422)
+
     def register_device(self, session: Session, user_id: object, device_id: object):
         try:
             session.commit()
@@ -245,6 +251,73 @@ class SyncService:
             session.rollback()
             raise
 
+    @staticmethod
+    def _same_encrypted_object(row, item: EncryptedSyncPushItem) -> bool:
+        envelope = item.object
+        return (row.crypto_version == envelope.crypto_version and row.aad_version == envelope.aad_version
+                and row.nonce == decode_canonical_base64url(envelope.nonce, expected_length=24)
+                and row.ciphertext == decode_canonical_base64url(envelope.ciphertext, minimum_length=16))
+
+    @staticmethod
+    def _validate_encrypted_item(item: EncryptedSyncPushItem) -> None:
+        if item.event.entity_type != 'note' or item.event.operation not in ('upsert', 'delete'):
+            raise SyncProtocolError('encrypted_sync_event_unsupported', 'Unsupported encrypted sync event.', 422)
+        if item.object.crypto_version != 1 or item.object.aad_version != 1:
+            raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted object version.', 422)
+
+    def push_encrypted(self, session: Session, user_id: object, device_id: object,
+                       items: list[EncryptedSyncPushItem]) -> tuple[list[SyncPushResult], int]:
+        try:
+            session.commit()
+            with session.begin():
+                device = self._registered_device(session, user_id, device_id)
+                device.last_seen_at = utc_now()
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                results: list[SyncPushResult] = []
+                for item in items:
+                    self._validate_encrypted_item(item)
+                    event = item.event
+                    existing = self._sync.event(session, user_id, event.event_id)
+                    if existing is not None:
+                        if not self._same_event(existing, event, device_id):
+                            raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different metadata.')
+                        object_row = self._sync.encrypted_object(session, user_id, event.event_id)
+                        if object_row is None:
+                            raise SyncProtocolError('encrypted_sync_event_incomplete', 'Historical sync event has no encrypted object.')
+                        if not self._same_encrypted_object(object_row, item):
+                            raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different encrypted object.')
+                        results.append(SyncPushResult(event.event_id, existing.server_sequence, True))
+                        continue
+                    if self._projects.get(session, user_id, event.project_id) is None:
+                        raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
+                    if state.current_sequence >= SYNC_MAX_WIRE_INTEGER:
+                        raise SyncProtocolError('sync_sequence_exhausted', 'Sync sequence limit reached.', 409)
+                    state.current_sequence += 1
+                    row = self._sync.add_event(
+                        session, user_id=user_id, event_id=event.event_id, device_id=device_id,
+                        project_id=event.project_id, entity_id=event.entity_id,
+                        entity_type=event.entity_type, operation=event.operation,
+                        revision=event.revision, updated_at=event.updated_at,
+                        deleted_at=event.deleted_at, server_sequence=state.current_sequence,
+                    )
+                    # C13's composite FK is intentionally schema-only: the
+                    # ORM models have no relationship that would order these
+                    # inserts for us.  Flush the metadata event first, while
+                    # keeping both inserts in this one transaction.
+                    session.flush()
+                    self._sync.add_encrypted_object(
+                        session, user_id=user_id, event_id=event.event_id,
+                        crypto_version=item.object.crypto_version, aad_version=item.object.aad_version,
+                        nonce=decode_canonical_base64url(item.object.nonce, expected_length=24),
+                        ciphertext=decode_canonical_base64url(item.object.ciphertext, minimum_length=16),
+                    )
+                    session.flush()
+                    results.append(SyncPushResult(event.event_id, row.server_sequence, False))
+                return results, state.current_sequence
+        except Exception:
+            session.rollback()
+            raise
+
     def pull(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
         device = self._sync.get_device(session, user_id, device_id)
         if device is None:
@@ -256,6 +329,19 @@ class SyncService:
         has_more = len(events) > limit
         visible = events[:limit]
         next_cursor = visible[-1].server_sequence if visible else since
+        return visible, next_cursor, has_more, state.current_sequence
+
+    def pull_encrypted(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
+        device = self._sync.get_device(session, user_id, device_id)
+        if device is None:
+            raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
+        state = self._sync.ensure_user_state(session, user_id)
+        if since > state.current_sequence:
+            raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
+        rows = self._sync.pull_encrypted(session, user_id, since, limit)
+        has_more = len(rows) > limit
+        visible = rows[:limit]
+        next_cursor = visible[-1][0].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence
 
     def ack(self, session: Session, user_id: object, device_id: object, cursor: int) -> int:

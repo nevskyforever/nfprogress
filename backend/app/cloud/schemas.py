@@ -33,6 +33,11 @@ def decode_canonical_base64url(value: str, *, expected_length: int | None = None
     return decoded
 
 
+def encode_canonical_base64url(value: bytes) -> str:
+    """Encode binary fields as canonical, unpadded Base64URL."""
+    return base64.urlsafe_b64encode(value).decode('ascii').rstrip('=')
+
+
 def _validate_binary(*, expected_length: int | None = None,
                      minimum_length: int | None = None):
     def validator(value: str) -> str:
@@ -177,6 +182,7 @@ class ObjectEnvelopeDto(BaseModel):
 
 
 SYNC_PROTOCOL_VERSION = 1
+ENCRYPTED_SYNC_VERSION = 1
 SYNC_MAX_WIRE_INTEGER = 9_007_199_254_740_991  # JavaScript Number.MAX_SAFE_INTEGER
 
 
@@ -244,6 +250,40 @@ class SyncAckRequest(BaseModel):
     protocol_version: int
     device_id: UUID
     cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class EncryptedSyncPushItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event: SyncEventEnvelope
+    object: ObjectEnvelopeDto
+
+
+class EncryptedSyncPushRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: int
+    encrypted_sync_version: int
+    device_id: UUID
+    items: list[EncryptedSyncPushItem] = Field(max_length=100)
+
+
+class EncryptedSyncPushResponse(BaseModel):
+    protocol_version: int = SYNC_PROTOCOL_VERSION
+    encrypted_sync_version: int = ENCRYPTED_SYNC_VERSION
+    results: list[SyncPushResult]
+    current_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class EncryptedSyncPullItem(BaseModel):
+    event: SyncPullEvent
+    object: ObjectEnvelopeDto | None
+
+
+class EncryptedSyncPullResponse(BaseModel):
+    protocol_version: int = SYNC_PROTOCOL_VERSION
+    encrypted_sync_version: int = ENCRYPTED_SYNC_VERSION
+    items: list[EncryptedSyncPullItem]
+    next_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+    has_more: bool
 
 
 class AdminUserResponse(BaseModel):

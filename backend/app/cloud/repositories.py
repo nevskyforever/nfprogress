@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from sqlalchemy import delete, func, select, text, update
+from sqlalchemy import and_, delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .models import (AuthRefreshToken, AuthSession, CloudProject, EncryptedBlob, GlobalLimits,
+from .models import (AuthRefreshToken, AuthSession, CloudProject, EncryptedBlob, EncryptedObject, GlobalLimits,
                      RegistrationSettings, ReservedUsername, User,
                      UserLimitOverrides, SyncDevice, SyncEvent, SyncUserState)
 
@@ -180,8 +180,24 @@ class SyncRepository:
         session.add(row)
         return row
 
+    def encrypted_object(self, session: Session, user_id: object, event_id: object) -> EncryptedObject | None:
+        return session.get(EncryptedObject, (user_id, event_id))
+
+    def add_encrypted_object(self, session: Session, **values: object) -> EncryptedObject:
+        row = EncryptedObject(**values)
+        session.add(row)
+        return row
+
     def pull(self, session: Session, user_id: object, since: int, limit: int) -> list[SyncEvent]:
         return session.scalars(select(SyncEvent).where(
+            SyncEvent.user_id == user_id, SyncEvent.server_sequence > since,
+        ).order_by(SyncEvent.server_sequence).limit(limit + 1)).all()
+
+    def pull_encrypted(self, session: Session, user_id: object, since: int, limit: int):
+        return session.execute(select(SyncEvent, EncryptedObject).outerjoin(
+            EncryptedObject,
+            and_(EncryptedObject.user_id == SyncEvent.user_id, EncryptedObject.event_id == SyncEvent.event_id),
+        ).where(
             SyncEvent.user_id == user_id, SyncEvent.server_sequence > since,
         ).order_by(SyncEvent.server_sequence).limit(limit + 1)).all()
 
