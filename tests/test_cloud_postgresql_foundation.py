@@ -142,6 +142,8 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS encrypted_objects CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS user_crypto CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS sync_events CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS sync_devices CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS sync_user_state CASCADE'))
@@ -168,13 +170,15 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
                 'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
                 'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
                 'global_limits', 'user_limit_overrides', 'reserved_usernames', 'cloud_projects',
-                'sync_user_state', 'sync_devices', 'sync_events',
+                'sync_user_state', 'sync_devices', 'sync_events', 'user_crypto', 'encrypted_objects',
             }
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == (
-                'c9_sync_protocol'
+                'c13_encrypted_cloud_schema'
             )
     finally:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS encrypted_objects CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS user_crypto CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS sync_events CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS sync_devices CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS sync_user_state CASCADE'))
@@ -202,7 +206,7 @@ def test_alembic_c8_c9_roundtrip_preserves_prior_cloud_data(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
-            for table in ('sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
+            for table in ('encrypted_objects', 'user_crypto', 'sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
                           'reserved_usernames', 'user_limit_overrides', 'global_limits',
                           'registration_settings', 'password_reset_tokens',
                           'email_verification_tokens', 'auth_refresh_tokens', 'auth_sessions',
@@ -233,7 +237,7 @@ def test_alembic_c8_c9_roundtrip_preserves_prior_cloud_data(monkeypatch):
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c9_sync_protocol'
     finally:
         with migration_engine.begin() as connection:
-            for table in ('sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
+            for table in ('encrypted_objects', 'user_crypto', 'sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
                           'reserved_usernames', 'user_limit_overrides', 'global_limits',
                           'registration_settings', 'password_reset_tokens',
                           'email_verification_tokens', 'auth_refresh_tokens', 'auth_sessions',

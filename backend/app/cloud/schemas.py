@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import re
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -8,6 +10,35 @@ from email_validator import EmailNotValidError, validate_email
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .passwords import MAX_PASSWORD_LENGTH
+
+
+_BASE64URL_RE = re.compile(r'^[A-Za-z0-9_-]*$')
+
+
+def decode_canonical_base64url(value: str, *, expected_length: int | None = None,
+                               minimum_length: int | None = None) -> bytes:
+    """Decode only canonical, unpadded Base64URL binary wire values."""
+    if not isinstance(value, str) or not _BASE64URL_RE.fullmatch(value) or len(value) % 4 == 1:
+        raise ValueError('Invalid binary encoding.')
+    try:
+        decoded = base64.urlsafe_b64decode(value + '=' * (-len(value) % 4))
+    except (ValueError, UnicodeEncodeError) as error:
+        raise ValueError('Invalid binary encoding.') from error
+    if base64.urlsafe_b64encode(decoded).decode('ascii').rstrip('=') != value:
+        raise ValueError('Invalid binary encoding.')
+    if expected_length is not None and len(decoded) != expected_length:
+        raise ValueError('Invalid binary encoding.')
+    if minimum_length is not None and len(decoded) < minimum_length:
+        raise ValueError('Invalid binary encoding.')
+    return decoded
+
+
+def _validate_binary(*, expected_length: int | None = None,
+                     minimum_length: int | None = None):
+    def validator(value: str) -> str:
+        decode_canonical_base64url(value, expected_length=expected_length, minimum_length=minimum_length)
+        return value
+    return validator
 
 
 class LoginRequest(BaseModel):
@@ -90,6 +121,59 @@ class CloudProjectsResponse(BaseModel):
     cloud_project_ids: list[str]
     cloud_project_count: int
     max_cloud_projects: int
+
+
+class PasswordKdfDto(BaseModel):
+    """C11 password-KDF public metadata, with binary values encoded as Base64URL."""
+
+    model_config = ConfigDict(extra='forbid')
+    kdf_version: int = Field(ge=1)
+    algorithm: Literal['argon2id13']
+    salt: str
+    opslimit: int = Field(ge=1)
+    memlimit: int = Field(ge=1)
+
+    _salt = field_validator('salt')(_validate_binary(expected_length=16))
+
+
+class PasswordWrappedAmkDto(BaseModel):
+    """Future API DTO only; it contains no passphrase or plaintext key material."""
+
+    model_config = ConfigDict(extra='forbid')
+    crypto_version: int = Field(ge=1)
+    wrapping_version: int = Field(ge=1)
+    kdf: PasswordKdfDto
+    nonce: str
+    ciphertext: str
+
+    _nonce = field_validator('nonce')(_validate_binary(expected_length=24))
+    _ciphertext = field_validator('ciphertext')(_validate_binary(expected_length=48))
+
+
+class RecoveryWrappedAmkDto(BaseModel):
+    """Future API DTO only; the Recovery Key itself is never represented."""
+
+    model_config = ConfigDict(extra='forbid')
+    crypto_version: int = Field(ge=1)
+    wrapping_version: int = Field(ge=1)
+    nonce: str
+    ciphertext: str
+
+    _nonce = field_validator('nonce')(_validate_binary(expected_length=24))
+    _ciphertext = field_validator('ciphertext')(_validate_binary(expected_length=48))
+
+
+class ObjectEnvelopeDto(BaseModel):
+    """Future API DTO for opaque client ciphertext; this server does not decrypt."""
+
+    model_config = ConfigDict(extra='forbid')
+    crypto_version: int = Field(ge=1)
+    aad_version: int = Field(ge=1)
+    nonce: str
+    ciphertext: str
+
+    _nonce = field_validator('nonce')(_validate_binary(expected_length=24))
+    _ciphertext = field_validator('ciphertext')(_validate_binary(minimum_length=16))
 
 
 SYNC_PROTOCOL_VERSION = 1

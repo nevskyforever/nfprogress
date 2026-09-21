@@ -3,7 +3,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BIGINT, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint, text
+from sqlalchemy import (BIGINT, Boolean, CheckConstraint, DateTime, ForeignKey,
+                        ForeignKeyConstraint, Integer, LargeBinary, String,
+                        UniqueConstraint, text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -167,6 +169,69 @@ class SyncEvent(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     server_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False)
     accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
+
+
+class UserCrypto(Base):
+    """Wrapped client key material and public crypto metadata; the server never decrypts it."""
+
+    __tablename__ = 'user_crypto'
+    __table_args__ = (
+        CheckConstraint('password_crypto_version >= 1', name='ck_user_crypto_password_crypto_version_positive'),
+        CheckConstraint('password_wrapping_version >= 1', name='ck_user_crypto_password_wrapping_version_positive'),
+        CheckConstraint('kdf_version >= 1', name='ck_user_crypto_kdf_version_positive'),
+        CheckConstraint('kdf_opslimit >= 1', name='ck_user_crypto_kdf_opslimit_positive'),
+        CheckConstraint('kdf_memlimit >= 1', name='ck_user_crypto_kdf_memlimit_positive'),
+        CheckConstraint('octet_length(kdf_salt) = 16', name='ck_user_crypto_kdf_salt_length'),
+        CheckConstraint('octet_length(password_nonce) = 24', name='ck_user_crypto_password_nonce_length'),
+        CheckConstraint('octet_length(password_wrapped_amk) = 48', name='ck_user_crypto_password_wrapped_amk_length'),
+        CheckConstraint(
+            "(recovery_crypto_version IS NULL AND recovery_wrapping_version IS NULL AND recovery_nonce IS NULL AND recovery_wrapped_amk IS NULL) OR "
+            "(recovery_crypto_version IS NOT NULL AND recovery_wrapping_version IS NOT NULL AND recovery_nonce IS NOT NULL AND recovery_wrapped_amk IS NOT NULL)",
+            name='ck_user_crypto_recovery_all_or_none',
+        ),
+        CheckConstraint('recovery_crypto_version IS NULL OR recovery_crypto_version >= 1', name='ck_user_crypto_recovery_crypto_version_positive'),
+        CheckConstraint('recovery_wrapping_version IS NULL OR recovery_wrapping_version >= 1', name='ck_user_crypto_recovery_wrapping_version_positive'),
+        CheckConstraint('recovery_nonce IS NULL OR octet_length(recovery_nonce) = 24', name='ck_user_crypto_recovery_nonce_length'),
+        CheckConstraint('recovery_wrapped_amk IS NULL OR octet_length(recovery_wrapped_amk) = 48', name='ck_user_crypto_recovery_wrapped_amk_length'),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    password_crypto_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    password_wrapping_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    kdf_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    kdf_algorithm: Mapped[str] = mapped_column(String(32), nullable=False)
+    kdf_salt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    kdf_opslimit: Mapped[int] = mapped_column(BIGINT, nullable=False)
+    kdf_memlimit: Mapped[int] = mapped_column(BIGINT, nullable=False)
+    password_nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    password_wrapped_amk: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    recovery_crypto_version: Mapped[int | None] = mapped_column(Integer)
+    recovery_wrapping_version: Mapped[int | None] = mapped_column(Integer)
+    recovery_nonce: Mapped[bytes | None] = mapped_column(LargeBinary)
+    recovery_wrapped_amk: Mapped[bytes | None] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW, onupdate=UTC_NOW)
+
+
+class EncryptedObject(Base):
+    """An immutable opaque client ciphertext version; the server never decrypts it."""
+
+    __tablename__ = 'encrypted_objects'
+    __table_args__ = (
+        CheckConstraint('crypto_version >= 1', name='ck_encrypted_objects_crypto_version_positive'),
+        CheckConstraint('aad_version >= 1', name='ck_encrypted_objects_aad_version_positive'),
+        CheckConstraint('octet_length(nonce) = 24', name='ck_encrypted_objects_nonce_length'),
+        CheckConstraint('octet_length(ciphertext) >= 16', name='ck_encrypted_objects_ciphertext_min_length'),
+        ForeignKeyConstraint(['user_id', 'event_id'], ['sync_events.user_id', 'sync_events.event_id'], ondelete='CASCADE'),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    crypto_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    aad_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
 
 
 class AuthSession(Base):

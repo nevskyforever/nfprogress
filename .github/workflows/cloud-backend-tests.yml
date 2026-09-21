@@ -102,6 +102,7 @@ jobs:
             tests/test_cloud_admin.py \
             tests/test_cloud_projects.py \
             tests/test_cloud_sync.py \
+            tests/test_cloud_encrypted_schema.py \
             tests/test_c9_sqlite_sync.py \
             tests/test_api.py
 
