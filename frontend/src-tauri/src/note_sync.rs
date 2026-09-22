@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 
 const MAX_SYNC_INTEGER: i64 = 9_007_199_254_740_991;
 const MAX_UNSEALED_INTENT_LIST_LIMIT: u32 = 200;
+const MAX_SEALED_OUTBOX_LIST_LIMIT: u32 = 200;
 const MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES: usize = 8_388_624;
+const MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES: usize = 16_777_216;
+const MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES: usize = 33_554_432;
 const SUPPORTED_CRYPTO_VERSION: i64 = 1;
 const SUPPORTED_AAD_VERSION: i64 = 1;
 
@@ -26,6 +29,7 @@ pub(crate) enum NoteSyncError {
     SealAttemptOverflow,
     ConflictingHeads,
     InvalidListLimit,
+    InvalidOutboxRead(&'static str),
     InvalidEnvelope(&'static str),
     InvalidSealState(&'static str),
     MissingEvent,
@@ -54,6 +58,12 @@ impl std::fmt::Display for NoteSyncError {
             Self::SealAttemptOverflow => write!(formatter, "Note sync seal attempt overflow"),
             Self::ConflictingHeads => write!(formatter, "Note sync entity has conflicting heads"),
             Self::InvalidListLimit => write!(formatter, "Invalid Note sync intent list limit"),
+            Self::InvalidOutboxRead(message) => {
+                write!(
+                    formatter,
+                    "Invalid sealed Note sync outbox state: {message}"
+                )
+            }
             Self::InvalidEnvelope(message) => {
                 write!(formatter, "Invalid encrypted Note sync envelope: {message}")
             }
@@ -96,6 +106,7 @@ impl NoteSyncError {
             Self::Database(_)
             | Self::InvalidSnapshot(_)
             | Self::InvalidListLimit
+            | Self::InvalidOutboxRead(_)
             | Self::InvalidEnvelope(_)
             | Self::InvalidSealState(_)
             | Self::MissingEvent
@@ -224,6 +235,26 @@ pub(crate) struct UnsealedNoteSyncIntent {
     pub seal_attempt_count: i64,
     pub last_error_code: Option<String>,
     pub next_attempt_at: Option<String>,
+}
+
+/// Read-only transport input assembled from one sealed outbox event and its
+/// already-persisted encrypted object. This deliberately contains no intent
+/// snapshot or key material.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct SealedNoteSyncOutboxItem {
+    pub event_id: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub project_id: String,
+    pub entity_id: String,
+    pub entity_type: String,
+    pub operation: NoteSyncOperation,
+    pub revision: i64,
+    pub parent_event_id: Option<String>,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+    pub local_ordinal: i64,
+    pub envelope: EncryptedNoteSyncEnvelope,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -1022,6 +1053,190 @@ pub(crate) fn list_unsealed_note_sync_intents(
     Ok(intents)
 }
 
+/// Lists one account's sealed Note events in a deterministic dependency-safe
+/// order without changing outbox lifecycle, attempts, or plaintext sidecars.
+/// The ciphertext batch cap is applied before the DTOs leave SQLite.
+pub(crate) fn list_sealed_note_sync_outbox(
+    connection: &mut Connection,
+    account_id: &str,
+    limit: u32,
+) -> Result<Vec<SealedNoteSyncOutboxItem>, NoteSyncError> {
+    if account_id.is_empty() || account_id.len() > 512 {
+        return Err(NoteSyncError::InvalidOutboxRead("invalid account scope"));
+    }
+    if !(1..=MAX_SEALED_OUTBOX_LIST_LIMIT).contains(&limit) {
+        return Err(NoteSyncError::InvalidListLimit);
+    }
+
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    let rows = {
+        let mut statement = transaction.prepare(
+            "SELECT event.event_id,event.account_id,event.device_id,event.project_id,
+                event.entity_id,event.entity_type,event.operation,event.revision,
+                event.parent_event_id,event.updated_at,event.deleted_at,event.local_ordinal,
+                object.crypto_version,object.aad_version,object.nonce,object.ciphertext,
+                (SELECT count(*) FROM cloud_sync_event_objects AS duplicate
+                 WHERE duplicate.event_id=event.event_id),
+                (SELECT count(*) FROM cloud_sync_note_intents AS intent
+                 WHERE intent.event_id=event.event_id),
+                parent.account_id,parent.project_id,parent.entity_id,parent.entity_type,
+                parent.revision,parent.lifecycle
+             FROM cloud_sync_outbox AS event
+             LEFT JOIN cloud_sync_event_objects AS object
+               ON object.account_id=event.account_id AND object.event_id=event.event_id
+             LEFT JOIN cloud_sync_outbox AS parent ON parent.event_id=event.parent_event_id
+             WHERE event.account_id=?1 AND event.entity_type='note' AND event.lifecycle='sealed'
+             ORDER BY event.revision,event.device_id,event.local_ordinal,event.event_id
+             LIMIT ?2",
+        )?;
+        let rows = statement
+            .query_map(rusqlite::params![account_id, i64::from(limit)], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, i64>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, Option<String>>(10)?,
+                    row.get::<_, i64>(11)?,
+                    row.get::<_, Option<i64>>(12)?,
+                    row.get::<_, Option<i64>>(13)?,
+                    row.get::<_, Option<Vec<u8>>>(14)?,
+                    row.get::<_, Option<Vec<u8>>>(15)?,
+                    row.get::<_, i64>(16)?,
+                    row.get::<_, i64>(17)?,
+                    row.get::<_, Option<String>>(18)?,
+                    row.get::<_, Option<String>>(19)?,
+                    row.get::<_, Option<String>>(20)?,
+                    row.get::<_, Option<String>>(21)?,
+                    row.get::<_, Option<i64>>(22)?,
+                    row.get::<_, Option<String>>(23)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+
+    let mut items = Vec::with_capacity(rows.len());
+    let mut ciphertext_total = 0_usize;
+    for row in rows {
+        let (
+            event_id,
+            stored_account_id,
+            device_id,
+            project_id,
+            entity_id,
+            entity_type,
+            operation,
+            revision,
+            parent_event_id,
+            updated_at,
+            deleted_at,
+            local_ordinal,
+            crypto_version,
+            aad_version,
+            nonce,
+            ciphertext,
+            object_count,
+            sidecar_count,
+            parent_account_id,
+            parent_project_id,
+            parent_entity_id,
+            parent_entity_type,
+            parent_revision,
+            parent_lifecycle,
+        ) = row;
+        if sidecar_count != 0 || object_count != 1 {
+            return Err(NoteSyncError::InvalidOutboxRead(
+                "sealed event/object relation is inconsistent",
+            ));
+        }
+        let (crypto_version, aad_version, nonce, ciphertext) =
+            match (crypto_version, aad_version, nonce, ciphertext) {
+                (Some(crypto_version), Some(aad_version), Some(nonce), Some(ciphertext)) => {
+                    (crypto_version, aad_version, nonce, ciphertext)
+                }
+                _ => return Err(NoteSyncError::SealedObjectMissing),
+            };
+        if crypto_version != SUPPORTED_CRYPTO_VERSION
+            || aad_version != SUPPORTED_AAD_VERSION
+            || nonce.len() != 24
+            || !(16..=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES).contains(&ciphertext.len())
+        {
+            return Err(NoteSyncError::InvalidOutboxRead(
+                "sealed encrypted object is invalid",
+            ));
+        }
+        match (revision, parent_event_id.as_deref()) {
+            (1, None) => {}
+            (1, Some(_)) | (_, None) => {
+                return Err(NoteSyncError::InvalidOutboxRead(
+                    "invalid revision dependency",
+                ))
+            }
+            (_, Some(_)) => {
+                if parent_account_id.as_deref() != Some(account_id)
+                    || parent_project_id.as_deref() != Some(project_id.as_str())
+                    || parent_entity_id.as_deref() != Some(entity_id.as_str())
+                    || parent_entity_type.as_deref() != Some("note")
+                    || parent_revision != Some(revision - 1)
+                    || !matches!(
+                        parent_lifecycle.as_deref(),
+                        Some("sealed") | Some("accepted")
+                    )
+                {
+                    return Err(NoteSyncError::InvalidOutboxRead(
+                        "parent dependency is unavailable",
+                    ));
+                }
+            }
+        }
+        let next_total = ciphertext_total.checked_add(ciphertext.len()).ok_or(
+            NoteSyncError::InvalidOutboxRead("ciphertext batch size overflow"),
+        )?;
+        if next_total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES {
+            break;
+        }
+        ciphertext_total = next_total;
+        items.push(SealedNoteSyncOutboxItem {
+            event_id,
+            account_id: stored_account_id,
+            device_id,
+            project_id,
+            entity_id,
+            entity_type,
+            operation: NoteSyncOperation::from_stored(&operation)?,
+            revision,
+            parent_event_id,
+            updated_at,
+            deleted_at,
+            local_ordinal,
+            envelope: EncryptedNoteSyncEnvelope {
+                crypto_version,
+                aad_version,
+                nonce: encode_canonical_base64url(&nonce),
+                ciphertext: encode_canonical_base64url(&ciphertext),
+            },
+        });
+    }
+    if serde_json::to_vec(&items)
+        .map_err(|_| NoteSyncError::InvalidOutboxRead("could not encode outbox DTO"))?
+        .len()
+        > MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES
+    {
+        return Err(NoteSyncError::InvalidOutboxRead(
+            "outbox DTO exceeds wire body limit",
+        ));
+    }
+    transaction.commit()?;
+    Ok(items)
+}
+
 pub(crate) fn record_note_sync_seal_failure(
     connection: &mut Connection,
     command: &RecordNoteSyncSealFailureCommand,
@@ -1399,6 +1614,34 @@ fn base64url_encoded_length(byte_length: usize) -> Option<usize> {
         })
 }
 
+fn encode_canonical_base64url(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    let mut encoded = String::with_capacity(base64url_encoded_length(bytes.len()).unwrap_or(0));
+    let complete_length = bytes.len() / 3 * 3;
+    for chunk in bytes[..complete_length].chunks_exact(3) {
+        encoded.push(ALPHABET[(chunk[0] >> 2) as usize] as char);
+        encoded.push(ALPHABET[(((chunk[0] & 0x03) << 4) | (chunk[1] >> 4)) as usize] as char);
+        encoded.push(ALPHABET[(((chunk[1] & 0x0f) << 2) | (chunk[2] >> 6)) as usize] as char);
+        encoded.push(ALPHABET[(chunk[2] & 0x3f) as usize] as char);
+    }
+    match bytes.len() - complete_length {
+        1 => {
+            encoded.push(ALPHABET[(bytes[complete_length] >> 2) as usize] as char);
+            encoded.push(ALPHABET[((bytes[complete_length] & 0x03) << 4) as usize] as char);
+        }
+        2 => {
+            encoded.push(ALPHABET[(bytes[complete_length] >> 2) as usize] as char);
+            encoded.push(
+                ALPHABET[(((bytes[complete_length] & 0x03) << 4)
+                    | (bytes[complete_length + 1] >> 4)) as usize] as char,
+            );
+            encoded.push(ALPHABET[((bytes[complete_length + 1] & 0x0f) << 2) as usize] as char);
+        }
+        _ => {}
+    }
+    encoded
+}
+
 fn base64url_value(value: u8) -> Result<u8, NoteSyncError> {
     match value {
         b'A'..=b'Z' => Ok(value - b'A'),
@@ -1569,6 +1812,24 @@ mod tests {
             expected_mutation_generation: mutation_generation,
             error_code,
         }
+    }
+
+    fn seal_persisted_intent(
+        connection: &mut Connection,
+        note_id: &str,
+        content: &str,
+        fill: u8,
+    ) -> PreparedNoteIntent {
+        let (intent, _) = persist_note_intent(connection, note_id, content);
+        assert_eq!(
+            commit_sealed_note_sync_event(
+                connection,
+                &seal_command(&intent.event_id, intent.mutation_generation, envelope(fill)),
+            )
+            .unwrap(),
+            CommitSealedNoteSyncEventResult::Sealed
+        );
+        intent
     }
 
     fn temporary_database_path(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
@@ -1944,6 +2205,28 @@ mod tests {
                     },
                 },
             },
+            "list_sealed_note_sync_outbox": [
+                SealedNoteSyncOutboxItem {
+                    event_id: "123e4567-e89b-42d3-a456-426614174004".to_string(),
+                    account_id: "account-1".to_string(),
+                    device_id: "123e4567-e89b-42d3-a456-426614174001".to_string(),
+                    project_id: "deleted-project".to_string(),
+                    entity_id: "note-3".to_string(),
+                    entity_type: "note".to_string(),
+                    operation: NoteSyncOperation::Delete,
+                    revision: 2,
+                    parent_event_id: Some("123e4567-e89b-42d3-a456-426614174003".to_string()),
+                    updated_at: "2026-09-22T00:00:02.000000Z".to_string(),
+                    deleted_at: Some("2026-09-22T00:00:02.000000Z".to_string()),
+                    local_ordinal: 3,
+                    envelope: EncryptedNoteSyncEnvelope {
+                        crypto_version: SUPPORTED_CRYPTO_VERSION,
+                        aad_version: SUPPORTED_AAD_VERSION,
+                        nonce: encode_base64url(&[0; 24]),
+                        ciphertext: encode_base64url(&[0; 16]),
+                    },
+                }
+            ],
             "operation_values": [NoteSyncOperation::Upsert, NoteSyncOperation::Delete],
             "seal_state_values": [
                 NoteSyncSealState::Pending,
@@ -1977,6 +2260,185 @@ mod tests {
         });
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn sealed_outbox_is_bounded_deterministic_and_read_only() {
+        let mut connection = database();
+        assert!(list_sealed_note_sync_outbox(&mut connection, "account", 2)
+            .unwrap()
+            .is_empty());
+        let first = seal_persisted_intent(&mut connection, "z-note", "first", 1);
+        let second = seal_persisted_intent(&mut connection, "a-note", "second", 2);
+        let lifecycle_before: Vec<(String, i64, i64)> = connection.prepare(
+            "SELECT lifecycle,attempt_count,local_ordinal FROM cloud_sync_outbox ORDER BY event_id"
+        ).unwrap().query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
+            .unwrap().collect::<Result<_, _>>().unwrap();
+        let once = list_sealed_note_sync_outbox(&mut connection, "account", 1).unwrap();
+        assert_eq!(once.len(), 1);
+        assert_eq!(once[0].event_id, first.event_id);
+        assert_eq!(once[0].envelope.nonce, encode_canonical_base64url(&[1; 24]));
+        let all = list_sealed_note_sync_outbox(&mut connection, "account", 2).unwrap();
+        assert_eq!(
+            all.iter().map(|item| &item.event_id).collect::<Vec<_>>(),
+            vec![&first.event_id, &second.event_id]
+        );
+        let repeated = list_sealed_note_sync_outbox(&mut connection, "account", 2).unwrap();
+        assert_eq!(all, repeated);
+        assert!(
+            list_sealed_note_sync_outbox(&mut connection, "other-account", 2)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(list_sealed_note_sync_outbox(&mut connection, "account", 0).is_err());
+        let lifecycle_after: Vec<(String, i64, i64)> = connection.prepare(
+            "SELECT lifecycle,attempt_count,local_ordinal FROM cloud_sync_outbox ORDER BY event_id"
+        ).unwrap().query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?)))
+            .unwrap().collect::<Result<_, _>>().unwrap();
+        assert_eq!(lifecycle_before, lifecycle_after);
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_note_intents", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn sealed_outbox_enforces_dependencies_objects_and_batch_limits_after_restart() {
+        let (root, path) = temporary_database_path("sealed-outbox");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection);
+        let parent = seal_persisted_intent(&mut connection, "n", "parent", 3);
+        let child = seal_persisted_intent(&mut connection, "n", "child", 4);
+        let listed = list_sealed_note_sync_outbox(&mut connection, "account", 2).unwrap();
+        assert_eq!(
+            listed.iter().map(|item| &item.event_id).collect::<Vec<_>>(),
+            vec![&parent.event_id, &child.event_id]
+        );
+        assert_eq!(
+            listed[1].parent_event_id.as_deref(),
+            Some(parent.event_id.as_str())
+        );
+        connection
+            .execute(
+                "UPDATE cloud_sync_event_objects SET ciphertext=?1 WHERE event_id=?2",
+                rusqlite::params![
+                    vec![9_u8; MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES],
+                    parent.event_id
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE cloud_sync_event_objects SET ciphertext=?1 WHERE event_id=?2",
+                rusqlite::params![
+                    vec![8_u8; MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES],
+                    child.event_id
+                ],
+            )
+            .unwrap();
+        assert_eq!(
+            list_sealed_note_sync_outbox(&mut connection, "account", 2)
+                .unwrap()
+                .len(),
+            1
+        );
+        drop(connection);
+        let mut reopened = crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(
+            list_sealed_note_sync_outbox(&mut reopened, "account", 2)
+                .unwrap()
+                .len(),
+            1
+        );
+        reopened
+            .execute(
+                "DELETE FROM cloud_sync_event_objects WHERE event_id=?1",
+                [&parent.event_id],
+            )
+            .unwrap();
+        assert!(matches!(
+            list_sealed_note_sync_outbox(&mut reopened, "account", 2),
+            Err(NoteSyncError::InvalidOutboxRead(_))
+        ));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn sealed_outbox_never_mixes_accounts_or_devices() {
+        let mut connection = database();
+        let first = seal_persisted_intent(&mut connection, "account-one", "one", 6);
+        let second = seal_persisted_intent(&mut connection, "account-two", "two", 7);
+        connection.execute(
+            "UPDATE cloud_sync_outbox SET account_id='other-account',device_id='123e4567-e89b-42d3-a456-426614174099' WHERE event_id=?1",
+            [&second.event_id],
+        ).unwrap();
+        connection
+            .execute(
+                "UPDATE cloud_sync_event_objects SET account_id='other-account' WHERE event_id=?1",
+                [&second.event_id],
+            )
+            .unwrap();
+        let own = list_sealed_note_sync_outbox(&mut connection, "account", 2).unwrap();
+        let other = list_sealed_note_sync_outbox(&mut connection, "other-account", 2).unwrap();
+        assert_eq!(
+            own.iter().map(|item| &item.event_id).collect::<Vec<_>>(),
+            vec![&first.event_id]
+        );
+        assert_eq!(
+            other.iter().map(|item| &item.event_id).collect::<Vec<_>>(),
+            vec![&second.event_id]
+        );
+        assert_eq!(other[0].device_id, "123e4567-e89b-42d3-a456-426614174099");
+    }
+
+    #[test]
+    fn sealed_outbox_keeps_tombstones_after_project_deletion_and_rejects_corruption() {
+        let mut connection = database();
+        let (_, snapshot) = persist_note_intent(&mut connection, "n", "tombstone");
+        let note_value: serde_json::Value = serde_json::from_str(&snapshot).unwrap();
+        let transaction = connection.transaction().unwrap();
+        let event =
+            prepare_note_delete_intent(&transaction, "p", "n", &note_value, "2026-09-22T00:01:00Z")
+                .unwrap()
+                .unwrap();
+        transaction
+            .execute("DELETE FROM notes WHERE id='n'", [])
+            .unwrap();
+        transaction
+            .execute("DELETE FROM project_order WHERE project_id='p'", [])
+            .unwrap();
+        transaction
+            .execute("DELETE FROM cloud_sync_project_bindings", [])
+            .unwrap();
+        transaction
+            .execute("DELETE FROM projects WHERE id='p'", [])
+            .unwrap();
+        transaction.commit().unwrap();
+        assert_eq!(
+            commit_sealed_note_sync_event(
+                &mut connection,
+                &seal_command(&event.event_id, event.mutation_generation, envelope(5)),
+            )
+            .unwrap(),
+            CommitSealedNoteSyncEventResult::Sealed
+        );
+        let listed = list_sealed_note_sync_outbox(&mut connection, "account", 1).unwrap();
+        assert_eq!(listed[0].event_id, event.event_id);
+        assert_eq!(listed[0].operation, NoteSyncOperation::Delete);
+        connection
+            .execute(
+                "UPDATE cloud_sync_event_objects SET crypto_version=2 WHERE event_id=?1",
+                [&event.event_id],
+            )
+            .unwrap();
+        assert!(matches!(
+            list_sealed_note_sync_outbox(&mut connection, "account", 1),
+            Err(NoteSyncError::InvalidOutboxRead(_))
+        ));
     }
 
     #[test]

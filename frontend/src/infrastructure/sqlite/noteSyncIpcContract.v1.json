@@ -60,6 +60,28 @@
       }
     }
   },
+  "list_sealed_note_sync_outbox": [
+    {
+      "event_id": "123e4567-e89b-42d3-a456-426614174004",
+      "account_id": "account-1",
+      "device_id": "123e4567-e89b-42d3-a456-426614174001",
+      "project_id": "deleted-project",
+      "entity_id": "note-3",
+      "entity_type": "note",
+      "operation": "delete",
+      "revision": 2,
+      "parent_event_id": "123e4567-e89b-42d3-a456-426614174003",
+      "updated_at": "2026-09-22T00:00:02.000000Z",
+      "deleted_at": "2026-09-22T00:00:02.000000Z",
+      "local_ordinal": 3,
+      "envelope": {
+        "crypto_version": 1,
+        "aad_version": 1,
+        "nonce": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "ciphertext": "AAAAAAAAAAAAAAAAAAAAAA"
+      }
+    }
+  ],
   "operation_values": [
     "upsert",
     "delete"

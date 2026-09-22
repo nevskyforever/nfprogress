@@ -2057,6 +2057,17 @@ fn list_unsealed_note_sync_intents(
 }
 
 #[tauri::command]
+fn list_sealed_note_sync_outbox(
+    account_id: String,
+    limit: u32,
+) -> Result<Vec<note_sync::SealedNoteSyncOutboxItem>, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::list_sealed_note_sync_outbox(&mut connection, &account_id, limit)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn record_note_sync_seal_failure(
     command: note_sync::RecordNoteSyncSealFailureCommand,
 ) -> Result<note_sync::RecordNoteSyncSealFailureResult, String> {
@@ -5160,6 +5171,7 @@ pub fn run() {
             list_notes,
             get_note,
             list_unsealed_note_sync_intents,
+            list_sealed_note_sync_outbox,
             record_note_sync_seal_failure,
             commit_sealed_note_sync_event,
             ensure_cloud_account_binding,
