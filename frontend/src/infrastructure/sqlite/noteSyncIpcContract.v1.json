@@ -60,6 +60,19 @@
       }
     }
   },
+  "commit_note_sync_upload_acceptance": {
+    "command": {
+      "account_id": "account-1",
+      "device_id": "123e4567-e89b-42d3-a456-426614174001",
+      "receipts": [
+        {
+          "event_id": "123e4567-e89b-42d3-a456-426614174004",
+          "server_sequence": 9,
+          "duplicate": true
+        }
+      ]
+    }
+  },
   "list_sealed_note_sync_outbox": [
     {
       "event_id": "123e4567-e89b-42d3-a456-426614174004",

@@ -56,4 +56,13 @@ describe('SQLiteNoteSyncOutboxRepository', () => {
     expect(() => repository.listSealed('account-1', 201)).toThrow(RangeError)
     expect(invoke).not.toHaveBeenCalled()
   })
+
+  it('forwards only the account-scoped server receipt command', async () => {
+    const receipt = { event_id: item.event_id, server_sequence: 9, duplicate: true }
+    invoke.mockResolvedValueOnce(['accepted'])
+    await expect(repository.commitAccepted('account-1', item.device_id, [receipt])).resolves.toEqual(['accepted'])
+    expect(invoke).toHaveBeenCalledWith('commit_note_sync_upload_acceptance', {
+      command: { account_id: 'account-1', device_id: item.device_id, receipts: [receipt] },
+    })
+  })
 })

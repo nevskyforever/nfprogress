@@ -37,6 +37,7 @@ pub(crate) enum NoteSyncError {
     UnexpectedLifecycle,
     SealedObjectMissing,
     ConflictingEncryptedObject,
+    ConflictingUploadReceipt,
     Random(String),
 }
 
@@ -84,6 +85,10 @@ impl std::fmt::Display for NoteSyncError {
                     "Note sync event has a conflicting encrypted object"
                 )
             }
+            Self::ConflictingUploadReceipt => write!(
+                formatter,
+                "Note sync event has a conflicting server receipt"
+            ),
             Self::Random(error) => {
                 write!(formatter, "Could not generate Note sync event ID: {error}")
             }
@@ -114,6 +119,7 @@ impl NoteSyncError {
             | Self::UnexpectedLifecycle
             | Self::SealedObjectMissing
             | Self::ConflictingEncryptedObject
+            | Self::ConflictingUploadReceipt
             | Self::Random(_) => {
                 "Не удалось надёжно зарегистрировать изменение заметки для синхронизации."
             }
@@ -255,6 +261,29 @@ pub(crate) struct SealedNoteSyncOutboxItem {
     pub deleted_at: Option<String>,
     pub local_ordinal: i64,
     pub envelope: EncryptedNoteSyncEnvelope,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct NoteSyncUploadReceipt {
+    pub event_id: String,
+    pub server_sequence: i64,
+    pub duplicate: bool,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitNoteSyncUploadAcceptanceCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub receipts: Vec<NoteSyncUploadReceipt>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CommitNoteSyncUploadAcceptanceResult {
+    Accepted,
+    AlreadyAccepted,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -1409,6 +1438,77 @@ pub(crate) fn commit_sealed_note_sync_event(
     Ok(CommitSealedNoteSyncEventResult::Sealed)
 }
 
+/// Stores server receipts and transitions exactly their sealed Note events in
+/// the same SQLite transaction. A retry of an identical receipt is harmless;
+/// any conflicting receipt rolls back the complete batch.
+pub(crate) fn commit_note_sync_upload_acceptance(
+    connection: &mut Connection,
+    command: &CommitNoteSyncUploadAcceptanceCommand,
+) -> Result<Vec<CommitNoteSyncUploadAcceptanceResult>, NoteSyncError> {
+    if command.account_id.is_empty()
+        || command.account_id.len() > 512
+        || command.device_id.len() != 36
+        || command.receipts.is_empty()
+        || command.receipts.len() > MAX_SEALED_OUTBOX_LIST_LIMIT as usize
+    {
+        return Err(NoteSyncError::InvalidSealState(
+            "invalid upload acceptance command",
+        ));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut results = Vec::with_capacity(command.receipts.len());
+    for receipt in &command.receipts {
+        if receipt.event_id.len() != 36
+            || !(1..=MAX_SYNC_INTEGER).contains(&receipt.server_sequence)
+        {
+            return Err(NoteSyncError::InvalidSealState("invalid upload receipt"));
+        }
+        let (account_id, device_id, lifecycle): (String, String, String) = transaction.query_row(
+            "SELECT account_id,device_id,lifecycle FROM cloud_sync_outbox WHERE event_id=?1 AND entity_type='note'",
+            [&receipt.event_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).optional()?.ok_or(NoteSyncError::MissingEvent)?;
+        if account_id != command.account_id || device_id != command.device_id {
+            return Err(NoteSyncError::ConflictingUploadReceipt);
+        }
+        let stored: Option<(i64, i64)> = transaction.query_row(
+            "SELECT server_sequence,duplicate FROM cloud_sync_upload_receipts WHERE event_id=?1",
+            [&receipt.event_id], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).optional()?;
+        if let Some((sequence, duplicate)) = stored {
+            if sequence != receipt.server_sequence || duplicate != i64::from(receipt.duplicate) {
+                return Err(NoteSyncError::ConflictingUploadReceipt);
+            }
+            if lifecycle != "accepted" {
+                return Err(NoteSyncError::UnexpectedLifecycle);
+            }
+            results.push(CommitNoteSyncUploadAcceptanceResult::AlreadyAccepted);
+            continue;
+        }
+        if lifecycle != "sealed" {
+            return Err(NoteSyncError::UnexpectedLifecycle);
+        }
+        ensure_consistent_sealed_event(&transaction, &receipt.event_id)?;
+        transaction.execute(
+            "INSERT INTO cloud_sync_upload_receipts(account_id,event_id,device_id,server_sequence,duplicate,accepted_at)
+             VALUES(?1,?2,?3,?4,?5,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            rusqlite::params![command.account_id, receipt.event_id, command.device_id,
+                receipt.server_sequence, i64::from(receipt.duplicate)],
+        )?;
+        let changed = transaction.execute(
+            "UPDATE cloud_sync_outbox SET lifecycle='accepted'
+             WHERE event_id=?1 AND entity_type='note' AND lifecycle='sealed'",
+            [&receipt.event_id],
+        )?;
+        if changed != 1 {
+            return Err(NoteSyncError::UnexpectedLifecycle);
+        }
+        results.push(CommitNoteSyncUploadAcceptanceResult::Accepted);
+    }
+    transaction.commit()?;
+    Ok(results)
+}
+
 fn retry_backoff_seconds(attempt_count: i64) -> i64 {
     let exponent = u32::try_from(attempt_count.saturating_sub(1).min(6)).unwrap_or(6);
     5_i64
@@ -2205,6 +2305,17 @@ mod tests {
                     },
                 },
             },
+            "commit_note_sync_upload_acceptance": {
+                "command": CommitNoteSyncUploadAcceptanceCommand {
+                    account_id: "account-1".to_string(),
+                    device_id: "123e4567-e89b-42d3-a456-426614174001".to_string(),
+                    receipts: vec![NoteSyncUploadReceipt {
+                        event_id: "123e4567-e89b-42d3-a456-426614174004".to_string(),
+                        server_sequence: 9,
+                        duplicate: true,
+                    }],
+                },
+            },
             "list_sealed_note_sync_outbox": [
                 SealedNoteSyncOutboxItem {
                     event_id: "123e4567-e89b-42d3-a456-426614174004".to_string(),
@@ -2303,6 +2414,70 @@ mod tests {
                 })
                 .unwrap(),
             0
+        );
+    }
+
+    #[test]
+    fn upload_acceptance_is_atomic_idempotent_and_keeps_the_encrypted_object() {
+        let mut connection = database();
+        let event_id = seal_persisted_intent(&mut connection, "n", "sealed upload", 0).event_id;
+        let ciphertext: Vec<u8> = connection
+            .query_row(
+                "SELECT ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",
+                [&event_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let command = CommitNoteSyncUploadAcceptanceCommand {
+            account_id: "account".to_string(),
+            device_id: DEVICE_ID.to_string(),
+            receipts: vec![NoteSyncUploadReceipt {
+                event_id: event_id.clone(),
+                server_sequence: 7,
+                duplicate: false,
+            }],
+        };
+        assert_eq!(
+            commit_note_sync_upload_acceptance(&mut connection, &command).unwrap(),
+            vec![CommitNoteSyncUploadAcceptanceResult::Accepted]
+        );
+        assert!(list_sealed_note_sync_outbox(&mut connection, "account", 10)
+            .unwrap()
+            .is_empty());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",
+                    [&event_id],
+                    |row| row.get::<_, Vec<u8>>(0)
+                )
+                .unwrap(),
+            ciphertext
+        );
+        assert_eq!(
+            commit_note_sync_upload_acceptance(&mut connection, &command).unwrap(),
+            vec![CommitNoteSyncUploadAcceptanceResult::AlreadyAccepted]
+        );
+        let conflicting = CommitNoteSyncUploadAcceptanceCommand {
+            receipts: vec![NoteSyncUploadReceipt {
+                server_sequence: 8,
+                ..command.receipts[0].clone()
+            }],
+            ..command
+        };
+        assert!(matches!(
+            commit_note_sync_upload_acceptance(&mut connection, &conflicting),
+            Err(NoteSyncError::ConflictingUploadReceipt)
+        ));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT lifecycle FROM cloud_sync_outbox WHERE event_id=?1",
+                    [&event_id],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "accepted"
         );
     }
 

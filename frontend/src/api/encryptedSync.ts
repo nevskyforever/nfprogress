@@ -145,6 +145,23 @@ function encodePushBody(request: EncryptedSyncPushRequest): string {
   return body
 }
 
+export function encryptedSyncPushBodyBytes(request: EncryptedSyncPushRequest): number {
+  return new TextEncoder().encode(encodePushBody(request)).byteLength
+}
+
+function parsePushResponse(response: EncryptedSyncPushResponse): EncryptedSyncPushResponse {
+  if (typeof response !== 'object' || response === null || response.protocol_version !== 1
+    || response.encrypted_sync_version !== 1 || !Array.isArray(response.results)
+    || !Number.isSafeInteger(response.current_cursor) || response.current_cursor < 0) invalidEnvelope()
+  const results = response.results.map(result => {
+    if (typeof result !== 'object' || result === null || Object.keys(result).length !== 3
+      || !canonicalUuid(result.event_id) || !Number.isSafeInteger(result.server_sequence)
+      || result.server_sequence < 1 || typeof result.duplicate !== 'boolean') invalidEnvelope()
+    return { event_id: canonicalUuid(result.event_id), server_sequence: result.server_sequence, duplicate: result.duplicate }
+  })
+  return { protocol_version: 1, encrypted_sync_version: 1, results, current_cursor: response.current_cursor }
+}
+
 function parsePullResponse(response: WirePullResponse): EncryptedSyncPullResponse {
   if (response.protocol_version !== 1 || response.encrypted_sync_version !== 1 || !Array.isArray(response.items)) invalidEnvelope()
   let aggregate = 0
@@ -160,9 +177,10 @@ function parsePullResponse(response: WirePullResponse): EncryptedSyncPullRespons
 
 export const encryptedSyncApi = {
   push(accessToken: string, request: EncryptedSyncPushRequest): Promise<EncryptedSyncPushResponse> {
-    return apiRequest('/api/v1/sync/encrypted/push', {
-      method: 'POST', headers: authorization(accessToken), rawBody: encodePushBody(request),
-    })
+    const body = encodePushBody(request)
+    return apiRequest<EncryptedSyncPushResponse>('/api/v1/sync/encrypted/push', {
+      method: 'POST', headers: authorization(accessToken), rawBody: body,
+    }).then(parsePushResponse)
   },
   async pull(accessToken: string, deviceId: string, since: number, limit = 200): Promise<EncryptedSyncPullResponse> {
     if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {

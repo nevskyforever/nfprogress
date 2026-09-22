@@ -9,11 +9,11 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 12;
+pub const CURRENT_SCHEMA_VERSION: i64 = 13;
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 25] = [
+const USER_DATA_TABLES: [&str; 26] = [
     "projects",
     "stages",
     "progress_entries",
@@ -39,6 +39,7 @@ const USER_DATA_TABLES: [&str; 25] = [
     "cloud_sync_note_intents",
     "cloud_sync_note_intent_cursors",
     "cloud_account_bindings",
+    "cloud_sync_upload_receipts",
 ];
 
 #[derive(Debug)]
@@ -68,7 +69,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 12] = [
+const MIGRATIONS: [(i64, &str); 13] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -118,6 +119,12 @@ const MIGRATIONS: [(i64, &str); 12] = [
     (
         12,
         include_str!("../../../nfprogress/core/sqlite/migrations/012_cloud_account_bindings.sql"),
+    ),
+    (
+        13,
+        include_str!(
+            "../../../nfprogress/core/sqlite/migrations/013_note_sync_upload_receipts.sql"
+        ),
     ),
 ];
 

@@ -63,7 +63,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 12
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 13
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -72,6 +72,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
         'cloud_sync_project_bindings', 'cloud_sync_note_intents',
         'cloud_sync_note_intent_cursors',
         'cloud_account_bindings',
+        'cloud_sync_upload_receipts',
     } <= tables
     columns = {row[1] for row in connection.execute('PRAGMA table_info(cloud_sync_outbox)')}
     assert not {
@@ -105,8 +106,8 @@ def test_c15_upgrade_from_populated_v8_preserves_authoritative_data():
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (UUID_1, 'account', UUID_2, 'p', 'n', 'note', 'upsert', 7, 'updated', None, 'created', 2, 'retry', 'later'))
     connection.commit()
 
-    assert apply_migrations(connection) == 12
-    assert connection.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 12
+    assert apply_migrations(connection) == 13
+    assert connection.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 13
     assert connection.execute("SELECT payload_json FROM notes WHERE id='n'").fetchone()[0] == '{"revision": 7}'
     assert connection.execute("SELECT title FROM documents WHERE id='d'").fetchone()[0] == 'Document'
     assert connection.execute("SELECT value_json FROM settings WHERE key='theme'").fetchone()[0] == '"dark"'
@@ -287,7 +288,7 @@ def test_c154_v9_upgrade_preserves_data_without_binding_or_intent_backfill():
     )
     connection.commit()
 
-    assert apply_migrations(connection) == 12
+    assert apply_migrations(connection) == 13
     assert connection.execute("SELECT payload_json FROM notes WHERE id='note'").fetchone()[0] == payload
     assert connection.execute(
         "SELECT revision,local_ordinal,lifecycle,last_error FROM cloud_sync_outbox"

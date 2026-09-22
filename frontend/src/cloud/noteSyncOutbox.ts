@@ -24,4 +24,13 @@ export interface SealedNoteSyncOutboxItem {
 
 export interface NoteSyncOutboxRepository {
   listSealed(accountId: string, limit: number): Promise<SealedNoteSyncOutboxItem[]>
+  commitAccepted(accountId: string, deviceId: string, receipts: NoteSyncUploadReceipt[]): Promise<CommitNoteSyncUploadAcceptanceResult[]>
 }
+
+export interface NoteSyncUploadReceipt {
+  event_id: string
+  server_sequence: number
+  duplicate: boolean
+}
+
+export type CommitNoteSyncUploadAcceptanceResult = 'accepted' | 'already_accepted'
