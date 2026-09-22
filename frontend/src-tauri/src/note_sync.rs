@@ -878,23 +878,38 @@ pub(crate) fn prepare_unsealed_note_intent(
 }
 
 pub(crate) fn list_unsealed_note_sync_intents(
-    connection: &Connection,
+    connection: &mut Connection,
     limit: u32,
+    retry_blocked: bool,
 ) -> Result<Vec<UnsealedNoteSyncIntent>, NoteSyncError> {
     if !(1..=MAX_UNSEALED_INTENT_LIST_LIMIT).contains(&limit) {
         return Err(NoteSyncError::InvalidListLimit);
     }
-    let mut statement = connection.prepare(
-        "SELECT event.event_id,event.account_id,event.device_id,event.project_id,
+    // Advancing the mode-specific cursor in the same transaction makes a
+    // bounded pass durable without changing any intent or event lifecycle.
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let cursor_mode = if retry_blocked {
+        "retry_blocked"
+    } else {
+        "regular"
+    };
+    let intents = {
+        let mut statement = transaction.prepare(
+            "WITH cursor AS (
+                 SELECT account_id,device_id,local_ordinal,event_id
+                 FROM cloud_sync_note_intent_cursors WHERE mode=?1
+             )
+             SELECT event.event_id,event.account_id,event.device_id,event.project_id,
                 event.entity_id,event.entity_type,event.operation,event.revision,
                 event.parent_event_id,event.updated_at,event.deleted_at,event.local_ordinal,
                 intent.mutation_generation,intent.snapshot_json,intent.seal_state,
                 intent.seal_attempt_count,intent.last_error_code,intent.next_attempt_at
          FROM cloud_sync_outbox AS event
          JOIN cloud_sync_note_intents AS intent ON intent.event_id=event.event_id
+         CROSS JOIN cursor
          WHERE event.entity_type='note' AND event.lifecycle='unsealed'
            AND (
-               intent.seal_state IN ('pending','blocked')
+               intent.seal_state='pending'
                OR (
                    intent.seal_state='retryable_error'
                    AND (
@@ -902,81 +917,109 @@ pub(crate) fn list_unsealed_note_sync_intents(
                        OR intent.next_attempt_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
                    )
                )
+               OR (?2 AND intent.seal_state='blocked')
            )
-         ORDER BY CASE WHEN intent.seal_state='blocked' THEN 1 ELSE 0 END,
+         ORDER BY CASE WHEN cursor.event_id IS NULL OR
+                    (event.account_id,event.device_id,event.local_ordinal,event.event_id) >
+                    (cursor.account_id,cursor.device_id,cursor.local_ordinal,cursor.event_id)
+                  THEN 0 ELSE 1 END,
                   event.account_id,event.device_id,event.local_ordinal,event.event_id
-         LIMIT ?1",
-    )?;
-    let rows = statement.query_map([i64::from(limit)], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-            row.get::<_, String>(3)?,
-            row.get::<_, String>(4)?,
-            row.get::<_, String>(5)?,
-            row.get::<_, String>(6)?,
-            row.get::<_, i64>(7)?,
-            row.get::<_, Option<String>>(8)?,
-            row.get::<_, String>(9)?,
-            row.get::<_, Option<String>>(10)?,
-            row.get::<_, i64>(11)?,
-            row.get::<_, i64>(12)?,
-            row.get::<_, String>(13)?,
-            row.get::<_, String>(14)?,
-            row.get::<_, i64>(15)?,
-            row.get::<_, Option<String>>(16)?,
-            row.get::<_, Option<String>>(17)?,
-        ))
-    })?;
-    rows.map(|row| {
-        let (
-            event_id,
-            account_id,
-            device_id,
-            project_id,
-            entity_id,
-            entity_type,
-            operation,
-            revision,
-            parent_event_id,
-            updated_at,
-            deleted_at,
-            local_ordinal,
-            mutation_generation,
-            snapshot_json,
-            seal_state,
-            seal_attempt_count,
-            last_error_code,
-            next_attempt_at,
-        ) = row?;
-        if !(1..=MAX_SYNC_INTEGER).contains(&mutation_generation) {
-            return Err(NoteSyncError::InvalidSealState(
-                "mutation generation exceeds the wire integer limit",
-            ));
-        }
-        Ok(UnsealedNoteSyncIntent {
-            event_id,
-            account_id,
-            device_id,
-            project_id,
-            entity_id,
-            entity_type,
-            operation: NoteSyncOperation::from_stored(&operation)?,
-            revision,
-            parent_event_id,
-            updated_at,
-            deleted_at,
-            local_ordinal,
-            mutation_generation,
-            snapshot_json,
-            seal_state: NoteSyncSealState::from_stored(&seal_state)?,
-            seal_attempt_count,
-            last_error_code,
-            next_attempt_at,
+         LIMIT ?3",
+        )?;
+        let rows = statement.query_map(
+            rusqlite::params![cursor_mode, retry_blocked, i64::from(limit)],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, i64>(7)?,
+                    row.get::<_, Option<String>>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, Option<String>>(10)?,
+                    row.get::<_, i64>(11)?,
+                    row.get::<_, i64>(12)?,
+                    row.get::<_, String>(13)?,
+                    row.get::<_, String>(14)?,
+                    row.get::<_, i64>(15)?,
+                    row.get::<_, Option<String>>(16)?,
+                    row.get::<_, Option<String>>(17)?,
+                ))
+            },
+        )?;
+        rows.map(|row| {
+            let (
+                event_id,
+                account_id,
+                device_id,
+                project_id,
+                entity_id,
+                entity_type,
+                operation,
+                revision,
+                parent_event_id,
+                updated_at,
+                deleted_at,
+                local_ordinal,
+                mutation_generation,
+                snapshot_json,
+                seal_state,
+                seal_attempt_count,
+                last_error_code,
+                next_attempt_at,
+            ) = row?;
+            if !(1..=MAX_SYNC_INTEGER).contains(&mutation_generation) {
+                return Err(NoteSyncError::InvalidSealState(
+                    "mutation generation exceeds the wire integer limit",
+                ));
+            }
+            Ok(UnsealedNoteSyncIntent {
+                event_id,
+                account_id,
+                device_id,
+                project_id,
+                entity_id,
+                entity_type,
+                operation: NoteSyncOperation::from_stored(&operation)?,
+                revision,
+                parent_event_id,
+                updated_at,
+                deleted_at,
+                local_ordinal,
+                mutation_generation,
+                snapshot_json,
+                seal_state: NoteSyncSealState::from_stored(&seal_state)?,
+                seal_attempt_count,
+                last_error_code,
+                next_attempt_at,
+            })
         })
-    })
-    .collect()
+        .collect::<Result<Vec<_>, NoteSyncError>>()?
+    };
+    if let Some(last) = intents.last() {
+        let changed = transaction.execute(
+            "UPDATE cloud_sync_note_intent_cursors
+             SET account_id=?1,device_id=?2,local_ordinal=?3,event_id=?4,
+                 updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE mode=?5",
+            rusqlite::params![
+                last.account_id,
+                last.device_id,
+                last.local_ordinal,
+                last.event_id,
+                cursor_mode,
+            ],
+        )?;
+        if changed != 1 {
+            return Err(NoteSyncError::InvalidSealState("missing fairness cursor"));
+        }
+    }
+    transaction.commit()?;
+    Ok(intents)
 }
 
 pub(crate) fn record_note_sync_seal_failure(
@@ -1630,7 +1673,7 @@ mod tests {
 
         assert_eq!(maximum.event_id, first.event_id);
         assert_eq!(maximum.mutation_generation, MAX_SYNC_INTEGER);
-        let listed = list_unsealed_note_sync_intents(&connection, 1).unwrap();
+        let listed = list_unsealed_note_sync_intents(&mut connection, 1, false).unwrap();
         assert_eq!(listed[0].mutation_generation, MAX_SYNC_INTEGER);
         assert_eq!(
             serde_json::to_value(&listed[0]).unwrap()["mutation_generation"].as_u64(),
@@ -1711,7 +1754,7 @@ mod tests {
             )
             .unwrap();
         assert!(matches!(
-            list_unsealed_note_sync_intents(&connection, 10),
+            list_unsealed_note_sync_intents(&mut connection, 10, true),
             Err(NoteSyncError::InvalidSealState(_))
         ));
         assert!(matches!(
@@ -1937,7 +1980,7 @@ mod tests {
     }
 
     #[test]
-    fn note_sync_lists_pending_intents_bounded_in_stable_order_without_project_binding() {
+    fn note_sync_lists_pending_intents_bounded_in_durable_round_robin_order() {
         let mut connection = database();
         let (first, first_snapshot) = persist_note_intent(&mut connection, "later-name", "first");
         let (second, _) = persist_note_intent(&mut connection, "earlier-name", "second");
@@ -1945,7 +1988,7 @@ mod tests {
             .execute("DELETE FROM cloud_sync_project_bindings", [])
             .unwrap();
 
-        let limited = list_unsealed_note_sync_intents(&connection, 1).unwrap();
+        let limited = list_unsealed_note_sync_intents(&mut connection, 1, false).unwrap();
         assert_eq!(limited.len(), 1);
         assert_eq!(limited[0].event_id, first.event_id);
         assert_eq!(limited[0].account_id, "account");
@@ -1964,15 +2007,126 @@ mod tests {
         assert_eq!(limited[0].last_error_code, None);
         assert_eq!(limited[0].next_attempt_at, None);
 
-        let all = list_unsealed_note_sync_intents(&connection, 10).unwrap();
+        let all = list_unsealed_note_sync_intents(&mut connection, 10, false).unwrap();
         assert_eq!(
             all.iter()
                 .map(|intent| intent.event_id.as_str())
                 .collect::<Vec<_>>(),
-            vec![first.event_id.as_str(), second.event_id.as_str()]
+            vec![second.event_id.as_str(), first.event_id.as_str()]
         );
-        assert!(list_unsealed_note_sync_intents(&connection, 0).is_err());
-        assert!(list_unsealed_note_sync_intents(&connection, 201).is_err());
+        assert!(list_unsealed_note_sync_intents(&mut connection, 0, false).is_err());
+        assert!(list_unsealed_note_sync_intents(&mut connection, 201, false).is_err());
+    }
+
+    #[test]
+    fn note_sync_fairness_cursor_reaches_later_pending_intents_after_restart() {
+        let (root, path) = temporary_database_path("pending-fairness-reopen");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection);
+        let mut event_ids = Vec::new();
+        for index in 0..10 {
+            let note_id = format!("note-{index:02}");
+            event_ids.push(
+                persist_note_intent(&mut connection, &note_id, "pending")
+                    .0
+                    .event_id,
+            );
+        }
+
+        let first = list_unsealed_note_sync_intents(&mut connection, 8, false).unwrap();
+        assert_eq!(first.len(), 8);
+        assert_eq!(first[0].event_id, event_ids[0]);
+        assert_eq!(first[7].event_id, event_ids[7]);
+        drop(connection);
+
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        let second = list_unsealed_note_sync_intents(&mut connection, 8, false).unwrap();
+        assert!(second.iter().any(|intent| intent.event_id == event_ids[8]));
+        assert!(second.iter().any(|intent| intent.event_id == event_ids[9]));
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_note_intents", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            10
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM cloud_sync_outbox WHERE lifecycle='unsealed'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            10
+        );
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn note_sync_retry_blocked_cursor_reaches_later_eligible_intent_after_restart() {
+        let (root, path) = temporary_database_path("blocked-fairness-reopen");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection);
+        let mut event_ids = Vec::new();
+        for index in 0..34 {
+            let note_id = format!("note-{index:02}");
+            let prepared = persist_note_intent(&mut connection, &note_id, "blocked").0;
+            if index < 33 {
+                assert_eq!(
+                    record_note_sync_seal_failure(
+                        &mut connection,
+                        &failure_command(
+                            &prepared.event_id,
+                            prepared.mutation_generation,
+                            NoteSyncSealErrorCode::DependencyNotSynced,
+                        ),
+                    )
+                    .unwrap(),
+                    RecordNoteSyncSealFailureResult::Recorded
+                );
+            }
+            event_ids.push(prepared.event_id);
+        }
+
+        let regular = list_unsealed_note_sync_intents(&mut connection, 8, false).unwrap();
+        assert_eq!(regular.len(), 1);
+        assert_eq!(regular[0].event_id, event_ids[33]);
+
+        let first_retry = list_unsealed_note_sync_intents(&mut connection, 32, true).unwrap();
+        assert_eq!(first_retry.len(), 32);
+        assert!(!first_retry
+            .iter()
+            .any(|intent| intent.event_id == event_ids[33]));
+        drop(connection);
+
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        let second_retry = list_unsealed_note_sync_intents(&mut connection, 32, true).unwrap();
+        assert!(second_retry
+            .iter()
+            .any(|intent| intent.event_id == event_ids[33]));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT max(seal_attempt_count) FROM cloud_sync_note_intents",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_note_intents", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            34
+        );
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -1995,8 +2149,8 @@ mod tests {
         );
         drop(connection);
 
-        let connection = crate::sqlite::open_database(&path).unwrap();
-        let intents = list_unsealed_note_sync_intents(&connection, 10).unwrap();
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        let intents = list_unsealed_note_sync_intents(&mut connection, 10, true).unwrap();
         assert_eq!(intents.len(), 1);
         assert_eq!(intents[0].seal_state, NoteSyncSealState::Blocked);
         assert_eq!(intents[0].seal_attempt_count, 1);
@@ -2054,7 +2208,7 @@ mod tests {
         assert_eq!(stored.2, "runtime_unavailable");
         assert!(stored.3.is_some());
         assert_eq!(stored.5, 1);
-        assert!(list_unsealed_note_sync_intents(&connection, 10)
+        assert!(list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .is_empty());
     }
@@ -2116,7 +2270,7 @@ mod tests {
             .unwrap(),
             RecordNoteSyncSealFailureResult::StaleGeneration
         );
-        let intent = list_unsealed_note_sync_intents(&connection, 10)
+        let intent = list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .pop()
             .unwrap();
@@ -2221,7 +2375,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        assert!(list_unsealed_note_sync_intents(&connection, 10)
+        assert!(list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .is_empty());
     }
@@ -2240,7 +2394,7 @@ mod tests {
         .unwrap();
         drop(connection);
 
-        let connection = crate::sqlite::open_database(&path).unwrap();
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
         let ciphertext = connection
             .query_row(
                 "SELECT ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",
@@ -2249,7 +2403,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(ciphertext, expected);
-        assert!(list_unsealed_note_sync_intents(&connection, 10)
+        assert!(list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .is_empty());
         drop(connection);
@@ -2260,7 +2414,7 @@ mod tests {
     fn note_sync_generation_race_rejects_stale_ciphertext() {
         let mut connection = database();
         let (first, _) = persist_note_intent(&mut connection, "n", "snapshot-a");
-        let listed = list_unsealed_note_sync_intents(&connection, 10)
+        let listed = list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .pop()
             .unwrap();
@@ -2281,7 +2435,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        let remaining = list_unsealed_note_sync_intents(&connection, 10)
+        let remaining = list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .pop()
             .unwrap();
@@ -2318,7 +2472,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        let remaining = list_unsealed_note_sync_intents(&connection, 10)
+        let remaining = list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .pop()
             .unwrap();
@@ -2354,7 +2508,7 @@ mod tests {
                 .unwrap(),
             0
         );
-        let remaining = list_unsealed_note_sync_intents(&connection, 10)
+        let remaining = list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .pop()
             .unwrap();
@@ -2509,7 +2663,7 @@ mod tests {
             .unwrap();
         transaction.commit().unwrap();
 
-        let listed = list_unsealed_note_sync_intents(&connection, 10)
+        let listed = list_unsealed_note_sync_intents(&mut connection, 10, false)
             .unwrap()
             .pop()
             .unwrap();

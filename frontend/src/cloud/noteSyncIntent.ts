@@ -74,7 +74,7 @@ export interface CommitSealedNoteSyncEventInput {
 }
 
 export interface NoteSyncIntentRepository {
-  list(limit: number): Promise<UnsealedNoteSyncIntent[]>
+  list(limit: number, retryBlocked: boolean): Promise<UnsealedNoteSyncIntent[]>
   recordSealFailure(input: RecordNoteSyncSealFailureInput): Promise<RecordNoteSyncSealFailureResult>
   commitSealedEvent(input: CommitSealedNoteSyncEventInput): Promise<CommitSealedNoteSyncEventResult>
 }
@@ -438,7 +438,7 @@ export async function sealPendingNoteSyncIntents(
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_NOTE_SEALING_BATCH_LIMIT) {
     throw new RangeError('Invalid Note sealing batch limit.')
   }
-  const intents = await repository.list(limit)
+  const intents = await repository.list(limit, options.retryBlocked === true)
   const results: NoteSyncSealingItemResult[] = []
   for (const intent of intents) {
     if (intent.seal_state === 'blocked' && options.retryBlocked !== true) {

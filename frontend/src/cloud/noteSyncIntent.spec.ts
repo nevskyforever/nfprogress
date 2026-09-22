@@ -447,8 +447,8 @@ describe('durable Note sealing orchestration', () => {
 
     expect(first.listed).toBe(2)
     expect(second.listed).toBe(1)
-    expect(list).toHaveBeenNthCalledWith(1, 2)
-    expect(list).toHaveBeenNthCalledWith(2, 2)
+    expect(list).toHaveBeenNthCalledWith(1, 2, false)
+    expect(list).toHaveBeenNthCalledWith(2, 2, false)
     expect(store.commitSealedEvent).toHaveBeenCalledTimes(3)
     expect(queued).toHaveLength(0)
   })
@@ -468,5 +468,73 @@ describe('durable Note sealing orchestration', () => {
     expect(JSON.stringify(result)).not.toContain('SECRET_SNAPSHOT_OR_KEY_MATERIAL')
     expect(store.recordSealFailure).not.toHaveBeenCalled()
     expect(store.commitSealedEvent).not.toHaveBeenCalled()
+  })
+
+  it('continues past eight unchanged unknown failures across processing passes', async () => {
+    const queued = Array.from({ length: 10 }, (_, index) => intent({
+      event_id: `123e4567-e89b-42d3-a456-${String(426614175000 + index).padStart(12, '0')}`,
+      account_id: `account-scope-${index}`,
+      entity_id: `note-${index}`,
+      local_ordinal: index + 1,
+      snapshot_json: JSON.stringify(snapshot({ id: `note-${index}` })),
+    }))
+    const list = vi.fn<NoteSyncIntentRepository['list']>()
+      .mockResolvedValueOnce(queued.slice(0, 8))
+      .mockResolvedValueOnce([...queued.slice(8), ...queued.slice(0, 6)])
+    const store = repository([], { list })
+    const getKey = keyMock(async accountId => {
+      const index = Number(accountId.slice(accountId.lastIndexOf('-') + 1))
+      if (index < 8) throw new Error('unknown runtime failure')
+      return { status: 'available' as const, accountId, userId: 'canonical-user-id', masterKey: testKey }
+    })
+    const keys: UnlockedAccountMasterKeyProvider = {
+      getUnlockedAccountMasterKey: getKey,
+    }
+
+    const first = await sealPendingNoteSyncIntents(store, keys)
+    const second = await sealPendingNoteSyncIntents(store, keys)
+
+    expect(first.results.every(result => result.status === 'unclassified_error')).toBe(true)
+    expect(second.results.slice(0, 2).map(result => result.status)).toEqual(['sealed', 'sealed'])
+    expect(second.results.slice(0, 2).map(result => result.event_id)).toEqual([
+      queued[8]!.event_id,
+      queued[9]!.event_id,
+    ])
+    expect(list).toHaveBeenNthCalledWith(1, 8, false)
+    expect(list).toHaveBeenNthCalledWith(2, 8, false)
+    expect(store.recordSealFailure).not.toHaveBeenCalled()
+    expect(queued.every(item => item.seal_state === 'pending')).toBe(true)
+  })
+
+  it('reaches eligible work after more than 32 dependency blocks only in retry mode', async () => {
+    const queued = Array.from({ length: 34 }, (_, index) => intent({
+      event_id: `123e4567-e89b-42d3-a456-${String(426614176000 + index).padStart(12, '0')}`,
+      entity_id: `note-${index}`,
+      local_ordinal: index + 1,
+      snapshot_json: JSON.stringify(snapshot({ id: `note-${index}`, stage_id: 'stage-1' })),
+      seal_state: 'blocked',
+      last_error_code: 'dependency_not_synced',
+    }))
+    const list = vi.fn<NoteSyncIntentRepository['list']>()
+      .mockResolvedValueOnce(queued.slice(0, 32))
+      .mockResolvedValueOnce([...queued.slice(32), ...queued.slice(0, 30)])
+    const store = repository([], { list })
+
+    const first = await sealPendingNoteSyncIntents(store, provider(), {
+      limit: 32,
+      retryBlocked: true,
+    })
+    const second = await sealPendingNoteSyncIntents(store, provider(), {
+      limit: 32,
+      retryBlocked: true,
+    })
+
+    expect(first.results).toHaveLength(32)
+    expect(second.results.slice(0, 2)).toMatchObject([
+      { event_id: queued[32]!.event_id, error_code: 'dependency_not_synced' },
+      { event_id: queued[33]!.event_id, error_code: 'dependency_not_synced' },
+    ])
+    expect(list).toHaveBeenNthCalledWith(1, 32, true)
+    expect(list).toHaveBeenNthCalledWith(2, 32, true)
   })
 })

@@ -20,7 +20,7 @@ _USER_DATA_TABLES = (
     'project_extensions', 'documents', 'document_bindings', 'cloud_sync_state',
     'cloud_sync_outbox', 'cloud_sync_event_objects', 'cloud_sync_inbox',
     'cloud_sync_entities', 'cloud_sync_project_bindings',
-    'cloud_sync_note_intents',
+    'cloud_sync_note_intents', 'cloud_sync_note_intent_cursors',
 )
 
 

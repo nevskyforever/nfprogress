@@ -2047,10 +2047,11 @@ fn get_note(
 #[tauri::command]
 fn list_unsealed_note_sync_intents(
     limit: u32,
+    retry_blocked: bool,
 ) -> Result<Vec<note_sync::UnsealedNoteSyncIntent>, String> {
-    let connection = open_notes_database(false)?;
+    let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
-    note_sync::list_unsealed_note_sync_intents(&connection, limit)
+    note_sync::list_unsealed_note_sync_intents(&mut connection, limit, retry_blocked)
         .map_err(|error| error.to_string())
 }
 

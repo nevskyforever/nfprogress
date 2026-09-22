@@ -13,11 +13,14 @@ import type {
 const MAX_RUST_INTENT_LIST_LIMIT = 200
 
 export class SQLiteNoteSyncIntentRepository implements NoteSyncIntentRepository {
-  list(limit: number): Promise<UnsealedNoteSyncIntent[]> {
+  list(limit: number, retryBlocked: boolean): Promise<UnsealedNoteSyncIntent[]> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_RUST_INTENT_LIST_LIMIT) {
       throw new RangeError('Invalid Note sync intent list limit.')
     }
-    return invoke<UnsealedNoteSyncIntent[]>('list_unsealed_note_sync_intents', { limit })
+    return invoke<UnsealedNoteSyncIntent[]>('list_unsealed_note_sync_intents', {
+      limit,
+      retryBlocked,
+    })
   }
 
   recordSealFailure(

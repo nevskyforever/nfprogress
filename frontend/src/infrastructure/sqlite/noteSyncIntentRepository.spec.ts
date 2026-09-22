@@ -120,8 +120,11 @@ describe('SQLiteNoteSyncIntentRepository', () => {
     expect(Number.isSafeInteger(upsert!.mutation_generation)).toBe(true)
 
     invoke.mockResolvedValueOnce(contract.list_unsealed_note_sync_intents)
-    await expect(repository.list(2)).resolves.toEqual(contract.list_unsealed_note_sync_intents)
-    expect(invoke).toHaveBeenLastCalledWith('list_unsealed_note_sync_intents', { limit: 2 })
+    await expect(repository.list(2, true)).resolves.toEqual(contract.list_unsealed_note_sync_intents)
+    expect(invoke).toHaveBeenLastCalledWith('list_unsealed_note_sync_intents', {
+      limit: 2,
+      retryBlocked: true,
+    })
 
     const failure = contract.record_note_sync_seal_failure.command
     invoke.mockResolvedValueOnce('recorded')
@@ -156,10 +159,13 @@ describe('SQLiteNoteSyncIntentRepository', () => {
   it('maps the bounded listing command and preserves the snake_case Rust DTO', async () => {
     invoke.mockResolvedValueOnce([intent])
 
-    await expect(repository.list(8)).resolves.toEqual([intent])
-    expect(invoke).toHaveBeenCalledWith('list_unsealed_note_sync_intents', { limit: 8 })
-    expect(() => repository.list(0)).toThrow(RangeError)
-    expect(() => repository.list(201)).toThrow(RangeError)
+    await expect(repository.list(8, false)).resolves.toEqual([intent])
+    expect(invoke).toHaveBeenCalledWith('list_unsealed_note_sync_intents', {
+      limit: 8,
+      retryBlocked: false,
+    })
+    expect(() => repository.list(0, false)).toThrow(RangeError)
+    expect(() => repository.list(201, false)).toThrow(RangeError)
     expect(invoke).toHaveBeenCalledTimes(1)
   })
 

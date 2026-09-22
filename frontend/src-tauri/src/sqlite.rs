@@ -9,11 +9,11 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 11;
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 23] = [
+const USER_DATA_TABLES: [&str; 24] = [
     "projects",
     "stages",
     "progress_entries",
@@ -37,6 +37,7 @@ const USER_DATA_TABLES: [&str; 23] = [
     "cloud_sync_entities",
     "cloud_sync_project_bindings",
     "cloud_sync_note_intents",
+    "cloud_sync_note_intent_cursors",
 ];
 
 #[derive(Debug)]
@@ -66,7 +67,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 10] = [
+const MIGRATIONS: [(i64, &str); 11] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -106,6 +107,12 @@ const MIGRATIONS: [(i64, &str); 10] = [
     (
         10,
         include_str!("../../../nfprogress/core/sqlite/migrations/010_note_sync_intents.sql"),
+    ),
+    (
+        11,
+        include_str!(
+            "../../../nfprogress/core/sqlite/migrations/011_note_sync_intent_fairness.sql"
+        ),
     ),
 ];
 
@@ -289,6 +296,7 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "cloud_sync_entities",
         "cloud_sync_project_bindings",
         "cloud_sync_note_intents",
+        "cloud_sync_note_intent_cursors",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(
@@ -303,6 +311,16 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
     if schema_rows != vec![CURRENT_SCHEMA_VERSION] {
         return Err(StorageError::CorruptSchema(
             "schema marker is not the current singular version".to_string(),
+        ));
+    }
+    let fairness_cursor_count: i64 = connection.query_row(
+        "SELECT count(*) FROM cloud_sync_note_intent_cursors",
+        [],
+        |row| row.get(0),
+    )?;
+    if fairness_cursor_count != 2 {
+        return Err(StorageError::CorruptSchema(
+            "Note sync fairness cursors are incomplete".to_string(),
         ));
     }
 
@@ -491,6 +509,7 @@ mod tests {
             "cloud_sync_entities",
             "cloud_sync_project_bindings",
             "cloud_sync_note_intents",
+            "cloud_sync_note_intent_cursors",
         ] {
             assert!(connection
                 .query_row(
@@ -500,6 +519,62 @@ mod tests {
                 )
                 .is_ok());
         }
+    }
+
+    #[test]
+    fn v10_upgrade_adds_initialized_note_fairness_cursors() {
+        let connection = Connection::open_in_memory().unwrap();
+        for (_, sql) in MIGRATIONS.iter().take(10) {
+            connection.execute_batch(sql).unwrap();
+        }
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_info(schema_version INTEGER NOT NULL);
+                 INSERT INTO schema_info VALUES(10);",
+            )
+            .unwrap();
+
+        assert_eq!(
+            apply_migrations(&connection).unwrap(),
+            CURRENT_SCHEMA_VERSION
+        );
+        let cursors = connection
+            .prepare(
+                "SELECT mode,account_id,device_id,local_ordinal,event_id
+                 FROM cloud_sync_note_intent_cursors ORDER BY mode",
+            )
+            .unwrap()
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                ))
+            })
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            cursors,
+            vec![
+                ("regular".to_string(), None, None, None, None),
+                ("retry_blocked".to_string(), None, None, None, None),
+            ]
+        );
+        validate_database(&connection).unwrap();
+        connection
+            .execute(
+                "DELETE FROM cloud_sync_note_intent_cursors WHERE mode='regular'",
+                [],
+            )
+            .unwrap();
+        assert!(matches!(
+            validate_database(&connection),
+            Err(StorageError::CorruptSchema(message))
+                if message.contains("fairness cursors are incomplete")
+        ));
     }
 
     #[test]
@@ -714,6 +789,7 @@ mod tests {
             "cloud_sync_entities",
             "cloud_sync_project_bindings",
             "cloud_sync_note_intents",
+            "cloud_sync_note_intent_cursors",
         ] {
             let connection = Connection::open_in_memory().unwrap();
             apply_migrations(&connection).unwrap();
