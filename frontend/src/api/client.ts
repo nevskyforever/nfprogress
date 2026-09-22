@@ -21,10 +21,52 @@ export class ApiError extends Error {
   }
 }
 
+export class ApiResponseTooLargeError extends Error {
+  readonly name = 'ApiResponseTooLargeError'
+}
+
 type ApiRequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   body?: unknown
   rawBody?: BodyInit
   headers?: HeadersInit
+  /** Applies only to successful JSON responses, before JSON materialization. */
+  maxResponseBytes?: number
+}
+
+async function boundedJson(response: Response, maximumBytes: number): Promise<unknown> {
+  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1) throw new TypeError('Invalid API response size limit.')
+  const contentLength = response.headers.get('Content-Length')
+  if (contentLength !== null) {
+    const declared = Number(contentLength)
+    if (!Number.isSafeInteger(declared) || declared < 0 || declared > maximumBytes) {
+      throw new ApiResponseTooLargeError('API response exceeds size limit.')
+    }
+  }
+  if (!response.body) return JSON.parse(await response.text())
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let received = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      received += value.byteLength
+      if (received > maximumBytes) throw new ApiResponseTooLargeError('API response exceeds size limit.')
+      chunks.push(value)
+    }
+  } catch (error) {
+    await reader.cancel(error)
+    throw error
+  } finally {
+    reader.releaseLock()
+  }
+  const bytes = new Uint8Array(received)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return JSON.parse(new TextDecoder().decode(bytes))
 }
 
 function configuredBaseUrl(): string {
@@ -76,6 +118,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     body: jsonBody,
     rawBody,
     headers: suppliedHeaders,
+    maxResponseBytes,
     ...requestOptions
   } = options
   const headers = new Headers(suppliedHeaders)
@@ -117,6 +160,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   if (response.status === 204) {
     return undefined as T
   }
+  if (maxResponseBytes !== undefined) return await boundedJson(response, maxResponseBytes) as T
   return (await response.json()) as T
 }
 

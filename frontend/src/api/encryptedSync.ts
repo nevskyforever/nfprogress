@@ -1,5 +1,6 @@
 import type { ObjectCryptoEnvelope } from '@/crypto'
 import type { SyncEventEnvelope } from '@/cloud/syncProtocol'
+import { parseSyncTimestamp } from '@/cloud/syncTimestamp'
 import { decodeBase64Url, encodeBase64Url } from './base64url'
 import { apiRequest } from './client'
 
@@ -162,17 +163,68 @@ function parsePushResponse(response: EncryptedSyncPushResponse): EncryptedSyncPu
   return { protocol_version: 1, encrypted_sync_version: 1, results, current_cursor: response.current_cursor }
 }
 
-function parsePullResponse(response: WirePullResponse): EncryptedSyncPullResponse {
-  if (response.protocol_version !== 1 || response.encrypted_sync_version !== 1 || !Array.isArray(response.items)) invalidEnvelope()
+function exactKeys(value: object, keys: readonly string[]): boolean {
+  const actual = Object.keys(value)
+  return actual.length === keys.length && keys.every(key => Object.prototype.hasOwnProperty.call(value, key))
+}
+
+function validBoundedText(value: unknown, maximum: number): value is string {
+  return typeof value === 'string' && value.length >= 1 && value.length <= maximum
+}
+
+function parsePullEvent(value: unknown): EncryptedSyncPullEvent {
+  const eventKeys = [...C9_EVENT_KEYS, 'device_id', 'server_sequence']
+  if (typeof value !== 'object' || value === null || !exactKeys(value, eventKeys)) invalidEnvelope()
+  const event = value as EncryptedSyncPullEvent
+  if (!validBoundedText(event.event_id, 36) || !validBoundedText(event.device_id, 36)
+    || !validBoundedText(event.project_id, 512) || !validBoundedText(event.entity_id, 512)
+    || !validBoundedText(event.entity_type, 128) || !/^[a-z][a-z0-9_:-]*$/.test(event.entity_type)
+    || !(['upsert', 'delete', 'event'] as readonly string[]).includes(event.operation)
+    || !Number.isSafeInteger(event.revision) || event.revision < 1
+    || !Number.isSafeInteger(event.server_sequence) || event.server_sequence < 1
+    || typeof event.updated_at !== 'string' || !(event.deleted_at === null || typeof event.deleted_at === 'string')) invalidEnvelope()
+  try {
+    canonicalUuid(event.event_id)
+    canonicalUuid(event.device_id)
+    parseSyncTimestamp(event.updated_at)
+    if (event.deleted_at !== null) parseSyncTimestamp(event.deleted_at)
+  } catch {
+    invalidEnvelope()
+  }
+  if ((event.operation === 'delete') !== (event.deleted_at !== null)) invalidEnvelope()
+  return event
+}
+
+function parsePullResponse(response: unknown, since: number, limit: number): EncryptedSyncPullResponse {
+  if (typeof response !== 'object' || response === null
+    || !exactKeys(response, ['protocol_version', 'encrypted_sync_version', 'items', 'next_cursor', 'has_more'])) invalidEnvelope()
+  const wire = response as WirePullResponse
+  if (wire.protocol_version !== 1 || wire.encrypted_sync_version !== 1 || !Array.isArray(wire.items)
+    || wire.items.length > limit || !Number.isSafeInteger(wire.next_cursor) || wire.next_cursor < 0
+    || typeof wire.has_more !== 'boolean') invalidEnvelope()
   let aggregate = 0
-  const items = response.items.map(item => {
-    if (typeof item !== 'object' || item === null || typeof item.event !== 'object' || item.event === null) invalidEnvelope()
+  let previousSequence = since
+  const eventIds = new Set<string>()
+  const sequences = new Set<number>()
+  const items = wire.items.map(item => {
+    if (typeof item !== 'object' || item === null || !exactKeys(item, ['event', 'object'])) invalidEnvelope()
+    const event = parsePullEvent(item.event)
+    const eventId = event.event_id.toLowerCase()
+    if (event.server_sequence <= since || event.server_sequence <= previousSequence
+      || eventIds.has(eventId) || sequences.has(event.server_sequence)) invalidEnvelope()
+    eventIds.add(eventId)
+    sequences.add(event.server_sequence)
+    previousSequence = event.server_sequence
     const object = item.object === null ? null : encryptedSyncObjectFromWire(item.object)
+    if (event.entity_type === 'note' && object === null) invalidEnvelope()
     aggregate += object?.ciphertext.byteLength ?? 0
     if (aggregate > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) invalidEnvelope()
-    return { event: item.event, object }
+    return { event, object }
   })
-  return { ...response, items }
+  if (items.length === 0) {
+    if (wire.next_cursor !== since || wire.has_more) invalidEnvelope()
+  } else if (wire.next_cursor !== previousSequence) invalidEnvelope()
+  return { protocol_version: 1, encrypted_sync_version: 1, items, next_cursor: wire.next_cursor, has_more: wire.has_more }
 }
 
 export const encryptedSyncApi = {
@@ -183,7 +235,7 @@ export const encryptedSyncApi = {
     }).then(parsePushResponse)
   },
   async pull(accessToken: string, deviceId: string, since: number, limit = 200): Promise<EncryptedSyncPullResponse> {
-    if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+    if (!Number.isSafeInteger(since) || since < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
       throw new RangeError('Invalid encrypted sync pagination.')
     }
     const query = new URLSearchParams({
@@ -195,7 +247,8 @@ export const encryptedSyncApi = {
     })
     const response = await apiRequest<WirePullResponse>(`/api/v1/sync/encrypted/pull?${query}`, {
       headers: authorization(accessToken),
+      maxResponseBytes: MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES,
     })
-    return parsePullResponse(response)
+    return parsePullResponse(response, since, limit)
   },
 }
