@@ -5,6 +5,9 @@ on:
     paths:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
+      - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/lib.rs'
+      - 'frontend/src-tauri/src/project_repository.rs'
       - 'frontend/src-tauri/Cargo.toml'
       - 'frontend/src-tauri/Cargo.lock'
       - 'tests/test_c9_sqlite_sync.py'
@@ -16,6 +19,9 @@ on:
     paths:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
+      - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/lib.rs'
+      - 'frontend/src-tauri/src/project_repository.rs'
       - 'frontend/src-tauri/Cargo.toml'
       - 'frontend/src-tauri/Cargo.lock'
       - 'tests/test_c9_sqlite_sync.py'
@@ -73,4 +79,5 @@ jobs:
         shell: pwsh
         run: |
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc sqlite
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc note_sync
           cargo check --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc

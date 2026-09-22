@@ -9,11 +9,11 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 9;
+pub const CURRENT_SCHEMA_VERSION: i64 = 10;
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 21] = [
+const USER_DATA_TABLES: [&str; 23] = [
     "projects",
     "stages",
     "progress_entries",
@@ -35,6 +35,8 @@ const USER_DATA_TABLES: [&str; 21] = [
     "cloud_sync_event_objects",
     "cloud_sync_inbox",
     "cloud_sync_entities",
+    "cloud_sync_project_bindings",
+    "cloud_sync_note_intents",
 ];
 
 #[derive(Debug)]
@@ -64,7 +66,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 9] = [
+const MIGRATIONS: [(i64, &str); 10] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -100,6 +102,10 @@ const MIGRATIONS: [(i64, &str); 9] = [
     (
         9,
         include_str!("../../../nfprogress/core/sqlite/migrations/009_encrypted_sync_substrate.sql"),
+    ),
+    (
+        10,
+        include_str!("../../../nfprogress/core/sqlite/migrations/010_note_sync_intents.sql"),
     ),
 ];
 
@@ -281,6 +287,8 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "cloud_sync_event_objects",
         "cloud_sync_inbox",
         "cloud_sync_entities",
+        "cloud_sync_project_bindings",
+        "cloud_sync_note_intents",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(
@@ -321,6 +329,7 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
     validate_json_column(connection, "documents", "content_json")?;
     validate_json_column(connection, "documents", "extensions_json")?;
     validate_json_column(connection, "document_bindings", "payload_json")?;
+    validate_json_column(connection, "cloud_sync_note_intents", "snapshot_json")?;
     for key in VERSION_KEYS {
         let value = connection
             .query_row(
@@ -480,6 +489,8 @@ mod tests {
             "cloud_sync_event_objects",
             "cloud_sync_inbox",
             "cloud_sync_entities",
+            "cloud_sync_project_bindings",
+            "cloud_sync_note_intents",
         ] {
             assert!(connection
                 .query_row(
@@ -539,6 +550,21 @@ mod tests {
         connection.execute("INSERT INTO cloud_sync_event_objects VALUES('account','123e4567-e89b-42d3-a456-426614174001',1,1,x'000000000000000000000000000000000000000000000000',x'00000000000000000000000000000000','now')", []).unwrap();
         connection.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at) VALUES('account','123e4567-e89b-42d3-a456-426614174002',1,'123e4567-e89b-42d3-a456-426614174000','project','entity','note','upsert',1,'now',NULL,'received','now')", []).unwrap();
         connection.execute("INSERT INTO cloud_sync_entities VALUES('account','project','entity','note','123e4567-e89b-42d3-a456-426614174002',1,NULL,NULL,'now')", []).unwrap();
+        connection.execute("INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES('project','Project',0,'symbols','active','{}')", []).unwrap();
+        connection
+            .execute(
+                "INSERT INTO project_order(project_id,position) VALUES('project',0)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO cloud_sync_project_bindings VALUES('project','account','now','now')",
+                [],
+            )
+            .unwrap();
+        connection.execute("INSERT INTO cloud_sync_outbox(event_id,account_id,device_id,project_id,entity_id,entity_type,operation,revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle) VALUES('123e4567-e89b-42d3-a456-426614174004','account','123e4567-e89b-42d3-a456-426614174000','project','note','note','upsert',1,'now',NULL,'now',NULL,1,'unsealed')", []).unwrap();
+        connection.execute("INSERT INTO cloud_sync_note_intents(event_id,mutation_generation,snapshot_json,seal_state,seal_attempt_count,state_updated_at) VALUES('123e4567-e89b-42d3-a456-426614174004',1,'{\"id\":\"note\",\"project_id\":\"project\"}','pending',0,'now')", []).unwrap();
         assert_eq!(
             read("data_last_written_by_version").as_deref(),
             Some("9.8.7-beta.1")
@@ -679,13 +705,15 @@ mod tests {
     }
 
     #[test]
-    fn database_validation_rejects_missing_c9_sync_tables() {
+    fn database_validation_rejects_missing_sync_tables() {
         for table in [
             "cloud_sync_state",
             "cloud_sync_outbox",
             "cloud_sync_event_objects",
             "cloud_sync_inbox",
             "cloud_sync_entities",
+            "cloud_sync_project_bindings",
+            "cloud_sync_note_intents",
         ] {
             let connection = Connection::open_in_memory().unwrap();
             apply_migrations(&connection).unwrap();
@@ -700,7 +728,7 @@ mod tests {
     }
 
     #[test]
-    fn populated_v8_upgrade_preserves_c9_outbox_row_and_validates_v9() {
+    fn populated_v8_upgrade_preserves_c9_outbox_row_and_validates_latest() {
         let connection = Connection::open_in_memory().unwrap();
         for (_, sql) in MIGRATIONS.iter().take(8) {
             connection.execute_batch(sql).unwrap();
@@ -727,7 +755,10 @@ mod tests {
         connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account','123e4567-e89b-42d3-a456-426614174000',0,0,'created','updated')", []).unwrap();
         connection.execute("INSERT INTO cloud_sync_outbox(event_id,account_id,device_id,project_id,entity_id,entity_type,operation,revision,updated_at,deleted_at,created_at,attempt_count,last_error,next_attempt_at) VALUES('123e4567-e89b-42d3-a456-426614174001','account','123e4567-e89b-42d3-a456-426614174000','p','n','note','upsert',7,'updated',NULL,'created',2,'retry','later')", []).unwrap();
 
-        assert_eq!(apply_migrations(&connection).unwrap(), 9);
+        assert_eq!(
+            apply_migrations(&connection).unwrap(),
+            CURRENT_SCHEMA_VERSION
+        );
         assert_eq!(
             connection
                 .query_row("SELECT payload_json FROM notes WHERE id='n'", [], |row| row

@@ -69,12 +69,28 @@ def test_c9_sync_metadata_writes_track_the_application_version(tmp_path):
         ) VALUES('account','123e4567-e89b-42d3-a456-426614174000',0,0,'now','now')""")
         database.commit()
         assert _metadata(database)['data_last_written_by_version'] == '9.8.7-test.1'
+        database.execute(
+            "INSERT INTO projects(id,name,infinite,unit,status,payload_json) "
+            "VALUES('project','Project',0,'symbols','active','{}')"
+        )
+        database.execute(
+            "INSERT INTO project_order(project_id,position) VALUES('project',0)"
+        )
+        database.execute(
+            "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) "
+            "VALUES('project','account','now','now')"
+        )
         database.execute("""INSERT INTO cloud_sync_outbox(
             event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
-            revision,updated_at,deleted_at,created_at
+            revision,updated_at,deleted_at,created_at,local_ordinal,lifecycle
         ) VALUES('123e4567-e89b-42d3-a456-426614174001','account',
             '123e4567-e89b-42d3-a456-426614174000','project','entity','note','upsert',
-            1,'now',NULL,'now')""")
+            1,'now',NULL,'now',1,'unsealed')""")
+        database.execute("""INSERT INTO cloud_sync_note_intents(
+            event_id,mutation_generation,snapshot_json,seal_state,
+            seal_attempt_count,state_updated_at
+        ) VALUES('123e4567-e89b-42d3-a456-426614174001',1,
+            '{"id":"entity","project_id":"project"}','pending',0,'now')""")
         database.commit()
         assert _metadata(database)['data_last_written_by_version'] == '9.8.7-test.1'
 
@@ -85,6 +101,11 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        database.execute("DROP TRIGGER notes_require_sync_intent_insert")
+        database.execute("DROP TRIGGER notes_require_sync_intent_update")
+        database.execute("DROP TRIGGER notes_require_sync_intent_delete")
+        database.execute("DROP TABLE cloud_sync_note_intents")
+        database.execute("DROP TABLE cloud_sync_project_bindings")
         database.execute("DROP TABLE cloud_sync_event_objects")
         database.execute("DROP TABLE cloud_sync_inbox")
         database.execute("DROP TABLE cloud_sync_entities")

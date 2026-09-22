@@ -14,6 +14,8 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 mod documents;
 mod game;
 mod mindmap;
+#[allow(dead_code)]
+mod note_sync;
 mod profile_transfer;
 #[allow(dead_code)]
 mod project_repository;
