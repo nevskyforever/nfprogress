@@ -9,6 +9,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::note_sync::{self, NoteDeleteScope, NoteSyncError};
 use crate::sqlite::StorageError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -85,6 +86,7 @@ pub enum RepositoryError {
     MigrationConflict(String),
     CorruptPayload(String),
     UnsupportedSchema(i64),
+    NoteSync(&'static str),
     Database(rusqlite::Error),
 }
 
@@ -97,6 +99,7 @@ impl std::fmt::Display for RepositoryError {
             Self::MigrationConflict(message) => write!(formatter, "migration conflict: {message}"),
             Self::CorruptPayload(message) => write!(formatter, "corrupt payload: {message}"),
             Self::UnsupportedSchema(version) => write!(formatter, "unsupported schema: {version}"),
+            Self::NoteSync(message) => write!(formatter, "note sync error: {message}"),
             Self::Database(error) => write!(formatter, "SQLite error: {error}"),
         }
     }
@@ -117,6 +120,12 @@ impl From<StorageError> for RepositoryError {
             StorageError::CorruptSchema(message) => Self::MigrationConflict(message),
             StorageError::Database(error) => Self::Database(error),
         }
+    }
+}
+
+impl From<NoteSyncError> for RepositoryError {
+    fn from(error: NoteSyncError) -> Self {
+        Self::NoteSync(error.user_message())
     }
 }
 
@@ -557,15 +566,25 @@ impl<'connection> ProjectsRepository<'connection> {
         project_id: &str,
     ) -> Result<(), RepositoryError> {
         let transaction = self.connection.transaction()?;
+        let deleted_at: String =
+            transaction.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |row| {
+                row.get(0)
+            })?;
+        note_sync::prepare_note_delete_intents_for_scope(
+            &transaction,
+            project_id,
+            NoteDeleteScope::Stage(stage_id),
+            &deleted_at,
+        )?;
+        transaction.execute(
+            "DELETE FROM notes WHERE project_id=?1 AND stage_id=?2",
+            params![project_id, stage_id],
+        )?;
         transaction.execute(
             "DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE stage_id=?1)",
             [stage_id],
         )?;
         transaction.execute("DELETE FROM documents WHERE stage_id=?1", [stage_id])?;
-        transaction.execute(
-            "DELETE FROM notes WHERE project_id=?1 AND stage_id=?2",
-            params![project_id, stage_id],
-        )?;
         transaction.execute("DELETE FROM stage_order WHERE stage_id=?1", [stage_id])?;
         transaction.execute("DELETE FROM project_bindings WHERE stage_id=?1", [stage_id])?;
         transaction.execute(
@@ -652,6 +671,16 @@ impl<'connection> ProjectsRepository<'connection> {
                 id: project_id.to_string(),
             });
         }
+        let deleted_at: String =
+            transaction.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |row| {
+                row.get(0)
+            })?;
+        note_sync::prepare_note_delete_intents_for_scope(
+            &transaction,
+            project_id,
+            NoteDeleteScope::Project,
+            &deleted_at,
+        )?;
         transaction.execute("DELETE FROM notes WHERE project_id=?1", [project_id])?;
         transaction.execute(
             "INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES(?1,'ProjectDeleted',?2,?3,strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
@@ -677,6 +706,13 @@ impl<'connection> ProjectsRepository<'connection> {
         transaction.execute("DELETE FROM project_extensions WHERE entity_type='stage' AND entity_id IN (SELECT id FROM stages WHERE project_id=?1)", [project_id])?;
         transaction.execute(
             "DELETE FROM project_folder_members WHERE project_id=?1",
+            [project_id],
+        )?;
+        // Keep the binding present while Note guard triggers validate all
+        // tombstones, then remove only the project association. Durable sync
+        // events and their typed intents intentionally remain.
+        transaction.execute(
+            "DELETE FROM cloud_sync_project_bindings WHERE project_id=?1",
             [project_id],
         )?;
         transaction
@@ -955,6 +991,8 @@ mod tests {
     use super::*;
     use crate::sqlite::apply_migrations;
 
+    const TEST_DEVICE_ID: &str = "123e4567-e89b-42d3-a456-426614174000";
+
     fn project(id: &str) -> ProjectRecord {
         ProjectRecord {
             id: id.to_string(),
@@ -993,6 +1031,260 @@ mod tests {
                 .query_row("SELECT COUNT(*) FROM notes", [], |row| row.get::<_, i64>(0))
                 .unwrap(),
             1
+        );
+    }
+
+    fn note_payload(id: &str, stage_id: Option<&str>, mindmap: bool) -> String {
+        serde_json::json!({
+            "id":id,"project_id":"p","stage_id":stage_id,"title":"","content":"text",
+            "content_format":if mindmap { "plain" } else { "html" },"checklist":[],
+            "color":"default","pinned":false,"archived":false,"sort_order":0,"tags":[],
+            "source_type":if mindmap { "mindmap" } else { "project" },
+            "source_map_id":if mindmap { Some("map") } else { None },
+            "source_node_id":if mindmap { Some(id) } else { None },
+            "created_at":"2026-09-22T00:00:00Z","updated_at":"2026-09-22T00:00:00Z",
+            "revision":0,"metadata":{}
+        })
+        .to_string()
+    }
+
+    fn configure_delete_database(connection: &Connection, bound: bool) {
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,infinite,unit,status,payload_json)
+                 VALUES('p','Project',0,'symbols','active','{}')",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO project_order(project_id,position) VALUES('p',0)",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO stages(id,project_id,name,infinite,unit,status,payload_json)
+                 VALUES('s','p','Stage',0,'symbols','active','{}')",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO stage_order(stage_id,project_id,position) VALUES('s','p',0)",
+                [],
+            )
+            .unwrap();
+        if bound {
+            connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account',?1,0,0,'now','now')", [TEST_DEVICE_ID]).unwrap();
+            connection.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('p','account','now','now')", []).unwrap();
+        }
+    }
+
+    fn insert_test_note(connection: &Connection, id: &str, stage_id: Option<&str>, mindmap: bool) {
+        connection
+            .execute(
+                "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+                 VALUES(?1,'p',?2,'2026-09-22T00:00:00Z',?3)",
+                params![id, stage_id, note_payload(id, stage_id, mindmap)],
+            )
+            .unwrap();
+    }
+
+    fn temp_database(label: &str) -> (std::path::PathBuf, Connection) {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let connection = crate::sqlite::open_database(&root.join("nfprogress.db")).unwrap();
+        (root, connection)
+    }
+
+    #[test]
+    fn note_sync_stage_delete_persists_all_tombstones_after_reopen() {
+        let (root, mut connection) = temp_database("stage-note-delete");
+        configure_delete_database(&connection, false);
+        insert_test_note(&connection, "stage-one", Some("s"), false);
+        insert_test_note(&connection, "stage-two", Some("s"), true);
+        connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account',?1,0,0,'now','now')", [TEST_DEVICE_ID]).unwrap();
+        connection.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('p','account','now','now')", []).unwrap();
+
+        ProjectsRepository::new(&mut connection)
+            .delete_stage_with_notes("s", "p")
+            .unwrap();
+        drop(connection);
+
+        let connection = crate::sqlite::open_database(&root.join("nfprogress.db")).unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM stages WHERE id='s'", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM cloud_sync_project_bindings WHERE project_id='p'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM cloud_sync_outbox AS event
+                     JOIN cloud_sync_note_intents AS intent USING(event_id)
+                     WHERE event.operation='delete'
+                       AND json_extract(intent.snapshot_json,'$.stage_id')='s'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            2
+        );
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn note_sync_project_delete_keeps_mixed_tombstones_and_domain_event() {
+        let (root, mut connection) = temp_database("project-note-delete");
+        configure_delete_database(&connection, false);
+        insert_test_note(&connection, "ordinary", None, false);
+        insert_test_note(&connection, "stage-note", Some("s"), false);
+        insert_test_note(&connection, "map-note", None, true);
+        connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account',?1,0,0,'now','now')", [TEST_DEVICE_ID]).unwrap();
+        connection.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('p','account','now','now')", []).unwrap();
+
+        ProjectsRepository::new(&mut connection)
+            .delete_project_with_notes("p")
+            .unwrap();
+        drop(connection);
+
+        let connection = crate::sqlite::open_database(&root.join("nfprogress.db")).unwrap();
+        for table in ["projects", "notes", "cloud_sync_project_bindings"] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, 0, "{table} should be empty");
+        }
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM cloud_sync_outbox AS event
+                     JOIN cloud_sync_note_intents AS intent USING(event_id)
+                     WHERE event.project_id='p' AND event.operation='delete'
+                       AND event.lifecycle='unsealed' AND intent.seal_state='pending'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            3
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM domain_events
+                     WHERE project_id='p' AND event_type='ProjectDeleted'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        let routes: Vec<(Option<String>, String)> = {
+            let mut statement = connection
+                .prepare(
+                    "SELECT json_extract(intent.snapshot_json,'$.stage_id'),
+                            json_extract(intent.snapshot_json,'$.source_type')
+                     FROM cloud_sync_note_intents AS intent
+                     JOIN cloud_sync_outbox AS event USING(event_id)
+                     ORDER BY event.entity_id",
+                )
+                .unwrap();
+            statement
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap()
+        };
+        assert!(routes.contains(&(None, "mindmap".to_string())));
+        assert!(routes.contains(&(Some("s".to_string()), "project".to_string())));
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn note_sync_project_delete_failure_rolls_back_notes_binding_and_intents() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        configure_delete_database(&connection, false);
+        insert_test_note(&connection, "one", None, false);
+        insert_test_note(&connection, "two", Some("s"), false);
+        connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account',?1,0,0,'now','now')", [TEST_DEVICE_ID]).unwrap();
+        connection.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('p','account','now','now')", []).unwrap();
+        connection.execute_batch("CREATE TRIGGER note_sync_test_fail_project_delete BEFORE DELETE ON projects BEGIN SELECT RAISE(ABORT,'injected_project_failure'); END;").unwrap();
+
+        assert!(ProjectsRepository::new(&mut connection)
+            .delete_project_with_notes("p")
+            .is_err());
+        connection
+            .execute_batch("DROP TRIGGER note_sync_test_fail_project_delete")
+            .unwrap();
+        for (table, expected) in [
+            ("projects", 1_i64),
+            ("notes", 2),
+            ("cloud_sync_project_bindings", 1),
+            ("cloud_sync_outbox", 0),
+            ("cloud_sync_note_intents", 0),
+            ("domain_events", 0),
+        ] {
+            let count: i64 = connection
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
+                    row.get(0)
+                })
+                .unwrap();
+            assert_eq!(count, expected, "unexpected rollback state for {table}");
+        }
+    }
+
+    #[test]
+    fn note_sync_local_only_stage_and_project_delete_create_no_outbox() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        configure_delete_database(&connection, false);
+        insert_test_note(&connection, "stage-local", Some("s"), false);
+        ProjectsRepository::new(&mut connection)
+            .delete_stage_with_notes("s", "p")
+            .unwrap();
+        insert_test_note(&connection, "project-local", None, false);
+        ProjectsRepository::new(&mut connection)
+            .delete_project_with_notes("p")
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
         );
     }
 }

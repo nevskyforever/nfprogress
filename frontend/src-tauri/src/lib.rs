@@ -1517,10 +1517,20 @@ fn reconcile_map_notes(
                     .unwrap_or(0)
                     .saturating_add(1);
                 object.insert("revision".to_string(), revision.into());
+                let snapshot = payload.to_string();
+                prepare_direct_note_intent(
+                    transaction,
+                    project_id,
+                    &id,
+                    note_sync::NoteSyncOperation::Upsert,
+                    now,
+                    None,
+                    &snapshot,
+                )?;
                 transaction
                     .execute(
                         "UPDATE notes SET updated_at=?1,payload_json=?2 WHERE id=?3",
-                        rusqlite::params![now, payload.to_string(), id],
+                        rusqlite::params![now, snapshot, id],
                     )
                     .map_err(|error| error.to_string())?;
                 changed = true;
@@ -1535,12 +1545,24 @@ fn reconcile_map_notes(
                 "source_node_id": source_id, "created_at": now, "updated_at": now,
                 "revision": 0, "metadata": {}
             });
-            transaction.execute("INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) VALUES(?1,?2,?3,?4,?5)", rusqlite::params![id, project_id, stage_id, now, payload.to_string()]).map_err(|error| error.to_string())?;
+            let snapshot = payload.to_string();
+            prepare_direct_note_intent(
+                transaction,
+                project_id,
+                &id,
+                note_sync::NoteSyncOperation::Upsert,
+                now,
+                None,
+                &snapshot,
+            )?;
+            transaction.execute("INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) VALUES(?1,?2,?3,?4,?5)", rusqlite::params![id, project_id, stage_id, now, snapshot]).map_err(|error| error.to_string())?;
             order += 1;
             changed = true;
         }
     }
-    for (id, _) in existing.into_values() {
+    for (id, payload) in existing.into_values() {
+        note_sync::prepare_note_delete_intent(transaction, project_id, &id, &payload, now)
+            .map_err(|error| error.user_message().to_string())?;
         transaction
             .execute(
                 "DELETE FROM notes WHERE id=?1 AND project_id=?2",
@@ -1555,8 +1577,16 @@ fn reconcile_map_notes(
 fn reconcile_loaded_map_view(project_id: &str, stage_id: Option<&str>) -> Result<(), String> {
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+    reconcile_loaded_map_view_in_connection(&mut connection, project_id, stage_id)
+}
+
+fn reconcile_loaded_map_view_in_connection(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(), String> {
     let (project, stages) = {
-        let repository = ProjectsRepository::new(&mut connection);
+        let repository = ProjectsRepository::new(connection);
         let project = repository
             .get_project(project_id)
             .map_err(|error| error.to_string())?
@@ -1573,7 +1603,7 @@ fn reconcile_loaded_map_view(project_id: &str, stage_id: Option<&str>) -> Result
             .and_then(|value| value.as_bool())
             .unwrap_or(false)
         && !stages.is_empty();
-    let now = now_from_database(&connection)?;
+    let now = now_from_database(connection)?;
     let tx = connection
         .transaction()
         .map_err(|error| error.to_string())?;
@@ -1679,18 +1709,27 @@ fn load_map(project_id: String, stage_id: Option<String>) -> Result<serde_json::
 
 #[tauri::command]
 fn save_map(command: MapCommand) -> Result<serde_json::Value, String> {
-    let normalized = mindmap::normalize(command.data)?;
+    let normalized = mindmap::normalize(command.data.clone())?;
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+    save_map_in_connection(&mut connection, &command, &normalized)?;
+    map_response(command.project_id, command.stage_id)
+}
+
+fn save_map_in_connection(
+    connection: &mut rusqlite::Connection,
+    command: &MapCommand,
+    normalized: &serde_json::Value,
+) -> Result<(), String> {
     let project = {
-        let repository = ProjectsRepository::new(&mut connection);
+        let repository = ProjectsRepository::new(connection);
         repository
             .get_project(&command.project_id)
             .map_err(|error| error.to_string())?
             .ok_or_else(|| "Проект не найден.".to_string())?
     };
     let stage_status = if let Some(stage_id) = command.stage_id.as_deref() {
-        let repository = ProjectsRepository::new(&mut connection);
+        let repository = ProjectsRepository::new(connection);
         Some(
             repository
                 .get_stage(stage_id)
@@ -1703,9 +1742,9 @@ fn save_map(command: MapCommand) -> Result<serde_json::Value, String> {
         None
     };
     map_writable(&project.status, stage_status.as_deref())?;
-    let now = now_from_database(&connection)?;
+    let now = now_from_database(connection)?;
     let stages = {
-        let repository = ProjectsRepository::new(&mut connection);
+        let repository = ProjectsRepository::new(connection);
         repository
             .list_stages(&command.project_id)
             .map_err(|error| error.to_string())?
@@ -1721,7 +1760,7 @@ fn save_map(command: MapCommand) -> Result<serde_json::Value, String> {
             .unwrap_or(false)
         && !stages.is_empty();
     if combined {
-        let (project_map, stage_maps) = split_combined_map(&project, &stages, &normalized)?;
+        let (project_map, stage_maps) = split_combined_map(&project, &stages, normalized)?;
         let changed = reconcile_map_notes(&tx, &command.project_id, None, &project_map, &now)?;
         update_stored_map(&tx, &command.project_id, None, &project_map, &now, changed)?;
         for stage in &stages {
@@ -1751,20 +1790,19 @@ fn save_map(command: MapCommand) -> Result<serde_json::Value, String> {
             &tx,
             &command.project_id,
             command.stage_id.as_deref(),
-            &normalized,
+            normalized,
             &now,
         )?;
         update_stored_map(
             &tx,
             &command.project_id,
             command.stage_id.as_deref(),
-            &normalized,
+            normalized,
             &now,
             changed,
         )?;
     }
-    tx.commit().map_err(|error| error.to_string())?;
-    map_response(command.project_id, command.stage_id)
+    tx.commit().map_err(|error| error.to_string())
 }
 
 #[tauri::command]

@@ -115,6 +115,12 @@ pub(crate) struct PrepareNoteIntent<'a> {
     pub state_updated_at: &'a str,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum NoteDeleteScope<'a> {
+    Project,
+    Stage(&'a str),
+}
+
 pub(crate) fn build_note_tombstone(
     note: &serde_json::Value,
     deleted_at: &str,
@@ -146,6 +152,71 @@ pub(crate) fn build_note_tombstone(
     );
     serde_json::to_string(&tombstone)
         .map_err(|_| NoteSyncError::InvalidSnapshot("tombstone cannot be encoded"))
+}
+
+pub(crate) fn prepare_note_delete_intent(
+    transaction: &Transaction<'_>,
+    project_id: &str,
+    note_id: &str,
+    note: &serde_json::Value,
+    deleted_at: &str,
+) -> Result<Option<PreparedNoteIntent>, NoteSyncError> {
+    if resolve_project_cloud_binding(transaction, project_id)?.is_none() {
+        return Ok(None);
+    }
+    let tombstone = build_note_tombstone(note, deleted_at)?;
+    prepare_unsealed_note_intent(
+        transaction,
+        PrepareNoteIntent {
+            project_id,
+            entity_id: note_id,
+            operation: NoteSyncOperation::Delete,
+            updated_at: deleted_at,
+            deleted_at: Some(deleted_at),
+            snapshot_json: &tombstone,
+            state_updated_at: deleted_at,
+        },
+    )
+}
+
+pub(crate) fn prepare_note_delete_intents_for_scope(
+    transaction: &Transaction<'_>,
+    project_id: &str,
+    scope: NoteDeleteScope<'_>,
+    deleted_at: &str,
+) -> Result<usize, NoteSyncError> {
+    // Preserve the pre-sync local-only deletion behavior, including for legacy
+    // rows whose payload cannot form a cloud tombstone.
+    if resolve_project_cloud_binding(transaction, project_id)?.is_none() {
+        return Ok(0);
+    }
+    let mut notes = Vec::new();
+    match scope {
+        NoteDeleteScope::Project => {
+            let mut statement = transaction
+                .prepare("SELECT id,payload_json FROM notes WHERE project_id=?1 ORDER BY rowid")?;
+            let rows = statement.query_map([project_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            notes.extend(rows.collect::<Result<Vec<_>, _>>()?);
+        }
+        NoteDeleteScope::Stage(stage_id) => {
+            let mut statement = transaction.prepare(
+                "SELECT id,payload_json FROM notes
+                 WHERE project_id=?1 AND stage_id=?2 ORDER BY rowid",
+            )?;
+            let rows = statement.query_map(rusqlite::params![project_id, stage_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            notes.extend(rows.collect::<Result<Vec<_>, _>>()?);
+        }
+    }
+    for (note_id, raw) in &notes {
+        let note: serde_json::Value = serde_json::from_str(raw)
+            .map_err(|_| NoteSyncError::InvalidSnapshot("snapshot is not valid JSON"))?;
+        prepare_note_delete_intent(transaction, project_id, note_id, &note, deleted_at)?;
+    }
+    Ok(notes.len())
 }
 
 pub(crate) fn resolve_project_cloud_binding(
@@ -1126,6 +1197,506 @@ mod tests {
                 })
                 .unwrap(),
             0
+        );
+    }
+
+    fn test_map(notes: &[(&str, &str)]) -> serde_json::Value {
+        serde_json::json!({
+            "nodeData":{"id":"map-root","topic":"Project","children":[]},
+            "freeNodes": notes.iter().map(|(id, topic)| serde_json::json!({
+                "id":id,"topic":topic,"children":[],"nfprogressNote":true
+            })).collect::<Vec<_>>()
+        })
+    }
+
+    fn save_test_map(connection: &mut Connection, map: serde_json::Value) -> Result<(), String> {
+        let normalized = crate::mindmap::normalize(map.clone())?;
+        crate::save_map_in_connection(
+            connection,
+            &crate::MapCommand {
+                project_id: "project".to_string(),
+                stage_id: None,
+                data: map,
+            },
+            &normalized,
+        )
+    }
+
+    #[test]
+    fn note_sync_save_map_captures_create_update_and_delete() {
+        let mut connection = direct_database(true);
+        let note_id = crate::mindmap::linked_note_id("node");
+
+        save_test_map(&mut connection, test_map(&[("node", "First")])).unwrap();
+        let created: (String, String, i64, String) = connection
+            .query_row(
+                "SELECT note.payload_json,intent.snapshot_json,intent.mutation_generation,event.operation
+                 FROM notes AS note
+                 JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                 JOIN cloud_sync_note_intents AS intent USING(event_id)
+                 WHERE note.id=?1",
+                [&note_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .unwrap();
+        assert_eq!(created.0, created.1);
+        assert_eq!(created.2, 1);
+        assert_eq!(created.3, "upsert");
+
+        save_test_map(&mut connection, test_map(&[("node", "Latest")])).unwrap();
+        let updated: (String, String, i64, i64, String) = connection
+            .query_row(
+                "SELECT note.payload_json,intent.snapshot_json,intent.mutation_generation,
+                        event.revision,event.event_id
+                 FROM notes AS note
+                 JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                 JOIN cloud_sync_note_intents AS intent USING(event_id)
+                 WHERE note.id=?1",
+                [&note_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(updated.0, updated.1);
+        assert_eq!(updated.2, 2);
+        assert_eq!(updated.3, 1);
+        assert_eq!(updated.4, outbox_identity(&connection, &note_id).0);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&updated.0).unwrap()["content"],
+            "Latest"
+        );
+
+        save_test_map(&mut connection, test_map(&[])).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM notes WHERE id=?1",
+                    [&note_id],
+                    |row| { row.get::<_, i64>(0) }
+                )
+                .unwrap(),
+            0
+        );
+        let deleted: (String, i64, String, String, String) = connection
+            .query_row(
+                "SELECT event.operation,intent.mutation_generation,event.updated_at,
+                        event.deleted_at,intent.snapshot_json
+                 FROM cloud_sync_outbox AS event
+                 JOIN cloud_sync_note_intents AS intent USING(event_id)
+                 WHERE event.entity_id=?1",
+                [&note_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        let tombstone: serde_json::Value = serde_json::from_str(&deleted.4).unwrap();
+        assert_eq!(deleted.0, "delete");
+        assert_eq!(deleted.1, 3);
+        assert_eq!(deleted.2, deleted.3);
+        assert_eq!(tombstone["deleted_at"], deleted.2);
+        assert_eq!(tombstone["source_type"], "mindmap");
+    }
+
+    #[test]
+    fn note_sync_load_map_reconciliation_captures_hidden_write() {
+        let mut connection = direct_database(true);
+        let map = test_map(&[("loaded-node", "Loaded")]);
+        connection
+            .execute(
+                "UPDATE projects SET payload_json=?1 WHERE id='project'",
+                [serde_json::json!({"mindmap":map}).to_string()],
+            )
+            .unwrap();
+
+        crate::reconcile_loaded_map_view_in_connection(&mut connection, "project", None).unwrap();
+
+        let note_id = crate::mindmap::linked_note_id("loaded-node");
+        let (stored, intent): (String, String) = connection
+            .query_row(
+                "SELECT note.payload_json,intent.snapshot_json
+                 FROM notes AS note
+                 JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                 JOIN cloud_sync_note_intents AS intent USING(event_id)
+                 WHERE note.id=?1 AND event.lifecycle='unsealed'",
+                [&note_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(stored, intent);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&stored).unwrap()["content"],
+            "Loaded"
+        );
+    }
+
+    #[test]
+    fn note_sync_local_only_load_and_save_map_create_no_outbox() {
+        let mut connection = direct_database(false);
+        let loaded = test_map(&[("local-node", "Loaded locally")]);
+        connection
+            .execute(
+                "UPDATE projects SET payload_json=?1 WHERE id='project'",
+                [serde_json::json!({"mindmap":loaded}).to_string()],
+            )
+            .unwrap();
+        crate::reconcile_loaded_map_view_in_connection(&mut connection, "project", None).unwrap();
+        save_test_map(
+            &mut connection,
+            test_map(&[("local-node", "Saved locally")]),
+        )
+        .unwrap();
+
+        let note_id = crate::mindmap::linked_note_id("local-node");
+        let payload: String = connection
+            .query_row(
+                "SELECT payload_json FROM notes WHERE id=?1",
+                [&note_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&payload).unwrap()["content"],
+            "Saved locally"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn note_sync_save_map_rolls_back_all_reconciliation_changes() {
+        let mut connection = direct_database(true);
+        save_test_map(
+            &mut connection,
+            test_map(&[("first-node", "First"), ("second-node", "Second")]),
+        )
+        .unwrap();
+        let first_id = crate::mindmap::linked_note_id("first-node");
+        let second_id = crate::mindmap::linked_note_id("second-node");
+        let owner_before: String = connection
+            .query_row(
+                "SELECT payload_json FROM projects WHERE id='project'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let first_before = connection
+            .query_row(
+                "SELECT note.payload_json,intent.snapshot_json,intent.mutation_generation
+                 FROM notes AS note
+                 JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                 JOIN cloud_sync_note_intents AS intent USING(event_id)
+                 WHERE note.id=?1",
+                [&first_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )
+            .unwrap();
+        let second_before = connection
+            .query_row(
+                "SELECT note.payload_json,intent.snapshot_json,intent.mutation_generation
+                 FROM notes AS note
+                 JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                 JOIN cloud_sync_note_intents AS intent USING(event_id)
+                 WHERE note.id=?1",
+                [&second_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                    ))
+                },
+            )
+            .unwrap();
+        connection
+            .execute_batch(&format!(
+                "CREATE TRIGGER note_sync_test_fail_map_second BEFORE UPDATE ON notes
+                 WHEN NEW.id='{second_id}' BEGIN SELECT RAISE(ABORT,'injected_note_failure'); END;"
+            ))
+            .unwrap();
+
+        assert!(save_test_map(
+            &mut connection,
+            test_map(&[
+                ("first-node", "Changed first"),
+                ("second-node", "Changed second")
+            ]),
+        )
+        .is_err());
+        connection
+            .execute_batch("DROP TRIGGER note_sync_test_fail_map_second")
+            .unwrap();
+
+        let owner_after: String = connection
+            .query_row(
+                "SELECT payload_json FROM projects WHERE id='project'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(owner_after, owner_before);
+        for (id, before) in [(&first_id, first_before), (&second_id, second_before)] {
+            let after = connection
+                .query_row(
+                    "SELECT note.payload_json,intent.snapshot_json,intent.mutation_generation
+                     FROM notes AS note
+                     JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                     JOIN cloud_sync_note_intents AS intent USING(event_id)
+                     WHERE note.id=?1",
+                    [id],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, i64>(2)?,
+                        ))
+                    },
+                )
+                .unwrap();
+            assert_eq!(after, before);
+        }
+    }
+
+    #[test]
+    fn note_sync_combined_map_failure_rolls_back_prior_owner_and_note_changes() {
+        let mut connection = direct_database(true);
+        add_stage(&connection);
+        connection
+            .execute(
+                "UPDATE projects SET payload_json=?1 WHERE id='project'",
+                [serde_json::json!({
+                    "combine_stage_mindmaps":true,
+                    "mindmap":test_map(&[("project-existing", "Project old")])
+                })
+                .to_string()],
+            )
+            .unwrap();
+        let stage_map = serde_json::json!({
+            "nodeData":{"id":"stage-root","topic":"Stage","children":[]},
+            "freeNodes":[
+                {"id":"stage-existing","topic":"Stage old","children":[],"nfprogressNote":true}
+            ]
+        });
+        connection
+            .execute(
+                "UPDATE stages SET payload_json=?1 WHERE id='stage'",
+                [serde_json::json!({"mindmap":stage_map}).to_string()],
+            )
+            .unwrap();
+        crate::reconcile_loaded_map_view_in_connection(&mut connection, "project", None).unwrap();
+
+        let mut changed_stage_map: serde_json::Value = serde_json::from_str::<serde_json::Value>(
+            &connection
+                .query_row(
+                    "SELECT payload_json FROM stages WHERE id='stage'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+        )
+        .unwrap()["mindmap"]
+            .clone();
+        changed_stage_map["freeNodes"][0]["topic"] = "Stage changed".into();
+        connection
+            .execute(
+                "UPDATE stages SET payload_json=?1 WHERE id='stage'",
+                [serde_json::json!({"mindmap":changed_stage_map}).to_string()],
+            )
+            .unwrap();
+
+        let (project, stages) = {
+            let repository = crate::ProjectsRepository::new(&mut connection);
+            (
+                repository.get_project("project").unwrap().unwrap(),
+                repository.list_stages("project").unwrap(),
+            )
+        };
+        let mut combined = crate::compose_combined_map(&project, &stages).unwrap();
+        combined["freeNodes"][0]["topic"] = "Project changed".into();
+        let normalized = crate::mindmap::normalize(combined.clone()).unwrap();
+        let project_owner_before: String = connection
+            .query_row(
+                "SELECT payload_json FROM projects WHERE id='project'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let stage_owner_before: String = connection
+            .query_row(
+                "SELECT payload_json FROM stages WHERE id='stage'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let project_note_id = crate::mindmap::linked_note_id("project-existing");
+        let stage_note_id = crate::mindmap::linked_note_id("stage-existing");
+        let note_state = |connection: &Connection, note_id: &str| {
+            connection
+                .query_row(
+                    "SELECT note.payload_json,intent.snapshot_json,intent.mutation_generation
+                     FROM notes AS note
+                     JOIN cloud_sync_outbox AS event ON event.entity_id=note.id
+                     JOIN cloud_sync_note_intents AS intent USING(event_id)
+                     WHERE note.id=?1",
+                    [note_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, i64>(2)?,
+                        ))
+                    },
+                )
+                .unwrap()
+        };
+        let project_note_before = note_state(&connection, &project_note_id);
+        let stage_note_before = note_state(&connection, &stage_note_id);
+        connection
+            .execute_batch(&format!(
+                "CREATE TRIGGER note_sync_test_fail_combined_stage BEFORE UPDATE ON notes
+                 WHEN NEW.id='{stage_note_id}' BEGIN SELECT RAISE(ABORT,'injected_note_failure'); END;"
+            ))
+            .unwrap();
+
+        assert!(crate::save_map_in_connection(
+            &mut connection,
+            &crate::MapCommand {
+                project_id: "project".to_string(),
+                stage_id: None,
+                data: combined,
+            },
+            &normalized,
+        )
+        .is_err());
+        connection
+            .execute_batch("DROP TRIGGER note_sync_test_fail_combined_stage")
+            .unwrap();
+
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT payload_json FROM projects WHERE id='project'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            project_owner_before
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT payload_json FROM stages WHERE id='stage'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            stage_owner_before
+        );
+        assert_eq!(
+            note_state(&connection, &project_note_id),
+            project_note_before
+        );
+        assert_eq!(note_state(&connection, &stage_note_id), stage_note_before);
+    }
+
+    #[test]
+    fn note_sync_combined_save_map_captures_project_and_stage_notes() {
+        let mut connection = direct_database(true);
+        add_stage(&connection);
+        let project_map = test_map(&[]);
+        let stage_map = serde_json::json!({
+            "nodeData":{"id":"stage-root","topic":"Stage","children":[]},
+            "freeNodes":[
+                {"id":"stage-node","topic":"Stage note","children":[],"nfprogressNote":true}
+            ]
+        });
+        connection
+            .execute(
+                "UPDATE projects SET payload_json=?1 WHERE id='project'",
+                [serde_json::json!({
+                    "combine_stage_mindmaps":true,
+                    "mindmap":project_map
+                })
+                .to_string()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE stages SET payload_json=?1 WHERE id='stage'",
+                [serde_json::json!({"mindmap":stage_map}).to_string()],
+            )
+            .unwrap();
+        let (project, stages) = {
+            let repository = crate::ProjectsRepository::new(&mut connection);
+            (
+                repository.get_project("project").unwrap().unwrap(),
+                repository.list_stages("project").unwrap(),
+            )
+        };
+        let mut combined = crate::compose_combined_map(&project, &stages).unwrap();
+        combined["freeNodes"] = serde_json::json!([
+            {"id":"project-node","topic":"Project note","children":[],"nfprogressNote":true}
+        ]);
+        let normalized = crate::mindmap::normalize(combined.clone()).unwrap();
+        crate::save_map_in_connection(
+            &mut connection,
+            &crate::MapCommand {
+                project_id: "project".to_string(),
+                stage_id: None,
+                data: combined,
+            },
+            &normalized,
+        )
+        .unwrap();
+
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_note_intents", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM notes WHERE stage_id='stage'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
         );
     }
 }
