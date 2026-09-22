@@ -1,0 +1,96 @@
+{
+  "list_unsealed_note_sync_intents": [
+    {
+      "event_id": "123e4567-e89b-42d3-a456-426614174000",
+      "account_id": "account-1",
+      "device_id": "123e4567-e89b-42d3-a456-426614174001",
+      "project_id": "project-1",
+      "entity_id": "note-1",
+      "entity_type": "note",
+      "operation": "upsert",
+      "revision": 1,
+      "parent_event_id": null,
+      "updated_at": "2026-09-22T00:00:00.000000Z",
+      "deleted_at": null,
+      "local_ordinal": 1,
+      "mutation_generation": 9007199254740991,
+      "snapshot_json": "{\"id\":\"note-1\"}",
+      "seal_state": "pending",
+      "seal_attempt_count": 0,
+      "last_error_code": null,
+      "next_attempt_at": null
+    },
+    {
+      "event_id": "123e4567-e89b-42d3-a456-426614174002",
+      "account_id": "account-1",
+      "device_id": "123e4567-e89b-42d3-a456-426614174001",
+      "project_id": "project-1",
+      "entity_id": "note-2",
+      "entity_type": "note",
+      "operation": "delete",
+      "revision": 2,
+      "parent_event_id": "123e4567-e89b-42d3-a456-426614174003",
+      "updated_at": "2026-09-22T00:00:01.000000Z",
+      "deleted_at": "2026-09-22T00:00:01.000000Z",
+      "local_ordinal": 2,
+      "mutation_generation": 7,
+      "snapshot_json": "{\"id\":\"note-2\",\"deleted_at\":\"2026-09-22T00:00:01.000000Z\"}",
+      "seal_state": "retryable_error",
+      "seal_attempt_count": 2,
+      "last_error_code": "runtime_unavailable",
+      "next_attempt_at": "2026-09-22T00:00:31.000000Z"
+    }
+  ],
+  "record_note_sync_seal_failure": {
+    "command": {
+      "event_id": "123e4567-e89b-42d3-a456-426614174000",
+      "expected_mutation_generation": 9007199254740991,
+      "error_code": "runtime_unavailable"
+    }
+  },
+  "commit_sealed_note_sync_event": {
+    "command": {
+      "event_id": "123e4567-e89b-42d3-a456-426614174000",
+      "expected_mutation_generation": 9007199254740991,
+      "envelope": {
+        "crypto_version": 1,
+        "aad_version": 1,
+        "nonce": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "ciphertext": "AAAAAAAAAAAAAAAAAAAAAA"
+      }
+    }
+  },
+  "operation_values": [
+    "upsert",
+    "delete"
+  ],
+  "seal_state_values": [
+    "pending",
+    "retryable_error",
+    "blocked",
+    "invariant_error"
+  ],
+  "error_code_values": [
+    "key_unavailable",
+    "payload_too_large",
+    "encrypted_sync_object_too_large",
+    "dependency_not_synced",
+    "unsupported_content_format",
+    "invalid_note_payload",
+    "crypto_context_invalid",
+    "invalid_sync_metadata",
+    "invalid_envelope",
+    "metadata_mismatch",
+    "runtime_unavailable"
+  ],
+  "record_failure_result_values": [
+    "recorded",
+    "stale_generation",
+    "already_sealed"
+  ],
+  "commit_result_values": [
+    "sealed",
+    "stale_generation",
+    "already_sealed"
+  ]
+}
