@@ -25,6 +25,7 @@ export interface SealedNoteSyncOutboxItem {
 export interface NoteSyncOutboxRepository {
   listSealed(accountId: string, limit: number): Promise<SealedNoteSyncOutboxItem[]>
   commitAccepted(accountId: string, deviceId: string, receipts: NoteSyncUploadReceipt[]): Promise<CommitNoteSyncUploadAcceptanceResult[]>
+  recordUploadFailure(command: NoteSyncUploadFailure): Promise<void>
 }
 
 export interface NoteSyncUploadReceipt {
@@ -34,3 +35,12 @@ export interface NoteSyncUploadReceipt {
 }
 
 export type CommitNoteSyncUploadAcceptanceResult = 'accepted' | 'already_accepted'
+
+export type NoteSyncUploadFailureCode = 'network_unavailable' | 'request_timeout' | 'http_5xx' | 'rate_limited' | 'unauthorized' | 'device_not_registered' | 'cloud_project_disabled' | 'invalid_protocol' | 'conflicting_event' | 'malformed_receipt' | 'local_acceptance_failed'
+
+export interface NoteSyncUploadFailure {
+  account_id: string
+  device_id: string
+  event_ids: string[]
+  error_code: NoteSyncUploadFailureCode
+}

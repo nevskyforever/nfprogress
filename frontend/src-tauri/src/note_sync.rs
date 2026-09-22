@@ -279,6 +279,59 @@ pub(crate) struct CommitNoteSyncUploadAcceptanceCommand {
     pub receipts: Vec<NoteSyncUploadReceipt>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NoteSyncUploadErrorCode {
+    NetworkUnavailable,
+    RequestTimeout,
+    Http5xx,
+    RateLimited,
+    Unauthorized,
+    DeviceNotRegistered,
+    CloudProjectDisabled,
+    InvalidProtocol,
+    ConflictingEvent,
+    MalformedReceipt,
+    LocalAcceptanceFailed,
+}
+
+impl NoteSyncUploadErrorCode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::NetworkUnavailable => "network_unavailable",
+            Self::RequestTimeout => "request_timeout",
+            Self::Http5xx => "http_5xx",
+            Self::RateLimited => "rate_limited",
+            Self::Unauthorized => "unauthorized",
+            Self::DeviceNotRegistered => "device_not_registered",
+            Self::CloudProjectDisabled => "cloud_project_disabled",
+            Self::InvalidProtocol => "invalid_protocol",
+            Self::ConflictingEvent => "conflicting_event",
+            Self::MalformedReceipt => "malformed_receipt",
+            Self::LocalAcceptanceFailed => "local_acceptance_failed",
+        }
+    }
+
+    fn retryable(self) -> bool {
+        matches!(
+            self,
+            Self::NetworkUnavailable
+                | Self::RequestTimeout
+                | Self::Http5xx
+                | Self::RateLimited
+                | Self::LocalAcceptanceFailed
+        )
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct RecordNoteSyncUploadFailureCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub event_ids: Vec<String>,
+    pub error_code: NoteSyncUploadErrorCode,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum CommitNoteSyncUploadAcceptanceResult {
@@ -1082,8 +1135,8 @@ pub(crate) fn list_unsealed_note_sync_intents(
     Ok(intents)
 }
 
-/// Lists one account's sealed Note events in a deterministic dependency-safe
-/// order without changing outbox lifecycle, attempts, or plaintext sidecars.
+/// Lists one account's sealed Note events in a dependency-safe order. Its only
+/// durable side effect is the per-account device round-robin cursor.
 /// The ciphertext batch cap is applied before the DTOs leave SQLite.
 pub(crate) fn list_sealed_note_sync_outbox(
     connection: &mut Connection,
@@ -1100,7 +1153,30 @@ pub(crate) fn list_sealed_note_sync_outbox(
     let transaction = connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
     let rows = {
         let mut statement = transaction.prepare(
-            "SELECT event.event_id,event.account_id,event.device_id,event.project_id,
+            "WITH eligible AS (
+                SELECT event.* FROM cloud_sync_outbox AS event
+                WHERE event.account_id=?1 AND event.entity_type='note' AND event.lifecycle='sealed'
+                  AND (event.next_attempt_at IS NULL OR event.next_attempt_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+                  AND (event.parent_event_id IS NULL OR EXISTS (
+                       SELECT 1 FROM cloud_sync_outbox AS eligible_parent
+                       WHERE eligible_parent.event_id=event.parent_event_id
+                         AND (eligible_parent.lifecycle='accepted' OR (
+                              eligible_parent.lifecycle='sealed'
+                              AND (eligible_parent.next_attempt_at IS NULL OR eligible_parent.next_attempt_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+                         ))
+                  ))
+             ), selected_device AS (
+                SELECT device_id FROM eligible
+                WHERE device_id > COALESCE((SELECT device_id FROM cloud_sync_note_upload_cursors WHERE account_id=?1), '')
+                ORDER BY device_id LIMIT 1
+             ), chosen_device AS (
+                SELECT device_id FROM selected_device
+                UNION ALL
+                SELECT device_id FROM eligible
+                WHERE NOT EXISTS (SELECT 1 FROM selected_device)
+                ORDER BY device_id LIMIT 1
+             )
+             SELECT event.event_id,event.account_id,event.device_id,event.project_id,
                 event.entity_id,event.entity_type,event.operation,event.revision,
                 event.parent_event_id,event.updated_at,event.deleted_at,event.local_ordinal,
                 object.crypto_version,object.aad_version,object.nonce,object.ciphertext,
@@ -1110,11 +1186,11 @@ pub(crate) fn list_sealed_note_sync_outbox(
                  WHERE intent.event_id=event.event_id),
                 parent.account_id,parent.project_id,parent.entity_id,parent.entity_type,
                 parent.revision,parent.lifecycle
-             FROM cloud_sync_outbox AS event
+             FROM eligible AS event
              LEFT JOIN cloud_sync_event_objects AS object
                ON object.account_id=event.account_id AND object.event_id=event.event_id
              LEFT JOIN cloud_sync_outbox AS parent ON parent.event_id=event.parent_event_id
-             WHERE event.account_id=?1 AND event.entity_type='note' AND event.lifecycle='sealed'
+             WHERE event.device_id=(SELECT device_id FROM chosen_device)
              ORDER BY event.revision,event.device_id,event.local_ordinal,event.event_id
              LIMIT ?2",
         )?;
@@ -1261,6 +1337,14 @@ pub(crate) fn list_sealed_note_sync_outbox(
         return Err(NoteSyncError::InvalidOutboxRead(
             "outbox DTO exceeds wire body limit",
         ));
+    }
+    if let Some(item) = items.first() {
+        transaction.execute(
+            "INSERT INTO cloud_sync_note_upload_cursors(account_id,device_id,updated_at)
+             VALUES(?1,?2,strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+             ON CONFLICT(account_id) DO UPDATE SET device_id=excluded.device_id,updated_at=excluded.updated_at",
+            rusqlite::params![account_id, item.device_id],
+        )?;
     }
     transaction.commit()?;
     Ok(items)
@@ -1471,12 +1555,15 @@ pub(crate) fn commit_note_sync_upload_acceptance(
         if account_id != command.account_id || device_id != command.device_id {
             return Err(NoteSyncError::ConflictingUploadReceipt);
         }
-        let stored: Option<(i64, i64)> = transaction.query_row(
+        let stored: Option<i64> = transaction.query_row(
             "SELECT server_sequence,duplicate FROM cloud_sync_upload_receipts WHERE event_id=?1",
-            [&receipt.event_id], |row| Ok((row.get(0)?, row.get(1)?)),
+            [&receipt.event_id], |row| row.get(0),
         ).optional()?;
-        if let Some((sequence, duplicate)) = stored {
-            if sequence != receipt.server_sequence || duplicate != i64::from(receipt.duplicate) {
+        if let Some(sequence) = stored {
+            // `duplicate` describes this HTTP response.  The persisted receipt
+            // keeps its first diagnostic value; idempotency is the stable server
+            // sequence for this event/account/device identity.
+            if sequence != receipt.server_sequence {
                 return Err(NoteSyncError::ConflictingUploadReceipt);
             }
             if lifecycle != "accepted" {
@@ -1507,6 +1594,55 @@ pub(crate) fn commit_note_sync_upload_acceptance(
     }
     transaction.commit()?;
     Ok(results)
+}
+
+/// Durably backs off a failed already-sealed upload without touching its opaque
+/// object. Permanent protocol failures are retained as rejected evidence.
+pub(crate) fn record_note_sync_upload_failure(
+    connection: &mut Connection,
+    command: &RecordNoteSyncUploadFailureCommand,
+) -> Result<(), NoteSyncError> {
+    if command.account_id.is_empty()
+        || command.account_id.len() > 512
+        || command.device_id.len() != 36
+        || command.event_ids.is_empty()
+        || command.event_ids.len() > MAX_SEALED_OUTBOX_LIST_LIMIT as usize
+    {
+        return Err(NoteSyncError::InvalidSealState(
+            "invalid upload failure command",
+        ));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    for event_id in &command.event_ids {
+        if event_id.len() != 36 {
+            return Err(NoteSyncError::InvalidSealState(
+                "invalid upload failure event",
+            ));
+        }
+        let changed = if command.error_code.retryable() {
+            transaction.execute(
+                "UPDATE cloud_sync_outbox
+                 SET attempt_count=attempt_count+1,last_error=?1,
+                     next_attempt_at=strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('+%d seconds',MIN(300,5 * (1 << MIN(6,attempt_count)))))
+                 WHERE event_id=?2 AND account_id=?3 AND device_id=?4
+                   AND entity_type='note' AND lifecycle='sealed'",
+                rusqlite::params![command.error_code.as_str(), event_id, command.account_id, command.device_id],
+            )?
+        } else {
+            transaction.execute(
+                "UPDATE cloud_sync_outbox
+                 SET attempt_count=attempt_count+1,last_error=?1,next_attempt_at=NULL,lifecycle='rejected'
+                 WHERE event_id=?2 AND account_id=?3 AND device_id=?4
+                   AND entity_type='note' AND lifecycle='sealed'",
+                rusqlite::params![command.error_code.as_str(), event_id, command.account_id, command.device_id],
+            )?
+        };
+        if changed != 1 {
+            return Err(NoteSyncError::UnexpectedLifecycle);
+        }
+    }
+    transaction.commit()?;
+    Ok(())
 }
 
 fn retry_backoff_seconds(attempt_count: i64) -> i64 {
@@ -2316,6 +2452,12 @@ mod tests {
                     }],
                 },
             },
+            "record_note_sync_upload_failure": {
+                "account_id": "account-1",
+                "device_id": "123e4567-e89b-42d3-a456-426614174001",
+                "event_ids": ["123e4567-e89b-42d3-a456-426614174004"],
+                "error_code": NoteSyncUploadErrorCode::RequestTimeout,
+            },
             "list_sealed_note_sync_outbox": [
                 SealedNoteSyncOutboxItem {
                     event_id: "123e4567-e89b-42d3-a456-426614174004".to_string(),
@@ -2458,6 +2600,17 @@ mod tests {
             commit_note_sync_upload_acceptance(&mut connection, &command).unwrap(),
             vec![CommitNoteSyncUploadAcceptanceResult::AlreadyAccepted]
         );
+        let duplicate_response = CommitNoteSyncUploadAcceptanceCommand {
+            receipts: vec![NoteSyncUploadReceipt {
+                duplicate: true,
+                ..command.receipts[0].clone()
+            }],
+            ..command.clone()
+        };
+        assert_eq!(
+            commit_note_sync_upload_acceptance(&mut connection, &duplicate_response).unwrap(),
+            vec![CommitNoteSyncUploadAcceptanceResult::AlreadyAccepted]
+        );
         let conflicting = CommitNoteSyncUploadAcceptanceCommand {
             receipts: vec![NoteSyncUploadReceipt {
                 server_sequence: 8,
@@ -2478,6 +2631,65 @@ mod tests {
                 )
                 .unwrap(),
             "accepted"
+        );
+    }
+
+    #[test]
+    fn upload_failure_backoff_is_durable_and_permanent_failure_does_not_starve_later_events() {
+        let mut connection = database();
+        let delayed = seal_persisted_intent(&mut connection, "delayed", "delayed", 0);
+        let later = seal_persisted_intent(&mut connection, "later", "later", 1);
+        record_note_sync_upload_failure(
+            &mut connection,
+            &RecordNoteSyncUploadFailureCommand {
+                account_id: "account".to_string(),
+                device_id: DEVICE_ID.to_string(),
+                event_ids: vec![delayed.event_id.clone()],
+                error_code: NoteSyncUploadErrorCode::RequestTimeout,
+            },
+        )
+        .unwrap();
+        let row: (i64, String, Option<String>) = connection.query_row(
+            "SELECT attempt_count,last_error,next_attempt_at FROM cloud_sync_outbox WHERE event_id=?1", [&delayed.event_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        assert_eq!((row.0, row.1), (1, "request_timeout".to_string()));
+        assert!(row.2.is_some());
+        assert_eq!(
+            list_sealed_note_sync_outbox(&mut connection, "account", 10)
+                .unwrap()
+                .iter()
+                .map(|item| &item.event_id)
+                .collect::<Vec<_>>(),
+            vec![&later.event_id]
+        );
+        record_note_sync_upload_failure(
+            &mut connection,
+            &RecordNoteSyncUploadFailureCommand {
+                account_id: "account".to_string(),
+                device_id: DEVICE_ID.to_string(),
+                event_ids: vec![delayed.event_id.clone()],
+                error_code: NoteSyncUploadErrorCode::ConflictingEvent,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT lifecycle FROM cloud_sync_outbox WHERE event_id=?1",
+                    [&delayed.event_id],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            "rejected"
+        );
+        assert_eq!(
+            list_sealed_note_sync_outbox(&mut connection, "account", 10)
+                .unwrap()
+                .iter()
+                .map(|item| &item.event_id)
+                .collect::<Vec<_>>(),
+            vec![&later.event_id]
         );
     }
 
@@ -2568,6 +2780,26 @@ mod tests {
             vec![&second.event_id]
         );
         assert_eq!(other[0].device_id, "123e4567-e89b-42d3-a456-426614174099");
+    }
+
+    #[test]
+    fn sealed_outbox_round_robins_devices_durably() {
+        let mut connection = database();
+        let first = seal_persisted_intent(&mut connection, "first", "first", 6);
+        let second = seal_persisted_intent(&mut connection, "second", "second", 7);
+        connection.execute(
+            "UPDATE cloud_sync_outbox SET device_id='123e4567-e89b-42d3-a456-426614174099' WHERE event_id=?1",
+            [&second.event_id],
+        ).unwrap();
+        let first_pass = list_sealed_note_sync_outbox(&mut connection, "account", 1).unwrap();
+        let second_pass = list_sealed_note_sync_outbox(&mut connection, "account", 1).unwrap();
+        assert_eq!(first_pass.len(), 1);
+        assert_eq!(second_pass.len(), 1);
+        assert_ne!(first_pass[0].device_id, second_pass[0].device_id);
+        assert_eq!(
+            [first_pass[0].event_id.as_str(), second_pass[0].event_id.as_str()].into_iter().collect::<std::collections::BTreeSet<_>>(),
+            [first.event_id.as_str(), second.event_id.as_str()].into_iter().collect::<std::collections::BTreeSet<_>>(),
+        );
     }
 
     #[test]

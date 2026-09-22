@@ -1,7 +1,8 @@
 import { encryptedSyncApi, encryptedSyncObjectFromWire, encryptedSyncPushBodyBytes, ENCRYPTED_SYNC_VERSION, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES, type EncryptedSyncPushItem } from '@/api/encryptedSync'
+import { ApiError } from '@/api/client'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
-import { NormalUserAuthRuntime, StaleAuthContextError } from '@/auth/userAuth'
-import type { NoteSyncOutboxRepository, NoteSyncUploadReceipt, SealedNoteSyncOutboxItem } from './noteSyncOutbox'
+import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
+import type { NoteSyncOutboxRepository, NoteSyncUploadFailureCode, NoteSyncUploadReceipt, SealedNoteSyncOutboxItem } from './noteSyncOutbox'
 
 const MAX_UPLOAD_EVENTS = 100
 const SEALED_READ_LIMIT = 200
@@ -64,8 +65,27 @@ function receiptsFor(batch: readonly SealedNoteSyncOutboxItem[], response: Await
   return receipts
 }
 
+function failureCode(error: unknown): NoteSyncUploadFailureCode | null {
+  if (error instanceof StaleAuthContextError || error instanceof NoteSyncUploadError && error.code === 'no_uploadable_events') return null
+  if (error instanceof NoteSyncUploadError) return 'malformed_receipt'
+  if (error instanceof ApiError) {
+    if (error.status === 0) return 'network_unavailable'
+    if (error.status === 429) return 'rate_limited'
+    if (error.status >= 500) return 'http_5xx'
+    if (error.status === 401) return 'unauthorized'
+    if (error.code === 'sync_device_not_registered') return 'device_not_registered'
+    if (error.code === 'cloud_project_not_enabled') return 'cloud_project_disabled'
+    if (error.code === 'sync_event_id_conflict') return 'conflicting_event'
+    return 'invalid_protocol'
+  }
+  if (error instanceof DOMException && error.name === 'AbortError') return 'request_timeout'
+  if (error instanceof Error && /timeout/i.test(error.message)) return 'request_timeout'
+  return 'network_unavailable'
+}
+
 /** Runs one manually-triggered, bounded durable upload pass. It never seals or re-encrypts Notes. */
 export class NoteSyncUploader {
+  private static readonly flights = new Map<string, Promise<{ uploaded: number, deviceId: string | null }>>()
   constructor(
     private readonly auth: NormalUserAuthRuntime,
     private readonly bindings: AuthoritativeAccountBinding,
@@ -80,12 +100,39 @@ export class NoteSyncUploader {
     const batch = batchFrom(listed)
     if (batch.length === 0) return { uploaded: 0, deviceId: null }
     const deviceId = batch[0]!.device_id
-    const request = requestFor(deviceId, batch)
-    const pushed = await this.auth.authorized(accessToken => encryptedSyncApi.push(accessToken, request))
-    if (pushed.context.userId !== binding.context.userId || !this.auth.isCurrent(binding.context)) throw new StaleAuthContextError()
-    const receipts = receiptsFor(batch, pushed.value)
-    if (!this.auth.isCurrent(binding.context)) throw new StaleAuthContextError()
-    await this.outbox.commitAccepted(localAccountId, deviceId, receipts)
-    return { uploaded: batch.length, deviceId }
+    const flightKey = `${localAccountId}\u0000${deviceId}`
+    const existing = NoteSyncUploader.flights.get(flightKey)
+    if (existing) return existing
+    const flight = this.uploadBatch(localAccountId, deviceId, binding.context, batch)
+    NoteSyncUploader.flights.set(flightKey, flight)
+    try {
+      return await flight
+    } finally {
+      if (NoteSyncUploader.flights.get(flightKey) === flight) NoteSyncUploader.flights.delete(flightKey)
+    }
+  }
+
+  private async uploadBatch(localAccountId: string, deviceId: string, context: AuthContextSnapshot, batch: readonly SealedNoteSyncOutboxItem[]): Promise<{ uploaded: number, deviceId: string }> {
+    try {
+      const pushed = await this.auth.authorized(accessToken => encryptedSyncApi.push(accessToken, requestFor(deviceId, batch)))
+      if (pushed.context.userId !== context.userId || !this.auth.isCurrent(context)) throw new StaleAuthContextError()
+      const receipts = receiptsFor(batch, pushed.value)
+      // Once this account/device-scoped SQLite command starts, it is safe to
+      // finish even if logout races it: it cannot apply to a new account.
+      if (!this.auth.isCurrent(context)) throw new StaleAuthContextError()
+      await this.outbox.commitAccepted(localAccountId, deviceId, receipts)
+      return { uploaded: batch.length, deviceId }
+    } catch (error) {
+      const code = failureCode(error)
+      if (code) {
+        try {
+          await this.outbox.recordUploadFailure({ account_id: localAccountId, device_id: deviceId, event_ids: batch.map(item => item.event_id), error_code: code })
+        } catch {
+          // The original error is authoritative; an acceptance failure stays
+          // sealed and will be safely retried after restart.
+        }
+      }
+      throw error
+    }
   }
 }

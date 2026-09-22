@@ -29,9 +29,10 @@ function runtime() {
   return { auth, binding }
 }
 
-function repository(items: SealedNoteSyncOutboxItem[]): NoteSyncOutboxRepository & { commit: ReturnType<typeof vi.fn> } {
+function repository(items: SealedNoteSyncOutboxItem[]): NoteSyncOutboxRepository & { commit: ReturnType<typeof vi.fn>, failure: ReturnType<typeof vi.fn> } {
   const commit = vi.fn().mockResolvedValue(['accepted'])
-  return { listSealed: vi.fn().mockResolvedValue(items), commitAccepted: commit, commit }
+  const failure = vi.fn().mockResolvedValue(undefined)
+  return { listSealed: vi.fn().mockResolvedValue(items), commitAccepted: commit, recordUploadFailure: failure, commit, failure }
 }
 
 describe('bounded durable Note upload', () => {
@@ -53,9 +54,47 @@ describe('bounded durable Note upload', () => {
     const uploader = new NoteSyncUploader(auth, binding, outbox)
     await expect(uploader.uploadOnce('local')).rejects.toThrow('timeout')
     expect(outbox.commit).not.toHaveBeenCalled()
+    expect(outbox.failure).toHaveBeenCalledWith(expect.objectContaining({ error_code: 'request_timeout' }))
     await uploader.uploadOnce('local')
     expect(push.mock.calls[0]![1].items[0].object.ciphertext).toEqual(push.mock.calls[1]![1].items[0].object.ciphertext)
     expect(outbox.commit.mock.calls[0]![2][0].duplicate).toBe(true)
+  })
+
+  it('joins concurrent passes for the same account/device and releases the guard after failure', async () => {
+    const { auth, binding } = runtime(); await auth.login('user', 'password')
+    const source = event(); const outbox = repository([source])
+    let release!: () => void
+    push.mockImplementationOnce(() => new Promise(resolve => { release = () => resolve({ protocol_version: 1, encrypted_sync_version: 1, results: [{ event_id: source.event_id, server_sequence: 2, duplicate: false }], current_cursor: 2 }) }))
+    const uploader = new NoteSyncUploader(auth, binding, outbox)
+    const first = uploader.uploadOnce('local')
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1))
+    const second = uploader.uploadOnce('local')
+    release()
+    await expect(Promise.all([first, second])).resolves.toEqual([{ uploaded: 1, deviceId: DEVICE }, { uploaded: 1, deviceId: DEVICE }])
+    expect(push).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not persist a failure when logout invalidates an in-flight response', async () => {
+    const { auth, binding } = runtime(); await auth.login('user', 'password')
+    const source = event(); const outbox = repository([source])
+    push.mockImplementationOnce(async () => { await auth.logout(); return { protocol_version: 1, encrypted_sync_version: 1, results: [{ event_id: source.event_id, server_sequence: 1, duplicate: false }], current_cursor: 1 } })
+    await expect(new NoteSyncUploader(auth, binding, outbox).uploadOnce('local')).rejects.toBeInstanceOf(StaleAuthContextError)
+    expect(outbox.commit).not.toHaveBeenCalled()
+    expect(outbox.failure).not.toHaveBeenCalled()
+  })
+
+  it('finishes an already-started account-scoped SQLite acceptance across logout', async () => {
+    const { auth, binding } = runtime(); await auth.login('user', 'password')
+    const source = event(); const outbox = repository([source])
+    let release!: () => void
+    outbox.commit.mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve }))
+    push.mockResolvedValueOnce({ protocol_version: 1, encrypted_sync_version: 1, results: [{ event_id: source.event_id, server_sequence: 1, duplicate: false }], current_cursor: 1 })
+    const uploading = new NoteSyncUploader(auth, binding, outbox).uploadOnce('local')
+    await vi.waitFor(() => expect(outbox.commit).toHaveBeenCalledTimes(1))
+    await auth.logout()
+    release()
+    await expect(uploading).resolves.toEqual({ uploaded: 1, deviceId: DEVICE })
+    expect(outbox.failure).not.toHaveBeenCalled()
   })
 
   it('rejects malformed acknowledgements and an account switch before receipt persistence', async () => {

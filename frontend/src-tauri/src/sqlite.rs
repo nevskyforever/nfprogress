@@ -9,7 +9,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 13;
+pub const CURRENT_SCHEMA_VERSION: i64 = 14;
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
@@ -69,7 +69,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 13] = [
+const MIGRATIONS: [(i64, &str); 14] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -125,6 +125,10 @@ const MIGRATIONS: [(i64, &str); 13] = [
         include_str!(
             "../../../nfprogress/core/sqlite/migrations/013_note_sync_upload_receipts.sql"
         ),
+    ),
+    (
+        14,
+        include_str!("../../../nfprogress/core/sqlite/migrations/014_note_sync_upload_fairness.sql"),
     ),
 ];
 

@@ -73,6 +73,14 @@
       ]
     }
   },
+  "record_note_sync_upload_failure": {
+    "account_id": "account-1",
+    "device_id": "123e4567-e89b-42d3-a456-426614174001",
+    "event_ids": [
+      "123e4567-e89b-42d3-a456-426614174004"
+    ],
+    "error_code": "request_timeout"
+  },
   "list_sealed_note_sync_outbox": [
     {
       "event_id": "123e4567-e89b-42d3-a456-426614174004",

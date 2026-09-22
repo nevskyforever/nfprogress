@@ -2098,6 +2098,16 @@ fn commit_note_sync_upload_acceptance(
 }
 
 #[tauri::command]
+fn record_note_sync_upload_failure(
+    command: note_sync::RecordNoteSyncUploadFailureCommand,
+) -> Result<(), String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::record_note_sync_upload_failure(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn ensure_cloud_account_binding(
     command: account_binding::EnsureCloudAccountBindingCommand,
 ) -> Result<account_binding::EnsureCloudAccountBindingResult, String> {
@@ -5185,6 +5195,7 @@ pub fn run() {
             record_note_sync_seal_failure,
             commit_sealed_note_sync_event,
             commit_note_sync_upload_acceptance,
+            record_note_sync_upload_failure,
             ensure_cloud_account_binding,
             create_note,
             update_note,

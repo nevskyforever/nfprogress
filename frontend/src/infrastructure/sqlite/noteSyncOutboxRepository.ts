@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-import type { CommitNoteSyncUploadAcceptanceResult, NoteSyncOutboxRepository, NoteSyncUploadReceipt, SealedNoteSyncOutboxItem } from '@/cloud/noteSyncOutbox'
+import type { CommitNoteSyncUploadAcceptanceResult, NoteSyncOutboxRepository, NoteSyncUploadFailure, NoteSyncUploadReceipt, SealedNoteSyncOutboxItem } from '@/cloud/noteSyncOutbox'
 
 const MAX_RUST_SEALED_OUTBOX_LIST_LIMIT = 200
 
@@ -22,5 +22,9 @@ export class SQLiteNoteSyncOutboxRepository implements NoteSyncOutboxRepository 
     return invoke<CommitNoteSyncUploadAcceptanceResult[]>('commit_note_sync_upload_acceptance', {
       command: { account_id: accountId, device_id: deviceId, receipts },
     })
+  }
+
+  recordUploadFailure(command: NoteSyncUploadFailure): Promise<void> {
+    return invoke<void>('record_note_sync_upload_failure', { command })
   }
 }
