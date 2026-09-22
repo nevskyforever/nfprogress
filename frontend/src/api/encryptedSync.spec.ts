@@ -9,7 +9,6 @@ import {
   type EncryptedSyncPushItem,
 } from './encryptedSync'
 import { ApiResponseTooLargeError } from './client'
-import { encodeBase64Url } from './base64url'
 
 const event: SyncEventEnvelope = {
   event_id: '123e4567-e89b-42d3-a456-426614174000', project_id: 'project-1', entity_id: 'note-1',
@@ -27,6 +26,15 @@ const pulled = (overrides: Record<string, unknown> = {}) => ({
   } }],
   ...overrides,
 })
+
+const HEAVY_BOUNDARY_TIMEOUT = 30_000
+
+// Canonical unpadded Base64URL for a zero-filled byte string. Avoiding the
+// byte-by-byte fixture encoder keeps the boundary test focused on pull parsing.
+function zeroBase64Url(byteLength: number): string {
+  const remainder = byteLength % 3
+  return 'A'.repeat(Math.floor(byteLength / 3) * 4 + (remainder === 0 ? 0 : remainder + 1))
+}
 
 async function expectRejectedPull(response: unknown, since = 0): Promise<void> {
   const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify(response), { status: 200 }))
@@ -139,15 +147,18 @@ describe('encrypted sync transport boundary', () => {
     fetchMock.mockRestore()
   })
 
-  it('rejects decoded pull objects and batches over ciphertext limits', async () => {
-    const oversized = encodeBase64Url(new Uint8Array(MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES + 1))
+  it('rejects a decoded pull object over the exact ciphertext limit', async () => {
+    const oversized = zeroBase64Url(MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES + 1)
     await expectRejectedPull(pulled({ items: [{ event: { ...event, device_id: event.event_id, server_sequence: 1 }, object: {
       crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: oversized,
     } }] }))
-    const maximum = encodeBase64Url(new Uint8Array(MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES))
+  }, HEAVY_BOUNDARY_TIMEOUT)
+
+  it('rejects a decoded pull batch over the exact aggregate ciphertext limit', async () => {
+    const maximum = zeroBase64Url(MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES)
     await expectRejectedPull(pulled({ items: [
       { event: { ...event, device_id: event.event_id, server_sequence: 1 }, object: { crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: maximum } },
       { event: { ...event, event_id: '123e4567-e89b-42d3-a456-426614174001', device_id: event.event_id, server_sequence: 2 }, object: { crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: maximum } },
     ], next_cursor: 2 }))
-  })
+  }, HEAVY_BOUNDARY_TIMEOUT)
 })
