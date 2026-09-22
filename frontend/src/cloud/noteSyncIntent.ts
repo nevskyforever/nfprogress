@@ -1,9 +1,9 @@
 import {
   CryptoError,
-  isUint8Array,
-  type AccountMasterKey,
   type ObjectCryptoEnvelope,
 } from '@/crypto'
+import type { RuntimeKeyContext } from '@/auth/keyContext'
+import { StaleAuthContextError } from '@/auth/userAuth'
 import {
   EncryptedSyncProtocolError,
   createNoteSyncPlaintext,
@@ -77,20 +77,6 @@ export interface NoteSyncIntentRepository {
   list(limit: number, retryBlocked: boolean): Promise<UnsealedNoteSyncIntent[]>
   recordSealFailure(input: RecordNoteSyncSealFailureInput): Promise<RecordNoteSyncSealFailureResult>
   commitSealedEvent(input: CommitSealedNoteSyncEventInput): Promise<CommitSealedNoteSyncEventResult>
-}
-
-export type UnlockedAccountMasterKeyResult =
-  | {
-    status: 'available'
-    accountId: string
-    userId: string
-    masterKey: AccountMasterKey
-  }
-  | { status: 'key_unavailable' }
-  | { status: 'runtime_unavailable' }
-
-export interface UnlockedAccountMasterKeyProvider {
-  getUnlockedAccountMasterKey(accountId: string): Promise<UnlockedAccountMasterKeyResult>
 }
 
 export interface NoteSyncSealingPassOptions {
@@ -371,7 +357,7 @@ function diagnosticResult(
 async function sealIntent(
   intent: UnsealedNoteSyncIntent,
   repository: NoteSyncIntentRepository,
-  keyProvider: UnlockedAccountMasterKeyProvider,
+  keyContext: RuntimeKeyContext,
 ): Promise<NoteSyncSealingItemResult> {
   let prepared: ReturnType<typeof prepareIntent>
   try {
@@ -383,55 +369,69 @@ async function sealIntent(
       : recordFailure(repository, intent, errorCode)
   }
 
-  let keyResult: UnlockedAccountMasterKeyResult
+  let lease
   try {
-    keyResult = await keyProvider.getUnlockedAccountMasterKey(intent.account_id)
+    lease = keyContext.leaseForAccount(intent.account_id)
   } catch {
     return diagnosticResult(intent, 'unclassified_error')
   }
-  if (keyResult.status !== 'available') {
-    return recordFailure(repository, intent, keyResult.status)
+  if (lease === null) {
+    return recordFailure(repository, intent, 'key_unavailable')
   }
-  if (keyResult.accountId !== intent.account_id || !requiredString(keyResult.userId)
-    || !isUint8Array(keyResult.masterKey) || keyResult.masterKey.byteLength !== 32) {
+  if (lease.localAccountId !== intent.account_id || !requiredString(lease.canonicalUserId)) {
     return recordFailure(repository, intent, 'crypto_context_invalid')
   }
+  if (!lease.isCurrent()) return recordFailure(repository, intent, 'key_unavailable')
 
-  let encrypted: Awaited<ReturnType<typeof sealNoteSyncEvent>>
   try {
-    encrypted = await sealNoteSyncEvent(
-      keyResult.masterKey,
-      keyResult.userId,
-      prepared.event,
-      intent.parent_event_id,
-      prepared.note,
-    )
+    // The lease spans both encryption and the complete Tauri commit IPC. Logout,
+    // account switch, and key lock cannot finish between these two operations.
+    return await lease.use(async masterKey => {
+      let encrypted: Awaited<ReturnType<typeof sealNoteSyncEvent>>
+      try {
+        encrypted = await sealNoteSyncEvent(
+          masterKey,
+          lease.canonicalUserId,
+          prepared.event,
+          intent.parent_event_id,
+          prepared.note,
+        )
+      } catch (error) {
+        const errorCode = classifySealingError(error)
+        return errorCode === null
+          ? diagnosticResult(intent, 'unclassified_error')
+          : recordFailure(repository, intent, errorCode)
+      }
+
+      try {
+        const result = await repository.commitSealedEvent({
+          eventId: intent.event_id,
+          expectedMutationGeneration: intent.mutation_generation,
+          envelope: encrypted.object,
+        })
+        return {
+          event_id: intent.event_id,
+          mutation_generation: intent.mutation_generation,
+          status: result,
+        }
+      } catch {
+        return diagnosticResult(intent, 'commit_failed')
+      }
+    })
   } catch (error) {
+    if (error instanceof StaleAuthContextError) {
+      return recordFailure(repository, intent, 'key_unavailable')
+    }
     const errorCode = classifySealingError(error)
     return errorCode === null
       ? diagnosticResult(intent, 'unclassified_error')
       : recordFailure(repository, intent, errorCode)
   }
-
-  try {
-    const result = await repository.commitSealedEvent({
-      eventId: intent.event_id,
-      expectedMutationGeneration: intent.mutation_generation,
-      envelope: encrypted.object,
-    })
-    return {
-      event_id: intent.event_id,
-      mutation_generation: intent.mutation_generation,
-      status: result,
-    }
-  } catch {
-    return diagnosticResult(intent, 'commit_failed')
-  }
 }
 
 export async function sealPendingNoteSyncIntents(
   repository: NoteSyncIntentRepository,
-  keyProvider: UnlockedAccountMasterKeyProvider,
+  keyContext: RuntimeKeyContext,
   options: NoteSyncSealingPassOptions = {},
 ): Promise<NoteSyncSealingPassResult> {
   const limit = options.limit ?? DEFAULT_NOTE_SEALING_BATCH_LIMIT
@@ -449,7 +449,7 @@ export async function sealPendingNoteSyncIntents(
       })
       continue
     }
-    results.push(await sealIntent(intent, repository, keyProvider))
+    results.push(await sealIntent(intent, repository, keyContext))
   }
   return { listed: intents.length, results }
 }

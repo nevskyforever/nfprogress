@@ -50,6 +50,29 @@ describe('normal-user authentication runtime', () => {
     expect(auth.isCurrent(refreshed)).toBe(false)
   })
 
+  it('closes the auth epoch immediately but completes logout only after invalidation drains', async () => {
+    const api = transport([user('00000000-0000-0000-0000-000000000101', 'one')])
+    const auth = new NormalUserAuthRuntime(api)
+    const context = await auth.login('one', 'password')
+    let release!: () => void
+    const drained = new Promise<void>(resolve => { release = resolve })
+    auth.onInvalidated(() => drained)
+
+    let completed = false
+    const logout = auth.logout().then(() => { completed = true })
+    await Promise.resolve()
+
+    expect(auth.state).toBe('unauthenticated')
+    expect(auth.isCurrent(context)).toBe(false)
+    expect(completed).toBe(false)
+    expect(api.logout).not.toHaveBeenCalled()
+
+    release()
+    await logout
+    expect(completed).toBe(true)
+    expect(api.logout).toHaveBeenCalledWith('access-0')
+  })
+
   it.each([401, 403])('fails closed when an authenticated request is rejected with %s', async status => {
     const auth = new NormalUserAuthRuntime(transport([user('00000000-0000-0000-0000-000000000101', 'one')]))
     const context = await auth.login('one', 'password')

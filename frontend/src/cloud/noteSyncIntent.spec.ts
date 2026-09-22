@@ -7,6 +7,10 @@ import {
   type AccountMasterKey,
   type ObjectCryptoEnvelope,
 } from '@/crypto'
+import type {
+  AuthoritativeKeyContextLease,
+} from '@/auth/keyContext'
+import { RuntimeKeyContext } from '@/auth/keyContext'
 import { MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES } from '@/api/encryptedSync'
 import { createNoteSyncPlaintext, openNoteSyncEvent } from './encryptedSyncProtocol'
 import {
@@ -17,7 +21,6 @@ import {
 import {
   sealPendingNoteSyncIntents,
   type NoteSyncIntentRepository,
-  type UnlockedAccountMasterKeyProvider,
   type UnsealedNoteSyncIntent,
 } from './noteSyncIntent'
 
@@ -88,22 +91,33 @@ function commitMock(implementation: NoteSyncIntentRepository['commitSealedEvent'
   return vi.fn(implementation)
 }
 
-function keyMock(implementation: UnlockedAccountMasterKeyProvider['getUnlockedAccountMasterKey']) {
+function keyMock(implementation: RuntimeKeyContext['leaseForAccount']) {
   return vi.fn(implementation)
 }
 
 function provider(
   masterKey: AccountMasterKey = testKey,
   userId = 'canonical-user-id',
-): UnlockedAccountMasterKeyProvider {
+): RuntimeKeyContext {
+  const lease = (accountId: string): AuthoritativeKeyContextLease => ({
+    localAccountId: accountId,
+    canonicalUserId: userId,
+    authEpoch: 1,
+    keyContextId: 'test-key-context',
+    keyEpoch: 1,
+    isCurrent: () => true,
+    use: async operation => {
+      const copy = asAccountMasterKey(Uint8Array.from(masterKey))
+      try {
+        return await operation(copy)
+      } finally {
+        copy.fill(0)
+      }
+    },
+  })
   return {
-    getUnlockedAccountMasterKey: keyMock(async accountId => ({
-      status: 'available',
-      accountId,
-      userId,
-      masterKey,
-    })),
-  }
+    leaseForAccount: keyMock(accountId => lease(accountId)),
+  } as unknown as RuntimeKeyContext
 }
 
 function eventFrom(value: UnsealedNoteSyncIntent) {
@@ -200,7 +214,7 @@ describe('durable Note sealing orchestration', () => {
     expect(result.results[0]).toMatchObject({
       status: 'failure_recorded', error_code: 'invalid_note_payload',
     })
-    expect(keys.getUnlockedAccountMasterKey).not.toHaveBeenCalled()
+    expect(keys.leaseForAccount).not.toHaveBeenCalled()
     expect(store.recordSealFailure).toHaveBeenCalledWith({
       eventId: source.event_id,
       expectedMutationGeneration: 3,
@@ -218,7 +232,7 @@ describe('durable Note sealing orchestration', () => {
     expect(result.results[0]).toMatchObject({
       status: 'failure_recorded', error_code: 'metadata_mismatch',
     })
-    expect(keys.getUnlockedAccountMasterKey).not.toHaveBeenCalled()
+    expect(keys.leaseForAccount).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -234,7 +248,7 @@ describe('durable Note sealing orchestration', () => {
     expect(result.results[0]).toMatchObject({
       status: 'failure_recorded', error_code: 'dependency_not_synced',
     })
-    expect(keys.getUnlockedAccountMasterKey).not.toHaveBeenCalled()
+    expect(keys.leaseForAccount).not.toHaveBeenCalled()
   })
 
   it('classifies unsupported content only after dependency eligibility passes', async () => {
@@ -247,15 +261,15 @@ describe('durable Note sealing orchestration', () => {
     expect(result.results[0]).toMatchObject({
       status: 'failure_recorded', error_code: 'unsupported_content_format',
     })
-    expect(keys.getUnlockedAccountMasterKey).not.toHaveBeenCalled()
+    expect(keys.leaseForAccount).not.toHaveBeenCalled()
   })
 
   it('records a missing unlocked AMK and never attempts a commit', async () => {
     const source = intent()
     const store = repository([source])
-    const keys: UnlockedAccountMasterKeyProvider = {
-      getUnlockedAccountMasterKey: keyMock(async () => ({ status: 'key_unavailable' })),
-    }
+    const keys = {
+      leaseForAccount: keyMock(() => null),
+    } as unknown as RuntimeKeyContext
 
     const result = await sealPendingNoteSyncIntents(store, keys)
 
@@ -275,7 +289,7 @@ describe('durable Note sealing orchestration', () => {
 
     await sealPendingNoteSyncIntents(store, keys)
 
-    expect(keys.getUnlockedAccountMasterKey).toHaveBeenCalledWith('local-account-scope')
+    expect(keys.leaseForAccount).toHaveBeenCalledWith('local-account-scope')
     await expect(openNoteSyncEvent(
       testKey,
       'backend-user-uuid',
@@ -287,11 +301,13 @@ describe('durable Note sealing orchestration', () => {
   it('rejects an AMK provider response bound to another account', async () => {
     const source = intent()
     const store = repository([source])
-    const keys: UnlockedAccountMasterKeyProvider = {
-      getUnlockedAccountMasterKey: keyMock(async () => ({
-        status: 'available', accountId: 'other-account', userId: 'user', masterKey: testKey,
+    const keys = {
+      leaseForAccount: keyMock(() => ({
+        localAccountId: 'other-account', canonicalUserId: 'user', authEpoch: 1,
+        keyContextId: 'wrong-account', keyEpoch: 1, isCurrent: () => true,
+        use: async operation => operation(testKey),
       })),
-    }
+    } as unknown as RuntimeKeyContext
 
     const result = await sealPendingNoteSyncIntents(store, keys)
 
@@ -408,12 +424,12 @@ describe('durable Note sealing orchestration', () => {
 
     expect(first.results[0]?.status).toBe('blocked_skipped')
     expect(second.results[0]?.status).toBe('blocked_skipped')
-    expect(keys.getUnlockedAccountMasterKey).not.toHaveBeenCalled()
+    expect(keys.leaseForAccount).not.toHaveBeenCalled()
     expect(store.recordSealFailure).not.toHaveBeenCalled()
     expect(store.commitSealedEvent).not.toHaveBeenCalled()
 
     await sealPendingNoteSyncIntents(store, keys, { retryBlocked: true })
-    expect(keys.getUnlockedAccountMasterKey).toHaveBeenCalledTimes(1)
+    expect(keys.leaseForAccount).toHaveBeenCalledTimes(1)
   })
 
   it('performs one bounded pass and remains restart-compatible', async () => {
@@ -456,11 +472,11 @@ describe('durable Note sealing orchestration', () => {
   it('preserves an intent and returns only safe diagnostics for an unknown error', async () => {
     const source = intent()
     const store = repository([source])
-    const keys: UnlockedAccountMasterKeyProvider = {
-      getUnlockedAccountMasterKey: keyMock(async () => {
+    const keys = {
+      leaseForAccount: keyMock(() => {
         throw new Error('SECRET_SNAPSHOT_OR_KEY_MATERIAL')
       }),
-    }
+    } as unknown as RuntimeKeyContext
 
     const result = await sealPendingNoteSyncIntents(store, keys)
 
@@ -482,14 +498,14 @@ describe('durable Note sealing orchestration', () => {
       .mockResolvedValueOnce(queued.slice(0, 8))
       .mockResolvedValueOnce([...queued.slice(8), ...queued.slice(0, 6)])
     const store = repository([], { list })
-    const getKey = keyMock(async accountId => {
+    const getKey = keyMock(accountId => {
       const index = Number(accountId.slice(accountId.lastIndexOf('-') + 1))
       if (index < 8) throw new Error('unknown runtime failure')
-      return { status: 'available' as const, accountId, userId: 'canonical-user-id', masterKey: testKey }
+      return provider().leaseForAccount(accountId)
     })
-    const keys: UnlockedAccountMasterKeyProvider = {
-      getUnlockedAccountMasterKey: getKey,
-    }
+    const keys = {
+      leaseForAccount: getKey,
+    } as unknown as RuntimeKeyContext
 
     const first = await sealPendingNoteSyncIntents(store, keys)
     const second = await sealPendingNoteSyncIntents(store, keys)

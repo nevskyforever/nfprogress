@@ -17,7 +17,7 @@ export class StaleAuthContextError extends Error {
   readonly name = 'StaleAuthContextError'
 }
 
-type InvalidationListener = () => void
+type InvalidationListener = () => void | Promise<void>
 
 function validTokens(value: UserAuthTokens): boolean {
   return typeof value.access_token === 'string' && value.access_token.length > 0
@@ -50,11 +50,11 @@ export class NormalUserAuthRuntime {
     return () => this.listeners.delete(listener)
   }
 
-  private invalidate(): void {
+  private async invalidate(): Promise<void> {
     this.tokens = null
     this.user = null
     this.epoch += 1
-    for (const listener of this.listeners) listener()
+    await Promise.all(Array.from(this.listeners, listener => listener()))
   }
 
   private activate(tokens: UserAuthTokens, user: CurrentUserAccount): AuthContextSnapshot {
@@ -67,15 +67,21 @@ export class NormalUserAuthRuntime {
 
   async login(username: string, password: string): Promise<AuthContextSnapshot> {
     const previous = this.tokens
-    this.invalidate()
+    await this.invalidate()
+    const expectedEpoch = this.epoch
     if (previous) void this.transport.logout(previous.access_token).catch(() => undefined)
     const tokens = await this.transport.login(username, password)
     try {
       const user = await this.transport.me(tokens.access_token)
+      if (this.epoch !== expectedEpoch || this.state !== 'unauthenticated') {
+        throw new StaleAuthContextError()
+      }
       return this.activate(tokens, user)
     } catch (error) {
       void this.transport.logout(tokens.access_token).catch(() => undefined)
-      this.invalidate()
+      if (this.epoch === expectedEpoch && this.state === 'unauthenticated') {
+        await this.invalidate()
+      }
       throw error
     }
   }
@@ -88,17 +94,20 @@ export class NormalUserAuthRuntime {
       const replacement = await this.transport.refresh(current.refresh_token)
       const user = await this.transport.me(replacement.access_token)
       if (this.epoch !== expectedEpoch || this.tokens !== current) throw new StaleAuthContextError()
-      this.invalidate()
+      await this.invalidate()
       return this.activate(replacement, user)
     } catch (error) {
-      if (!(error instanceof StaleAuthContextError)) this.invalidate()
+      if (!(error instanceof StaleAuthContextError)
+        && this.epoch === expectedEpoch && this.tokens === current) {
+        await this.invalidate()
+      }
       throw error
     }
   }
 
   async logout(): Promise<void> {
     const current = this.tokens
-    this.invalidate()
+    await this.invalidate()
     if (current) await this.transport.logout(current.access_token)
   }
 
@@ -121,7 +130,9 @@ export class NormalUserAuthRuntime {
       if (!this.isCurrent(context)) throw new StaleAuthContextError()
       return { value, context }
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) this.invalidate()
+      if (error instanceof ApiError && error.status === 401 && this.isCurrent(context)) {
+        await this.invalidate()
+      }
       throw error
     }
   }

@@ -2544,6 +2544,62 @@ mod tests {
     }
 
     #[test]
+    fn note_sync_rejected_commit_preserves_intent_then_retries_idempotently() {
+        let mut connection = database();
+        let (intent, snapshot) = persist_note_intent(&mut connection, "n", "retry-after-reject");
+        let command = seal_command(&intent.event_id, intent.mutation_generation, envelope(11));
+        connection
+            .execute_batch(
+                "CREATE TRIGGER note_sync_test_reject_commit
+                 BEFORE DELETE ON cloud_sync_note_intents
+                 BEGIN SELECT RAISE(ABORT,'injected_commit_rejection'); END;",
+            )
+            .unwrap();
+
+        assert!(commit_sealed_note_sync_event(&mut connection, &command).is_err());
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT snapshot_json FROM cloud_sync_note_intents WHERE event_id=?1",
+                    [&intent.event_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            snapshot
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_event_objects", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+
+        connection
+            .execute_batch("DROP TRIGGER note_sync_test_reject_commit;")
+            .unwrap();
+        assert_eq!(
+            commit_sealed_note_sync_event(&mut connection, &command).unwrap(),
+            CommitSealedNoteSyncEventResult::Sealed
+        );
+        assert_eq!(
+            commit_sealed_note_sync_event(&mut connection, &command).unwrap(),
+            CommitSealedNoteSyncEventResult::AlreadySealed
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM cloud_sync_note_intents WHERE event_id=?1",
+                    [&intent.event_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
     fn note_sync_rejects_invalid_nonce_and_ciphertext_lengths() {
         let mut connection = database();
         let (intent, _) = persist_note_intent(&mut connection, "n", "invalid-envelope");

@@ -80,11 +80,14 @@ class RuntimeKeyContextLease implements AuthoritativeKeyContextLease {
   }
 
   async use<T>(operation: (masterKey: AccountMasterKey) => Promise<T>): Promise<T> {
-    const masterKey = this.runtime.copyMasterKey(this.identity)
+    // beginUse reserves the context synchronously, before operation can yield.
+    // Lifecycle invalidation closes the context immediately, then drains this reservation.
+    const masterKey = this.runtime.beginUse(this.identity)
     try {
       return await operation(masterKey)
     } finally {
       masterKey.fill(0)
+      this.runtime.endUse()
     }
   }
 }
@@ -92,6 +95,9 @@ class RuntimeKeyContextLease implements AuthoritativeKeyContextLease {
 export class RuntimeKeyContext {
   private active: ActiveKeyContext | null = null
   private epoch = 0
+  private inFlightUses = 0
+  private drainPromise: Promise<void> | null = null
+  private resolveDrain: (() => void) | null = null
   private readonly unsubscribe: () => void
 
   constructor(
@@ -104,19 +110,31 @@ export class RuntimeKeyContext {
 
   get keyEpoch(): number { return this.epoch }
 
-  lock(): void {
+  private beginLock(): { epoch: number; drained: Promise<void> } {
+    // No new lease can begin after active is cleared. Existing users retain only
+    // their transient copy and define the before-invalidation side of the boundary.
     this.active?.masterKey.fill(0)
     this.active = null
     this.epoch += 1
+    if (this.inFlightUses === 0) return { epoch: this.epoch, drained: Promise.resolve() }
+    if (this.drainPromise === null) {
+      this.drainPromise = new Promise(resolve => { this.resolveDrain = resolve })
+    }
+    return { epoch: this.epoch, drained: this.drainPromise }
   }
 
-  dispose(): void {
+  async lock(): Promise<void> {
+    await this.beginLock().drained
+  }
+
+  async dispose(): Promise<void> {
     this.unsubscribe()
-    this.lock()
+    await this.lock()
   }
 
   async unlockWithPassphrase(localAccountId: string, passphrase: string): Promise<AuthoritativeKeyContextLease> {
-    this.lock()
+    const invalidation = this.beginLock()
+    await invalidation.drained
     const binding = await this.bindings.ensureForCurrentUser(localAccountId)
     const fetched = await this.auth.authorized(accessToken => this.cryptoTransport.get(accessToken))
     if (binding.context.authEpoch !== fetched.context.authEpoch
@@ -126,7 +144,8 @@ export class RuntimeKeyContext {
     if (!fetched.value.provisioned) throw new KeyNotProvisionedError()
     const contextId = await keyContextId(fetched.context.userId, fetched.value.password)
     const masterKey = await unwrapAmkWithPassphrase(passphrase, passwordRecord(fetched.value.password))
-    if (!this.auth.isCurrent(fetched.context)) {
+    if (this.epoch !== invalidation.epoch || this.active !== null
+      || !this.auth.isCurrent(fetched.context)) {
       masterKey.fill(0)
       throw new StaleAuthContextError()
     }
@@ -143,6 +162,12 @@ export class RuntimeKeyContext {
     return new RuntimeKeyContextLease(this, active)
   }
 
+  leaseForAccount(localAccountId: string): AuthoritativeKeyContextLease | null {
+    if (this.active === null || this.active.localAccountId !== localAccountId
+      || !this.isCurrent(this.active)) return null
+    return new RuntimeKeyContextLease(this, this.active)
+  }
+
   isCurrent(identity: KeyContextIdentity): boolean {
     return this.active !== null
       && this.active.keyEpoch === identity.keyEpoch
@@ -157,8 +182,21 @@ export class RuntimeKeyContext {
       })
   }
 
-  copyMasterKey(identity: KeyContextIdentity): AccountMasterKey {
+  beginUse(identity: KeyContextIdentity): AccountMasterKey {
     if (!this.isCurrent(identity) || this.active === null) throw new StaleAuthContextError()
-    return asAccountMasterKey(Uint8Array.from(this.active.masterKey))
+    const masterKey = asAccountMasterKey(Uint8Array.from(this.active.masterKey))
+    this.inFlightUses += 1
+    return masterKey
+  }
+
+  endUse(): void {
+    if (this.inFlightUses < 1) throw new Error('Unbalanced key context lease release.')
+    this.inFlightUses -= 1
+    if (this.inFlightUses === 0 && this.resolveDrain !== null) {
+      const resolve = this.resolveDrain
+      this.resolveDrain = null
+      this.drainPromise = null
+      resolve()
+    }
   }
 }

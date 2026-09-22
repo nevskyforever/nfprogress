@@ -49,6 +49,12 @@ async function runtime(record: CurrentUserCryptoRecord) {
   return { auth, keys: new RuntimeKeyContext(auth, binding, transport), repository, transport }
 }
 
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void
+  const promise = new Promise<void>(done => { resolve = done })
+  return { promise, resolve }
+}
+
 describe('runtime-only authoritative key context', () => {
   it('creates a user-bound lease only after authenticated unwrap', async () => {
     const { record, amk } = await cryptoRecord()
@@ -86,7 +92,7 @@ describe('runtime-only authoritative key context', () => {
     const { record } = await cryptoRecord()
     const { auth, keys } = await runtime(record)
     const first = await keys.unlockWithPassphrase('local-scope', 'master passphrase')
-    keys.lock()
+    await keys.lock()
     expect(first.isCurrent()).toBe(false)
     const second = await keys.unlockWithPassphrase('local-scope', 'master passphrase')
     expect(second.keyEpoch).toBeGreaterThan(first.keyEpoch)
@@ -94,6 +100,80 @@ describe('runtime-only authoritative key context', () => {
     expect(second.isCurrent()).toBe(false)
     await auth.login('two', 'account password')
     expect(second.isCurrent()).toBe(false)
+  })
+
+  it('makes key lock wait for an in-flight lease while rejecting new uses', async () => {
+    const { record } = await cryptoRecord()
+    const { keys } = await runtime(record)
+    const lease = await keys.unlockWithPassphrase('local-scope', 'master passphrase')
+    const entered = deferred()
+    const release = deferred()
+    const operation = lease.use(async () => {
+      entered.resolve()
+      await release.promise
+      return 'committed'
+    })
+    await entered.promise
+
+    let lockCompleted = false
+    const locking = keys.lock().then(() => { lockCompleted = true })
+    await Promise.resolve()
+
+    expect(lease.isCurrent()).toBe(false)
+    expect(keys.leaseForAccount('local-scope')).toBeNull()
+    expect(lockCompleted).toBe(false)
+    await expect(lease.use(async () => 'must-not-run')).rejects.toBeInstanceOf(Error)
+
+    release.resolve()
+    await expect(operation).resolves.toBe('committed')
+    await locking
+    expect(lockCompleted).toBe(true)
+  })
+
+  it('does not complete logout or account switch before the protected lease drains', async () => {
+    const { record } = await cryptoRecord()
+    const { auth, keys } = await runtime(record)
+    const lease = await keys.unlockWithPassphrase('local-scope', 'master passphrase')
+    const entered = deferred()
+    const release = deferred()
+    const operation = lease.use(async () => {
+      entered.resolve()
+      await release.promise
+    })
+    await entered.promise
+
+    let logoutCompleted = false
+    const logout = auth.logout().then(() => { logoutCompleted = true })
+    await Promise.resolve()
+    expect(auth.state).toBe('unauthenticated')
+    expect(logoutCompleted).toBe(false)
+
+    release.resolve()
+    await operation
+    await logout
+    expect(logoutCompleted).toBe(true)
+
+    await auth.login('one', 'account password')
+    const switchedLease = await keys.unlockWithPassphrase('local-scope', 'master passphrase')
+    const switchEntered = deferred()
+    const switchRelease = deferred()
+    const secondOperation = switchedLease.use(async () => {
+      switchEntered.resolve()
+      await switchRelease.promise
+    })
+    await switchEntered.promise
+
+    let switchCompleted = false
+    const switching = auth.login('two', 'account password').then(() => { switchCompleted = true })
+    await Promise.resolve()
+    expect(switchCompleted).toBe(false)
+    expect(switchedLease.isCurrent()).toBe(false)
+
+    switchRelease.resolve()
+    await secondOperation
+    await switching
+    expect(switchCompleted).toBe(true)
+    expect(auth.requireContext().userId).toBe(USER_TWO)
   })
 
   it('does not write raw AMK through browser persistence or console APIs', async () => {
