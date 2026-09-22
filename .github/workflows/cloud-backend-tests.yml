@@ -123,7 +123,7 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/api/base64url.spec.ts src/api/encryptedSync.spec.ts src/cloud/encryptedSyncProtocol.spec.ts src/cloud/syncTimestamp.spec.ts src/cloud/noteSyncCodec.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
+      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/api/base64url.spec.ts src/api/encryptedSync.spec.ts src/cloud/encryptedSyncProtocol.spec.ts src/cloud/syncTimestamp.spec.ts src/cloud/noteSyncCodec.spec.ts src/cloud/noteSyncIntent.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/infrastructure/sqlite/noteSyncIntentRepository.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
