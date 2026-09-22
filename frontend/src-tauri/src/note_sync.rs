@@ -1,14 +1,20 @@
-//! Transaction-scoped durable Note sync-intent primitives.
+//! Durable Note sync-intent and sealing-lifecycle primitives.
 //!
-//! This module does not seal or upload events. Callers prepare an intent on
-//! the same SQLite transaction that will mutate `notes`; schema guards reject
-//! bound-project Note writes that do not have an exact prepared intent.
+//! Callers prepare plaintext intents in the same SQLite transaction that
+//! mutates `notes`. Sealing later replaces that sidecar with an opaque object
+//! and advances the existing outbox event atomically; uploads remain outside
+//! this module.
 
 use std::fmt::Write as _;
 
-use rusqlite::{OptionalExtension, Transaction};
+use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior};
+use serde::{Deserialize, Serialize};
 
 const MAX_SYNC_INTEGER: i64 = 9_007_199_254_740_991;
+const MAX_UNSEALED_INTENT_LIST_LIMIT: u32 = 200;
+const MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES: usize = 8_388_624;
+const SUPPORTED_CRYPTO_VERSION: i64 = 1;
+const SUPPORTED_AAD_VERSION: i64 = 1;
 
 #[derive(Debug)]
 pub(crate) enum NoteSyncError {
@@ -17,7 +23,16 @@ pub(crate) enum NoteSyncError {
     RevisionOverflow,
     LocalOrdinalOverflow,
     MutationGenerationOverflow,
+    SealAttemptOverflow,
     ConflictingHeads,
+    InvalidListLimit,
+    InvalidEnvelope(&'static str),
+    InvalidSealState(&'static str),
+    MissingEvent,
+    MissingIntent,
+    UnexpectedLifecycle,
+    SealedObjectMissing,
+    ConflictingEncryptedObject,
     Random(String),
 }
 
@@ -36,7 +51,29 @@ impl std::fmt::Display for NoteSyncError {
             Self::MutationGenerationOverflow => {
                 write!(formatter, "Note sync mutation generation overflow")
             }
+            Self::SealAttemptOverflow => write!(formatter, "Note sync seal attempt overflow"),
             Self::ConflictingHeads => write!(formatter, "Note sync entity has conflicting heads"),
+            Self::InvalidListLimit => write!(formatter, "Invalid Note sync intent list limit"),
+            Self::InvalidEnvelope(message) => {
+                write!(formatter, "Invalid encrypted Note sync envelope: {message}")
+            }
+            Self::InvalidSealState(message) => {
+                write!(formatter, "Invalid durable Note sealing state: {message}")
+            }
+            Self::MissingEvent => write!(formatter, "Note sync outbox event does not exist"),
+            Self::MissingIntent => write!(formatter, "Unsealed Note sync intent is missing"),
+            Self::UnexpectedLifecycle => {
+                write!(formatter, "Note sync event has an unexpected lifecycle")
+            }
+            Self::SealedObjectMissing => {
+                write!(formatter, "Sealed Note sync event has no encrypted object")
+            }
+            Self::ConflictingEncryptedObject => {
+                write!(
+                    formatter,
+                    "Note sync event has a conflicting encrypted object"
+                )
+            }
             Self::Random(error) => {
                 write!(formatter, "Could not generate Note sync event ID: {error}")
             }
@@ -54,8 +91,19 @@ impl NoteSyncError {
             Self::MutationGenerationOverflow => {
                 "Исчерпан диапазон поколений локального изменения заметки."
             }
+            Self::SealAttemptOverflow => "Исчерпан диапазон попыток шифрования изменения заметки.",
             Self::ConflictingHeads => "Обнаружено конфликтующее локальное состояние синхронизации.",
-            Self::Database(_) | Self::InvalidSnapshot(_) | Self::Random(_) => {
+            Self::Database(_)
+            | Self::InvalidSnapshot(_)
+            | Self::InvalidListLimit
+            | Self::InvalidEnvelope(_)
+            | Self::InvalidSealState(_)
+            | Self::MissingEvent
+            | Self::MissingIntent
+            | Self::UnexpectedLifecycle
+            | Self::SealedObjectMissing
+            | Self::ConflictingEncryptedObject
+            | Self::Random(_) => {
                 "Не удалось надёжно зарегистрировать изменение заметки для синхронизации."
             }
         }
@@ -68,10 +116,163 @@ impl From<rusqlite::Error> for NoteSyncError {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum NoteSyncOperation {
     Upsert,
     Delete,
+}
+
+impl NoteSyncOperation {
+    fn from_stored(value: &str) -> Result<Self, NoteSyncError> {
+        match value {
+            "upsert" => Ok(Self::Upsert),
+            "delete" => Ok(Self::Delete),
+            _ => Err(NoteSyncError::InvalidSealState("invalid operation")),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NoteSyncSealState {
+    Pending,
+    RetryableError,
+    Blocked,
+    InvariantError,
+}
+
+impl NoteSyncSealState {
+    fn from_stored(value: &str) -> Result<Self, NoteSyncError> {
+        match value {
+            "pending" => Ok(Self::Pending),
+            "retryable_error" => Ok(Self::RetryableError),
+            "blocked" => Ok(Self::Blocked),
+            "invariant_error" => Ok(Self::InvariantError),
+            _ => Err(NoteSyncError::InvalidSealState("invalid seal state")),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum NoteSyncSealErrorCode {
+    KeyUnavailable,
+    PayloadTooLarge,
+    EncryptedSyncObjectTooLarge,
+    DependencyNotSynced,
+    UnsupportedContentFormat,
+    InvalidNotePayload,
+    CryptoContextInvalid,
+    InvalidSyncMetadata,
+    InvalidEnvelope,
+    MetadataMismatch,
+    RuntimeUnavailable,
+}
+
+impl NoteSyncSealErrorCode {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::KeyUnavailable => "key_unavailable",
+            Self::PayloadTooLarge => "payload_too_large",
+            Self::EncryptedSyncObjectTooLarge => "encrypted_sync_object_too_large",
+            Self::DependencyNotSynced => "dependency_not_synced",
+            Self::UnsupportedContentFormat => "unsupported_content_format",
+            Self::InvalidNotePayload => "invalid_note_payload",
+            Self::CryptoContextInvalid => "crypto_context_invalid",
+            Self::InvalidSyncMetadata => "invalid_sync_metadata",
+            Self::InvalidEnvelope => "invalid_envelope",
+            Self::MetadataMismatch => "metadata_mismatch",
+            Self::RuntimeUnavailable => "runtime_unavailable",
+        }
+    }
+
+    fn seal_state(self) -> NoteSyncSealState {
+        match self {
+            Self::KeyUnavailable
+            | Self::PayloadTooLarge
+            | Self::EncryptedSyncObjectTooLarge
+            | Self::DependencyNotSynced
+            | Self::UnsupportedContentFormat => NoteSyncSealState::Blocked,
+            Self::RuntimeUnavailable => NoteSyncSealState::RetryableError,
+            Self::InvalidNotePayload
+            | Self::CryptoContextInvalid
+            | Self::InvalidSyncMetadata
+            | Self::InvalidEnvelope
+            | Self::MetadataMismatch => NoteSyncSealState::InvariantError,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct UnsealedNoteSyncIntent {
+    pub event_id: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub project_id: String,
+    pub entity_id: String,
+    pub entity_type: String,
+    pub operation: NoteSyncOperation,
+    pub revision: i64,
+    pub parent_event_id: Option<String>,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+    pub local_ordinal: i64,
+    pub mutation_generation: i64,
+    pub snapshot_json: String,
+    pub seal_state: NoteSyncSealState,
+    pub seal_attempt_count: i64,
+    pub last_error_code: Option<String>,
+    pub next_attempt_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct RecordNoteSyncSealFailureCommand {
+    pub event_id: String,
+    pub expected_mutation_generation: i64,
+    pub error_code: NoteSyncSealErrorCode,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct EncryptedNoteSyncEnvelope {
+    pub crypto_version: i64,
+    pub aad_version: i64,
+    pub nonce: String,
+    pub ciphertext: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitSealedNoteSyncEventCommand {
+    pub event_id: String,
+    pub expected_mutation_generation: i64,
+    pub envelope: EncryptedNoteSyncEnvelope,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum RecordNoteSyncSealFailureResult {
+    Recorded,
+    StaleGeneration,
+    AlreadySealed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CommitSealedNoteSyncEventResult {
+    Sealed,
+    StaleGeneration,
+    AlreadySealed,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct DecodedEncryptedNoteSyncEnvelope {
+    crypto_version: i64,
+    aad_version: i64,
+    nonce: Vec<u8>,
+    ciphertext: Vec<u8>,
 }
 
 impl NoteSyncOperation {
@@ -481,6 +682,489 @@ pub(crate) fn prepare_unsealed_note_intent(
     }))
 }
 
+pub(crate) fn list_unsealed_note_sync_intents(
+    connection: &Connection,
+    limit: u32,
+) -> Result<Vec<UnsealedNoteSyncIntent>, NoteSyncError> {
+    if !(1..=MAX_UNSEALED_INTENT_LIST_LIMIT).contains(&limit) {
+        return Err(NoteSyncError::InvalidListLimit);
+    }
+    let mut statement = connection.prepare(
+        "SELECT event.event_id,event.account_id,event.device_id,event.project_id,
+                event.entity_id,event.entity_type,event.operation,event.revision,
+                event.parent_event_id,event.updated_at,event.deleted_at,event.local_ordinal,
+                intent.mutation_generation,intent.snapshot_json,intent.seal_state,
+                intent.seal_attempt_count,intent.last_error_code,intent.next_attempt_at
+         FROM cloud_sync_outbox AS event
+         JOIN cloud_sync_note_intents AS intent ON intent.event_id=event.event_id
+         WHERE event.entity_type='note' AND event.lifecycle='unsealed'
+           AND (
+               intent.seal_state IN ('pending','blocked')
+               OR (
+                   intent.seal_state='retryable_error'
+                   AND (
+                       intent.next_attempt_at IS NULL
+                       OR intent.next_attempt_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')
+                   )
+               )
+           )
+         ORDER BY CASE WHEN intent.seal_state='blocked' THEN 1 ELSE 0 END,
+                  event.account_id,event.device_id,event.local_ordinal,event.event_id
+         LIMIT ?1",
+    )?;
+    let rows = statement.query_map([i64::from(limit)], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, String>(6)?,
+            row.get::<_, i64>(7)?,
+            row.get::<_, Option<String>>(8)?,
+            row.get::<_, String>(9)?,
+            row.get::<_, Option<String>>(10)?,
+            row.get::<_, i64>(11)?,
+            row.get::<_, i64>(12)?,
+            row.get::<_, String>(13)?,
+            row.get::<_, String>(14)?,
+            row.get::<_, i64>(15)?,
+            row.get::<_, Option<String>>(16)?,
+            row.get::<_, Option<String>>(17)?,
+        ))
+    })?;
+    rows.map(|row| {
+        let (
+            event_id,
+            account_id,
+            device_id,
+            project_id,
+            entity_id,
+            entity_type,
+            operation,
+            revision,
+            parent_event_id,
+            updated_at,
+            deleted_at,
+            local_ordinal,
+            mutation_generation,
+            snapshot_json,
+            seal_state,
+            seal_attempt_count,
+            last_error_code,
+            next_attempt_at,
+        ) = row?;
+        Ok(UnsealedNoteSyncIntent {
+            event_id,
+            account_id,
+            device_id,
+            project_id,
+            entity_id,
+            entity_type,
+            operation: NoteSyncOperation::from_stored(&operation)?,
+            revision,
+            parent_event_id,
+            updated_at,
+            deleted_at,
+            local_ordinal,
+            mutation_generation,
+            snapshot_json,
+            seal_state: NoteSyncSealState::from_stored(&seal_state)?,
+            seal_attempt_count,
+            last_error_code,
+            next_attempt_at,
+        })
+    })
+    .collect()
+}
+
+pub(crate) fn record_note_sync_seal_failure(
+    connection: &mut Connection,
+    command: &RecordNoteSyncSealFailureCommand,
+) -> Result<RecordNoteSyncSealFailureResult, NoteSyncError> {
+    if command.event_id.is_empty() || command.expected_mutation_generation < 1 {
+        return Err(NoteSyncError::InvalidSealState("invalid failure identity"));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let lifecycle = transaction
+        .query_row(
+            "SELECT lifecycle FROM cloud_sync_outbox
+             WHERE event_id=?1 AND entity_type='note'",
+            [&command.event_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or(NoteSyncError::MissingEvent)?;
+    if lifecycle == "sealed" {
+        ensure_consistent_sealed_event(&transaction, &command.event_id)?;
+        transaction.commit()?;
+        return Ok(RecordNoteSyncSealFailureResult::AlreadySealed);
+    }
+    if lifecycle != "unsealed" {
+        return Err(NoteSyncError::UnexpectedLifecycle);
+    }
+    let current_generation = transaction
+        .query_row(
+            "SELECT mutation_generation FROM cloud_sync_note_intents WHERE event_id=?1",
+            [&command.event_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+        .ok_or(NoteSyncError::MissingIntent)?;
+    if current_generation != command.expected_mutation_generation {
+        transaction.commit()?;
+        return Ok(RecordNoteSyncSealFailureResult::StaleGeneration);
+    }
+    let attempt_count = transaction.query_row(
+        "SELECT seal_attempt_count FROM cloud_sync_note_intents WHERE event_id=?1",
+        [&command.event_id],
+        |row| row.get::<_, i64>(0),
+    )?;
+    let next_attempt_count = attempt_count
+        .checked_add(1)
+        .filter(|value| *value <= MAX_SYNC_INTEGER)
+        .ok_or(NoteSyncError::SealAttemptOverflow)?;
+    let seal_state = command.error_code.seal_state();
+    let next_attempt_seconds = (seal_state == NoteSyncSealState::RetryableError)
+        .then(|| retry_backoff_seconds(next_attempt_count));
+    let changed = transaction.execute(
+        "UPDATE cloud_sync_note_intents
+         SET seal_state=?1,seal_attempt_count=?2,last_error_code=?3,
+             next_attempt_at=CASE WHEN ?4 IS NULL THEN NULL ELSE
+                 strftime('%Y-%m-%dT%H:%M:%fZ','now',printf('+%d seconds',?4)) END,
+             state_updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE event_id=?5 AND mutation_generation=?6",
+        rusqlite::params![
+            match seal_state {
+                NoteSyncSealState::Pending => "pending",
+                NoteSyncSealState::RetryableError => "retryable_error",
+                NoteSyncSealState::Blocked => "blocked",
+                NoteSyncSealState::InvariantError => "invariant_error",
+            },
+            next_attempt_count,
+            command.error_code.as_str(),
+            next_attempt_seconds,
+            command.event_id,
+            command.expected_mutation_generation,
+        ],
+    )?;
+    if changed != 1 {
+        return Err(NoteSyncError::MissingIntent);
+    }
+    transaction.commit()?;
+    Ok(RecordNoteSyncSealFailureResult::Recorded)
+}
+
+pub(crate) fn commit_sealed_note_sync_event(
+    connection: &mut Connection,
+    command: &CommitSealedNoteSyncEventCommand,
+) -> Result<CommitSealedNoteSyncEventResult, NoteSyncError> {
+    if command.event_id.is_empty() || command.expected_mutation_generation < 1 {
+        return Err(NoteSyncError::InvalidSealState("invalid sealing identity"));
+    }
+    let envelope = decode_encrypted_note_sync_envelope(&command.envelope)?;
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let event = transaction
+        .query_row(
+            "SELECT account_id,entity_type,lifecycle FROM cloud_sync_outbox WHERE event_id=?1",
+            [&command.event_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_or(NoteSyncError::MissingEvent)?;
+    let (account_id, entity_type, lifecycle) = event;
+    if entity_type != "note" {
+        return Err(NoteSyncError::UnexpectedLifecycle);
+    }
+    if lifecycle == "sealed" {
+        ensure_matching_sealed_envelope(&transaction, &account_id, &command.event_id, &envelope)?;
+        transaction.commit()?;
+        return Ok(CommitSealedNoteSyncEventResult::AlreadySealed);
+    }
+    if lifecycle != "unsealed" {
+        return Err(NoteSyncError::UnexpectedLifecycle);
+    }
+    let current_generation = transaction
+        .query_row(
+            "SELECT mutation_generation FROM cloud_sync_note_intents WHERE event_id=?1",
+            [&command.event_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .optional()?
+        .ok_or(NoteSyncError::MissingIntent)?;
+    if current_generation != command.expected_mutation_generation {
+        transaction.commit()?;
+        return Ok(CommitSealedNoteSyncEventResult::StaleGeneration);
+    }
+    if transaction
+        .query_row(
+            "SELECT 1 FROM cloud_sync_event_objects WHERE event_id=?1",
+            [&command.event_id],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some()
+    {
+        return Err(NoteSyncError::ConflictingEncryptedObject);
+    }
+    transaction.execute(
+        "INSERT INTO cloud_sync_event_objects(
+            account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+         ) VALUES(?1,?2,?3,?4,?5,?6,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        rusqlite::params![
+            account_id,
+            command.event_id,
+            envelope.crypto_version,
+            envelope.aad_version,
+            envelope.nonce,
+            envelope.ciphertext,
+        ],
+    )?;
+    let deleted = transaction.execute(
+        "DELETE FROM cloud_sync_note_intents
+         WHERE event_id=?1 AND mutation_generation=?2",
+        rusqlite::params![command.event_id, command.expected_mutation_generation],
+    )?;
+    if deleted != 1 {
+        return Err(NoteSyncError::MissingIntent);
+    }
+    let updated = transaction.execute(
+        "UPDATE cloud_sync_outbox SET lifecycle='sealed'
+         WHERE event_id=?1 AND entity_type='note' AND lifecycle='unsealed'",
+        [&command.event_id],
+    )?;
+    if updated != 1 {
+        return Err(NoteSyncError::UnexpectedLifecycle);
+    }
+    transaction.commit()?;
+    Ok(CommitSealedNoteSyncEventResult::Sealed)
+}
+
+fn retry_backoff_seconds(attempt_count: i64) -> i64 {
+    let exponent = u32::try_from(attempt_count.saturating_sub(1).min(6)).unwrap_or(6);
+    5_i64
+        .saturating_mul(2_i64.saturating_pow(exponent))
+        .min(300)
+}
+
+fn ensure_consistent_sealed_event(
+    transaction: &Transaction<'_>,
+    event_id: &str,
+) -> Result<(), NoteSyncError> {
+    let (account_id, sidecar_count): (String, i64) = transaction.query_row(
+        "SELECT event.account_id,
+                (SELECT count(*) FROM cloud_sync_note_intents AS intent
+                 WHERE intent.event_id=event.event_id)
+         FROM cloud_sync_outbox AS event WHERE event.event_id=?1",
+        [event_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if sidecar_count != 0 {
+        return Err(NoteSyncError::InvalidSealState(
+            "sealed event retains plaintext intent",
+        ));
+    }
+    let object = transaction
+        .query_row(
+            "SELECT crypto_version,aad_version,length(nonce),length(ciphertext)
+             FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
+            rusqlite::params![account_id, event_id],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_or(NoteSyncError::SealedObjectMissing)?;
+    if object.0 != SUPPORTED_CRYPTO_VERSION
+        || object.1 != SUPPORTED_AAD_VERSION
+        || object.2 != 24
+        || !(16..=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES as i64).contains(&object.3)
+    {
+        return Err(NoteSyncError::InvalidSealState(
+            "sealed event has an invalid encrypted object",
+        ));
+    }
+    ensure_single_encrypted_object(transaction, event_id)?;
+    Ok(())
+}
+
+fn ensure_matching_sealed_envelope(
+    transaction: &Transaction<'_>,
+    account_id: &str,
+    event_id: &str,
+    envelope: &DecodedEncryptedNoteSyncEnvelope,
+) -> Result<(), NoteSyncError> {
+    let sidecar_exists = transaction
+        .query_row(
+            "SELECT 1 FROM cloud_sync_note_intents WHERE event_id=?1",
+            [event_id],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    if sidecar_exists {
+        return Err(NoteSyncError::InvalidSealState(
+            "sealed event retains plaintext intent",
+        ));
+    }
+    let stored = transaction
+        .query_row(
+            "SELECT crypto_version,aad_version,nonce,ciphertext
+             FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
+            rusqlite::params![account_id, event_id],
+            |row| {
+                Ok(DecodedEncryptedNoteSyncEnvelope {
+                    crypto_version: row.get(0)?,
+                    aad_version: row.get(1)?,
+                    nonce: row.get(2)?,
+                    ciphertext: row.get(3)?,
+                })
+            },
+        )
+        .optional()?
+        .ok_or(NoteSyncError::SealedObjectMissing)?;
+    ensure_single_encrypted_object(transaction, event_id)?;
+    if stored != *envelope {
+        return Err(NoteSyncError::ConflictingEncryptedObject);
+    }
+    Ok(())
+}
+
+fn ensure_single_encrypted_object(
+    transaction: &Transaction<'_>,
+    event_id: &str,
+) -> Result<(), NoteSyncError> {
+    let object_count = transaction.query_row(
+        "SELECT count(*) FROM cloud_sync_event_objects WHERE event_id=?1",
+        [event_id],
+        |row| row.get::<_, i64>(0),
+    )?;
+    if object_count != 1 {
+        return Err(NoteSyncError::ConflictingEncryptedObject);
+    }
+    Ok(())
+}
+
+fn decode_encrypted_note_sync_envelope(
+    envelope: &EncryptedNoteSyncEnvelope,
+) -> Result<DecodedEncryptedNoteSyncEnvelope, NoteSyncError> {
+    if envelope.crypto_version != SUPPORTED_CRYPTO_VERSION {
+        return Err(NoteSyncError::InvalidEnvelope("unsupported crypto version"));
+    }
+    if envelope.aad_version != SUPPORTED_AAD_VERSION {
+        return Err(NoteSyncError::InvalidEnvelope("unsupported AAD version"));
+    }
+    let nonce = decode_canonical_base64url(&envelope.nonce, 24, 24)?;
+    let ciphertext = decode_canonical_base64url(
+        &envelope.ciphertext,
+        16,
+        MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
+    )?;
+    Ok(DecodedEncryptedNoteSyncEnvelope {
+        crypto_version: envelope.crypto_version,
+        aad_version: envelope.aad_version,
+        nonce,
+        ciphertext,
+    })
+}
+
+fn decode_canonical_base64url(
+    input: &str,
+    minimum_length: usize,
+    maximum_length: usize,
+) -> Result<Vec<u8>, NoteSyncError> {
+    let maximum_encoded_length = base64url_encoded_length(maximum_length).ok_or(
+        NoteSyncError::InvalidEnvelope("encoded payload is too large"),
+    )?;
+    if input.len() > maximum_encoded_length || input.len() % 4 == 1 {
+        return Err(NoteSyncError::InvalidEnvelope("invalid base64url length"));
+    }
+    let remainder = input.len() % 4;
+    let decoded_length = input.len() / 4 * 3
+        + match remainder {
+            0 => 0,
+            2 => 1,
+            3 => 2,
+            _ => unreachable!(),
+        };
+    if !(minimum_length..=maximum_length).contains(&decoded_length) {
+        return Err(NoteSyncError::InvalidEnvelope(
+            "decoded payload length is out of bounds",
+        ));
+    }
+    let bytes = input.as_bytes();
+    let mut decoded = Vec::with_capacity(decoded_length);
+    let complete_length = input.len() - remainder;
+    for chunk in bytes[..complete_length].chunks_exact(4) {
+        let a = base64url_value(chunk[0])?;
+        let b = base64url_value(chunk[1])?;
+        let c = base64url_value(chunk[2])?;
+        let d = base64url_value(chunk[3])?;
+        decoded.push((a << 2) | (b >> 4));
+        decoded.push(((b & 0x0f) << 4) | (c >> 2));
+        decoded.push(((c & 0x03) << 6) | d);
+    }
+    if remainder == 2 {
+        let a = base64url_value(bytes[complete_length])?;
+        let b = base64url_value(bytes[complete_length + 1])?;
+        if b & 0x0f != 0 {
+            return Err(NoteSyncError::InvalidEnvelope(
+                "non-canonical base64url tail",
+            ));
+        }
+        decoded.push((a << 2) | (b >> 4));
+    } else if remainder == 3 {
+        let a = base64url_value(bytes[complete_length])?;
+        let b = base64url_value(bytes[complete_length + 1])?;
+        let c = base64url_value(bytes[complete_length + 2])?;
+        if c & 0x03 != 0 {
+            return Err(NoteSyncError::InvalidEnvelope(
+                "non-canonical base64url tail",
+            ));
+        }
+        decoded.push((a << 2) | (b >> 4));
+        decoded.push(((b & 0x0f) << 4) | (c >> 2));
+    }
+    Ok(decoded)
+}
+
+fn base64url_encoded_length(byte_length: usize) -> Option<usize> {
+    byte_length
+        .checked_div(3)?
+        .checked_mul(4)?
+        .checked_add(match byte_length % 3 {
+            0 => 0,
+            1 => 2,
+            2 => 3,
+            _ => unreachable!(),
+        })
+}
+
+fn base64url_value(value: u8) -> Result<u8, NoteSyncError> {
+    match value {
+        b'A'..=b'Z' => Ok(value - b'A'),
+        b'a'..=b'z' => Ok(value - b'a' + 26),
+        b'0'..=b'9' => Ok(value - b'0' + 52),
+        b'-' => Ok(62),
+        b'_' => Ok(63),
+        _ => Err(NoteSyncError::InvalidEnvelope(
+            "invalid base64url character",
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -491,6 +1175,11 @@ mod tests {
     fn database() -> Connection {
         let connection = Connection::open_in_memory().unwrap();
         crate::sqlite::apply_migrations(&connection).unwrap();
+        configure_database(&connection);
+        connection
+    }
+
+    fn configure_database(connection: &Connection) {
         connection.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
         connection.execute("INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES('p','P',0,'symbols','active','{}')", []).unwrap();
         connection
@@ -501,12 +1190,15 @@ mod tests {
             .unwrap();
         connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account',?1,0,0,'now','now')", [DEVICE_ID]).unwrap();
         connection.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('p','account','now','now')", []).unwrap();
-        connection
     }
 
     fn note(content: &str, revision: i64) -> String {
+        note_for("n", content, revision)
+    }
+
+    fn note_for(note_id: &str, content: &str, revision: i64) -> String {
         serde_json::json!({
-            "id":"n", "project_id":"p", "stage_id":null, "title":"",
+            "id":note_id, "project_id":"p", "stage_id":null, "title":"",
             "content":content, "content_format":"html", "checklist":[],
             "color":"default", "pinned":false, "archived":false,
             "sort_order":0, "tags":[], "source_type":"project",
@@ -519,15 +1211,131 @@ mod tests {
     }
 
     fn prepare<'a>(snapshot: &'a str) -> PrepareNoteIntent<'a> {
+        prepare_for("n", snapshot)
+    }
+
+    fn prepare_for<'a>(note_id: &'a str, snapshot: &'a str) -> PrepareNoteIntent<'a> {
         PrepareNoteIntent {
             project_id: "p",
-            entity_id: "n",
+            entity_id: note_id,
             operation: NoteSyncOperation::Upsert,
             updated_at: "2026-09-22T00:00:00Z",
             deleted_at: None,
             snapshot_json: snapshot,
             state_updated_at: "2026-09-22T00:00:00Z",
         }
+    }
+
+    fn persist_note_intent(
+        connection: &mut Connection,
+        note_id: &str,
+        content: &str,
+    ) -> (PreparedNoteIntent, String) {
+        let snapshot = note_for(note_id, content, 0);
+        let transaction = connection.transaction().unwrap();
+        let intent = prepare_unsealed_note_intent(&transaction, prepare_for(note_id, &snapshot))
+            .unwrap()
+            .unwrap();
+        let exists = transaction
+            .query_row("SELECT 1 FROM notes WHERE id=?1", [note_id], |_| Ok(()))
+            .optional()
+            .unwrap()
+            .is_some();
+        if exists {
+            transaction
+                .execute(
+                    "UPDATE notes SET updated_at='2026-09-22T00:00:00Z',payload_json=?1
+                     WHERE id=?2",
+                    rusqlite::params![snapshot, note_id],
+                )
+                .unwrap();
+        } else {
+            transaction
+                .execute(
+                    "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+                     VALUES(?1,'p',NULL,'2026-09-22T00:00:00Z',?2)",
+                    rusqlite::params![note_id, snapshot],
+                )
+                .unwrap();
+        }
+        transaction.commit().unwrap();
+        (intent, snapshot)
+    }
+
+    fn encode_base64url(bytes: &[u8]) -> String {
+        const ALPHABET: &[u8; 64] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+        let mut encoded = String::with_capacity(base64url_encoded_length(bytes.len()).unwrap());
+        let complete_length = bytes.len() / 3 * 3;
+        for chunk in bytes[..complete_length].chunks_exact(3) {
+            encoded.push(ALPHABET[(chunk[0] >> 2) as usize] as char);
+            encoded.push(ALPHABET[(((chunk[0] & 0x03) << 4) | (chunk[1] >> 4)) as usize] as char);
+            encoded.push(ALPHABET[(((chunk[1] & 0x0f) << 2) | (chunk[2] >> 6)) as usize] as char);
+            encoded.push(ALPHABET[(chunk[2] & 0x3f) as usize] as char);
+        }
+        match bytes.len() - complete_length {
+            1 => {
+                encoded.push(ALPHABET[(bytes[complete_length] >> 2) as usize] as char);
+                encoded.push(ALPHABET[((bytes[complete_length] & 0x03) << 4) as usize] as char);
+            }
+            2 => {
+                encoded.push(ALPHABET[(bytes[complete_length] >> 2) as usize] as char);
+                encoded.push(
+                    ALPHABET[(((bytes[complete_length] & 0x03) << 4)
+                        | (bytes[complete_length + 1] >> 4)) as usize] as char,
+                );
+                encoded.push(ALPHABET[((bytes[complete_length + 1] & 0x0f) << 2) as usize] as char);
+            }
+            _ => {}
+        }
+        encoded
+    }
+
+    fn envelope(fill: u8) -> EncryptedNoteSyncEnvelope {
+        EncryptedNoteSyncEnvelope {
+            crypto_version: 1,
+            aad_version: 1,
+            nonce: encode_base64url(&vec![fill; 24]),
+            ciphertext: encode_base64url(&vec![fill.wrapping_add(1); 16]),
+        }
+    }
+
+    fn seal_command(
+        event_id: &str,
+        mutation_generation: i64,
+        envelope: EncryptedNoteSyncEnvelope,
+    ) -> CommitSealedNoteSyncEventCommand {
+        CommitSealedNoteSyncEventCommand {
+            event_id: event_id.to_string(),
+            expected_mutation_generation: mutation_generation,
+            envelope,
+        }
+    }
+
+    fn failure_command(
+        event_id: &str,
+        mutation_generation: i64,
+        error_code: NoteSyncSealErrorCode,
+    ) -> RecordNoteSyncSealFailureCommand {
+        RecordNoteSyncSealFailureCommand {
+            event_id: event_id.to_string(),
+            expected_mutation_generation: mutation_generation,
+            error_code,
+        }
+    }
+
+    fn temporary_database_path(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-note-sync-{label}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("nfprogress.db");
+        (root, path)
     }
 
     #[test]
@@ -589,6 +1397,600 @@ mod tests {
                 )
                 .unwrap(),
             second_snapshot
+        );
+    }
+
+    #[test]
+    fn note_sync_lists_pending_intents_bounded_in_stable_order_without_project_binding() {
+        let mut connection = database();
+        let (first, first_snapshot) = persist_note_intent(&mut connection, "later-name", "first");
+        let (second, _) = persist_note_intent(&mut connection, "earlier-name", "second");
+        connection
+            .execute("DELETE FROM cloud_sync_project_bindings", [])
+            .unwrap();
+
+        let limited = list_unsealed_note_sync_intents(&connection, 1).unwrap();
+        assert_eq!(limited.len(), 1);
+        assert_eq!(limited[0].event_id, first.event_id);
+        assert_eq!(limited[0].account_id, "account");
+        assert_eq!(limited[0].device_id, DEVICE_ID);
+        assert_eq!(limited[0].project_id, "p");
+        assert_eq!(limited[0].entity_id, "later-name");
+        assert_eq!(limited[0].entity_type, "note");
+        assert_eq!(limited[0].operation, NoteSyncOperation::Upsert);
+        assert_eq!(limited[0].revision, 1);
+        assert_eq!(limited[0].parent_event_id, None);
+        assert_eq!(limited[0].local_ordinal, 1);
+        assert_eq!(limited[0].mutation_generation, 1);
+        assert_eq!(limited[0].snapshot_json, first_snapshot);
+        assert_eq!(limited[0].seal_state, NoteSyncSealState::Pending);
+        assert_eq!(limited[0].seal_attempt_count, 0);
+        assert_eq!(limited[0].last_error_code, None);
+        assert_eq!(limited[0].next_attempt_at, None);
+
+        let all = list_unsealed_note_sync_intents(&connection, 10).unwrap();
+        assert_eq!(
+            all.iter()
+                .map(|intent| intent.event_id.as_str())
+                .collect::<Vec<_>>(),
+            vec![first.event_id.as_str(), second.event_id.as_str()]
+        );
+        assert!(list_unsealed_note_sync_intents(&connection, 0).is_err());
+        assert!(list_unsealed_note_sync_intents(&connection, 201).is_err());
+    }
+
+    #[test]
+    fn note_sync_blocked_failure_is_durable_after_database_reopen() {
+        let (root, path) = temporary_database_path("blocked-reopen");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection);
+        let (intent, snapshot) = persist_note_intent(&mut connection, "n", "blocked");
+        assert_eq!(
+            record_note_sync_seal_failure(
+                &mut connection,
+                &failure_command(
+                    &intent.event_id,
+                    intent.mutation_generation,
+                    NoteSyncSealErrorCode::KeyUnavailable,
+                ),
+            )
+            .unwrap(),
+            RecordNoteSyncSealFailureResult::Recorded
+        );
+        drop(connection);
+
+        let connection = crate::sqlite::open_database(&path).unwrap();
+        let intents = list_unsealed_note_sync_intents(&connection, 10).unwrap();
+        assert_eq!(intents.len(), 1);
+        assert_eq!(intents[0].seal_state, NoteSyncSealState::Blocked);
+        assert_eq!(intents[0].seal_attempt_count, 1);
+        assert_eq!(
+            intents[0].last_error_code.as_deref(),
+            Some("key_unavailable")
+        );
+        assert_eq!(intents[0].snapshot_json, snapshot);
+        assert_eq!(intents[0].next_attempt_at, None);
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn note_sync_retryable_failure_has_durable_bounded_backoff() {
+        let mut connection = database();
+        let (intent, _) = persist_note_intent(&mut connection, "n", "retry");
+        record_note_sync_seal_failure(
+            &mut connection,
+            &failure_command(
+                &intent.event_id,
+                intent.mutation_generation,
+                NoteSyncSealErrorCode::RuntimeUnavailable,
+            ),
+        )
+        .unwrap();
+
+        let stored = connection
+            .query_row(
+                "SELECT seal_state,seal_attempt_count,last_error_code,next_attempt_at,
+                        state_updated_at,next_attempt_at > state_updated_at
+                 FROM cloud_sync_note_intents WHERE event_id=?1",
+                [&intent.event_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, i64>(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(stored.0, "retryable_error");
+        assert_eq!(stored.1, 1);
+        assert_eq!(stored.2, "runtime_unavailable");
+        assert!(stored.3.is_some());
+        assert_eq!(stored.5, 1);
+        assert!(list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn note_sync_new_mutation_resets_sealing_failure() {
+        let mut connection = database();
+        let (first, _) = persist_note_intent(&mut connection, "n", "first");
+        record_note_sync_seal_failure(
+            &mut connection,
+            &failure_command(
+                &first.event_id,
+                first.mutation_generation,
+                NoteSyncSealErrorCode::PayloadTooLarge,
+            ),
+        )
+        .unwrap();
+        let (second, second_snapshot) = persist_note_intent(&mut connection, "n", "second");
+
+        assert_eq!(second.event_id, first.event_id);
+        assert_eq!(second.mutation_generation, 2);
+        let stored = connection
+            .query_row(
+                "SELECT seal_state,seal_attempt_count,last_error_code,next_attempt_at,snapshot_json
+                 FROM cloud_sync_note_intents WHERE event_id=?1",
+                [&first.event_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                        row.get::<_, Option<String>>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(stored.0, "pending");
+        assert_eq!(stored.1, 0);
+        assert_eq!(stored.2, None);
+        assert_eq!(stored.3, None);
+        assert_eq!(stored.4, second_snapshot);
+    }
+
+    #[test]
+    fn note_sync_stale_failure_cannot_overwrite_new_generation() {
+        let mut connection = database();
+        let (first, _) = persist_note_intent(&mut connection, "n", "first");
+        let (second, second_snapshot) = persist_note_intent(&mut connection, "n", "second");
+        assert_eq!(
+            record_note_sync_seal_failure(
+                &mut connection,
+                &failure_command(
+                    &first.event_id,
+                    first.mutation_generation,
+                    NoteSyncSealErrorCode::CryptoContextInvalid,
+                ),
+            )
+            .unwrap(),
+            RecordNoteSyncSealFailureResult::StaleGeneration
+        );
+        let intent = list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(intent.mutation_generation, second.mutation_generation);
+        assert_eq!(intent.snapshot_json, second_snapshot);
+        assert_eq!(intent.seal_state, NoteSyncSealState::Pending);
+        assert_eq!(intent.seal_attempt_count, 0);
+    }
+
+    #[test]
+    fn note_sync_failure_codes_have_bounded_lifecycle_classification() {
+        for code in [
+            NoteSyncSealErrorCode::KeyUnavailable,
+            NoteSyncSealErrorCode::PayloadTooLarge,
+            NoteSyncSealErrorCode::EncryptedSyncObjectTooLarge,
+            NoteSyncSealErrorCode::DependencyNotSynced,
+            NoteSyncSealErrorCode::UnsupportedContentFormat,
+        ] {
+            assert_eq!(code.seal_state(), NoteSyncSealState::Blocked);
+        }
+        assert_eq!(
+            NoteSyncSealErrorCode::RuntimeUnavailable.seal_state(),
+            NoteSyncSealState::RetryableError
+        );
+        for code in [
+            NoteSyncSealErrorCode::InvalidNotePayload,
+            NoteSyncSealErrorCode::CryptoContextInvalid,
+            NoteSyncSealErrorCode::InvalidSyncMetadata,
+            NoteSyncSealErrorCode::InvalidEnvelope,
+            NoteSyncSealErrorCode::MetadataMismatch,
+        ] {
+            assert_eq!(code.seal_state(), NoteSyncSealState::InvariantError);
+        }
+    }
+
+    #[test]
+    fn note_sync_envelope_requires_canonical_unpadded_base64url() {
+        assert_eq!(decode_canonical_base64url("_w", 1, 1).unwrap(), vec![0xff]);
+        assert!(decode_canonical_base64url("_x", 1, 1).is_err());
+        assert!(decode_canonical_base64url("_w=", 1, 1).is_err());
+        assert!(decode_canonical_base64url("+w", 1, 1).is_err());
+    }
+
+    #[test]
+    fn note_sync_sealing_command_rejects_plaintext_and_unknown_fields() {
+        let value = serde_json::json!({
+            "event_id": "123e4567-e89b-42d3-a456-426614174001",
+            "expected_mutation_generation": 1,
+            "envelope": {
+                "crypto_version": 1,
+                "aad_version": 1,
+                "nonce": encode_base64url(&[0_u8; 24]),
+                "ciphertext": encode_base64url(&[0_u8; 16]),
+            },
+            "plaintext": {"content": "must not be accepted"},
+        });
+        assert!(serde_json::from_value::<CommitSealedNoteSyncEventCommand>(value).is_err());
+    }
+
+    #[test]
+    fn note_sync_successful_sealing_stores_object_and_removes_plaintext() {
+        let mut connection = database();
+        let (intent, _) = persist_note_intent(&mut connection, "n", "sealed");
+        let command = seal_command(&intent.event_id, intent.mutation_generation, envelope(7));
+        assert_eq!(
+            commit_sealed_note_sync_event(&mut connection, &command).unwrap(),
+            CommitSealedNoteSyncEventResult::Sealed
+        );
+
+        let stored = connection
+            .query_row(
+                "SELECT event.lifecycle,object.account_id,object.crypto_version,
+                        object.aad_version,length(object.nonce),length(object.ciphertext)
+                 FROM cloud_sync_outbox AS event
+                 JOIN cloud_sync_event_objects AS object ON object.event_id=event.event_id
+                    AND object.account_id=event.account_id
+                 WHERE event.event_id=?1",
+                [&intent.event_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                        row.get::<_, i64>(4)?,
+                        row.get::<_, i64>(5)?,
+                    ))
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            stored,
+            ("sealed".to_string(), "account".to_string(), 1, 1, 24, 16)
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM cloud_sync_note_intents WHERE event_id=?1",
+                    [&intent.event_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert!(list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn note_sync_ciphertext_survives_database_reopen() {
+        let (root, path) = temporary_database_path("ciphertext-reopen");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection);
+        let (intent, _) = persist_note_intent(&mut connection, "n", "reopen");
+        let expected = vec![10_u8; 16];
+        commit_sealed_note_sync_event(
+            &mut connection,
+            &seal_command(&intent.event_id, intent.mutation_generation, envelope(9)),
+        )
+        .unwrap();
+        drop(connection);
+
+        let connection = crate::sqlite::open_database(&path).unwrap();
+        let ciphertext = connection
+            .query_row(
+                "SELECT ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",
+                [&intent.event_id],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .unwrap();
+        assert_eq!(ciphertext, expected);
+        assert!(list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .is_empty());
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn note_sync_generation_race_rejects_stale_ciphertext() {
+        let mut connection = database();
+        let (first, _) = persist_note_intent(&mut connection, "n", "snapshot-a");
+        let listed = list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .pop()
+            .unwrap();
+        let (second, second_snapshot) = persist_note_intent(&mut connection, "n", "snapshot-b");
+        assert_eq!(
+            commit_sealed_note_sync_event(
+                &mut connection,
+                &seal_command(&first.event_id, listed.mutation_generation, envelope(1)),
+            )
+            .unwrap(),
+            CommitSealedNoteSyncEventResult::StaleGeneration
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_event_objects", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        let remaining = list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(remaining.event_id, first.event_id);
+        assert_eq!(remaining.mutation_generation, second.mutation_generation);
+        assert_eq!(remaining.snapshot_json, second_snapshot);
+    }
+
+    #[test]
+    fn note_sync_sealing_rolls_back_when_object_insert_is_followed_by_failure() {
+        let mut connection = database();
+        let (intent, snapshot) = persist_note_intent(&mut connection, "n", "rollback-object");
+        connection
+            .execute_batch(
+                "CREATE TRIGGER note_sync_test_fail_after_object
+             BEFORE DELETE ON cloud_sync_note_intents
+             BEGIN SELECT RAISE(ABORT,'injected_after_object_insert'); END;",
+            )
+            .unwrap();
+        assert!(commit_sealed_note_sync_event(
+            &mut connection,
+            &seal_command(&intent.event_id, intent.mutation_generation, envelope(2)),
+        )
+        .is_err());
+        connection
+            .execute_batch("DROP TRIGGER note_sync_test_fail_after_object;")
+            .unwrap();
+
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_event_objects", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        let remaining = list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(remaining.snapshot_json, snapshot);
+    }
+
+    #[test]
+    fn note_sync_sealing_rolls_back_temporary_sidecar_delete() {
+        let mut connection = database();
+        let (intent, snapshot) = persist_note_intent(&mut connection, "n", "rollback-sidecar");
+        connection
+            .execute_batch(
+                "CREATE TRIGGER note_sync_test_fail_lifecycle
+             BEFORE UPDATE OF lifecycle ON cloud_sync_outbox
+             WHEN NEW.lifecycle='sealed'
+             BEGIN SELECT RAISE(ABORT,'injected_before_lifecycle_update'); END;",
+            )
+            .unwrap();
+        assert!(commit_sealed_note_sync_event(
+            &mut connection,
+            &seal_command(&intent.event_id, intent.mutation_generation, envelope(3)),
+        )
+        .is_err());
+        connection
+            .execute_batch("DROP TRIGGER note_sync_test_fail_lifecycle;")
+            .unwrap();
+
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_event_objects", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        let remaining = list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(remaining.snapshot_json, snapshot);
+    }
+
+    #[test]
+    fn note_sync_duplicate_sealing_is_idempotent_only_for_matching_envelope() {
+        let mut connection = database();
+        let (intent, _) = persist_note_intent(&mut connection, "n", "duplicate");
+        let command = seal_command(&intent.event_id, intent.mutation_generation, envelope(4));
+        assert_eq!(
+            commit_sealed_note_sync_event(&mut connection, &command).unwrap(),
+            CommitSealedNoteSyncEventResult::Sealed
+        );
+        assert_eq!(
+            commit_sealed_note_sync_event(&mut connection, &command).unwrap(),
+            CommitSealedNoteSyncEventResult::AlreadySealed
+        );
+        let conflicting = seal_command(&intent.event_id, intent.mutation_generation, envelope(5));
+        assert!(matches!(
+            commit_sealed_note_sync_event(&mut connection, &conflicting),
+            Err(NoteSyncError::ConflictingEncryptedObject)
+        ));
+        let stored: Vec<u8> = connection
+            .query_row(
+                "SELECT ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",
+                [&intent.event_id],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stored, vec![5_u8; 16]);
+    }
+
+    #[test]
+    fn note_sync_rejects_invalid_nonce_and_ciphertext_lengths() {
+        let mut connection = database();
+        let (intent, _) = persist_note_intent(&mut connection, "n", "invalid-envelope");
+        let invalid_envelopes = [
+            EncryptedNoteSyncEnvelope {
+                crypto_version: 1,
+                aad_version: 1,
+                nonce: encode_base64url(&[0_u8; 23]),
+                ciphertext: encode_base64url(&[0_u8; 16]),
+            },
+            EncryptedNoteSyncEnvelope {
+                crypto_version: 1,
+                aad_version: 1,
+                nonce: encode_base64url(&[0_u8; 24]),
+                ciphertext: encode_base64url(&[0_u8; 15]),
+            },
+            EncryptedNoteSyncEnvelope {
+                crypto_version: 2,
+                aad_version: 1,
+                nonce: encode_base64url(&[0_u8; 24]),
+                ciphertext: encode_base64url(&[0_u8; 16]),
+            },
+        ];
+        for invalid in invalid_envelopes {
+            assert!(matches!(
+                commit_sealed_note_sync_event(
+                    &mut connection,
+                    &seal_command(&intent.event_id, intent.mutation_generation, invalid),
+                ),
+                Err(NoteSyncError::InvalidEnvelope(_))
+            ));
+        }
+        let oversized = EncryptedNoteSyncEnvelope {
+            crypto_version: 1,
+            aad_version: 1,
+            nonce: encode_base64url(&[0_u8; 24]),
+            ciphertext: encode_base64url(&vec![0_u8; MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES + 1]),
+        };
+        assert!(matches!(
+            commit_sealed_note_sync_event(
+                &mut connection,
+                &seal_command(&intent.event_id, intent.mutation_generation, oversized),
+            ),
+            Err(NoteSyncError::InvalidEnvelope(_))
+        ));
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_sync_event_objects", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn note_sync_sealed_event_without_object_is_an_invariant_error() {
+        let mut connection = database();
+        let (intent, _) = persist_note_intent(&mut connection, "n", "missing-object");
+        connection
+            .execute(
+                "DELETE FROM cloud_sync_note_intents WHERE event_id=?1",
+                [&intent.event_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE cloud_sync_outbox SET lifecycle='sealed' WHERE event_id=?1",
+                [&intent.event_id],
+            )
+            .unwrap();
+
+        assert!(matches!(
+            commit_sealed_note_sync_event(
+                &mut connection,
+                &seal_command(&intent.event_id, intent.mutation_generation, envelope(6)),
+            ),
+            Err(NoteSyncError::SealedObjectMissing)
+        ));
+        assert!(matches!(
+            record_note_sync_seal_failure(
+                &mut connection,
+                &failure_command(
+                    &intent.event_id,
+                    intent.mutation_generation,
+                    NoteSyncSealErrorCode::RuntimeUnavailable,
+                ),
+            ),
+            Err(NoteSyncError::SealedObjectMissing)
+        ));
+    }
+
+    #[test]
+    fn note_sync_deleted_project_tombstone_can_be_sealed() {
+        let mut connection = database();
+        let (_, snapshot) = persist_note_intent(&mut connection, "n", "delete-me");
+        let note_value: serde_json::Value = serde_json::from_str(&snapshot).unwrap();
+        let transaction = connection.transaction().unwrap();
+        let tombstone =
+            prepare_note_delete_intent(&transaction, "p", "n", &note_value, "2026-09-22T00:01:00Z")
+                .unwrap()
+                .unwrap();
+        transaction
+            .execute("DELETE FROM notes WHERE id='n'", [])
+            .unwrap();
+        transaction
+            .execute("DELETE FROM project_order WHERE project_id='p'", [])
+            .unwrap();
+        transaction
+            .execute(
+                "DELETE FROM cloud_sync_project_bindings WHERE project_id='p'",
+                [],
+            )
+            .unwrap();
+        transaction
+            .execute("DELETE FROM projects WHERE id='p'", [])
+            .unwrap();
+        transaction.commit().unwrap();
+
+        let listed = list_unsealed_note_sync_intents(&connection, 10)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(listed.operation, NoteSyncOperation::Delete);
+        assert_eq!(listed.event_id, tombstone.event_id);
+        assert_eq!(listed.account_id, "account");
+        assert_eq!(
+            commit_sealed_note_sync_event(
+                &mut connection,
+                &seal_command(
+                    &tombstone.event_id,
+                    tombstone.mutation_generation,
+                    envelope(8),
+                ),
+            )
+            .unwrap(),
+            CommitSealedNoteSyncEventResult::Sealed
         );
     }
 

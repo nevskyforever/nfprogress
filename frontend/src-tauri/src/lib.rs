@@ -2045,6 +2045,36 @@ fn get_note(
 }
 
 #[tauri::command]
+fn list_unsealed_note_sync_intents(
+    limit: u32,
+) -> Result<Vec<note_sync::UnsealedNoteSyncIntent>, String> {
+    let connection = open_notes_database(false)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::list_unsealed_note_sync_intents(&connection, limit)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn record_note_sync_seal_failure(
+    command: note_sync::RecordNoteSyncSealFailureCommand,
+) -> Result<note_sync::RecordNoteSyncSealFailureResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::record_note_sync_seal_failure(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn commit_sealed_note_sync_event(
+    command: note_sync::CommitSealedNoteSyncEventCommand,
+) -> Result<note_sync::CommitSealedNoteSyncEventResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::commit_sealed_note_sync_event(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
@@ -5117,6 +5147,9 @@ pub fn run() {
             set_settings,
             list_notes,
             get_note,
+            list_unsealed_note_sync_intents,
+            record_note_sync_seal_failure,
+            commit_sealed_note_sync_event,
             create_note,
             update_note,
             delete_note,
