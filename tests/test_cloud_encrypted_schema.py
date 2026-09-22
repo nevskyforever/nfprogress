@@ -12,7 +12,7 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from backend.app.cloud.models import EncryptedObject, UserCrypto
-from backend.app.cloud.schemas import (ObjectEnvelopeDto, PasswordWrappedAmkDto,
+from backend.app.cloud.schemas import (CurrentUserCryptoResponse, ObjectEnvelopeDto, PasswordWrappedAmkDto,
                                        RecoveryWrappedAmkDto,
                                        decode_canonical_base64url)
 
@@ -62,6 +62,16 @@ def test_c13_wire_dtos_accept_only_canonical_base64url_and_c11_shapes():
     with pytest.raises(ValidationError):
         ObjectEnvelopeDto.model_validate({
             'crypto_version': 1, 'aad_version': 1, 'nonce': b64(b'f' * 24), 'ciphertext': b64(b'g' * 15),
+        })
+    assert CurrentUserCryptoResponse.model_validate({
+        'provisioned': True, 'password': password_dto(), 'recovery': None,
+    }).provisioned
+    assert not CurrentUserCryptoResponse.model_validate({
+        'provisioned': False, 'password': None, 'recovery': None,
+    }).provisioned
+    with pytest.raises(ValidationError):
+        CurrentUserCryptoResponse.model_validate({
+            'provisioned': False, 'password': password_dto(), 'recovery': None,
         })
 
 

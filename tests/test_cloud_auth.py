@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import threading
+import base64
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
@@ -105,6 +106,59 @@ def create_user(engine, *, username='Arthur', email='arthur@example.test', passw
 
 def login(client, username='Arthur', password='correct horse battery staple'):
     return client.post('/api/v1/auth/login', json={'username': username, 'password': password})
+
+
+def _b64(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode('ascii').rstrip('=')
+
+
+def test_current_user_crypto_is_auth_scoped_and_never_auto_provisions(cloud_client):
+    client, engine = cloud_client
+    first_id = create_user(engine, username='CryptoOne', email='crypto-one@example.test')
+    create_user(engine, username='CryptoTwo', email='crypto-two@example.test')
+    first_token = login(client, 'CryptoOne').json()['access_token']
+    second_token = login(client, 'CryptoTwo').json()['access_token']
+
+    with engine.begin() as connection:
+        connection.execute(text("""INSERT INTO user_crypto(
+            user_id,password_crypto_version,password_wrapping_version,kdf_version,
+            kdf_algorithm,kdf_salt,kdf_opslimit,kdf_memlimit,password_nonce,
+            password_wrapped_amk,recovery_crypto_version,recovery_wrapping_version,
+            recovery_nonce,recovery_wrapped_amk
+        ) VALUES(:user_id,1,1,1,'argon2id13',:salt,2,67108864,:nonce,:wrapped,NULL,NULL,NULL,NULL)"""), {
+            'user_id': first_id, 'salt': b'a' * 16, 'nonce': b'b' * 24, 'wrapped': b'c' * 48,
+        })
+
+    first = client.get('/api/v1/account/crypto', headers={'Authorization': f'Bearer {first_token}'})
+    assert first.status_code == 200
+    assert first.headers['cache-control'] == 'private, no-store'
+    assert first.json() == {
+        'provisioned': True,
+        'password': {
+            'crypto_version': 1,
+            'wrapping_version': 1,
+            'kdf': {
+                'kdf_version': 1,
+                'algorithm': 'argon2id13',
+                'salt': _b64(b'a' * 16),
+                'opslimit': 2,
+                'memlimit': 67_108_864,
+            },
+            'nonce': _b64(b'b' * 24),
+            'ciphertext': _b64(b'c' * 48),
+        },
+        'recovery': None,
+    }
+    serialized = first.text.lower()
+    assert not any(secret in serialized for secret in ('masterkey', 'master_key', 'plaintext', 'object_key'))
+
+    second = client.get('/api/v1/account/crypto', headers={'Authorization': f'Bearer {second_token}'})
+    assert second.status_code == 200
+    assert second.json() == {'provisioned': False, 'password': None, 'recovery': None}
+    with engine.connect() as connection:
+        assert connection.execute(text('SELECT count(*) FROM user_crypto')).scalar_one() == 1
+
+    assert client.get('/api/v1/account/crypto').status_code == 401
 
 
 def test_c2_schema_and_repeated_head_upgrade(migrated_database, monkeypatch):

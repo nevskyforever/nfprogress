@@ -2,15 +2,17 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
                             get_cloud_session, get_current_user, get_email_sender)
 from .email import EmailSender, OutgoingEmail
-from .schemas import (AccountLimitsResponse, AccountResponse, LoginRequest, PasswordResetConfirmRequest,
+from .schemas import (AccountLimitsResponse, AccountResponse, CurrentUserCryptoResponse, LoginRequest,
+                      PasswordKdfDto, PasswordResetConfirmRequest, PasswordWrappedAmkDto,
                       PasswordResetRequest, PublicVerificationRequest,
-                      RefreshRequest, RegistrationRequest, TokenResponse,
+                      RecoveryWrappedAmkDto, RefreshRequest, RegistrationRequest, TokenResponse,
+                      encode_canonical_base64url,
                       VerificationTokenRequest)
 from .services import (AccountEmailService, AuthenticationError,
                        AuthenticationService, RecoveryTokenError,
@@ -127,6 +129,44 @@ def account_me(current: AuthenticatedUser = Depends(get_current_user)) -> Accoun
     user = current.user
     return AccountResponse(id=user.id, username=user.username, email=user.email,
         email_verified=user.email_verified, role=user.role, status=user.status, created_at=user.created_at)
+
+
+@router.get('/account/crypto', response_model=CurrentUserCryptoResponse)
+def account_crypto(response: Response, current: AuthenticatedUser = Depends(get_current_user),
+                   session: Session = Depends(get_cloud_session)) -> CurrentUserCryptoResponse:
+    """Return only the current user's wrapped AMK record; never provision one implicitly."""
+    from .models import UserCrypto
+
+    response.headers['Cache-Control'] = 'private, no-store'
+    record = session.get(UserCrypto, current.user.id)
+    if record is None:
+        return CurrentUserCryptoResponse(provisioned=False)
+    password = PasswordWrappedAmkDto(
+        crypto_version=record.password_crypto_version,
+        wrapping_version=record.password_wrapping_version,
+        kdf=PasswordKdfDto(
+            kdf_version=record.kdf_version,
+            algorithm=record.kdf_algorithm,
+            salt=encode_canonical_base64url(record.kdf_salt),
+            opslimit=record.kdf_opslimit,
+            memlimit=record.kdf_memlimit,
+        ),
+        nonce=encode_canonical_base64url(record.password_nonce),
+        ciphertext=encode_canonical_base64url(record.password_wrapped_amk),
+    )
+    recovery = None
+    if record.recovery_wrapped_amk is not None:
+        recovery = RecoveryWrappedAmkDto(
+            crypto_version=record.recovery_crypto_version,
+            wrapping_version=record.recovery_wrapping_version,
+            nonce=encode_canonical_base64url(record.recovery_nonce),
+            ciphertext=encode_canonical_base64url(record.recovery_wrapped_amk),
+        )
+    return CurrentUserCryptoResponse(
+        provisioned=True,
+        password=password,
+        recovery=recovery,
+    )
 
 
 @router.get('/account/limits', response_model=AccountLimitsResponse)

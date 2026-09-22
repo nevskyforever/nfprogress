@@ -11,6 +11,7 @@ use serde::de::{self, Visitor};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 
+mod account_binding;
 mod documents;
 mod game;
 mod mindmap;
@@ -2072,6 +2073,16 @@ fn commit_sealed_note_sync_event(
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
     note_sync::commit_sealed_note_sync_event(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn ensure_cloud_account_binding(
+    command: account_binding::EnsureCloudAccountBindingCommand,
+) -> Result<account_binding::EnsureCloudAccountBindingResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    account_binding::ensure_cloud_account_binding(&mut connection, &command)
         .map_err(|error| error.to_string())
 }
 
@@ -5151,6 +5162,7 @@ pub fn run() {
             list_unsealed_note_sync_intents,
             record_note_sync_seal_failure,
             commit_sealed_note_sync_event,
+            ensure_cloud_account_binding,
             create_note,
             update_note,
             delete_note,

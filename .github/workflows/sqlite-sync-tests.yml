@@ -6,6 +6,7 @@ on:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/account_binding.rs'
       - 'frontend/src-tauri/src/lib.rs'
       - 'frontend/src-tauri/src/project_repository.rs'
       - 'frontend/src-tauri/Cargo.toml'
@@ -20,6 +21,7 @@ on:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/account_binding.rs'
       - 'frontend/src-tauri/src/lib.rs'
       - 'frontend/src-tauri/src/project_repository.rs'
       - 'frontend/src-tauri/Cargo.toml'
@@ -80,4 +82,5 @@ jobs:
         run: |
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc sqlite
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc note_sync
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_binding
           cargo check --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc

@@ -176,6 +176,23 @@ class RecoveryWrappedAmkDto(BaseModel):
     _ciphertext = field_validator('ciphertext')(_validate_binary(expected_length=48))
 
 
+class CurrentUserCryptoResponse(BaseModel):
+    """Wrapped key material for the authenticated current user only."""
+
+    model_config = ConfigDict(extra='forbid')
+    provisioned: bool
+    password: PasswordWrappedAmkDto | None = None
+    recovery: RecoveryWrappedAmkDto | None = None
+
+    @model_validator(mode='after')
+    def records_match_provisioning_state(self):
+        if self.provisioned != (self.password is not None):
+            raise ValueError('Provisioned crypto state requires a password wrapper.')
+        if not self.provisioned and self.recovery is not None:
+            raise ValueError('Unprovisioned crypto state cannot contain Recovery material.')
+        return self
+
+
 class ObjectEnvelopeDto(BaseModel):
     """Future API DTO for opaque client ciphertext; this server does not decrypt."""
 

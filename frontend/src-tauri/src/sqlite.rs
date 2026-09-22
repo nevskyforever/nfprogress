@@ -9,11 +9,11 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 11;
+pub const CURRENT_SCHEMA_VERSION: i64 = 12;
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 24] = [
+const USER_DATA_TABLES: [&str; 25] = [
     "projects",
     "stages",
     "progress_entries",
@@ -38,6 +38,7 @@ const USER_DATA_TABLES: [&str; 24] = [
     "cloud_sync_project_bindings",
     "cloud_sync_note_intents",
     "cloud_sync_note_intent_cursors",
+    "cloud_account_bindings",
 ];
 
 #[derive(Debug)]
@@ -67,7 +68,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 11] = [
+const MIGRATIONS: [(i64, &str); 12] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -113,6 +114,10 @@ const MIGRATIONS: [(i64, &str); 11] = [
         include_str!(
             "../../../nfprogress/core/sqlite/migrations/011_note_sync_intent_fairness.sql"
         ),
+    ),
+    (
+        12,
+        include_str!("../../../nfprogress/core/sqlite/migrations/012_cloud_account_bindings.sql"),
     ),
 ];
 
@@ -297,6 +302,7 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "cloud_sync_project_bindings",
         "cloud_sync_note_intents",
         "cloud_sync_note_intent_cursors",
+        "cloud_account_bindings",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(
@@ -510,6 +516,7 @@ mod tests {
             "cloud_sync_project_bindings",
             "cloud_sync_note_intents",
             "cloud_sync_note_intent_cursors",
+            "cloud_account_bindings",
         ] {
             assert!(connection
                 .query_row(
@@ -575,6 +582,34 @@ mod tests {
             Err(StorageError::CorruptSchema(message))
                 if message.contains("fairness cursors are incomplete")
         ));
+    }
+
+    #[test]
+    fn v11_upgrade_adds_empty_cloud_account_bindings() {
+        let connection = Connection::open_in_memory().unwrap();
+        for (_, sql) in MIGRATIONS.iter().take(11) {
+            connection.execute_batch(sql).unwrap();
+        }
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_info(schema_version INTEGER NOT NULL);
+                 INSERT INTO schema_info VALUES(11);",
+            )
+            .unwrap();
+
+        assert_eq!(
+            apply_migrations(&connection).unwrap(),
+            CURRENT_SCHEMA_VERSION
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT count(*) FROM cloud_account_bindings", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+        validate_database(&connection).unwrap();
     }
 
     #[test]
@@ -790,6 +825,7 @@ mod tests {
             "cloud_sync_project_bindings",
             "cloud_sync_note_intents",
             "cloud_sync_note_intent_cursors",
+            "cloud_account_bindings",
         ] {
             let connection = Connection::open_in_memory().unwrap();
             apply_migrations(&connection).unwrap();
