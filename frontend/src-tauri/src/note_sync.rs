@@ -380,6 +380,59 @@ pub(crate) struct CommitSealedNoteSyncEventCommand {
     pub envelope: EncryptedNoteSyncEnvelope,
 }
 
+/// Opaque, already transport-validated data accepted into the durable inbox.
+/// This is intentionally separate from the outbox commands: receipt never
+/// decrypts or applies a user note.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ReadNoteSyncPullStateCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub canonical_user_id: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct NoteSyncPullState {
+    pub pull_cursor: i64,
+    pub ack_cursor: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitNoteSyncInboundPageCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub canonical_user_id: String,
+    pub expected_cursor: i64,
+    pub next_cursor: i64,
+    pub has_more: bool,
+    pub items: Vec<InboundNoteSyncItem>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct InboundNoteSyncItem {
+    pub event_id: String,
+    pub server_sequence: i64,
+    pub source_device_id: String,
+    pub project_id: String,
+    pub entity_id: String,
+    pub entity_type: String,
+    pub operation: String,
+    pub revision: i64,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+    pub envelope: Option<EncryptedNoteSyncEnvelope>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct CommitNoteSyncInboundPageResult {
+    pub committed_cursor: i64,
+    pub new_events: u32,
+    pub replayed_events: u32,
+    pub has_more: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum RecordNoteSyncSealFailureResult {
@@ -1522,6 +1575,130 @@ pub(crate) fn commit_sealed_note_sync_event(
     Ok(CommitSealedNoteSyncEventResult::Sealed)
 }
 
+fn valid_inbound_identity(value: &str, maximum: usize) -> bool {
+    !value.is_empty() && value.len() <= maximum
+}
+
+fn validate_pull_scope(
+    transaction: &Transaction<'_>, account_id: &str, device_id: &str, canonical_user_id: &str,
+) -> Result<(), NoteSyncError> {
+    if !valid_inbound_identity(account_id, 512) || device_id.len() != 36 || canonical_user_id.len() != 36 {
+        return Err(NoteSyncError::InvalidEnvelope("invalid inbox scope"));
+    }
+    let bound: Option<String> = transaction.query_row(
+        "SELECT canonical_user_id FROM cloud_account_bindings WHERE local_account_id=?1",
+        [account_id], |row| row.get(0),
+    ).optional()?;
+    if bound.as_deref() != Some(canonical_user_id) {
+        return Err(NoteSyncError::InvalidEnvelope("account binding mismatch"));
+    }
+    let stored_device: Option<String> = transaction.query_row(
+        "SELECT device_id FROM cloud_sync_state WHERE account_id=?1", [account_id], |row| row.get(0),
+    ).optional()?;
+    if stored_device.as_deref() != Some(device_id) {
+        return Err(NoteSyncError::InvalidEnvelope("pulling device mismatch"));
+    }
+    Ok(())
+}
+
+pub(crate) fn read_note_sync_pull_state(
+    connection: &mut Connection, command: &ReadNoteSyncPullStateCommand,
+) -> Result<NoteSyncPullState, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_pull_scope(&transaction, &command.account_id, &command.device_id, &command.canonical_user_id)?;
+    let state = transaction.query_row(
+        "SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id=?1", [&command.account_id],
+        |row| Ok(NoteSyncPullState { pull_cursor: row.get(0)?, ack_cursor: row.get(1)? }),
+    )?;
+    transaction.commit()?;
+    Ok(state)
+}
+
+pub(crate) fn commit_note_sync_inbound_page(
+    connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
+) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
+    if command.items.len() > 200 || !(0..=MAX_SYNC_INTEGER).contains(&command.expected_cursor)
+        || !(0..=MAX_SYNC_INTEGER).contains(&command.next_cursor) {
+        return Err(NoteSyncError::InvalidEnvelope("invalid inbox cursor or page size"));
+    }
+    if command.items.is_empty() && (command.next_cursor != command.expected_cursor || command.has_more) {
+        return Err(NoteSyncError::InvalidEnvelope("invalid empty inbox page"));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_pull_scope(&transaction, &command.account_id, &command.device_id, &command.canonical_user_id)?;
+    let current: i64 = transaction.query_row(
+        "SELECT pull_cursor FROM cloud_sync_state WHERE account_id=?1", [&command.account_id], |row| row.get(0),
+    )?;
+    // A lost IPC result may replay the exact page after its transaction
+    // committed.  Permit only that non-regressing shape; every item is still
+    // compared below and any missing/conflicting row rolls the transaction back.
+    let exact_replay = current == command.next_cursor && current > command.expected_cursor;
+    if current != command.expected_cursor && !exact_replay {
+        return Err(NoteSyncError::InvalidEnvelope("stale pull cursor"));
+    }
+    let mut previous = if exact_replay { 0 } else { command.expected_cursor };
+    let mut aggregate = 0usize;
+    let mut new_events = 0u32;
+    let mut replayed_events = 0u32;
+    for item in &command.items {
+        if item.server_sequence <= previous || item.server_sequence > MAX_SYNC_INTEGER
+            || !valid_inbound_identity(&item.event_id, 36) || item.source_device_id.len() != 36
+            || !valid_inbound_identity(&item.project_id, 512) || !valid_inbound_identity(&item.entity_id, 512)
+            || !valid_inbound_identity(&item.entity_type, 128) || !(1..=MAX_SYNC_INTEGER).contains(&item.revision)
+            || !valid_note_sync_timestamp(&item.updated_at)
+            || item.deleted_at.as_deref().is_some_and(|value| !valid_note_sync_timestamp(value))
+            || !matches!(item.operation.as_str(), "upsert" | "delete" | "event")
+            || (item.operation == "delete") != item.deleted_at.is_some() {
+            return Err(NoteSyncError::InvalidEnvelope("invalid inbound event"));
+        }
+        if item.entity_type == "note" && item.envelope.is_none() {
+            return Err(NoteSyncError::InvalidEnvelope("note object missing"));
+        }
+        let decoded = item.envelope.as_ref().map(decode_encrypted_note_sync_envelope).transpose()?;
+        if let Some(envelope) = &decoded {
+            aggregate = aggregate.checked_add(envelope.ciphertext.len()).ok_or(NoteSyncError::InvalidEnvelope("inbox object overflow"))?;
+            if aggregate > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES { return Err(NoteSyncError::InvalidEnvelope("inbox aggregate too large")); }
+        }
+        let existing: Option<(i64, String, String, String, String, String, i64, String, Option<String>)> = transaction.query_row(
+            "SELECT server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at FROM cloud_sync_inbox WHERE account_id=?1 AND event_id=?2",
+            rusqlite::params![command.account_id, item.event_id],
+            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?,row.get(7)?,row.get(8)?)),
+        ).optional()?;
+        if let Some(row) = existing {
+            if row != (item.server_sequence, item.source_device_id.clone(), item.project_id.clone(), item.entity_id.clone(), item.entity_type.clone(), item.operation.clone(), item.revision, item.updated_at.clone(), item.deleted_at.clone()) {
+                return Err(NoteSyncError::InvalidEnvelope("conflicting inbox replay"));
+            }
+            replayed_events += 1;
+        } else {
+            if exact_replay {
+                return Err(NoteSyncError::InvalidEnvelope("incomplete inbox replay"));
+            }
+            let state = if item.entity_type == "note" { "received" } else { "unknown_entity" };
+            transaction.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+                rusqlite::params![command.account_id,item.event_id,item.server_sequence,item.source_device_id,item.project_id,item.entity_id,item.entity_type,item.operation,item.revision,item.updated_at,item.deleted_at,state])?;
+            new_events += 1;
+        }
+        if let Some(envelope) = decoded {
+            let object: Option<(i64,i64,Vec<u8>,Vec<u8>)> = transaction.query_row(
+                "SELECT crypto_version,aad_version,nonce,ciphertext FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
+                rusqlite::params![command.account_id,item.event_id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?)),
+            ).optional()?;
+            if let Some(object) = object {
+                if object != (envelope.crypto_version,envelope.aad_version,envelope.nonce,envelope.ciphertext) { return Err(NoteSyncError::ConflictingEncryptedObject); }
+            } else {
+                transaction.execute("INSERT INTO cloud_sync_event_objects(account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at) VALUES(?1,?2,?3,?4,?5,?6,strftime('%Y-%m-%dT%H:%M:%fZ','now'))", rusqlite::params![command.account_id,item.event_id,envelope.crypto_version,envelope.aad_version,envelope.nonce,envelope.ciphertext])?;
+            }
+        }
+        previous = item.server_sequence;
+    }
+    if !command.items.is_empty() && command.next_cursor != previous { return Err(NoteSyncError::InvalidEnvelope("next cursor mismatch")); }
+    if !exact_replay {
+        transaction.execute("UPDATE cloud_sync_state SET pull_cursor=?1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE account_id=?2 AND pull_cursor=?3", rusqlite::params![command.next_cursor,command.account_id,command.expected_cursor])?;
+    }
+    transaction.commit()?;
+    Ok(CommitNoteSyncInboundPageResult { committed_cursor: command.next_cursor, new_events, replayed_events, has_more: command.has_more })
+}
+
 /// Stores server receipts and transitions exactly their sealed Note events in
 /// the same SQLite transaction. A retry of an identical receipt is harmless;
 /// any conflicting receipt rolls back the complete batch.
@@ -1903,6 +2080,66 @@ mod tests {
         crate::sqlite::apply_migrations(&connection).unwrap();
         configure_database(&connection);
         connection
+    }
+
+    fn inbound_scope(connection: &mut Connection) {
+        connection.execute("INSERT OR IGNORE INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('inbox-account',?1,0,0,'now','now')", [DEVICE_ID]).unwrap();
+        connection.execute("INSERT OR IGNORE INTO cloud_account_bindings(local_account_id,canonical_user_id,created_at,validated_at) VALUES('inbox-account','abcdefab-0000-0000-0000-000000000101','now','now')", []).unwrap();
+    }
+
+    fn inbound_command() -> CommitNoteSyncInboundPageCommand {
+        CommitNoteSyncInboundPageCommand {
+            account_id: "inbox-account".into(), device_id: DEVICE_ID.into(),
+            canonical_user_id: "abcdefab-0000-0000-0000-000000000101".into(),
+            expected_cursor: 0, next_cursor: 1, has_more: false,
+            items: vec![InboundNoteSyncItem {
+                event_id: "123e4567-e89b-42d3-a456-426614174099".into(), server_sequence: 1,
+                source_device_id: DEVICE_ID.into(), project_id: "project".into(), entity_id: "note".into(),
+                entity_type: "note".into(), operation: "upsert".into(), revision: 1,
+                updated_at: "2026-09-22T00:00:00Z".into(), deleted_at: None,
+                envelope: Some(EncryptedNoteSyncEnvelope { crypto_version: 1, aad_version: 1, nonce: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(), ciphertext: "AAAAAAAAAAAAAAAAAAAAAA".into() }),
+            }],
+        }
+    }
+
+    #[test]
+    fn inbound_page_is_atomic_idempotent_and_advances_only_pull_cursor() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        let command = inbound_command();
+        assert_eq!(commit_note_sync_inbound_page(&mut connection, &command).unwrap().new_events, 1);
+        assert_eq!(connection.query_row("SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| Ok((row.get::<_, i64>(0)?,row.get::<_, i64>(1)?))).unwrap(), (1, 0));
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_inbox", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(commit_note_sync_inbound_page(&mut connection, &command).unwrap().replayed_events, 1);
+    }
+
+    #[test]
+    fn inbound_conflict_rolls_back_page_and_cursor() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        let command = inbound_command(); commit_note_sync_inbound_page(&mut connection, &command).unwrap();
+        let mut conflict = inbound_command();
+        conflict.items[0].envelope.as_mut().unwrap().ciphertext = "AQAAAAAAAAAAAAAAAAAAAA".into();
+        assert!(commit_note_sync_inbound_page(&mut connection, &conflict).is_err());
+        assert_eq!(connection.query_row("SELECT pull_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn inbound_replay_survives_reopen_and_stale_or_partial_pages_rollback() {
+        let (root, path) = temporary_database_path("inbound-replay");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection); inbound_scope(&mut connection);
+        let command = inbound_command();
+        commit_note_sync_inbound_page(&mut connection, &command).unwrap();
+        drop(connection);
+        let mut reopened = crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(commit_note_sync_inbound_page(&mut reopened, &command).unwrap().replayed_events, 1);
+        let mut stale = inbound_command(); stale.expected_cursor = 2; stale.next_cursor = 3;
+        assert!(commit_note_sync_inbound_page(&mut reopened, &stale).is_err());
+        let mut partial = inbound_command(); partial.items.clear();
+        assert!(commit_note_sync_inbound_page(&mut reopened, &partial).is_err());
+        assert_eq!(reopened.query_row("SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).unwrap(), (1, 0));
+        assert_eq!(reopened.query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(reopened.query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        drop(reopened); std::fs::remove_dir_all(root).unwrap();
     }
 
     fn configure_database(connection: &Connection) {

@@ -2118,6 +2118,26 @@ fn ensure_cloud_account_binding(
 }
 
 #[tauri::command]
+fn read_note_sync_pull_state(
+    command: note_sync::ReadNoteSyncPullStateCommand,
+) -> Result<note_sync::NoteSyncPullState, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::read_note_sync_pull_state(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn commit_note_sync_inbound_page(
+    command: note_sync::CommitNoteSyncInboundPageCommand,
+) -> Result<note_sync::CommitNoteSyncInboundPageResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::commit_note_sync_inbound_page(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
@@ -5197,6 +5217,8 @@ pub fn run() {
             commit_note_sync_upload_acceptance,
             record_note_sync_upload_failure,
             ensure_cloud_account_binding,
+            read_note_sync_pull_state,
+            commit_note_sync_inbound_page,
             create_note,
             update_note,
             delete_note,
