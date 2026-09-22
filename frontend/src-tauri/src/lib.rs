@@ -2010,21 +2010,72 @@ fn get_note(
 fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
-    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
-    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
-    let now = note_time(&connection)?;
     let id = new_note_id()?;
-    let sort_order: i64 = connection.query_row(
-        "SELECT COALESCE(MAX(json_extract(payload_json, '$.sort_order')), -1) + 1 FROM notes WHERE project_id = ?1",
-        [&project_id], |row| row.get(0),
-    ).map_err(|error| error.to_string())?;
-    let payload = serde_json::json!({"id": id, "project_id": project_id, "stage_id": stage_id, "title": "", "content": "", "content_format": "html", "checklist": [], "color": "default", "pinned": false, "archived": false, "sort_order": sort_order, "tags": [], "source_type": "project", "source_map_id": null, "source_node_id": null, "created_at": now, "updated_at": now, "revision": 0, "metadata": {}});
-    let tx = connection
+    create_note_in_connection(&mut connection, &project_id, stage_id.as_deref(), &id)?;
+    get_note(project_id, id, stage_id)?.ok_or_else(|| "Созданная заметка не найдена.".to_string())
+}
+
+fn prepare_direct_note_intent(
+    transaction: &rusqlite::Transaction<'_>,
+    project_id: &str,
+    note_id: &str,
+    operation: note_sync::NoteSyncOperation,
+    updated_at: &str,
+    deleted_at: Option<&str>,
+    snapshot_json: &str,
+) -> Result<(), String> {
+    note_sync::prepare_unsealed_note_intent(
+        transaction,
+        note_sync::PrepareNoteIntent {
+            project_id,
+            entity_id: note_id,
+            operation,
+            updated_at,
+            deleted_at,
+            snapshot_json,
+            state_updated_at: updated_at,
+        },
+    )
+    .map(|_| ())
+    .map_err(|error| error.user_message().to_string())
+}
+
+fn create_note_in_connection(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+    note_id: &str,
+) -> Result<String, String> {
+    let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;
-    tx.execute("INSERT INTO notes(id, project_id, stage_id, updated_at, payload_json) VALUES(?1, ?2, ?3, ?4, ?5)", rusqlite::params![id, project_id, stage_id, now, payload.to_string()]).map_err(|error| error.to_string())?;
-    tx.commit().map_err(|error| error.to_string())?;
-    get_note(project_id, id, stage_id)?.ok_or_else(|| "Созданная заметка не найдена.".to_string())
+    require_note_relation(&transaction, project_id, stage_id)?;
+    require_note_writable(&transaction, project_id, stage_id)?;
+    let now = note_time(&transaction)?;
+    let sort_order: i64 = transaction.query_row(
+        "SELECT COALESCE(MAX(json_extract(payload_json, '$.sort_order')), -1) + 1 FROM notes WHERE project_id = ?1",
+        [project_id], |row| row.get(0),
+    ).map_err(|error| error.to_string())?;
+    let payload = serde_json::json!({"id": note_id, "project_id": project_id, "stage_id": stage_id, "title": "", "content": "", "content_format": "html", "checklist": [], "color": "default", "pinned": false, "archived": false, "sort_order": sort_order, "tags": [], "source_type": "project", "source_map_id": null, "source_node_id": null, "created_at": now, "updated_at": now, "revision": 0, "metadata": {}});
+    let snapshot = payload.to_string();
+    prepare_direct_note_intent(
+        &transaction,
+        project_id,
+        note_id,
+        note_sync::NoteSyncOperation::Upsert,
+        &now,
+        None,
+        &snapshot,
+    )?;
+    transaction
+        .execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) \
+             VALUES(?1,?2,?3,?4,?5)",
+            rusqlite::params![note_id, project_id, stage_id, now, snapshot],
+        )
+        .map_err(|_| "Не удалось сохранить новую заметку.".to_string())?;
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -2036,10 +2087,31 @@ fn update_note(
 ) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
-    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
-    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
+    update_note_in_connection(
+        &mut connection,
+        &project_id,
+        &note_id,
+        &patch,
+        stage_id.as_deref(),
+    )?;
+    get_note(project_id, note_id, stage_id)?
+        .ok_or_else(|| "Изменённая заметка не найдена.".to_string())
+}
+
+fn update_note_in_connection(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+    note_id: &str,
+    patch: &serde_json::Value,
+    stage_id: Option<&str>,
+) -> Result<String, String> {
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    require_note_relation(&transaction, project_id, stage_id)?;
+    require_note_writable(&transaction, project_id, stage_id)?;
     let raw_id = raw_note_id(&note_id, stage_id.is_none()).to_string();
-    let mut note: serde_json::Value = connection
+    let mut note: serde_json::Value = transaction
         .query_row(
             "SELECT payload_json FROM notes WHERE id = ?1 AND project_id = ?2",
             rusqlite::params![raw_id, project_id],
@@ -2051,8 +2123,8 @@ fn update_note(
         .get("stage_id")
         .and_then(|value| value.as_str())
         .map(str::to_string);
-    require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
-    require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
+    require_note_relation(&transaction, project_id, note_stage_id.as_deref())?;
+    require_note_writable(&transaction, project_id, note_stage_id.as_deref())?;
     let patch = patch
         .as_object()
         .ok_or_else(|| "Некорректные данные заметки.".to_string())?;
@@ -2152,7 +2224,7 @@ fn update_note(
             _ => unreachable!("validated note patch key"),
         }
     }
-    let now = note_time(&connection)?;
+    let now = note_time(&transaction)?;
     let revision = target
         .get("revision")
         .and_then(|value| value.as_i64())
@@ -2163,21 +2235,38 @@ fn update_note(
         "updated_at".to_string(),
         serde_json::Value::String(now.clone()),
     );
-    let tx = connection
-        .transaction()
-        .map_err(|error| error.to_string())?;
+    let snapshot = note.to_string();
+    prepare_direct_note_intent(
+        &transaction,
+        project_id,
+        &raw_id,
+        note_sync::NoteSyncOperation::Upsert,
+        &now,
+        None,
+        &snapshot,
+    )?;
+    let changed = transaction
+        .execute(
+            "UPDATE notes SET updated_at=?1,payload_json=?2 \
+             WHERE id=?3 AND project_id=?4",
+            rusqlite::params![now, snapshot, raw_id, project_id],
+        )
+        .map_err(|_| "Не удалось сохранить изменение заметки.".to_string())?;
+    if changed != 1 {
+        return Err("Заметка больше не существует.".to_string());
+    }
     if map_note {
         let node_id = map_node_id
             .as_deref()
             .ok_or_else(|| "У заметки карты отсутствует source_node_id.".to_string())?;
         let raw_map: String = if let Some(stage_id) = note_stage_id.as_deref() {
-            tx.query_row(
+            transaction.query_row(
                 "SELECT payload_json FROM stages WHERE id=?1 AND project_id=?2",
                 rusqlite::params![stage_id, project_id],
                 |row| row.get(0),
             )
         } else {
-            tx.query_row(
+            transaction.query_row(
                 "SELECT payload_json FROM projects WHERE id=?1",
                 [&project_id],
                 |row| row.get(0),
@@ -2188,29 +2277,23 @@ fn update_note(
             serde_json::from_str(&raw_map).map_err(|error| error.to_string())?;
         let map = stored_map(&owner_payload)
             .ok_or_else(|| "Связанная карта больше не существует.".to_string())?;
-        let content = target
+        let content = note
             .get("content")
             .and_then(|value| value.as_str())
             .unwrap_or_default();
         let updated_map = mindmap::set_note_text(&map, node_id, content)
             .ok_or_else(|| "Связанная заметка карты больше не существует.".to_string())?;
         update_stored_map(
-            &tx,
-            &project_id,
+            &transaction,
+            project_id,
             note_stage_id.as_deref(),
             &updated_map,
             &now,
             false,
         )?;
     }
-    tx.execute(
-        "UPDATE notes SET updated_at = ?1, payload_json = ?2 WHERE id = ?3 AND project_id = ?4",
-        rusqlite::params![now, note.to_string(), raw_id, project_id],
-    )
-    .map_err(|error| error.to_string())?;
-    tx.commit().map_err(|error| error.to_string())?;
-    get_note(project_id, note_id, stage_id)?
-        .ok_or_else(|| "Изменённая заметка не найдена.".to_string())
+    transaction.commit().map_err(|error| error.to_string())?;
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -2221,10 +2304,22 @@ fn delete_note(
 ) -> Result<(), String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
-    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
-    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
-    let raw_id = raw_note_id(&note_id, stage_id.is_none()).to_string();
-    let note_payload: String = connection
+    delete_note_in_connection(&mut connection, &project_id, &note_id, stage_id.as_deref())
+}
+
+fn delete_note_in_connection(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+    note_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(), String> {
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    require_note_relation(&transaction, project_id, stage_id)?;
+    require_note_writable(&transaction, project_id, stage_id)?;
+    let raw_id = raw_note_id(note_id, stage_id.is_none()).to_string();
+    let note_payload: String = transaction
         .query_row(
             "SELECT payload_json FROM notes WHERE id = ?1 AND project_id = ?2",
             rusqlite::params![raw_id, project_id],
@@ -2236,14 +2331,22 @@ fn delete_note(
         .get("stage_id")
         .and_then(|value| value.as_str())
         .map(str::to_string);
-    require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
-    require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
-    let now = note_time(&connection)?;
-    let tx = connection
-        .transaction()
-        .map_err(|error| error.to_string())?;
+    require_note_relation(&transaction, project_id, note_stage_id.as_deref())?;
+    require_note_writable(&transaction, project_id, note_stage_id.as_deref())?;
+    let now = note_time(&transaction)?;
     let parsed_note: serde_json::Value =
         serde_json::from_str(&note_payload).map_err(|error| error.to_string())?;
+    let tombstone = note_sync::build_note_tombstone(&parsed_note, &now)
+        .map_err(|error| error.user_message().to_string())?;
+    prepare_direct_note_intent(
+        &transaction,
+        project_id,
+        &raw_id,
+        note_sync::NoteSyncOperation::Delete,
+        &now,
+        Some(&now),
+        &tombstone,
+    )?;
     if parsed_note
         .get("source_type")
         .and_then(|value| value.as_str())
@@ -2254,13 +2357,13 @@ fn delete_note(
             .and_then(|value| value.as_str())
             .ok_or_else(|| "У заметки карты отсутствует source_node_id.".to_string())?;
         let raw_map: String = if let Some(stage_id) = note_stage_id.as_deref() {
-            tx.query_row(
+            transaction.query_row(
                 "SELECT payload_json FROM stages WHERE id=?1 AND project_id=?2",
                 rusqlite::params![stage_id, project_id],
                 |row| row.get(0),
             )
         } else {
-            tx.query_row(
+            transaction.query_row(
                 "SELECT payload_json FROM projects WHERE id=?1",
                 [&project_id],
                 |row| row.get(0),
@@ -2274,24 +2377,24 @@ fn delete_note(
         let updated_map = mindmap::remove_note(&map, node_id)
             .ok_or_else(|| "Связанная заметка карты больше не существует.".to_string())?;
         update_stored_map(
-            &tx,
-            &project_id,
+            &transaction,
+            project_id,
             note_stage_id.as_deref(),
             &updated_map,
             &now,
             true,
         )?;
     }
-    let deleted = tx
+    let deleted = transaction
         .execute(
             "DELETE FROM notes WHERE id = ?1 AND project_id = ?2",
             rusqlite::params![raw_id, project_id],
         )
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| "Не удалось удалить заметку.".to_string())?;
     if deleted != 1 {
         return Err("Заметка больше не существует.".to_string());
     }
-    tx.commit().map_err(|error| error.to_string())
+    transaction.commit().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -2302,12 +2405,26 @@ fn reorder_notes(
 ) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
-    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
-    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
+    reorder_notes_in_connection(&mut connection, &project_id, &note_ids, stage_id.as_deref())?;
+    list_notes(project_id, stage_id)
+}
+
+fn reorder_notes_in_connection(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+    note_ids: &[String],
+    stage_id: Option<&str>,
+) -> Result<(), String> {
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    require_note_relation(&transaction, project_id, stage_id)?;
+    require_note_writable(&transaction, project_id, stage_id)?;
     let aggregate = stage_id.is_none();
-    for note_id in &note_ids {
+    let now = note_time(&transaction)?;
+    for (index, note_id) in note_ids.iter().enumerate() {
         let raw_id = raw_note_id(note_id, aggregate);
-        let payload: Option<String> = connection
+        let payload: Option<String> = transaction
             .query_row(
                 "SELECT payload_json FROM notes WHERE id = ?1 AND project_id = ?2",
                 rusqlite::params![raw_id, project_id],
@@ -2316,28 +2433,51 @@ fn reorder_notes(
             .optional()
             .map_err(|error| error.to_string())?;
         if let Some(payload) = payload {
-            let note = serde_json::from_str::<serde_json::Value>(&payload)
+            let mut note = serde_json::from_str::<serde_json::Value>(&payload)
                 .map_err(|error| error.to_string())?;
             let note_stage_id = note
                 .get("stage_id")
                 .and_then(|value| value.as_str())
                 .map(str::to_string);
-            require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
-            require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
+            require_note_relation(&transaction, project_id, note_stage_id.as_deref())?;
+            require_note_writable(&transaction, project_id, note_stage_id.as_deref())?;
+            let target = note
+                .as_object_mut()
+                .ok_or_else(|| "Некорректный payload заметки.".to_string())?;
+            target.insert("sort_order".to_string(), (index as i64).into());
+            let revision = target
+                .get("revision")
+                .and_then(|value| value.as_i64())
+                .unwrap_or(0)
+                .saturating_add(1);
+            target.insert("revision".to_string(), revision.into());
+            target.insert(
+                "updated_at".to_string(),
+                serde_json::Value::String(now.clone()),
+            );
+            let snapshot = note.to_string();
+            prepare_direct_note_intent(
+                &transaction,
+                project_id,
+                raw_id,
+                note_sync::NoteSyncOperation::Upsert,
+                &now,
+                None,
+                &snapshot,
+            )?;
+            let changed = transaction
+                .execute(
+                    "UPDATE notes SET updated_at=?1,payload_json=?2 \
+                     WHERE id=?3 AND project_id=?4",
+                    rusqlite::params![now, snapshot, raw_id, project_id],
+                )
+                .map_err(|_| "Не удалось изменить порядок заметок.".to_string())?;
+            if changed != 1 {
+                return Err("Заметка больше не существует.".to_string());
+            }
         }
     }
-    let tx = connection
-        .transaction()
-        .map_err(|error| error.to_string())?;
-    for (index, note_id) in note_ids.iter().enumerate() {
-        let raw_id = raw_note_id(note_id, aggregate);
-        tx.execute(
-            "UPDATE notes SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), payload_json = json_set(payload_json, '$.sort_order', ?1, '$.revision', COALESCE(json_extract(payload_json, '$.revision'), 0) + 1) WHERE id = ?2 AND project_id = ?3",
-            rusqlite::params![index as i64, raw_id, project_id],
-        ).map_err(|error| error.to_string())?;
-    }
-    tx.commit().map_err(|error| error.to_string())?;
-    list_notes(project_id, stage_id)
+    transaction.commit().map_err(|error| error.to_string())
 }
 
 fn require_sqlite_settings_owner(connection: &rusqlite::Connection) -> Result<(), String> {
