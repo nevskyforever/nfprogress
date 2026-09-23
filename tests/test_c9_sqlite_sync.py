@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 
 import pytest
 
@@ -63,7 +64,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 14
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 15
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -106,8 +107,8 @@ def test_c15_upgrade_from_populated_v8_preserves_authoritative_data():
         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (UUID_1, 'account', UUID_2, 'p', 'n', 'note', 'upsert', 7, 'updated', None, 'created', 2, 'retry', 'later'))
     connection.commit()
 
-    assert apply_migrations(connection) == 14
-    assert connection.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 14
+    assert apply_migrations(connection) == 15
+    assert connection.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 15
     assert connection.execute("SELECT payload_json FROM notes WHERE id='n'").fetchone()[0] == '{"revision": 7}'
     assert connection.execute("SELECT title FROM documents WHERE id='d'").fetchone()[0] == 'Document'
     assert connection.execute("SELECT value_json FROM settings WHERE key='theme'").fetchone()[0] == '"dark"'
@@ -288,7 +289,7 @@ def test_c154_v9_upgrade_preserves_data_without_binding_or_intent_backfill():
     )
     connection.commit()
 
-    assert apply_migrations(connection) == 14
+    assert apply_migrations(connection) == 15
     assert connection.execute("SELECT payload_json FROM notes WHERE id='note'").fetchone()[0] == payload
     assert connection.execute(
         "SELECT revision,local_ordinal,lifecycle,last_error FROM cloud_sync_outbox"
@@ -570,3 +571,35 @@ def test_c154_bound_delete_requires_matching_tombstone_route():
     _insert_intent(connection, tombstone)
     connection.execute("DELETE FROM notes WHERE id='note'")
     assert connection.execute("SELECT count(*) FROM notes").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(('field', 'value'), [
+    ('stage_id', 'stage'), ('source_type', 'mindmap'), ('source_map_id', 'map'),
+    ('source_node_id', 'node'), ('content_format', 'text'),
+])
+def test_c157b_delete_tombstone_route_mismatch_is_rejected(field: str, value: str):
+    connection = sqlite3.connect(':memory:')
+    apply_migrations(connection)
+    _insert_project(connection)
+    original = _note_payload()
+    connection.execute("INSERT INTO notes VALUES('note','project',NULL,'now',?)", (original,))
+    _bind_project(connection)
+    _insert_unsealed_event(connection, operation='delete', deleted_at='deleted')
+    tombstone = {'id': 'note', 'project_id': 'project', 'stage_id': None,
+                 'source_type': 'project', 'source_map_id': None, 'source_node_id': None,
+                 'content_format': 'html', 'deleted_at': 'deleted'}
+    tombstone[field] = value
+    _insert_intent(connection, json.dumps(tombstone, separators=(',', ':')))
+    with pytest.raises(sqlite3.IntegrityError, match='matching_sync_intent'):
+        connection.execute("DELETE FROM notes WHERE id='note'")
+    assert connection.execute("SELECT payload_json FROM notes WHERE id='note'").fetchone()[0] == original
+
+
+def test_c157b_delete_deleted_at_mismatch_is_rejected_by_intent_validator():
+    connection = sqlite3.connect(':memory:')
+    apply_migrations(connection); _insert_project(connection); _bind_project(connection)
+    _insert_unsealed_event(connection, operation='delete', deleted_at='deleted')
+    bad = ('{"id":"note","project_id":"project","stage_id":null,"source_type":"project",'
+           '"source_map_id":null,"source_node_id":null,"content_format":"html","deleted_at":"other"}')
+    with pytest.raises(sqlite3.IntegrityError, match='requires_unsealed'):
+        _insert_intent(connection, bad)

@@ -10,6 +10,13 @@ use std::fmt::Write as _;
 use rusqlite::{Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 
+use crate::note_sync_plaintext::{
+    decode_note_sync_plaintext, eligibility, Eligibility, NoteSyncPlaintext, NoteSyncRoute,
+};
+use crate::sqlite::{
+    OwnedRemoteApplyAuthorization, PrivilegedRemoteApplyConnection, StorageError,
+};
+
 const MAX_SYNC_INTEGER: i64 = 9_007_199_254_740_991;
 const MAX_UNSEALED_INTENT_LIST_LIMIT: u32 = 200;
 const MAX_SEALED_OUTBOX_LIST_LIMIT: u32 = 200;
@@ -40,6 +47,487 @@ pub(crate) enum NoteSyncError {
     ConflictingEncryptedObject,
     ConflictingUploadReceipt,
     Random(String),
+}
+
+#[cfg(test)]
+mod remote_apply_tests {
+    use super::*;
+    use crate::note_sync_plaintext::decode_note_sync_plaintext;
+    use crate::sqlite::{
+        apply_migrations, PrivilegedRemoteApplyConnection, RemoteApplyAuthorization,
+    };
+
+    const ACCOUNT: &str = "account";
+    const CANONICAL_USER: &str = "123e4567-e89b-42d3-a456-4266141740aa";
+    const PULLING_DEVICE: &str = "123e4567-e89b-42d3-a456-426614174001";
+    const REMOTE_DEVICE: &str = "123e4567-e89b-42d3-a456-426614174002";
+    const CREATE_EVENT: &str = "123e4567-e89b-42d3-a456-426614174100";
+    const UPDATE_EVENT: &str = "123e4567-e89b-42d3-a456-426614174101";
+    const DELETE_EVENT: &str = "123e4567-e89b-42d3-a456-426614174102";
+
+    fn database() -> PrivilegedRemoteApplyConnection {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        connection.execute(
+            "INSERT INTO projects(id,name,infinite,unit,status,payload_json)
+             VALUES('p','Project',0,'symbols','active','{}')",
+            [],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_state(
+                account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at
+             ) VALUES(?1,?2,0,0,'now','now')",
+            rusqlite::params![ACCOUNT, PULLING_DEVICE],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_account_bindings(
+                local_account_id,canonical_user_id,created_at,validated_at
+             ) VALUES(?1,?2,'now','now')",
+            rusqlite::params![ACCOUNT, CANONICAL_USER],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at)
+             VALUES('p',?1,'now','now')",
+            [ACCOUNT],
+        ).unwrap();
+        PrivilegedRemoteApplyConnection::from_connection(connection).unwrap()
+    }
+
+    fn plaintext(
+        event_id: &str,
+        parent_event_id: Option<&str>,
+        revision: i64,
+        operation: &str,
+        updated_at: &str,
+        content: &str,
+    ) -> NoteSyncPlaintext {
+        let mutation = if operation == "delete" {
+            "delete"
+        } else if revision == 1 {
+            "create"
+        } else {
+            "update"
+        };
+        let note = if operation == "delete" {
+            serde_json::json!({
+                "id":"n","project_id":"p","stage_id":null,"source_type":"project",
+                "source_map_id":null,"source_node_id":null,"content_format":"html",
+                "deleted_at":updated_at,
+            })
+        } else {
+            serde_json::json!({
+                "id":"n","project_id":"p","stage_id":null,"source_type":"project",
+                "source_map_id":null,"source_node_id":null,"content_format":"html",
+                "title":"Title","content":content,"checklist":[],"color":"default",
+                "pinned":false,"archived":false,"sort_order":0,"tags":[],
+                "created_at":"2026-01-01T00:00:00.000000Z",
+                "updated_at":updated_at,"metadata":{},
+            })
+        };
+        let value = serde_json::json!({
+            "version":1,
+            "header":{
+                "event_id":event_id,"parent_event_id":parent_event_id,"project_id":"p",
+                "entity_id":"n","entity_type":"note","operation":operation,
+                "revision":revision,"updated_at":updated_at,
+                "deleted_at":if operation == "delete" { serde_json::Value::String(updated_at.to_string()) } else { serde_json::Value::Null },
+            },
+            "mutation":mutation,"note":note,
+        });
+        decode_note_sync_plaintext(serde_json::to_string(&value).unwrap().as_bytes()).unwrap()
+    }
+
+    fn header(plaintext: &NoteSyncPlaintext) -> (&str, &str, i64, &str, Option<&str>) {
+        match plaintext {
+            NoteSyncPlaintext::Create { header, .. }
+            | NoteSyncPlaintext::Update { header, .. }
+            | NoteSyncPlaintext::Delete { header, .. } => (
+                &header.event_id,
+                &header.operation,
+                header.revision,
+                &header.updated_at,
+                header.deleted_at.as_deref(),
+            ),
+        }
+    }
+
+    fn received(
+        connection: &PrivilegedRemoteApplyConnection,
+        plaintext: NoteSyncPlaintext,
+        sequence: i64,
+        source_device_id: &str,
+    ) -> ApplyVerifiedReceivedNoteCommand {
+        let (event_id, operation, revision, updated_at, deleted_at) = header(&plaintext);
+        let nonce = vec![sequence as u8; 24];
+        let ciphertext = vec![(sequence + 31) as u8; 16];
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at
+             ) VALUES(?1,?2,?3,?4,'p','n','note',?5,?6,?7,?8,'received','now')",
+            rusqlite::params![ACCOUNT,event_id,sequence,source_device_id,operation,revision,updated_at,deleted_at],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_event_objects(
+                account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+             ) VALUES(?1,?2,1,1,?3,?4,'now')",
+            rusqlite::params![ACCOUNT,event_id,nonce,ciphertext],
+        ).unwrap();
+        ApplyVerifiedReceivedNoteCommand {
+            account_id: ACCOUNT.to_string(), canonical_user_id: CANONICAL_USER.to_string(),
+            pulling_device_id: PULLING_DEVICE.to_string(), event_id: event_id.to_string(),
+            server_sequence: sequence, source_device_id: source_device_id.to_string(),
+            crypto_version: 1, aad_version: 1,
+            nonce: vec![sequence as u8; 24], ciphertext: vec![(sequence + 31) as u8; 16],
+            plaintext,
+        }
+    }
+
+    fn apply_create(connection: &mut PrivilegedRemoteApplyConnection) -> ApplyVerifiedReceivedNoteCommand {
+        let command = received(
+            connection,
+            plaintext(CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z", "create"),
+            1,
+            REMOTE_DEVICE,
+        );
+        assert_eq!(apply_verified_received_note(connection, &command).unwrap(), ApplyVerifiedReceivedNoteResult::Applied);
+        command
+    }
+
+    #[test]
+    fn remote_apply_create_updates_note_head_and_inbox_without_echo() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [], |row| row.get::<_, String>(0),
+        ).unwrap(), "create");
+        assert_eq!(connection.connection().query_row(
+            "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities", [], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        ).unwrap(), (CREATE_EVENT.to_string(), 1));
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [CREATE_EVENT], |row| row.get::<_, String>(0),
+        ).unwrap(), "applied");
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.connection().query_row("SELECT pull_cursor,ack_cursor FROM cloud_sync_state", [], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        ).unwrap(), (0, 0));
+    }
+
+    #[test]
+    fn remote_apply_create_does_not_overwrite_unproven_existing_note() {
+        let mut connection = database();
+        let local_plaintext = plaintext(
+            CREATE_EVENT,
+            None,
+            1,
+            "upsert",
+            "2026-01-01T00:00:00.000000Z",
+            "local without remote head",
+        );
+        let payload_json = match &local_plaintext {
+            NoteSyncPlaintext::Create { note, .. } => note_payload_from_record(note).unwrap(),
+            _ => unreachable!(),
+        };
+        connection.authorize_once(
+            RemoteApplyAuthorization {
+                event_id: CREATE_EVENT,
+                account_id: ACCOUNT,
+                project_id: "p",
+                entity_id: "n",
+                operation: "upsert",
+                payload_json: Some(&payload_json),
+                prior_payload_json: None,
+            },
+            |transaction| {
+                transaction.execute(
+                    "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+                     VALUES('n','p',NULL,'2026-01-01T00:00:00.000000Z',?1)",
+                    [&payload_json],
+                )?;
+                Ok(())
+            },
+        ).unwrap();
+
+        let command = received(
+            &connection,
+            plaintext(
+                CREATE_EVENT,
+                None,
+                1,
+                "upsert",
+                "2026-01-01T00:00:00.000000Z",
+                "remote replacement",
+            ),
+            1,
+            REMOTE_DEVICE,
+        );
+        assert_eq!(
+            apply_verified_received_note(&mut connection, &command).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Conflict,
+        );
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'",
+            [],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "local without remote head");
+        assert_eq!(connection.connection().query_row(
+            "SELECT state,error_code FROM cloud_sync_inbox WHERE event_id=?1",
+            [CREATE_EVENT],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ).unwrap(), ("conflict".to_string(), "conflicting_head".to_string()));
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_entities", [], |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+    }
+
+    #[test]
+    fn remote_apply_update_and_delete_advance_chain_atomically() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        let update = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert", "2026-01-02T00:00:00.000000Z", "update"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &update).unwrap(), ApplyVerifiedReceivedNoteResult::Applied);
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [], |row| row.get::<_, String>(0),
+        ).unwrap(), "update");
+        let delete = received(&connection,
+            plaintext(DELETE_EVENT, Some(UPDATE_EVENT), 3, "delete", "2026-01-03T00:00:00.000000Z", ""),
+            3, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &delete).unwrap(), ApplyVerifiedReceivedNoteResult::Applied);
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.connection().query_row(
+            "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities", [], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+        ).unwrap(), (DELETE_EVENT.to_string(), 3));
+    }
+
+    #[test]
+    fn remote_apply_replay_is_idempotent() {
+        let mut connection = database();
+        let command = apply_create(&mut connection);
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(), ApplyVerifiedReceivedNoteResult::AlreadyApplied);
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn remote_apply_self_echo_uses_receipt_evidence_and_preserves_newer_local_note() {
+        let mut connection = database();
+        let newer_payload = serde_json::json!({
+            "id":"n","project_id":"p","stage_id":null,"source_type":"project",
+            "source_map_id":null,"source_node_id":null,"content_format":"html",
+            "title":"Title","content":"newer local","checklist":[],"color":"default",
+            "pinned":false,"archived":false,"sort_order":0,"tags":[],
+            "created_at":"2026-01-01T00:00:00.000000Z",
+            "updated_at":"2026-01-02T00:00:00.000000Z","revision":0,"metadata":{},
+        }).to_string();
+        // Seed a pre-binding local row, then create the real unsealed local
+        // sidecar after binding; this avoids using Notes CRUD to fake remote IO.
+        connection.connection().execute(
+            "DELETE FROM cloud_sync_project_bindings WHERE project_id='p'", [],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('n','p',NULL,'2026-01-02T00:00:00.000000Z',?1)",
+            [&newer_payload],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at)
+             VALUES('p',?1,'now','now')",
+            [ACCOUNT],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_outbox(
+                event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+                revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle
+             ) VALUES(?1,?2,?3,'p','n','note','upsert',1,
+                '2026-01-01T00:00:00.000000Z',NULL,'now',NULL,1,'accepted')",
+            rusqlite::params![CREATE_EVENT, ACCOUNT, PULLING_DEVICE],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_upload_receipts(
+                account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+             ) VALUES(?1,?2,?3,1,0,'now')",
+            rusqlite::params![ACCOUNT, CREATE_EVENT, PULLING_DEVICE],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_outbox(
+                event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+                revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle
+             ) VALUES('123e4567-e89b-42d3-a456-426614174110',?1,?2,'p','n','note','upsert',2,
+                '2026-01-02T00:00:00.000000Z',NULL,'now',?3,2,'unsealed')",
+            rusqlite::params![ACCOUNT, PULLING_DEVICE, CREATE_EVENT],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_note_intents(
+                event_id,mutation_generation,snapshot_json,seal_state,seal_attempt_count,state_updated_at
+             ) VALUES('123e4567-e89b-42d3-a456-426614174110',1,?1,'pending',0,'now')",
+            [&newer_payload],
+        ).unwrap();
+
+        let command = received(&connection,
+            plaintext(CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z", "server copy"),
+            1, PULLING_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(), ApplyVerifiedReceivedNoteResult::SelfEchoApplied);
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [], |row| row.get::<_, String>(0),
+        ).unwrap(), "newer local");
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| row.get::<_, i64>(0)).unwrap(), 2);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [CREATE_EVENT], |row| row.get::<_, String>(0),
+        ).unwrap(), "applied");
+    }
+
+    #[test]
+    fn remote_apply_classifies_conflicting_and_missing_parents() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        let conflict = received(&connection,
+            plaintext(UPDATE_EVENT, Some(DELETE_EVENT), 2, "upsert", "2026-01-02T00:00:00.000000Z", "conflict"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &conflict).unwrap(), ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [UPDATE_EVENT], |row| row.get::<_, String>(0)).unwrap(), "conflict");
+
+        let mut other = database();
+        let missing = received(&other,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert", "2026-01-02T00:00:00.000000Z", "missing"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut other, &missing).unwrap(), ApplyVerifiedReceivedNoteResult::Orphan);
+        assert_eq!(other.connection().query_row("SELECT state,error_code FROM cloud_sync_inbox WHERE event_id=?1", [UPDATE_EVENT], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ).unwrap(), ("orphan".to_string(), "missing_parent".to_string()));
+    }
+
+    #[test]
+    fn remote_apply_preserves_local_unsealed_change_and_rejects_wrong_object() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_outbox(
+                event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+                revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle
+             ) VALUES('123e4567-e89b-42d3-a456-426614174110',?1,?2,'p','n','note','upsert',2,
+                '2026-01-02T00:00:00.000000Z',NULL,'now',?3,1,'unsealed')",
+            rusqlite::params![ACCOUNT, PULLING_DEVICE, CREATE_EVENT],
+        ).unwrap();
+        let conflict = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert", "2026-01-02T00:00:00.000000Z", "remote"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &conflict).unwrap(), ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row("SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [], |row| row.get::<_, String>(0)).unwrap(), "create");
+
+        let mut mismatch = database();
+        let mut command = received(&mismatch,
+            plaintext(CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z", "create"),
+            1, REMOTE_DEVICE);
+        command.ciphertext[0] ^= 1;
+        assert_eq!(apply_verified_received_note(&mut mismatch, &command).unwrap(), ApplyVerifiedReceivedNoteResult::Rejected);
+        assert_eq!(mismatch.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn remote_apply_rechecks_scope_and_missing_project_without_losing_inbox_evidence() {
+        let mut connection = database();
+        let mut wrong_device = received(&connection,
+            plaintext(CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z", "create"),
+            1, REMOTE_DEVICE);
+        wrong_device.pulling_device_id = REMOTE_DEVICE.to_string();
+        assert!(apply_verified_received_note(&mut connection, &wrong_device).is_err());
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [CREATE_EVENT], |row| row.get::<_, String>(0),
+        ).unwrap(), "received");
+
+        let mut orphan = database();
+        let command = received(&orphan,
+            plaintext(CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z", "create"),
+            1, REMOTE_DEVICE);
+        orphan.connection().execute(
+            "DELETE FROM cloud_sync_project_bindings WHERE project_id='p'", [],
+        ).unwrap();
+        assert_eq!(apply_verified_received_note(&mut orphan, &command).unwrap(), ApplyVerifiedReceivedNoteResult::Orphan);
+        assert_eq!(orphan.connection().query_row(
+            "SELECT state,error_code FROM cloud_sync_inbox WHERE event_id=?1", [CREATE_EVENT],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ).unwrap(), ("orphan".to_string(), "missing_project".to_string()));
+        assert_eq!(orphan.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn remote_apply_fault_rolls_back_note_head_inbox_and_capability() {
+        let mut connection = database();
+        connection.connection().execute_batch(
+            "CREATE TRIGGER test_remote_apply_fault BEFORE INSERT ON cloud_sync_entities
+             BEGIN SELECT RAISE(ABORT, 'deterministic remote apply fault'); END;",
+        ).unwrap();
+        let command = received(&connection,
+            plaintext(CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z", "create"),
+            1, REMOTE_DEVICE);
+        assert!(apply_verified_received_note(&mut connection, &command).is_err());
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_entities", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.connection().query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [CREATE_EVENT], |row| row.get::<_, String>(0)).unwrap(), "received");
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert!(connection.connection().execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('n','p',NULL,'now','{}')", [],
+        ).is_err());
+    }
+
+    #[test]
+    fn remote_apply_ipc_rejects_invalid_plaintext_before_any_sqlite_mutation() {
+        let mut connection = database();
+        let result = apply_verified_received_note_ipc(
+            &mut connection,
+            ApplyVerifiedReceivedNoteIpcCommand {
+                account_id: ACCOUNT.to_string(),
+                canonical_user_id: CANONICAL_USER.to_string(),
+                pulling_device_id: PULLING_DEVICE.to_string(),
+                event_id: CREATE_EVENT.to_string(),
+                server_sequence: 1,
+                source_device_id: REMOTE_DEVICE.to_string(),
+                crypto_version: 1,
+                aad_version: 1,
+                nonce: vec![0; 24],
+                ciphertext: vec![0; 16],
+                plaintext: br#"{"not":"a NoteSyncPlaintext"}"#.to_vec(),
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_entities", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn remote_apply_ipc_decodes_checked_in_typescript_canonical_bytes() {
+        let mut connection = database();
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../src/cloud/__fixtures__/noteSyncPlaintextV1.json"
+        ))).unwrap();
+        let plaintext = fixture["canonical_json"].as_str().unwrap().as_bytes().to_vec();
+        let typed = decode_note_sync_plaintext(&plaintext).unwrap();
+        let received = received(&connection, typed, 1, REMOTE_DEVICE);
+        let result = apply_verified_received_note_ipc(
+            &mut connection,
+            ApplyVerifiedReceivedNoteIpcCommand {
+                account_id: received.account_id,
+                canonical_user_id: received.canonical_user_id,
+                pulling_device_id: received.pulling_device_id,
+                event_id: received.event_id,
+                server_sequence: received.server_sequence,
+                source_device_id: received.source_device_id,
+                crypto_version: received.crypto_version,
+                aad_version: received.aad_version,
+                nonce: received.nonce,
+                ciphertext: received.ciphertext,
+                plaintext,
+            },
+        );
+        assert_eq!(result.unwrap(), ApplyVerifiedReceivedNoteResult::Applied);
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
 }
 
 impl std::fmt::Display for NoteSyncError {
@@ -458,6 +946,54 @@ pub(crate) struct ReceivedNoteSyncInboxItem {
     pub updated_at: String,
     pub deleted_at: Option<String>,
     pub envelope: StoredEncryptedNoteSyncEnvelope,
+}
+
+/// Inputs already authenticated by the TypeScript crypto boundary.  Rust
+/// treats every routing/envelope field as untrusted until it matches the
+/// durable received inbox row in the same SQLite transaction.
+#[derive(Clone, Debug)]
+pub(crate) struct ApplyVerifiedReceivedNoteCommand {
+    pub account_id: String,
+    pub canonical_user_id: String,
+    pub pulling_device_id: String,
+    pub event_id: String,
+    pub server_sequence: i64,
+    pub source_device_id: String,
+    pub crypto_version: i64,
+    pub aad_version: i64,
+    pub nonce: Vec<u8>,
+    pub ciphertext: Vec<u8>,
+    pub plaintext: NoteSyncPlaintext,
+}
+
+/// Narrow renderer-to-Rust IPC shape. `plaintext` is canonical plaintext JSON
+/// emitted only after TypeScript authenticated decryption; it is decoded again
+/// immediately and is never persisted separately.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ApplyVerifiedReceivedNoteIpcCommand {
+    pub account_id: String,
+    pub canonical_user_id: String,
+    pub pulling_device_id: String,
+    pub event_id: String,
+    pub server_sequence: i64,
+    pub source_device_id: String,
+    pub crypto_version: i64,
+    pub aad_version: i64,
+    pub nonce: Vec<u8>,
+    pub ciphertext: Vec<u8>,
+    pub plaintext: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ApplyVerifiedReceivedNoteResult {
+    Applied,
+    AlreadyApplied,
+    SelfEchoApplied,
+    Orphan,
+    Conflict,
+    Rejected,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -2172,6 +2708,543 @@ fn base64url_value(value: u8) -> Result<u8, NoteSyncError> {
             "invalid base64url character",
         )),
     }
+}
+
+#[derive(Clone, Debug)]
+struct VerifiedIncomingNote {
+    event_id: String,
+    parent_event_id: Option<String>,
+    project_id: String,
+    entity_id: String,
+    operation: String,
+    revision: i64,
+    updated_at: String,
+    deleted_at: Option<String>,
+    route: NoteSyncRoute,
+    payload_json: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+enum RemoteNoteMutation {
+    Insert { payload_json: String, updated_at: String },
+    Update { payload_json: String, updated_at: String },
+    Delete,
+    None,
+}
+
+#[derive(Clone, Debug)]
+struct RemoteApplyPlan {
+    result: ApplyVerifiedReceivedNoteResult,
+    mutation: RemoteNoteMutation,
+    account_id: String,
+    project_id: String,
+    entity_id: String,
+    event_id: String,
+    revision: i64,
+    updated_at: String,
+}
+
+fn note_payload_from_record(
+    record: &crate::note_sync_plaintext::NoteSyncRecord,
+) -> Result<String, NoteSyncError> {
+    let mut payload = serde_json::to_value(record)
+        .map_err(|_| NoteSyncError::InvalidSnapshot("could not serialize remote Note"))?;
+    payload
+        .as_object_mut()
+        .ok_or(NoteSyncError::InvalidSnapshot("remote Note payload is not an object"))?
+        // This is a local Notes payload field, not the cloud revision.
+        .insert("revision".to_string(), serde_json::Value::from(0));
+    serde_json::to_string(&payload)
+        .map_err(|_| NoteSyncError::InvalidSnapshot("could not encode remote Note payload"))
+}
+
+fn verified_incoming_note(
+    plaintext: &NoteSyncPlaintext,
+) -> Result<VerifiedIncomingNote, NoteSyncError> {
+    match plaintext {
+        NoteSyncPlaintext::Create { header, note }
+        | NoteSyncPlaintext::Update { header, note } => Ok(VerifiedIncomingNote {
+            event_id: header.event_id.clone(),
+            parent_event_id: header.parent_event_id.clone(),
+            project_id: header.project_id.clone(),
+            entity_id: header.entity_id.clone(),
+            operation: header.operation.clone(),
+            revision: header.revision,
+            updated_at: header.updated_at.clone(),
+            deleted_at: header.deleted_at.clone(),
+            route: note.route.clone(),
+            payload_json: Some(note_payload_from_record(note)?),
+        }),
+        NoteSyncPlaintext::Delete { header, note } => Ok(VerifiedIncomingNote {
+            event_id: header.event_id.clone(),
+            parent_event_id: header.parent_event_id.clone(),
+            project_id: header.project_id.clone(),
+            entity_id: header.entity_id.clone(),
+            operation: header.operation.clone(),
+            revision: header.revision,
+            updated_at: header.updated_at.clone(),
+            deleted_at: header.deleted_at.clone(),
+            route: note.route.clone(),
+            payload_json: None,
+        }),
+    }
+}
+
+fn update_received_inbox_state(
+    transaction: &Transaction<'_>,
+    account_id: &str,
+    event_id: &str,
+    state: &str,
+    error_code: Option<&str>,
+    applied_at: Option<&str>,
+) -> rusqlite::Result<()> {
+    let changed = transaction.execute(
+        "UPDATE cloud_sync_inbox
+         SET state=?1,error_code=?2,applied_at=?3
+         WHERE account_id=?4 AND event_id=?5 AND state='received'",
+        rusqlite::params![state, error_code, applied_at, account_id, event_id],
+    )?;
+    if changed != 1 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    Ok(())
+}
+
+fn advance_remote_entity_head(
+    transaction: &Transaction<'_>,
+    plan: &RemoteApplyPlan,
+) -> rusqlite::Result<()> {
+    transaction.execute(
+        "INSERT INTO cloud_sync_entities(
+            account_id,project_id,entity_id,entity_type,head_event_id,
+            head_sync_revision,conflict_event_id,conflict_state,updated_at
+         ) VALUES(?1,?2,?3,'note',?4,?5,NULL,NULL,?6)
+         ON CONFLICT(account_id,project_id,entity_id,entity_type) DO UPDATE SET
+            head_event_id=excluded.head_event_id,
+            head_sync_revision=excluded.head_sync_revision,
+            conflict_event_id=NULL,conflict_state=NULL,updated_at=excluded.updated_at",
+        rusqlite::params![
+            plan.account_id,
+            plan.project_id,
+            plan.entity_id,
+            plan.event_id,
+            plan.revision,
+            plan.updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
+fn classify_remote_apply(
+    transaction: &Transaction<'_>,
+    command: &ApplyVerifiedReceivedNoteCommand,
+    result: ApplyVerifiedReceivedNoteResult,
+    state: &str,
+    error_code: &str,
+) -> rusqlite::Result<(Option<OwnedRemoteApplyAuthorization>, RemoteApplyPlan)> {
+    update_received_inbox_state(
+        transaction,
+        &command.account_id,
+        &command.event_id,
+        state,
+        Some(error_code),
+        None,
+    )?;
+    Ok((
+        None,
+        RemoteApplyPlan {
+            result,
+            mutation: RemoteNoteMutation::None,
+            account_id: command.account_id.clone(),
+            project_id: String::new(),
+            entity_id: String::new(),
+            event_id: command.event_id.clone(),
+            revision: 0,
+            updated_at: String::new(),
+        },
+    ))
+}
+
+fn remote_apply_storage_error(error: StorageError) -> NoteSyncError {
+    match error {
+        StorageError::Database(error) => NoteSyncError::Database(error),
+        StorageError::RemoteApplyAuthorization(_) => {
+            NoteSyncError::InvalidEnvelope("remote apply authorization failed")
+        }
+        StorageError::UnsupportedSchema(_) | StorageError::CorruptSchema(_) => {
+            NoteSyncError::InvalidEnvelope("remote apply storage unavailable")
+        }
+    }
+}
+
+/// Applies one TypeScript-authenticated Note plaintext.  The caller never
+/// supplies a capability, and every mutable SQLite fact is re-checked inside
+/// the immediate transaction owned by the privileged connection.
+pub(crate) fn apply_verified_received_note_ipc(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    mut command: ApplyVerifiedReceivedNoteIpcCommand,
+) -> Result<ApplyVerifiedReceivedNoteResult, NoteSyncError> {
+    // This clears Rust's command-owned mutable byte copy on both success and
+    // decode failure. Tauri/serde and JavaScript may retain independent copies.
+    let plaintext = decode_note_sync_plaintext(&command.plaintext)
+        .map_err(|_| NoteSyncError::InvalidEnvelope("invalid verified Note plaintext"));
+    command.plaintext.fill(0);
+    let plaintext = plaintext?;
+    apply_verified_received_note(
+        connection,
+        &ApplyVerifiedReceivedNoteCommand {
+            account_id: command.account_id,
+            canonical_user_id: command.canonical_user_id,
+            pulling_device_id: command.pulling_device_id,
+            event_id: command.event_id,
+            server_sequence: command.server_sequence,
+            source_device_id: command.source_device_id,
+            crypto_version: command.crypto_version,
+            aad_version: command.aad_version,
+            nonce: command.nonce,
+            ciphertext: command.ciphertext,
+            plaintext,
+        },
+    )
+}
+
+pub(crate) fn apply_verified_received_note(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    command: &ApplyVerifiedReceivedNoteCommand,
+) -> Result<ApplyVerifiedReceivedNoteResult, NoteSyncError> {
+    let incoming = verified_incoming_note(&command.plaintext)?;
+    if command.event_id != incoming.event_id {
+        return Err(NoteSyncError::InvalidEnvelope("plaintext event mismatch"));
+    }
+
+    connection
+        .execute_planned_once(
+            |transaction| {
+                validate_pull_scope(
+                    transaction,
+                    &command.account_id,
+                    &command.pulling_device_id,
+                    &command.canonical_user_id,
+                )
+                .map_err(|error| StorageError::RemoteApplyAuthorization(error.to_string()))?;
+
+                let inbox: Option<(i64, String, String, String, String, i64, String, Option<String>, String)> = transaction
+                    .query_row(
+                        "SELECT server_sequence,device_id,project_id,entity_id,operation,
+                                sync_revision,updated_at,deleted_at,state
+                         FROM cloud_sync_inbox
+                         WHERE account_id=?1 AND event_id=?2 AND entity_type='note'",
+                        rusqlite::params![command.account_id, command.event_id],
+                        |row| Ok((
+                            row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?,
+                            row.get(5)?, row.get(6)?, row.get(7)?, row.get(8)?,
+                        )),
+                    )
+                    .optional()?;
+                let Some((server_sequence, source_device_id, project_id, entity_id, operation,
+                    revision, updated_at, deleted_at, inbox_state)) = inbox else {
+                    return Err(StorageError::RemoteApplyAuthorization(
+                        "received inbox event is missing".to_string(),
+                    ));
+                };
+                let immutable_matches = server_sequence == command.server_sequence
+                    && source_device_id == command.source_device_id
+                    && project_id == incoming.project_id
+                    && entity_id == incoming.entity_id
+                    && operation == incoming.operation
+                    && revision == incoming.revision
+                    && updated_at == incoming.updated_at
+                    && deleted_at == incoming.deleted_at;
+                if !immutable_matches {
+                    return classify_remote_apply(
+                        transaction,
+                        command,
+                        ApplyVerifiedReceivedNoteResult::Rejected,
+                        "rejected",
+                        "metadata_mismatch",
+                    )
+                    .map_err(Into::into);
+                }
+                let object: Option<(i64, i64, Vec<u8>, Vec<u8>)> = transaction
+                    .query_row(
+                        "SELECT crypto_version,aad_version,nonce,ciphertext
+                         FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
+                        rusqlite::params![command.account_id, command.event_id],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+                    )
+                    .optional()?;
+                let expected_object = (
+                    command.crypto_version,
+                    command.aad_version,
+                    command.nonce.clone(),
+                    command.ciphertext.clone(),
+                );
+                let object_error = match object.as_ref() {
+                    None => Some("missing_encrypted_object"),
+                    Some(actual) if actual != &expected_object => Some("metadata_mismatch"),
+                    Some(_) => None,
+                };
+                if let Some(error_code) = object_error {
+                    return classify_remote_apply(
+                        transaction,
+                        command,
+                        ApplyVerifiedReceivedNoteResult::Rejected,
+                        "rejected",
+                        error_code,
+                    )
+                    .map_err(Into::into);
+                }
+                if inbox_state == "applied" {
+                    return Ok((
+                        None,
+                        RemoteApplyPlan {
+                            result: ApplyVerifiedReceivedNoteResult::AlreadyApplied,
+                            mutation: RemoteNoteMutation::None,
+                            account_id: command.account_id.clone(),
+                            project_id,
+                            entity_id,
+                            event_id: command.event_id.clone(),
+                            revision,
+                            updated_at,
+                        },
+                    ));
+                }
+                if inbox_state != "received" {
+                    return Ok((
+                        None,
+                        RemoteApplyPlan {
+                            result: match inbox_state.as_str() {
+                                "orphan" => ApplyVerifiedReceivedNoteResult::Orphan,
+                                "conflict" => ApplyVerifiedReceivedNoteResult::Conflict,
+                                _ => ApplyVerifiedReceivedNoteResult::Rejected,
+                            },
+                            mutation: RemoteNoteMutation::None,
+                            account_id: command.account_id.clone(),
+                            project_id,
+                            entity_id,
+                            event_id: command.event_id.clone(),
+                            revision,
+                            updated_at,
+                        },
+                    ));
+                }
+                if transaction
+                    .query_row(
+                        "SELECT 1 FROM projects AS project
+                         JOIN cloud_sync_project_bindings AS binding
+                           ON binding.project_id=project.id
+                         WHERE project.id=?1 AND binding.account_id=?2",
+                        rusqlite::params![incoming.project_id, command.account_id],
+                        |_| Ok(()),
+                    )
+                    .optional()?
+                    .is_none()
+                {
+                    return classify_remote_apply(
+                        transaction,
+                        command,
+                        ApplyVerifiedReceivedNoteResult::Orphan,
+                        "orphan",
+                        "missing_project",
+                    )
+                    .map_err(Into::into);
+                }
+                match eligibility(&incoming.route) {
+                    Eligibility::DependencyNotSynced => {
+                        return classify_remote_apply(transaction, command,
+                            ApplyVerifiedReceivedNoteResult::Orphan, "orphan", "dependency_not_synced")
+                            .map_err(Into::into);
+                    }
+                    Eligibility::UnsupportedContentFormat => {
+                        return classify_remote_apply(transaction, command,
+                            ApplyVerifiedReceivedNoteResult::Rejected, "rejected", "unsupported_content_format")
+                            .map_err(Into::into);
+                    }
+                    Eligibility::Eligible => {}
+                }
+
+                let self_echo = source_device_id == command.pulling_device_id
+                    && transaction.query_row(
+                        "SELECT 1 FROM cloud_sync_outbox AS outbox
+                         JOIN cloud_sync_upload_receipts AS receipt
+                           ON receipt.event_id=outbox.event_id
+                         WHERE outbox.event_id=?1 AND outbox.account_id=?2
+                           AND outbox.device_id=?3 AND receipt.account_id=?2
+                           AND receipt.device_id=?3 AND receipt.server_sequence=?4
+                           AND outbox.project_id=?5 AND outbox.entity_id=?6
+                           AND outbox.entity_type='note' AND outbox.operation=?7
+                           AND outbox.revision=?8 AND outbox.updated_at=?9
+                           AND outbox.deleted_at IS ?10",
+                        rusqlite::params![
+                            command.event_id, command.account_id, command.pulling_device_id,
+                            command.server_sequence, incoming.project_id, incoming.entity_id,
+                            incoming.operation, incoming.revision, incoming.updated_at,
+                            incoming.deleted_at,
+                        ],
+                        |_| Ok(()),
+                    ).optional()?.is_some();
+                if self_echo {
+                    let head: Option<(String, i64)> = transaction.query_row(
+                        "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities
+                         WHERE account_id=?1 AND project_id=?2 AND entity_id=?3 AND entity_type='note'",
+                        rusqlite::params![command.account_id, incoming.project_id, incoming.entity_id],
+                        |row| Ok((row.get(0)?, row.get(1)?)),
+                    ).optional()?;
+                    if head.as_ref().is_some_and(|(event_id, value)| {
+                        *value == incoming.revision && event_id != &incoming.event_id
+                    }) {
+                        return classify_remote_apply(transaction, command,
+                            ApplyVerifiedReceivedNoteResult::Conflict, "conflict", "conflicting_head")
+                            .map_err(Into::into);
+                    }
+                    let plan = RemoteApplyPlan {
+                        result: ApplyVerifiedReceivedNoteResult::SelfEchoApplied,
+                        mutation: RemoteNoteMutation::None,
+                        account_id: command.account_id.clone(),
+                        project_id: incoming.project_id.clone(), entity_id: incoming.entity_id.clone(),
+                        event_id: incoming.event_id.clone(), revision: incoming.revision,
+                        updated_at: incoming.updated_at.clone(),
+                    };
+                    if head.as_ref().is_none_or(|(_, value)| *value < incoming.revision) {
+                        advance_remote_entity_head(transaction, &plan)?;
+                    }
+                    update_received_inbox_state(transaction, &command.account_id, &command.event_id,
+                        "applied", None, Some(&incoming.updated_at))?;
+                    return Ok((None, plan));
+                }
+
+                let local_unsealed = transaction.query_row(
+                    "SELECT 1 FROM cloud_sync_outbox
+                     WHERE account_id=?1 AND project_id=?2 AND entity_id=?3
+                       AND entity_type='note' AND lifecycle='unsealed' AND local_ordinal>0",
+                    rusqlite::params![command.account_id, incoming.project_id, incoming.entity_id],
+                    |_| Ok(()),
+                ).optional()?.is_some();
+                if local_unsealed {
+                    return classify_remote_apply(transaction, command,
+                        ApplyVerifiedReceivedNoteResult::Conflict, "conflict", "local_unsealed_change")
+                        .map_err(Into::into);
+                }
+                let head = match read_entity_sync_head(
+                    transaction, &command.account_id, &incoming.project_id, &incoming.entity_id,
+                ) {
+                    Ok(head) => head,
+                    Err(NoteSyncError::ConflictingHeads) => {
+                        return classify_remote_apply(transaction, command,
+                            ApplyVerifiedReceivedNoteResult::Conflict, "conflict", "conflicting_head")
+                            .map_err(Into::into);
+                    }
+                    Err(NoteSyncError::Database(error)) => return Err(StorageError::Database(error)),
+                    Err(error) => return Err(StorageError::RemoteApplyAuthorization(error.to_string())),
+                };
+                let chain_valid = if incoming.revision == 1 {
+                    incoming.parent_event_id.is_none() && head.is_none()
+                } else {
+                    head.as_ref().is_some_and(|head| {
+                        head.revision == incoming.revision - 1
+                            && incoming.parent_event_id.as_deref() == Some(&head.event_id)
+                    })
+                };
+                if !chain_valid {
+                    let is_missing_parent = incoming.revision > 1
+                        && head.as_ref().is_none_or(|head| head.revision < incoming.revision - 1);
+                    return classify_remote_apply(transaction, command,
+                        if is_missing_parent { ApplyVerifiedReceivedNoteResult::Orphan } else { ApplyVerifiedReceivedNoteResult::Conflict },
+                        if is_missing_parent { "orphan" } else { "conflict" },
+                        if is_missing_parent { "missing_parent" } else { "conflicting_head" })
+                        .map_err(Into::into);
+                }
+                let existing: Option<(String, String)> = transaction.query_row(
+                    "SELECT project_id,payload_json FROM notes WHERE id=?1", [&incoming.entity_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                ).optional()?;
+                if existing.as_ref().is_some_and(|(project_id, _)| project_id != &incoming.project_id) {
+                    return classify_remote_apply(transaction, command,
+                        ApplyVerifiedReceivedNoteResult::Conflict, "conflict", "conflicting_head")
+                        .map_err(Into::into);
+                }
+                if incoming.revision == 1 && existing.is_some() {
+                    return classify_remote_apply(transaction, command,
+                        ApplyVerifiedReceivedNoteResult::Conflict, "conflict", "conflicting_head")
+                        .map_err(Into::into);
+                }
+                let (mutation, authorization) = match (&incoming.payload_json, existing) {
+                    (Some(payload_json), None) => (
+                        RemoteNoteMutation::Insert { payload_json: payload_json.clone(), updated_at: incoming.updated_at.clone() },
+                        Some(OwnedRemoteApplyAuthorization {
+                            event_id: incoming.event_id.clone(), account_id: command.account_id.clone(),
+                            project_id: incoming.project_id.clone(), entity_id: incoming.entity_id.clone(),
+                            operation: "upsert".to_string(), payload_json: Some(payload_json.clone()),
+                            prior_payload_json: None,
+                        }),
+                    ),
+                    (Some(payload_json), Some((_, prior_payload_json))) => (
+                        RemoteNoteMutation::Update { payload_json: payload_json.clone(), updated_at: incoming.updated_at.clone() },
+                        Some(OwnedRemoteApplyAuthorization {
+                            event_id: incoming.event_id.clone(), account_id: command.account_id.clone(),
+                            project_id: incoming.project_id.clone(), entity_id: incoming.entity_id.clone(),
+                            operation: "upsert".to_string(), payload_json: Some(payload_json.clone()),
+                            prior_payload_json: Some(prior_payload_json),
+                        }),
+                    ),
+                    (None, Some((_, prior_payload_json))) => (
+                        RemoteNoteMutation::Delete,
+                        Some(OwnedRemoteApplyAuthorization {
+                            event_id: incoming.event_id.clone(), account_id: command.account_id.clone(),
+                            project_id: incoming.project_id.clone(), entity_id: incoming.entity_id.clone(),
+                            operation: "delete".to_string(), payload_json: None,
+                            prior_payload_json: Some(prior_payload_json),
+                        }),
+                    ),
+                    (None, None) => (RemoteNoteMutation::None, None),
+                };
+                Ok((authorization, RemoteApplyPlan {
+                    result: ApplyVerifiedReceivedNoteResult::Applied, mutation,
+                    account_id: command.account_id.clone(), project_id: incoming.project_id.clone(),
+                    entity_id: incoming.entity_id.clone(), event_id: incoming.event_id.clone(),
+                    revision: incoming.revision, updated_at: incoming.updated_at.clone(),
+                }))
+            },
+            |transaction, plan| {
+                match &plan.mutation {
+                    RemoteNoteMutation::Insert { payload_json, updated_at } => {
+                        transaction.execute(
+                            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+                             VALUES(?1,?2,NULL,?3,?4)",
+                            rusqlite::params![plan.entity_id, plan.project_id, updated_at, payload_json],
+                        )?;
+                    }
+                    RemoteNoteMutation::Update { payload_json, updated_at } => {
+                        let changed = transaction.execute(
+                            "UPDATE notes SET updated_at=?1,payload_json=?2
+                             WHERE id=?3 AND project_id=?4",
+                            rusqlite::params![updated_at, payload_json, plan.entity_id, plan.project_id],
+                        )?;
+                        if changed != 1 {
+                            return Err(StorageError::RemoteApplyAuthorization(
+                                "remote Note update target disappeared".to_string(),
+                            ));
+                        }
+                    }
+                    RemoteNoteMutation::Delete => {
+                        transaction.execute(
+                            "DELETE FROM notes WHERE id=?1 AND project_id=?2",
+                            rusqlite::params![plan.entity_id, plan.project_id],
+                        )?;
+                    }
+                    RemoteNoteMutation::None => {}
+                }
+                if plan.result == ApplyVerifiedReceivedNoteResult::Applied {
+                    advance_remote_entity_head(transaction, &plan)?;
+                    update_received_inbox_state(
+                        transaction, &plan.account_id, &plan.event_id, "applied", None,
+                        Some(&plan.updated_at),
+                    )?;
+                }
+                Ok(plan.result)
+            },
+        )
+        .map_err(remote_apply_storage_error)
 }
 
 #[cfg(test)]

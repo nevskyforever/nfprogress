@@ -118,6 +118,9 @@ impl From<StorageError> for RepositoryError {
         match error {
             StorageError::UnsupportedSchema(version) => Self::UnsupportedSchema(version),
             StorageError::CorruptSchema(message) => Self::MigrationConflict(message),
+            StorageError::RemoteApplyAuthorization(message) => {
+                Self::MigrationConflict(message)
+            }
             StorageError::Database(error) => Self::Database(error),
         }
     }

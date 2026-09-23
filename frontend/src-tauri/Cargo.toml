@@ -17,7 +17,7 @@ tauri-build = { version = "2", features = [] }
 getrandom = "0.3"
 quick-xml = "0.38"
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-no-provider"] }
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.32", features = ["bundled", "functions"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

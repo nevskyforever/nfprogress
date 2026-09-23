@@ -25,6 +25,16 @@ _USER_DATA_TABLES = (
 )
 
 
+def register_remote_apply_authorization_guard(connection: sqlite3.Connection) -> None:
+    """Install the fail-closed half of the cross-runtime Notes guard.
+
+    SQLite resolves functions named by persistent triggers while preparing a
+    statement.  Python never applies remote events, so its implementation can
+    only deny an authorization capability.
+    """
+    connection.create_function('note_sync_remote_apply_authorized', 1, lambda _value: 0)
+
+
 def current_application_version() -> str:
     # engine.version remains the canonical Python source; build tooling keeps
     # Cargo/Tauri package metadata synchronized with the same value.
@@ -98,6 +108,7 @@ def open_database(data_root: str | Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(path)
     connection.row_factory = sqlite3.Row
+    register_remote_apply_authorization_guard(connection)
     connection.execute('PRAGMA foreign_keys = ON')
     connection.execute('PRAGMA busy_timeout = 5000')
     try:

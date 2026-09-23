@@ -12,10 +12,13 @@ from nfprogress.core.sqlite.ordering import (
 
 
 MIGRATIONS_DIR = Path(__file__).with_name('migrations')
-CURRENT_SCHEMA_VERSION = 14
+CURRENT_SCHEMA_VERSION = 15
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
+    # Direct callers (including recovery and migration tests) need the same
+    # fail-closed function before a persistent Notes trigger can be prepared.
+    connection.create_function('note_sync_remote_apply_authorized', 1, lambda _value: 0)
     connection.execute('PRAGMA foreign_keys = ON')
     connection.execute(
         'CREATE TABLE IF NOT EXISTS schema_info '
@@ -55,6 +58,7 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
             12: '012_cloud_account_bindings.sql',
             13: '013_note_sync_upload_receipts.sql',
             14: '014_note_sync_upload_fairness.sql',
+            15: '015_note_sync_remote_apply.sql',
         }[next_version]
         sql = migration.read_text(encoding='utf-8')
         # executescript is wrapped explicitly because its implicit transaction

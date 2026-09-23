@@ -5,11 +5,236 @@
 //! incompatible databases while Projects ownership is being cut over.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use rusqlite::{
+    functions::FunctionFlags, Connection, OpenFlags, OptionalExtension, Transaction,
+    TransactionBehavior,
+};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 14;
+pub const CURRENT_SCHEMA_VERSION: i64 = 15;
+
+/// Every ordinary Rust connection is fail-closed.  The remote-apply command
+/// installs its scoped verifier only after opening its dedicated connection.
+pub(crate) fn register_fail_closed_remote_apply_guard(connection: &Connection) -> Result<(), StorageError> {
+    connection.create_scalar_function(
+        "note_sync_remote_apply_authorized",
+        1,
+        FunctionFlags::SQLITE_UTF8,
+        |_context| Ok(false),
+    )?;
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RemoteApplyAuthorization<'a> {
+    pub event_id: &'a str,
+    pub account_id: &'a str,
+    pub project_id: &'a str,
+    pub entity_id: &'a str,
+    pub operation: &'a str,
+    pub payload_json: Option<&'a str>,
+    pub prior_payload_json: Option<&'a str>,
+}
+
+/// Owned form used when the authorization can only be determined after the
+/// remote-apply transaction has re-read the durable inbox and entity head.
+#[derive(Clone, Debug)]
+pub(crate) struct OwnedRemoteApplyAuthorization {
+    pub event_id: String,
+    pub account_id: String,
+    pub project_id: String,
+    pub entity_id: String,
+    pub operation: String,
+    pub payload_json: Option<String>,
+    pub prior_payload_json: Option<String>,
+}
+
+/// A dedicated connection whose verifier is scoped to one in-process Rust
+/// capability. The capability value is never returned to SQL callers.
+pub(crate) struct PrivilegedRemoteApplyConnection {
+    connection: Connection,
+    capability: Arc<Mutex<Option<String>>>,
+}
+
+struct ActiveRemoteApplyCapability {
+    state: Arc<Mutex<Option<String>>>,
+}
+
+impl Drop for ActiveRemoteApplyCapability {
+    fn drop(&mut self) {
+        if let Ok(mut value) = self.state.lock() {
+            *value = None;
+        }
+    }
+}
+
+impl PrivilegedRemoteApplyConnection {
+    pub(crate) fn from_connection(connection: Connection) -> Result<Self, StorageError> {
+        let capability = Arc::new(Mutex::new(None::<String>));
+        let verifier = capability.clone();
+        connection.create_scalar_function(
+            "note_sync_remote_apply_authorized",
+            1,
+            FunctionFlags::SQLITE_UTF8,
+            move |context| {
+                let candidate = context.get::<String>(0)?;
+                Ok(verifier
+                    .lock()
+                    .map(|active| active.as_deref() == Some(candidate.as_str()))
+                    .unwrap_or(false))
+            },
+        )?;
+        Ok(Self { connection, capability })
+    }
+
+    pub(crate) fn authorize_once<T>(
+        &mut self,
+        authorization: RemoteApplyAuthorization<'_>,
+        operation: impl FnOnce(&Transaction<'_>) -> rusqlite::Result<T>,
+    ) -> Result<T, StorageError> {
+        let capability = random_remote_apply_capability()?;
+        {
+            let mut active = self.capability.lock().map_err(|_| {
+                StorageError::RemoteApplyAuthorization("capability state unavailable".to_string())
+            })?;
+            if active.is_some() {
+                return Err(StorageError::RemoteApplyAuthorization(
+                    "capability already active".to_string(),
+                ));
+            }
+            *active = Some(capability.clone());
+        }
+        let _active = ActiveRemoteApplyCapability { state: self.capability.clone() };
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        transaction.execute(
+            "INSERT INTO cloud_sync_remote_apply_authorizations(
+                event_id,account_id,project_id,entity_id,operation,
+                payload_json,prior_payload_json,capability
+             ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+            rusqlite::params![
+                authorization.event_id,
+                authorization.account_id,
+                authorization.project_id,
+                authorization.entity_id,
+                authorization.operation,
+                authorization.payload_json,
+                authorization.prior_payload_json,
+                capability,
+            ],
+        )?;
+        let value = operation(&transaction)?;
+        let remaining: i64 = transaction.query_row(
+            "SELECT count(*) FROM cloud_sync_remote_apply_authorizations
+             WHERE event_id=?1",
+            [authorization.event_id],
+            |row| row.get(0),
+        )?;
+        if remaining != 0 {
+            return Err(StorageError::RemoteApplyAuthorization(
+                "authorization was not consumed".to_string(),
+            ));
+        }
+        transaction.commit()?;
+        Ok(value)
+    }
+
+    /// Runs a decision and the resulting write in one immediate transaction.
+    /// The planner may durably classify a received event without receiving a
+    /// capability; a Notes mutation receives one only after its exact scope is
+    /// known from the transaction's own reads.
+    pub(crate) fn execute_planned_once<P, T>(
+        &mut self,
+        plan: impl FnOnce(
+            &Transaction<'_>,
+        ) -> Result<(Option<OwnedRemoteApplyAuthorization>, P), StorageError>,
+        operation: impl FnOnce(&Transaction<'_>, P) -> Result<T, StorageError>,
+    ) -> Result<T, StorageError> {
+        let transaction = self
+            .connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let (authorization, plan) = plan(&transaction)?;
+        let active = if let Some(authorization) = authorization.as_ref() {
+            let capability = random_remote_apply_capability()?;
+            let mut state = self.capability.lock().map_err(|_| {
+                StorageError::RemoteApplyAuthorization("capability state unavailable".to_string())
+            })?;
+            if state.is_some() {
+                return Err(StorageError::RemoteApplyAuthorization(
+                    "capability already active".to_string(),
+                ));
+            }
+            *state = Some(capability.clone());
+            // Construct this before any fallible SQL so every error path after
+            // activation restores fail-closed connection state.
+            let active = ActiveRemoteApplyCapability {
+                state: self.capability.clone(),
+            };
+            transaction.execute(
+                "INSERT INTO cloud_sync_remote_apply_authorizations(
+                    event_id,account_id,project_id,entity_id,operation,
+                    payload_json,prior_payload_json,capability
+                 ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                rusqlite::params![
+                    authorization.event_id,
+                    authorization.account_id,
+                    authorization.project_id,
+                    authorization.entity_id,
+                    authorization.operation,
+                    authorization.payload_json,
+                    authorization.prior_payload_json,
+                    capability,
+                ],
+            )?;
+            Some(active)
+        } else {
+            None
+        };
+        let value = operation(&transaction, plan)?;
+        if let Some(authorization) = authorization {
+            let remaining: i64 = transaction.query_row(
+                "SELECT count(*) FROM cloud_sync_remote_apply_authorizations
+                 WHERE event_id=?1",
+                [&authorization.event_id],
+                |row| row.get(0),
+            )?;
+            if remaining != 0 {
+                return Err(StorageError::RemoteApplyAuthorization(
+                    "authorization was not consumed".to_string(),
+                ));
+            }
+        }
+        transaction.commit()?;
+        drop(active);
+        Ok(value)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn connection(&self) -> &Connection {
+        &self.connection
+    }
+}
+
+pub(crate) fn open_privileged_remote_apply_database(
+    path: &Path,
+) -> Result<PrivilegedRemoteApplyConnection, StorageError> {
+    PrivilegedRemoteApplyConnection::from_connection(open_database(path)?)
+}
+
+fn random_remote_apply_capability() -> Result<String, StorageError> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes)
+        .map_err(|error| StorageError::RemoteApplyAuthorization(error.to_string()))?;
+    let mut encoded = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut encoded, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    Ok(encoded)
+}
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
@@ -47,6 +272,7 @@ pub enum StorageError {
     Database(rusqlite::Error),
     UnsupportedSchema(i64),
     CorruptSchema(String),
+    RemoteApplyAuthorization(String),
 }
 
 impl std::fmt::Display for StorageError {
@@ -57,6 +283,9 @@ impl std::fmt::Display for StorageError {
                 write!(formatter, "Unsupported SQLite schema version: {version}")
             }
             Self::CorruptSchema(message) => write!(formatter, "Corrupt SQLite schema: {message}"),
+            Self::RemoteApplyAuthorization(message) => {
+                write!(formatter, "Remote apply authorization failed: {message}")
+            }
         }
     }
 }
@@ -69,7 +298,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 14] = [
+const MIGRATIONS: [(i64, &str); 15] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -130,6 +359,7 @@ const MIGRATIONS: [(i64, &str); 14] = [
         14,
         include_str!("../../../nfprogress/core/sqlite/migrations/014_note_sync_upload_fairness.sql"),
     ),
+    (15, include_str!("../../../nfprogress/core/sqlite/migrations/015_note_sync_remote_apply.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
@@ -139,6 +369,7 @@ pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
     )?;
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
+    register_fail_closed_remote_apply_guard(&connection)?;
     connection.execute_batch("PRAGMA foreign_keys = ON;")?;
     // F3 migration 005 extends the F2 outbox, so it must exist before the
     // versioned scripts are applied on an existing v4 database.
@@ -229,6 +460,7 @@ fn configure_application_metadata(
 const DOMAIN_EVENTS_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS domain_events (event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, project_id TEXT NOT NULL, stage_id TEXT, progress_id TEXT, effective_date TEXT, delta_symbols REAL, context_json TEXT NOT NULL, created_at TEXT NOT NULL, processed_at TEXT, consumer TEXT NOT NULL DEFAULT 'game', version INTEGER NOT NULL DEFAULT 1); CREATE INDEX IF NOT EXISTS idx_domain_events_pending ON domain_events(consumer, processed_at, created_at);";
 
 pub fn apply_migrations(connection: &Connection) -> Result<i64, StorageError> {
+    register_fail_closed_remote_apply_guard(connection)?;
     connection.execute_batch("PRAGMA foreign_keys = ON;")?;
     connection.execute_batch(
         "CREATE TABLE IF NOT EXISTS schema_info (schema_version INTEGER NOT NULL);",
@@ -495,6 +727,232 @@ fn validate_json_column(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const TEST_DEVICE_ID: &str = "123e4567-e89b-42d3-a456-426614174001";
+    const TEST_EVENT_ID: &str = "123e4567-e89b-42d3-a456-426614174002";
+
+    fn bound_note_database() -> Connection {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        connection.execute(
+            "INSERT INTO projects(id,name,infinite,unit,status,payload_json)
+             VALUES('project','Project',0,'symbols','active','{}')",
+            [],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_state(
+                account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at
+             ) VALUES('account',?1,0,0,'now','now')",
+            [TEST_DEVICE_ID],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_project_bindings(
+                project_id,account_id,created_at,updated_at
+             ) VALUES('project','account','now','now')",
+            [],
+        ).unwrap();
+        connection
+    }
+
+    fn note_payload(content: &str, updated_at: &str) -> String {
+        serde_json::json!({
+            "id": "note", "project_id": "project", "stage_id": null,
+            "source_type": "project", "source_map_id": null,
+            "source_node_id": null, "content_format": "html",
+            "title": "Title", "content": content, "checklist": [],
+            "color": "default", "pinned": false, "archived": false,
+            "sort_order": 0, "tags": [], "created_at": "created",
+            "updated_at": updated_at, "revision": 0, "metadata": {}
+        }).to_string()
+    }
+
+    fn upsert_authorization<'a>(
+        payload_json: &'a str,
+        prior_payload_json: Option<&'a str>,
+    ) -> RemoteApplyAuthorization<'a> {
+        RemoteApplyAuthorization {
+            event_id: TEST_EVENT_ID,
+            account_id: "account",
+            project_id: "project",
+            entity_id: "note",
+            operation: "upsert",
+            payload_json: Some(payload_json),
+            prior_payload_json,
+        }
+    }
+
+    #[test]
+    fn ordinary_connection_and_sql_only_authorization_are_fail_closed() {
+        let connection = bound_note_database();
+        let payload = note_payload("remote", "one");
+        connection.execute(
+            "INSERT INTO cloud_sync_remote_apply_authorizations VALUES(
+                ?1,'account','project','note','upsert',?2,NULL,'forged')",
+            rusqlite::params![TEST_EVENT_ID, payload],
+        ).unwrap();
+        assert!(connection.execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('note','project',NULL,'one',?1)",
+            [&payload],
+        ).is_err());
+        assert_eq!(connection.query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn matching_local_intent_still_allows_write_without_remote_authorization() {
+        let connection = bound_note_database();
+        let payload = note_payload("local", "one");
+        connection.execute(
+            "INSERT INTO cloud_sync_outbox(
+                event_id,account_id,device_id,project_id,entity_id,entity_type,
+                operation,revision,updated_at,deleted_at,created_at,parent_event_id,
+                local_ordinal,lifecycle
+             ) VALUES(?1,'account',?2,'project','note','note','upsert',1,
+                'one',NULL,'one',NULL,1,'unsealed')",
+            rusqlite::params![TEST_EVENT_ID, TEST_DEVICE_ID],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_note_intents(
+                event_id,mutation_generation,snapshot_json,seal_state,
+                seal_attempt_count,state_updated_at
+             ) VALUES(?1,1,?2,'pending',0,'one')",
+            rusqlite::params![TEST_EVENT_ID, payload],
+        ).unwrap();
+
+        connection.execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('note','project',NULL,'one',?1)",
+            [&payload],
+        ).unwrap();
+
+        assert_eq!(connection.query_row(
+            "SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0),
+        ).unwrap(), 1);
+        assert_eq!(connection.query_row(
+            "SELECT count(*) FROM cloud_sync_note_intents", [], |row| row.get::<_, i64>(0),
+        ).unwrap(), 1);
+        assert_eq!(connection.query_row(
+            "SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+    }
+
+    #[test]
+    fn privileged_connection_authorizes_one_exact_remote_write() {
+        let connection = bound_note_database();
+        let mut privileged = PrivilegedRemoteApplyConnection::from_connection(connection).unwrap();
+        let payload = note_payload("remote", "one");
+        privileged.authorize_once(upsert_authorization(&payload, None), |transaction| {
+            transaction.execute(
+                "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+                 VALUES('note','project',NULL,'one',?1)",
+                [&payload],
+            )?;
+            Ok(())
+        }).unwrap();
+        assert_eq!(privileged.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(privileged.connection().query_row("SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert!(privileged.capability.lock().unwrap().is_none());
+        assert!(privileged.connection().execute(
+            "UPDATE notes SET updated_at='direct' WHERE id='note'", [],
+        ).is_err());
+    }
+
+    #[test]
+    fn second_write_rolls_back_and_revokes_capability() {
+        let connection = bound_note_database();
+        let mut privileged = PrivilegedRemoteApplyConnection::from_connection(connection).unwrap();
+        let first = note_payload("first", "one");
+        privileged.authorize_once(upsert_authorization(&first, None), |transaction| {
+            transaction.execute(
+                "INSERT INTO notes VALUES('note','project',NULL,'one',?1)", [&first],
+            )?;
+            Ok(())
+        }).unwrap();
+        let second = note_payload("second", "two");
+        let result = privileged.authorize_once(
+            upsert_authorization(&second, Some(&first)),
+            |transaction| {
+                transaction.execute(
+                    "UPDATE notes SET updated_at='two',payload_json=?1 WHERE id='note'",
+                    [&second],
+                )?;
+                transaction.execute(
+                    "UPDATE notes SET updated_at='two',payload_json=?1 WHERE id='note'",
+                    [&second],
+                )?;
+                Ok(())
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(privileged.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='note'", [], |row| row.get::<_, String>(0),
+        ).unwrap(), first);
+        assert_eq!(privileged.connection().query_row("SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert!(privileged.capability.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn operation_error_rolls_back_authorization_and_restores_default_deny() {
+        let connection = bound_note_database();
+        let mut privileged = PrivilegedRemoteApplyConnection::from_connection(connection).unwrap();
+        let payload = note_payload("remote", "one");
+        let result: Result<(), StorageError> = privileged.authorize_once(
+            upsert_authorization(&payload, None),
+            |transaction| {
+                transaction.execute(
+                    "INSERT INTO notes VALUES('note','project',NULL,'one',?1)", [&payload],
+                )?;
+                Err(rusqlite::Error::ExecuteReturnedResults)
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(privileged.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(privileged.connection().query_row("SELECT count(*) FROM cloud_sync_remote_apply_authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert!(privileged.capability.lock().unwrap().is_none());
+        assert!(privileged.connection().execute(
+            "INSERT INTO notes VALUES('note','project',NULL,'one',?1)", [&payload],
+        ).is_err());
+    }
+
+    #[test]
+    fn privileged_guard_is_one_shot_while_ordinary_connection_is_fail_closed() {
+        let connection = Connection::open_in_memory().unwrap();
+        register_fail_closed_remote_apply_guard(&connection).unwrap();
+        connection.execute_batch(
+            "CREATE TABLE authorizations(capability TEXT PRIMARY KEY);\
+             CREATE TABLE notes(value TEXT NOT NULL);\
+             CREATE TRIGGER notes_guard BEFORE INSERT ON notes WHEN NOT EXISTS\
+               (SELECT 1 FROM authorizations WHERE note_sync_remote_apply_authorized(capability))\
+               BEGIN SELECT RAISE(ABORT, 'not authorized'); END;\
+             CREATE TRIGGER notes_consume AFTER INSERT ON notes BEGIN DELETE FROM authorizations; END;",
+        ).unwrap();
+        connection.execute("INSERT INTO authorizations VALUES ('capability')", []).unwrap();
+        assert!(connection.execute("INSERT INTO notes VALUES ('ordinary')", []).is_err());
+
+        let capability = Arc::new(Mutex::new(Some("capability".to_string())));
+        let state = capability.clone();
+        connection.create_scalar_function(
+            "note_sync_remote_apply_authorized", 1, FunctionFlags::SQLITE_UTF8, move |ctx| {
+                Ok(state.lock().unwrap().as_deref() == Some(ctx.get::<String>(0)?.as_str()))
+            },
+        ).unwrap();
+        assert_eq!(connection.query_row("PRAGMA trusted_schema", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        connection.execute("DELETE FROM authorizations", []).unwrap();
+        let rollback = connection.unchecked_transaction().unwrap();
+        rollback.execute("INSERT INTO authorizations VALUES ('capability')", []).unwrap();
+        rollback.execute("INSERT INTO notes VALUES ('rolled-back')", []).unwrap();
+        rollback.rollback().unwrap();
+        assert_eq!(connection.query_row("SELECT count(*) FROM authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        let transaction = connection.unchecked_transaction().unwrap();
+        transaction.execute("INSERT INTO authorizations VALUES ('capability')", []).unwrap();
+        transaction.execute("INSERT INTO notes VALUES ('applied')", []).unwrap();
+        transaction.commit().unwrap();
+        assert_eq!(connection.query_row("SELECT count(*) FROM authorizations", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert!(connection.execute("INSERT INTO notes VALUES ('replay')", []).is_err());
+    }
 
     #[test]
     fn fresh_database_reaches_latest_schema() {

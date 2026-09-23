@@ -17,6 +17,7 @@ mod game;
 mod mindmap;
 #[allow(dead_code)]
 mod note_sync;
+mod note_sync_plaintext;
 mod profile_transfer;
 #[allow(dead_code)]
 mod project_repository;
@@ -2134,6 +2135,23 @@ fn list_received_note_sync_inbox(
     let connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
     note_sync::list_received_note_sync_inbox(&connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+/// Receives only short-lived, TypeScript-authenticated Note plaintext bytes.
+/// The command has no SQL/capability/path inputs; Rust rechecks durable scope,
+/// encrypted-object identity, plaintext structure and every mutable decision.
+#[tauri::command]
+fn apply_verified_received_note(
+    command: note_sync::ApplyVerifiedReceivedNoteIpcCommand,
+) -> Result<note_sync::ApplyVerifiedReceivedNoteResult, String> {
+    let ordinary = open_notes_database(true)?;
+    require_sqlite_notes_owner(&ordinary)?;
+    drop(ordinary);
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    let mut connection = sqlite::open_privileged_remote_apply_database(&database)
+        .map_err(|error| error.to_string())?;
+    note_sync::apply_verified_received_note_ipc(&mut connection, command)
         .map_err(|error| error.to_string())
 }
 
@@ -5229,6 +5247,7 @@ pub fn run() {
             ensure_cloud_account_binding,
             read_note_sync_pull_state,
             list_received_note_sync_inbox,
+            apply_verified_received_note,
             commit_note_sync_inbound_page,
             create_note,
             update_note,

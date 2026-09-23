@@ -64,7 +64,8 @@ function readErrorCode(error: unknown): NoteInboxDecryptErrorCode {
  * this callback and may return metadata only.  C15.7B will use this boundary
  * to invoke its single SQLite apply transaction.
  */
-async function withDecryptedReceivedNoteInbox<T>(
+/** @internal Protected callback boundary for sync orchestration only. */
+export async function withDecryptedReceivedNoteInbox<T>(
   auth: NormalUserAuthRuntime,
   bindings: AuthoritativeAccountBinding,
   keyContext: RuntimeKeyContext,
@@ -72,7 +73,11 @@ async function withDecryptedReceivedNoteInbox<T>(
   localAccountId: string,
   deviceId: string,
   limit: number,
-  visitor: (item: ReceivedNoteSyncInboxItem, plaintext: NoteSyncPlaintext) => Promise<T>,
+  visitor: (
+    item: ReceivedNoteSyncInboxItem,
+    plaintext: NoteSyncPlaintext,
+    scope: { readonly accountId: string; readonly canonicalUserId: string; readonly pullingDeviceId: string },
+  ) => Promise<T>,
 ): Promise<Array<{ event: ReceivedNoteSyncInboxItem, value?: T, error_code?: NoteInboxDecryptErrorCode }>> {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_NOTE_INBOX_DECRYPT_LIMIT) {
     throw new RangeError('Invalid Note inbox decrypt limit.')
@@ -93,7 +98,14 @@ async function withDecryptedReceivedNoteInbox<T>(
       if (item.entity_type !== 'note') throw new NoteInboxDecryptError('invalid_inbox_scope')
       try {
         const plaintext = await openNoteSyncEvent(masterKey, lease.canonicalUserId, item, item.envelope)
-        values.push({ event: item, value: await visitor(item, plaintext) })
+        values.push({
+          event: item,
+          value: await visitor(item, plaintext, {
+            accountId: localAccountId,
+            canonicalUserId: lease.canonicalUserId,
+            pullingDeviceId: deviceId,
+          }),
+        })
       } catch (error) {
         const code = protocolErrorCode(error)
         if (code === null) throw error
