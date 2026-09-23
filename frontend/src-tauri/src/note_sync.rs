@@ -16,6 +16,7 @@ const MAX_SEALED_OUTBOX_LIST_LIMIT: u32 = 200;
 const MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES: usize = 8_388_624;
 const MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES: usize = 16_777_216;
 const MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES: usize = 33_554_432;
+const MAX_RECEIVED_INBOX_LIST_LIMIT: u32 = 32;
 const SUPPORTED_CRYPTO_VERSION: i64 = 1;
 const SUPPORTED_AAD_VERSION: i64 = 1;
 
@@ -431,6 +432,40 @@ pub(crate) struct CommitNoteSyncInboundPageResult {
     pub new_events: u32,
     pub replayed_events: u32,
     pub has_more: bool,
+}
+
+/// Opaque received Note events for the TypeScript authenticated decryptor.
+/// This command deliberately neither decrypts nor changes inbox state.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ListReceivedNoteSyncInboxCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub canonical_user_id: String,
+    pub limit: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct ReceivedNoteSyncInboxItem {
+    pub event_id: String,
+    pub server_sequence: i64,
+    pub source_device_id: String,
+    pub project_id: String,
+    pub entity_id: String,
+    pub entity_type: String,
+    pub operation: String,
+    pub revision: i64,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+    pub envelope: StoredEncryptedNoteSyncEnvelope,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct StoredEncryptedNoteSyncEnvelope {
+    pub crypto_version: i64,
+    pub aad_version: i64,
+    pub nonce: String,
+    pub ciphertext: String,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
@@ -1614,6 +1649,77 @@ pub(crate) fn read_note_sync_pull_state(
     Ok(state)
 }
 
+/// Lists one bounded page of durable received Note events.  Scope validation is
+/// intentionally repeated here because this is a separate IPC boundary from
+/// pull receipt.  No transaction is retained while TypeScript decrypts bytes.
+pub(crate) fn list_received_note_sync_inbox(
+    connection: &Connection, command: &ListReceivedNoteSyncInboxCommand,
+) -> Result<Vec<ReceivedNoteSyncInboxItem>, NoteSyncError> {
+    if !(1..=MAX_RECEIVED_INBOX_LIST_LIMIT).contains(&command.limit) {
+        return Err(NoteSyncError::InvalidListLimit);
+    }
+    let transaction = connection.unchecked_transaction()?;
+    validate_pull_scope(&transaction, &command.account_id, &command.device_id, &command.canonical_user_id)?;
+    let mut statement = transaction.prepare(
+        "SELECT inbox.event_id,inbox.server_sequence,inbox.device_id,inbox.project_id,
+                inbox.entity_id,inbox.entity_type,inbox.operation,inbox.sync_revision,
+                inbox.updated_at,inbox.deleted_at,object.crypto_version,object.aad_version,
+                object.nonce,object.ciphertext
+         FROM cloud_sync_inbox AS inbox
+         LEFT JOIN cloud_sync_event_objects AS object
+           ON object.account_id=inbox.account_id AND object.event_id=inbox.event_id
+         WHERE inbox.account_id=?1 AND inbox.entity_type='note' AND inbox.state='received'
+         ORDER BY inbox.server_sequence ASC LIMIT ?2",
+    )?;
+    let rows = statement.query_map(rusqlite::params![command.account_id, command.limit], |row| {
+        Ok((
+            row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?,
+            row.get::<_, String>(6)?, row.get::<_, i64>(7)?, row.get::<_, String>(8)?,
+            row.get::<_, Option<String>>(9)?, row.get::<_, Option<i64>>(10)?,
+            row.get::<_, Option<i64>>(11)?, row.get::<_, Option<Vec<u8>>>(12)?,
+            row.get::<_, Option<Vec<u8>>>(13)?,
+        ))
+    })?;
+    let mut items = Vec::new();
+    let mut aggregate = 0usize;
+    for row in rows {
+        let (event_id, server_sequence, source_device_id, project_id, entity_id, entity_type,
+            operation, revision, updated_at, deleted_at, crypto_version, aad_version, nonce, ciphertext) = row?;
+        let (crypto_version, aad_version, nonce, ciphertext) = match (crypto_version, aad_version, nonce, ciphertext) {
+            (Some(version), Some(aad), Some(nonce), Some(ciphertext)) => (version, aad, nonce, ciphertext),
+            _ => return Err(NoteSyncError::SealedObjectMissing),
+        };
+        let envelope = decode_encrypted_note_sync_envelope(&EncryptedNoteSyncEnvelope {
+            crypto_version,
+            aad_version,
+            nonce: encode_canonical_base64url(&nonce),
+            ciphertext: encode_canonical_base64url(&ciphertext),
+        })?;
+        aggregate = aggregate.checked_add(envelope.ciphertext.len())
+            .ok_or(NoteSyncError::InvalidEnvelope("inbox object overflow"))?;
+        if aggregate > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES {
+            return Err(NoteSyncError::InvalidEnvelope("inbox aggregate too large"));
+        }
+        if !matches!(operation.as_str(), "upsert" | "delete") {
+            return Err(NoteSyncError::InvalidEnvelope("unsupported Note operation"));
+        }
+        items.push(ReceivedNoteSyncInboxItem {
+            event_id, server_sequence, source_device_id, project_id, entity_id, entity_type,
+            operation, revision, updated_at, deleted_at,
+            envelope: StoredEncryptedNoteSyncEnvelope {
+                crypto_version: envelope.crypto_version,
+                aad_version: envelope.aad_version,
+                nonce: encode_canonical_base64url(&envelope.nonce),
+                ciphertext: encode_canonical_base64url(&envelope.ciphertext),
+            },
+        });
+    }
+    drop(statement);
+    transaction.commit()?;
+    Ok(items)
+}
+
 pub(crate) fn commit_note_sync_inbound_page(
     connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
 ) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
@@ -2102,6 +2208,13 @@ mod tests {
         }
     }
 
+    fn received_list_command(limit: u32) -> ListReceivedNoteSyncInboxCommand {
+        ListReceivedNoteSyncInboxCommand {
+            account_id: "inbox-account".into(), device_id: DEVICE_ID.into(),
+            canonical_user_id: "abcdefab-0000-0000-0000-000000000101".into(), limit,
+        }
+    }
+
     #[test]
     fn inbound_page_is_atomic_idempotent_and_advances_only_pull_cursor() {
         let mut connection = database(); inbound_scope(&mut connection);
@@ -2110,6 +2223,41 @@ mod tests {
         assert_eq!(connection.query_row("SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| Ok((row.get::<_, i64>(0)?,row.get::<_, i64>(1)?))).unwrap(), (1, 0));
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_inbox", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(commit_note_sync_inbound_page(&mut connection, &command).unwrap().replayed_events, 1);
+    }
+
+    #[test]
+    fn received_inbox_reader_is_bounded_scoped_ordered_and_read_only() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        let mut first = inbound_command();
+        first.items[0].event_id = "123e4567-e89b-42d3-a456-426614174098".into();
+        first.items[0].server_sequence = 1; first.next_cursor = 1;
+        commit_note_sync_inbound_page(&mut connection, &first).unwrap();
+        let mut second = inbound_command(); second.expected_cursor = 1; second.next_cursor = 2;
+        second.items[0].server_sequence = 2;
+        commit_note_sync_inbound_page(&mut connection, &second).unwrap();
+        let before: (i64, i64, String) = connection.query_row(
+            "SELECT pull_cursor,ack_cursor,state FROM cloud_sync_state JOIN cloud_sync_inbox ON cloud_sync_inbox.account_id=cloud_sync_state.account_id WHERE cloud_sync_state.account_id='inbox-account' ORDER BY server_sequence LIMIT 1",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        let listed = list_received_note_sync_inbox(&connection, &received_list_command(1)).unwrap();
+        assert_eq!(listed.len(), 1); assert_eq!(listed[0].server_sequence, 1);
+        assert_eq!(listed[0].event_id, "123e4567-e89b-42d3-a456-426614174098");
+        let after: (i64, i64, String) = connection.query_row(
+            "SELECT pull_cursor,ack_cursor,state FROM cloud_sync_state JOIN cloud_sync_inbox ON cloud_sync_inbox.account_id=cloud_sync_state.account_id WHERE cloud_sync_state.account_id='inbox-account' ORDER BY server_sequence LIMIT 1",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        assert_eq!(after, before);
+        assert!(list_received_note_sync_inbox(&connection, &received_list_command(33)).is_err());
+        let mut wrong_device = received_list_command(1); wrong_device.device_id = "123e4567-e89b-42d3-a456-426614174111".into();
+        assert!(list_received_note_sync_inbox(&connection, &wrong_device).is_err());
+    }
+
+    #[test]
+    fn received_inbox_reader_requires_a_valid_durable_object() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        let command = inbound_command(); commit_note_sync_inbound_page(&mut connection, &command).unwrap();
+        connection.execute("DELETE FROM cloud_sync_event_objects WHERE account_id='inbox-account'", []).unwrap();
+        assert!(matches!(list_received_note_sync_inbox(&connection, &received_list_command(8)), Err(NoteSyncError::SealedObjectMissing)));
     }
 
     #[test]

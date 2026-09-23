@@ -2128,6 +2128,16 @@ fn read_note_sync_pull_state(
 }
 
 #[tauri::command]
+fn list_received_note_sync_inbox(
+    command: note_sync::ListReceivedNoteSyncInboxCommand,
+) -> Result<Vec<note_sync::ReceivedNoteSyncInboxItem>, String> {
+    let connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::list_received_note_sync_inbox(&connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn commit_note_sync_inbound_page(
     command: note_sync::CommitNoteSyncInboundPageCommand,
 ) -> Result<note_sync::CommitNoteSyncInboundPageResult, String> {
@@ -5218,6 +5228,7 @@ pub fn run() {
             record_note_sync_upload_failure,
             ensure_cloud_account_binding,
             read_note_sync_pull_state,
+            list_received_note_sync_inbox,
             commit_note_sync_inbound_page,
             create_note,
             update_note,

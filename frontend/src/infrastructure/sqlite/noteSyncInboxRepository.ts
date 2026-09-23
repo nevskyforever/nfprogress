@@ -1,18 +1,53 @@
 import { invoke } from '@tauri-apps/api/core'
-import { encodeBase64Url } from '@/api/base64url'
+import { decodeBase64Url, encodeBase64Url } from '@/api/base64url'
+import type { ObjectCryptoEnvelope } from '@/crypto'
 import type { ValidatedEncryptedPullBatch } from '@/cloud/noteSyncPull'
 
 export interface NoteSyncPullState { pull_cursor: number; ack_cursor: number }
 export interface CommitInboundPageResult { committed_cursor: number; new_events: number; replayed_events: number; has_more: boolean }
+export interface ReceivedNoteSyncInboxItem {
+  event_id: string
+  server_sequence: number
+  source_device_id: string
+  project_id: string
+  entity_id: string
+  entity_type: 'note'
+  operation: 'upsert' | 'delete'
+  revision: number
+  updated_at: string
+  deleted_at: string | null
+  envelope: ObjectCryptoEnvelope
+}
+
+interface ReceivedNoteSyncInboxWireItem extends Omit<ReceivedNoteSyncInboxItem, 'envelope'> {
+  envelope: { crypto_version: number, aad_version: number, nonce: string, ciphertext: string }
+}
 
 export interface NoteSyncInboxRepository {
   readPullState(accountId: string, deviceId: string, canonicalUserId: string): Promise<NoteSyncPullState>
+  listReceived(accountId: string, deviceId: string, canonicalUserId: string, limit: number): Promise<ReceivedNoteSyncInboxItem[]>
   commitInboundPage(batch: ValidatedEncryptedPullBatch, canonicalUserId: string): Promise<CommitInboundPageResult>
 }
 
 export class SQLiteNoteSyncInboxRepository implements NoteSyncInboxRepository {
   readPullState(accountId: string, deviceId: string, canonicalUserId: string): Promise<NoteSyncPullState> {
     return invoke('read_note_sync_pull_state', { command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId } })
+  }
+
+  async listReceived(accountId: string, deviceId: string, canonicalUserId: string, limit: number): Promise<ReceivedNoteSyncInboxItem[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32) throw new RangeError('Invalid received Note inbox list limit.')
+    const items = await invoke<ReceivedNoteSyncInboxWireItem[]>('list_received_note_sync_inbox', {
+      command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId, limit },
+    })
+    return items.map(item => ({
+      ...item,
+      envelope: {
+        crypto_version: 1,
+        aad_version: 1,
+        nonce: decodeBase64Url(item.envelope.nonce, { expectedLength: 24 }),
+        ciphertext: decodeBase64Url(item.envelope.ciphertext),
+      },
+    }))
   }
 
   commitInboundPage(batch: ValidatedEncryptedPullBatch, canonicalUserId: string): Promise<CommitInboundPageResult> {

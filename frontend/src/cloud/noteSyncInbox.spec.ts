@@ -18,7 +18,7 @@ describe('durable encrypted inbox orchestration', () => {
     const runtime = auth(); await runtime.login('u', 'p')
     const binding = new AuthoritativeAccountBinding(runtime, { ensure: vi.fn().mockResolvedValue('validated') })
     const pullOnce = vi.fn().mockResolvedValue({ accountId: 'local', deviceId: DEVICE, since: 4, nextCursor: 5, hasMore: false, items: [] })
-    const repository = { readPullState: vi.fn().mockResolvedValue({ pull_cursor: 4, ack_cursor: 2 }), commitInboundPage: vi.fn().mockResolvedValue({ committed_cursor: 5, new_events: 0, replayed_events: 0, has_more: false }) }
+    const repository = { readPullState: vi.fn().mockResolvedValue({ pull_cursor: 4, ack_cursor: 2 }), listReceived: vi.fn(), commitInboundPage: vi.fn().mockResolvedValue({ committed_cursor: 5, new_events: 0, replayed_events: 0, has_more: false }) }
     const inbox = new DurableNoteSyncInbox(runtime, binding, { pullOnce } as never, repository)
     await expect(inbox.pullOnce('local', DEVICE)).resolves.toMatchObject({ committed_cursor: 5 })
     expect(pullOnce).toHaveBeenCalledWith('local', DEVICE, 4)
@@ -29,7 +29,7 @@ describe('durable encrypted inbox orchestration', () => {
     const runtime = auth(); await runtime.login('u', 'p')
     const binding = new AuthoritativeAccountBinding(runtime, { ensure: vi.fn().mockResolvedValue('validated') })
     const pullOnce = vi.fn(async () => { await runtime.logout(); return {} })
-    const repository = { readPullState: vi.fn().mockResolvedValue({ pull_cursor: 0, ack_cursor: 0 }), commitInboundPage: vi.fn() }
+    const repository = { readPullState: vi.fn().mockResolvedValue({ pull_cursor: 0, ack_cursor: 0 }), listReceived: vi.fn(), commitInboundPage: vi.fn() }
     const inbox = new DurableNoteSyncInbox(runtime, binding, { pullOnce } as never, repository)
     await expect(inbox.pullOnce('local', DEVICE)).rejects.toBeInstanceOf(StaleAuthContextError)
     expect(repository.commitInboundPage).not.toHaveBeenCalled()
