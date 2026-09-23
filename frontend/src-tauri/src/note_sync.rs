@@ -213,6 +213,38 @@ mod remote_apply_tests {
     }
 
     #[test]
+    fn remote_apply_accepts_equivalent_transport_timestamp_precision() {
+        let mut connection = database();
+        let command = received(
+            &connection,
+            plaintext(
+                CREATE_EVENT,
+                None,
+                1,
+                "upsert",
+                "2026-01-01T00:00:00.000000Z",
+                "transport precision",
+            ),
+            1,
+            REMOTE_DEVICE,
+        );
+        connection.connection().execute(
+            "UPDATE cloud_sync_inbox SET updated_at='2026-01-01T00:00:00Z'
+             WHERE event_id=?1",
+            [CREATE_EVENT],
+        ).unwrap();
+        assert_eq!(
+            apply_verified_received_note(&mut connection, &command).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Applied,
+        );
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",
+            [CREATE_EVENT],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "applied");
+    }
+
+    #[test]
     fn remote_apply_create_does_not_overwrite_unproven_existing_note() {
         let mut connection = database();
         let local_plaintext = plaintext(
@@ -886,6 +918,41 @@ pub(crate) struct NoteSyncPullState {
     pub ack_cursor: i64,
 }
 
+/// A read-only, locally proven prefix that a later transport layer may ACK.
+/// It is deliberately not evidence of a remote ACK.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct NoteSyncAckCandidate {
+    pub current_ack_cursor: i64,
+    pub candidate_cursor: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PrepareNoteSyncAckCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub canonical_user_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitNoteSyncAckCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub canonical_user_id: String,
+    pub expected_old_ack_cursor: i64,
+    pub acknowledged_cursor: i64,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CommitNoteSyncAckResult {
+    Advanced,
+    AlreadyAcknowledged,
+    AlreadyAdvanced,
+    Stale,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct CommitNoteSyncInboundPageCommand {
@@ -1227,7 +1294,7 @@ fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
     era * 146_097 + day_of_era - 719_468
 }
 
-fn valid_note_sync_timestamp(value: &str) -> bool {
+fn parse_note_sync_timestamp(value: &str) -> Option<(i64, i64)> {
     let bytes = value.as_bytes();
     if !value.is_ascii()
         || bytes.len() < 20
@@ -1237,25 +1304,25 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
         || bytes.get(13) != Some(&b':')
         || bytes.get(16) != Some(&b':')
     {
-        return false;
+        return None;
     }
     let Some(year) = parse_ascii_number(&bytes[0..4]) else {
-        return false;
+        return None;
     };
     let Some(month) = parse_ascii_number(&bytes[5..7]) else {
-        return false;
+        return None;
     };
     let Some(day) = parse_ascii_number(&bytes[8..10]) else {
-        return false;
+        return None;
     };
     let Some(hour) = parse_ascii_number(&bytes[11..13]) else {
-        return false;
+        return None;
     };
     let Some(minute) = parse_ascii_number(&bytes[14..16]) else {
-        return false;
+        return None;
     };
     let Some(second) = parse_ascii_number(&bytes[17..19]) else {
-        return false;
+        return None;
     };
     if !(1..=9999).contains(&year)
         || !(1..=12).contains(&month)
@@ -1264,10 +1331,11 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
         || minute > 59
         || second > 59
     {
-        return false;
+        return None;
     }
 
     let mut cursor = 19;
+    let mut fractional_microseconds = 0_i64;
     if bytes.get(cursor) == Some(&b'.') {
         cursor += 1;
         let fraction_start = cursor;
@@ -1275,8 +1343,11 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
             cursor += 1;
         }
         if !(1..=6).contains(&(cursor - fraction_start)) {
-            return false;
+            return None;
         }
+        let digits = cursor - fraction_start;
+        fractional_microseconds = parse_ascii_number(&bytes[fraction_start..cursor])?
+            * 10_i64.pow((6 - digits) as u32);
     }
 
     let offset_seconds = if bytes.get(cursor) == Some(&b'Z') && cursor + 1 == bytes.len() {
@@ -1286,16 +1357,16 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
         && bytes.get(cursor + 3) == Some(&b':')
     {
         let Some(offset_hour) = parse_ascii_number(&bytes[cursor + 1..cursor + 3]) else {
-            return false;
+            return None;
         };
         let Some(offset_minute) = parse_ascii_number(&bytes[cursor + 4..cursor + 6]) else {
-            return false;
+            return None;
         };
         if offset_hour > 23
             || offset_minute > 59
             || (bytes[cursor] == b'-' && offset_hour == 0 && offset_minute == 0)
         {
-            return false;
+            return None;
         }
         let seconds = (offset_hour * 60 + offset_minute) * 60;
         if bytes[cursor] == b'+' {
@@ -1304,7 +1375,7 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
             -seconds
         }
     } else {
-        return false;
+        return None;
     };
 
     let utc_seconds =
@@ -1312,7 +1383,17 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
             - offset_seconds;
     let minimum = days_from_civil(1, 1, 1) * 86_400;
     let maximum = days_from_civil(10_000, 1, 1) * 86_400;
-    (minimum..maximum).contains(&utc_seconds)
+    (minimum..maximum).contains(&utc_seconds).then_some((utc_seconds, fractional_microseconds))
+}
+
+fn valid_note_sync_timestamp(value: &str) -> bool {
+    parse_note_sync_timestamp(value).is_some()
+}
+
+fn note_sync_timestamps_equal(left: &str, right: &str) -> bool {
+    parse_note_sync_timestamp(left).is_some_and(|left| {
+        parse_note_sync_timestamp(right).is_some_and(|right| right == left)
+    })
 }
 
 pub(crate) fn preflight_note_sync_project(
@@ -2185,6 +2266,87 @@ pub(crate) fn read_note_sync_pull_state(
     Ok(state)
 }
 
+fn contiguous_applied_ack_prefix(
+    transaction: &Transaction<'_>, account_id: &str, ack_cursor: i64, pull_cursor: i64,
+) -> Result<i64, NoteSyncError> {
+    if !(0..=MAX_SYNC_INTEGER).contains(&ack_cursor)
+        || !(0..=MAX_SYNC_INTEGER).contains(&pull_cursor)
+        || ack_cursor > pull_cursor {
+        return Err(NoteSyncError::InvalidEnvelope("invalid durable ACK state"));
+    }
+    let mut candidate = ack_cursor;
+    while candidate < pull_cursor {
+        let next = candidate.checked_add(1).ok_or(NoteSyncError::InvalidEnvelope("ACK cursor overflow"))?;
+        let state: Option<String> = transaction.query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence=?2",
+            rusqlite::params![account_id, next], |row| row.get(0),
+        ).optional()?;
+        if state.as_deref() != Some("applied") { break; }
+        candidate = next;
+    }
+    Ok(candidate)
+}
+
+/// Reads the largest contiguous, durably applied inbound prefix. It neither
+/// changes SQLite state nor proves a remote transport acknowledgement.
+pub(crate) fn prepare_note_sync_ack(
+    connection: &mut Connection, command: &PrepareNoteSyncAckCommand,
+) -> Result<NoteSyncAckCandidate, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_pull_scope(&transaction, &command.account_id, &command.device_id, &command.canonical_user_id)?;
+    let (pull_cursor, ack_cursor): (i64, i64) = transaction.query_row(
+        "SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id=?1", [&command.account_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    let candidate_cursor = contiguous_applied_ack_prefix(&transaction, &command.account_id, ack_cursor, pull_cursor)?;
+    transaction.commit()?;
+    Ok(NoteSyncAckCandidate { current_ack_cursor: ack_cursor, candidate_cursor })
+}
+
+/// Records a previously confirmed remote ACK only if the local proof is still
+/// valid. Transport remains outside this Rust/SQLite substrate.
+pub(crate) fn commit_note_sync_ack(
+    connection: &mut Connection, command: &CommitNoteSyncAckCommand,
+) -> Result<CommitNoteSyncAckResult, NoteSyncError> {
+    if !(0..=MAX_SYNC_INTEGER).contains(&command.expected_old_ack_cursor)
+        || !(0..=MAX_SYNC_INTEGER).contains(&command.acknowledged_cursor)
+        || command.acknowledged_cursor < command.expected_old_ack_cursor {
+        return Err(NoteSyncError::InvalidEnvelope("invalid ACK advancement command"));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_pull_scope(&transaction, &command.account_id, &command.device_id, &command.canonical_user_id)?;
+    let (pull_cursor, current_ack_cursor): (i64, i64) = transaction.query_row(
+        "SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id=?1", [&command.account_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )?;
+    if command.acknowledged_cursor > pull_cursor {
+        return Err(NoteSyncError::InvalidEnvelope("ACK exceeds pull cursor"));
+    }
+    if current_ack_cursor == command.acknowledged_cursor {
+        transaction.commit()?;
+        return Ok(CommitNoteSyncAckResult::AlreadyAcknowledged);
+    }
+    if current_ack_cursor > command.acknowledged_cursor {
+        transaction.commit()?;
+        return Ok(CommitNoteSyncAckResult::AlreadyAdvanced);
+    }
+    if current_ack_cursor != command.expected_old_ack_cursor {
+        transaction.commit()?;
+        return Ok(CommitNoteSyncAckResult::Stale);
+    }
+    let safe_candidate = contiguous_applied_ack_prefix(&transaction, &command.account_id, current_ack_cursor, pull_cursor)?;
+    if safe_candidate < command.acknowledged_cursor {
+        return Err(NoteSyncError::InvalidEnvelope("ACK skips unresolved inbox event"));
+    }
+    let updated = transaction.execute(
+        "UPDATE cloud_sync_state SET ack_cursor=?1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE account_id=?2 AND ack_cursor=?3",
+        rusqlite::params![command.acknowledged_cursor, command.account_id, current_ack_cursor],
+    )?;
+    if updated != 1 { return Err(NoteSyncError::InvalidEnvelope("ACK cursor compare-and-swap failed")); }
+    transaction.commit()?;
+    Ok(CommitNoteSyncAckResult::Advanced)
+}
+
 /// Lists one bounded page of durable received Note events.  Scope validation is
 /// intentionally repeated here because this is a separate IPC boundary from
 /// pull receipt.  No transaction is retained while TypeScript decrypts bytes.
@@ -2953,8 +3115,12 @@ pub(crate) fn apply_verified_received_note(
                     && entity_id == incoming.entity_id
                     && operation == incoming.operation
                     && revision == incoming.revision
-                    && updated_at == incoming.updated_at
-                    && deleted_at == incoming.deleted_at;
+                    && note_sync_timestamps_equal(&updated_at, &incoming.updated_at)
+                    && match (deleted_at.as_deref(), incoming.deleted_at.as_deref()) {
+                        (None, None) => true,
+                        (Some(stored), Some(opened)) => note_sync_timestamps_equal(stored, opened),
+                        _ => false,
+                    };
                 if !immutable_matches {
                     return classify_remote_apply(
                         transaction,
@@ -3288,6 +3454,25 @@ mod tests {
         }
     }
 
+    fn ack_prepare_command() -> PrepareNoteSyncAckCommand {
+        PrepareNoteSyncAckCommand { account_id: "inbox-account".into(), device_id: DEVICE_ID.into(), canonical_user_id: "abcdefab-0000-0000-0000-000000000101".into() }
+    }
+
+    fn ack_commit_command(expected_old_ack_cursor: i64, acknowledged_cursor: i64) -> CommitNoteSyncAckCommand {
+        CommitNoteSyncAckCommand { account_id: "inbox-account".into(), device_id: DEVICE_ID.into(), canonical_user_id: "abcdefab-0000-0000-0000-000000000101".into(), expected_old_ack_cursor, acknowledged_cursor }
+    }
+
+    fn set_ack_pull_cursor(connection: &Connection, pull_cursor: i64) {
+        connection.execute("UPDATE cloud_sync_state SET pull_cursor=?1 WHERE account_id='inbox-account'", [pull_cursor]).unwrap();
+    }
+
+    fn insert_ack_inbox(connection: &Connection, sequence: i64, state: &str) {
+        connection.execute(
+            "INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at) VALUES('inbox-account',?1,?2,?3,'project',?4,'note','upsert',1,'2026-09-22T00:00:00Z',NULL,?5,'now')",
+            rusqlite::params![format!("123e4567-e89b-42d3-a456-426614174{sequence:03}"), sequence, DEVICE_ID, format!("note-{sequence}"), state],
+        ).unwrap();
+    }
+
     #[test]
     fn inbound_page_is_atomic_idempotent_and_advances_only_pull_cursor() {
         let mut connection = database(); inbound_scope(&mut connection);
@@ -3361,6 +3546,51 @@ mod tests {
         assert_eq!(reopened.query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
         assert_eq!(reopened.query_row("SELECT count(*) FROM cloud_sync_outbox", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
         drop(reopened); std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn durable_ack_candidate_requires_a_contiguous_applied_prefix() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap().candidate_cursor, 0);
+        set_ack_pull_cursor(&connection, 3);
+        for sequence in 1..=3 { insert_ack_inbox(&connection, sequence, "applied"); }
+        assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap(), NoteSyncAckCandidate { current_ack_cursor: 0, candidate_cursor: 3 });
+        let mut gap = database(); inbound_scope(&mut gap); set_ack_pull_cursor(&gap, 3);
+        insert_ack_inbox(&gap, 1, "applied"); insert_ack_inbox(&gap, 3, "applied");
+        assert_eq!(prepare_note_sync_ack(&mut gap, &ack_prepare_command()).unwrap().candidate_cursor, 1);
+    }
+
+    #[test]
+    fn durable_ack_candidate_stops_at_unresolved_states_and_pull_bound() {
+        for state in ["conflict", "orphan", "rejected", "unknown_entity"] {
+            let mut connection = database(); inbound_scope(&mut connection); set_ack_pull_cursor(&connection, 3);
+            insert_ack_inbox(&connection, 1, "applied"); insert_ack_inbox(&connection, 2, state); insert_ack_inbox(&connection, 3, "applied");
+            assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap().candidate_cursor, 1, "{state}");
+        }
+        let mut bounded = database(); inbound_scope(&mut bounded); set_ack_pull_cursor(&bounded, 1);
+        insert_ack_inbox(&bounded, 1, "applied"); insert_ack_inbox(&bounded, 2, "applied");
+        assert_eq!(prepare_note_sync_ack(&mut bounded, &ack_prepare_command()).unwrap().candidate_cursor, 1);
+    }
+
+    #[test]
+    fn durable_ack_advance_is_conditional_idempotent_and_replay_safe() {
+        let mut connection = database(); inbound_scope(&mut connection); set_ack_pull_cursor(&connection, 2);
+        insert_ack_inbox(&connection, 1, "applied"); insert_ack_inbox(&connection, 2, "applied");
+        assert_eq!(commit_note_sync_ack(&mut connection, &ack_commit_command(0, 2)).unwrap(), CommitNoteSyncAckResult::Advanced);
+        assert_eq!(commit_note_sync_ack(&mut connection, &ack_commit_command(0, 2)).unwrap(), CommitNoteSyncAckResult::AlreadyAcknowledged);
+        assert_eq!(commit_note_sync_ack(&mut connection, &ack_commit_command(0, 1)).unwrap(), CommitNoteSyncAckResult::AlreadyAdvanced);
+        let mut stale = database(); inbound_scope(&mut stale); set_ack_pull_cursor(&stale, 2); insert_ack_inbox(&stale, 1, "applied"); insert_ack_inbox(&stale, 2, "applied"); stale.execute("UPDATE cloud_sync_state SET ack_cursor=1 WHERE account_id='inbox-account'", []).unwrap();
+        assert_eq!(commit_note_sync_ack(&mut stale, &ack_commit_command(0, 2)).unwrap(), CommitNoteSyncAckResult::Stale);
+    }
+
+    #[test]
+    fn durable_ack_advance_revalidates_scope_prefix_restart_and_rollback() {
+        let mut connection = database(); inbound_scope(&mut connection); set_ack_pull_cursor(&connection, 2); insert_ack_inbox(&connection, 1, "applied"); insert_ack_inbox(&connection, 2, "conflict");
+        assert!(commit_note_sync_ack(&mut connection, &ack_commit_command(0, 2)).is_err());
+        let mut wrong = ack_prepare_command(); wrong.device_id = "123e4567-e89b-42d3-a456-426614174111".into(); assert!(prepare_note_sync_ack(&mut connection, &wrong).is_err()); wrong = ack_prepare_command(); wrong.account_id = "other-account".into(); assert!(prepare_note_sync_ack(&mut connection, &wrong).is_err());
+        connection.execute("UPDATE cloud_sync_inbox SET state='applied' WHERE account_id='inbox-account' AND server_sequence=2", []).unwrap(); connection.execute_batch("CREATE TRIGGER note_sync_ack_test_fail BEFORE UPDATE OF ack_cursor ON cloud_sync_state WHEN NEW.account_id='inbox-account' BEGIN SELECT RAISE(ABORT,'injected_ack_failure'); END;").unwrap();
+        assert!(commit_note_sync_ack(&mut connection, &ack_commit_command(0, 2)).is_err()); assert_eq!(connection.query_row("SELECT ack_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 0); connection.execute_batch("DROP TRIGGER note_sync_ack_test_fail;").unwrap(); assert_eq!(commit_note_sync_ack(&mut connection, &ack_commit_command(0, 2)).unwrap(), CommitNoteSyncAckResult::Advanced);
+        let (root, path) = temporary_database_path("ack-restart"); let mut persistent = crate::sqlite::open_database(&path).unwrap(); configure_database(&persistent); inbound_scope(&mut persistent); set_ack_pull_cursor(&persistent, 1); insert_ack_inbox(&persistent, 1, "applied"); assert_eq!(commit_note_sync_ack(&mut persistent, &ack_commit_command(0, 1)).unwrap(), CommitNoteSyncAckResult::Advanced); drop(persistent); let mut reopened = crate::sqlite::open_database(&path).unwrap(); assert_eq!(prepare_note_sync_ack(&mut reopened, &ack_prepare_command()).unwrap(), NoteSyncAckCandidate { current_ack_cursor: 1, candidate_cursor: 1 }); drop(reopened); std::fs::remove_dir_all(root).unwrap();
     }
 
     fn configure_database(connection: &Connection) {

@@ -11,6 +11,7 @@ on:
       - 'tests/test_cloud_*.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/c15_headless_test_bridge.rs'
       - 'frontend/src-tauri/src/lib.rs'
       - 'frontend/package*.json'
       - 'docs/cloud/**'
@@ -25,6 +26,7 @@ on:
       - 'tests/test_cloud_*.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/c15_headless_test_bridge.rs'
       - 'frontend/src-tauri/src/lib.rs'
       - 'frontend/package*.json'
       - 'docs/cloud/**'
@@ -38,7 +40,7 @@ jobs:
   test:
     name: PostgreSQL cloud backend
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -67,6 +69,21 @@ jobs:
             requirements-backend.txt
             requirements-test.txt
 
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v24
+        with:
+          node-version: '20.19.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Install native headless proof dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+
       - name: Wait for PostgreSQL service
         env:
           PGPASSWORD: cloud_test_password
@@ -91,6 +108,22 @@ jobs:
       - name: Install backend and test dependencies
         run: python -m pip install --disable-pip-version-check -r requirements-backend.txt -r requirements-test.txt
 
+      - name: Install frontend dependencies for production crypto bridge
+        run: npm ci
+        working-directory: frontend
+
+      - name: Run mandatory sync ACK and two-device backend acceptance without skips
+        env:
+          NFPROGRESS_ENV: test
+          NFPROGRESS_TEST_DATABASE_URL: postgresql+psycopg://cloud_test_user:cloud_test_password@127.0.0.1:5432/nfprogress_c1_test
+        run: |
+          acceptance_output="$(python -m pytest -q -rs tests/test_cloud_sync.py tests/test_cloud_two_device_acceptance.py tests/test_cloud_c15_headless_cross_runtime.py)"
+          echo "$acceptance_output"
+          if echo "$acceptance_output" | grep -Eiq '[0-9]+ skipped|SKIPPED'; then
+            echo 'Mandatory sync acceptance unexpectedly skipped tests.' >&2
+            exit 1
+          fi
+
       - name: Run focused cloud and legacy API tests
         env:
           NFPROGRESS_ENV: test
@@ -105,7 +138,6 @@ jobs:
             tests/test_cloud_reserved_usernames.py \
             tests/test_cloud_admin.py \
             tests/test_cloud_projects.py \
-            tests/test_cloud_sync.py \
             tests/test_cloud_encrypted_schema.py \
             tests/test_cloud_encrypted_sync.py \
             tests/test_cloud_encrypted_blobs.py \
@@ -127,7 +159,7 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/api/client.spec.ts src/auth/userAuth.spec.ts src/auth/accountBinding.spec.ts src/auth/keyContext.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/api/base64url.spec.ts src/api/encryptedSync.spec.ts src/cloud/encryptedSyncProtocol.spec.ts src/cloud/syncTimestamp.spec.ts src/cloud/noteSyncCodec.spec.ts src/cloud/noteSyncCodec.golden.spec.ts src/cloud/noteSyncIntent.spec.ts src/cloud/noteSyncIntent.authority.spec.ts src/cloud/noteSyncUpload.spec.ts src/cloud/noteSyncPull.spec.ts src/cloud/noteSyncInbox.spec.ts src/cloud/noteSyncInboxDecrypt.spec.ts src/cloud/noteSyncInboxApply.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/infrastructure/sqlite/cloudAccountBindingRepository.spec.ts src/infrastructure/sqlite/noteSyncIntentRepository.spec.ts src/infrastructure/sqlite/noteSyncOutboxRepository.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
+      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/api/client.spec.ts src/auth/userAuth.spec.ts src/auth/accountBinding.spec.ts src/auth/keyContext.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/api/base64url.spec.ts src/api/encryptedSync.spec.ts src/cloud/encryptedSyncProtocol.spec.ts src/cloud/noteSyncTwoDeviceCryptoAcceptance.spec.ts src/cloud/noteSyncHeadlessCryptoBridge.spec.ts src/cloud/syncTimestamp.spec.ts src/cloud/noteSyncCodec.spec.ts src/cloud/noteSyncCodec.golden.spec.ts src/cloud/noteSyncIntent.spec.ts src/cloud/noteSyncIntent.authority.spec.ts src/cloud/noteSyncUpload.spec.ts src/cloud/noteSyncPull.spec.ts src/cloud/noteSyncInbox.spec.ts src/cloud/noteSyncInboxDecrypt.spec.ts src/cloud/noteSyncInboxApply.spec.ts src/cloud/noteSyncDeviceAck.spec.ts src/cloud/noteSyncOrchestrator.spec.ts src/cloud/noteSyncRuntime.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/infrastructure/sqlite/cloudAccountBindingRepository.spec.ts src/infrastructure/sqlite/cloudIdentityRepository.spec.ts src/infrastructure/sqlite/noteSyncIntentRepository.spec.ts src/infrastructure/sqlite/noteSyncOutboxRepository.spec.ts src/infrastructure/sqlite/noteSyncAckRepository.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
         working-directory: frontend
       - run: npm run build
         working-directory: frontend

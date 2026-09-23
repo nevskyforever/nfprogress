@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 
 mod account_binding;
+#[cfg(test)]
+mod c15_headless_test_bridge;
 mod documents;
 mod game;
 mod mindmap;
@@ -2113,8 +2115,48 @@ fn ensure_cloud_account_binding(
     command: account_binding::EnsureCloudAccountBindingCommand,
 ) -> Result<account_binding::EnsureCloudAccountBindingResult, String> {
     let mut connection = open_notes_database(true)?;
-    require_sqlite_notes_owner(&connection)?;
-    account_binding::ensure_cloud_account_binding(&mut connection, &command)
+    ensure_cloud_account_binding_on_connection(&mut connection, &command)
+}
+
+fn ensure_cloud_account_binding_on_connection(
+    connection: &mut rusqlite::Connection,
+    command: &account_binding::EnsureCloudAccountBindingCommand,
+) -> Result<account_binding::EnsureCloudAccountBindingResult, String> {
+    require_sqlite_notes_owner(connection)?;
+    account_binding::ensure_cloud_account_binding(connection, command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn provision_cloud_identity(
+    command: account_binding::CloudIdentityCommand,
+) -> Result<account_binding::CloudIdentity, String> {
+    let mut connection = open_notes_database(true)?;
+    provision_cloud_identity_on_connection(&mut connection, &command)
+}
+
+fn provision_cloud_identity_on_connection(
+    connection: &mut rusqlite::Connection,
+    command: &account_binding::CloudIdentityCommand,
+) -> Result<account_binding::CloudIdentity, String> {
+    require_sqlite_notes_owner(connection)?;
+    account_binding::provision_cloud_identity(connection, &command.canonical_user_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn read_cloud_identity(
+    command: account_binding::CloudIdentityCommand,
+) -> Result<Option<account_binding::CloudIdentity>, String> {
+    let mut connection = open_notes_database(true)?;
+    read_cloud_identity_on_connection(&mut connection, &command)
+}
+
+fn read_cloud_identity_on_connection(
+    connection: &mut rusqlite::Connection,
+    command: &account_binding::CloudIdentityCommand,
+) -> Result<Option<account_binding::CloudIdentity>, String> {
+    require_sqlite_notes_owner(connection)?;
+    account_binding::read_cloud_identity(connection, &command.canonical_user_id)
         .map_err(|error| error.to_string())
 }
 
@@ -2125,6 +2167,26 @@ fn read_note_sync_pull_state(
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
     note_sync::read_note_sync_pull_state(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn prepare_note_sync_ack(
+    command: note_sync::PrepareNoteSyncAckCommand,
+) -> Result<note_sync::NoteSyncAckCandidate, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::prepare_note_sync_ack(&mut connection, &command)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn commit_note_sync_ack(
+    command: note_sync::CommitNoteSyncAckCommand,
+) -> Result<note_sync::CommitNoteSyncAckResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::commit_note_sync_ack(&mut connection, &command)
         .map_err(|error| error.to_string())
 }
 
@@ -4420,7 +4482,10 @@ async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
 mod tests {
     #[cfg(target_os = "macos")]
     use std::io::Write;
+    use std::fs;
     use std::path::Path;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
     #[cfg(target_os = "macos")]
     use std::process::{Command, Stdio};
 
@@ -4432,6 +4497,18 @@ mod tests {
         AddProjectProgressCommand, AddStageProgressCommand, DeleteProgressCommand,
         ProjectMetadataPatch, SqliteEntityRow,
     };
+
+    const CLOUD_USER_ONE: &str = "abcdefab-0000-0000-0000-000000000101";
+    const CLOUD_USER_TWO: &str = "00000000-0000-0000-0000-000000000102";
+    static LIFECYCLE_DATABASE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    fn lifecycle_database_root(label: &str) -> PathBuf {
+        let sequence = LIFECYCLE_DATABASE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "nfprogress-note-sync-lifecycle-{label}-{}-{sequence}",
+            std::process::id(),
+        ))
+    }
 
     #[test]
     fn fresh_desktop_database_becomes_native_authoritative() {
@@ -4474,6 +4551,80 @@ mod tests {
                 .unwrap(),
             "{\"gamer\":{},\"game\":{}}"
         );
+    }
+
+    #[test]
+    fn sqlite_file_backed_identity_command_helpers_preserve_sync_state_across_restart() {
+        let root = lifecycle_database_root("restart");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("nfprogress.db");
+        let command = super::account_binding::CloudIdentityCommand {
+            canonical_user_id: CLOUD_USER_ONE.to_string(),
+        };
+        let identity = {
+            let mut connection = super::sqlite::open_database(&path).unwrap();
+            super::initialize_fresh_desktop_database(&connection, &root).unwrap();
+            let identity = super::provision_cloud_identity_on_connection(&mut connection, &command).unwrap();
+            connection.execute(
+                "UPDATE cloud_sync_state SET pull_cursor=2,ack_cursor=1 WHERE account_id=?1",
+                [&identity.local_account_id],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO cloud_sync_outbox(event_id,account_id,device_id,project_id,entity_id,entity_type,operation,revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle)
+                 VALUES('123e4567-e89b-42d3-a456-426614174002',?1,?2,'project','note','note','upsert',1,'2026-09-23T00:00:00Z',NULL,'2026-09-23T00:00:00Z',NULL,1,'sealed')",
+                rusqlite::params![identity.local_account_id, identity.device_id],
+            ).unwrap();
+            connection.execute(
+                "INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at)
+                 VALUES(?1,'123e4567-e89b-42d3-a456-426614174003',2,'123e4567-e89b-42d3-a456-426614174004','project','remote-note','note','upsert',1,'2026-09-23T00:00:00Z',NULL,'applied','2026-09-23T00:00:00Z')",
+                [&identity.local_account_id],
+            ).unwrap();
+            identity
+        };
+        let mut reopened = super::sqlite::open_database(&path).unwrap();
+        assert_eq!(super::read_cloud_identity_on_connection(&mut reopened, &command).unwrap(), Some(identity.clone()));
+        assert_eq!(super::provision_cloud_identity_on_connection(&mut reopened, &command).unwrap(), identity.clone());
+        assert_eq!(reopened.query_row("SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id=?1", [&identity.local_account_id], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))).unwrap(), (2, 1));
+        assert_eq!(reopened.query_row("SELECT count(*) FROM cloud_sync_outbox WHERE account_id=?1", [&identity.local_account_id], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        assert_eq!(reopened.query_row("SELECT count(*) FROM cloud_sync_inbox WHERE account_id=?1", [&identity.local_account_id], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        let mismatch = super::account_binding::EnsureCloudAccountBindingCommand {
+            local_account_id: identity.local_account_id.clone(), canonical_user_id: CLOUD_USER_TWO.to_string(),
+        };
+        assert!(super::ensure_cloud_account_binding_on_connection(&mut reopened, &mismatch).is_err());
+        drop(reopened);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn sqlite_identity_command_helpers_require_native_notes_ownership() {
+        let mut connection = Connection::open_in_memory().unwrap();
+        super::sqlite::apply_migrations(&connection).unwrap();
+        let command = super::account_binding::CloudIdentityCommand {
+            canonical_user_id: CLOUD_USER_ONE.to_string(),
+        };
+        assert!(super::provision_cloud_identity_on_connection(&mut connection, &command).is_err());
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_state", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn sqlite_two_file_backed_desktop_fixtures_keep_distinct_devices_for_one_cloud_user() {
+        let command = super::account_binding::CloudIdentityCommand {
+            canonical_user_id: CLOUD_USER_ONE.to_string(),
+        };
+        let first_root = lifecycle_database_root("device-a");
+        let second_root = lifecycle_database_root("device-b");
+        let provision = |root: &Path| {
+            fs::create_dir_all(root).unwrap();
+            let mut connection = super::sqlite::open_database(&root.join("nfprogress.db")).unwrap();
+            super::initialize_fresh_desktop_database(&connection, root).unwrap();
+            super::provision_cloud_identity_on_connection(&mut connection, &command).unwrap()
+        };
+        let first = provision(&first_root);
+        let second = provision(&second_root);
+        assert_ne!(first.local_account_id, second.local_account_id);
+        assert_ne!(first.device_id, second.device_id);
+        fs::remove_dir_all(first_root).unwrap();
+        fs::remove_dir_all(second_root).unwrap();
     }
 
     #[test]
@@ -5245,7 +5396,11 @@ pub fn run() {
             commit_note_sync_upload_acceptance,
             record_note_sync_upload_failure,
             ensure_cloud_account_binding,
+            provision_cloud_identity,
+            read_cloud_identity,
             read_note_sync_pull_state,
+            prepare_note_sync_ack,
+            commit_note_sync_ack,
             list_received_note_sync_inbox,
             apply_verified_received_note,
             commit_note_sync_inbound_page,
