@@ -84,10 +84,18 @@ jobs:
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Run Rust SQLite tests and check
+      - name: Run Rust SQLite filter
         shell: pwsh
-        run: |
-          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc sqlite
-          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc note_sync
-          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_binding
-          cargo check --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc sqlite
+
+      - name: Run Rust Note sync filter
+        shell: pwsh
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc note_sync
+
+      - name: Run Rust account binding filter
+        shell: pwsh
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_binding
+
+      - name: Check Rust SQLite substrate
+        shell: pwsh
+        run: cargo check --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc

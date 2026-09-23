@@ -4439,6 +4439,7 @@ mod tests {
             list_sealed_note_sync_outbox(&mut reopened, "account", 2),
             Err(NoteSyncError::InvalidOutboxRead(_))
         ));
+        drop(reopened);
         std::fs::remove_dir_all(root).unwrap();
     }
 

@@ -422,6 +422,7 @@ mod tests {
         let mut reopened = Connection::open(&path).unwrap();
         assert_eq!(read_cloud_identity(&mut reopened, USER_ONE).unwrap(), Some(first.clone()));
         assert_eq!(provision_cloud_identity(&mut reopened, USER_ONE).unwrap(), first);
+        drop(reopened);
         fs::remove_file(path).unwrap();
     }
 
@@ -450,6 +451,7 @@ mod tests {
         let connection = Connection::open(&path).unwrap();
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_state", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_account_bindings", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        drop(connection);
         fs::remove_file(path).unwrap();
     }
 

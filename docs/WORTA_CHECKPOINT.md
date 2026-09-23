@@ -645,4 +645,16 @@ Disposable Docker `postgres:16` container `nfprogress-c15-final-postgres`, host 
 
 Следующие gates: единый локальный implementation commit без пользовательских `.pyc`; затем только пользовательский push; independently verify новый remote SHA, PostgreSQL cloud backend/headless no-skip execution, frontend curated/build и Windows/Python SQLite jobs. Только после этой remote acceptance внешний владелец checkpoint может объявить пакет `CLOSED` и изменить официальный прогресс на 70,0%. C16 остаются production login/unlock UI, live desktop composition/startup/manual trigger/status/settings; C17 — conflict resolution.
 
+## 59. C15 Windows CI repair — SQLite file locks and fail-fast (локально)
+
+**Статус:** `WINDOWS CI REPAIR / REMOTE RECHECK PENDING`. Пакет Full Orchestration, ACK, Two-Device Acceptance остаётся `IN PROGRESS`, не `CLOSED`; официальный прогресс остаётся **67,5%**.
+
+Implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` опубликован на `origin/6.0`. Independently reported remote результаты для этого SHA: Cloud backend run `35906517726` — **SUCCESS** (mandatory PostgreSQL/headless selection **9/9**, broad backend **151/151**, frontend curated **219/219**). SQLite run `35906517350` был визуально marked SUCCESS, но Windows Rust step фактически содержал три failure: `sqlite` **24 passed**; `note_sync` **79 passed, 1 failed**; `account_binding` **8 passed, 2 failed**. Все три упали с Windows `Os { code: 32, message: "The process cannot access the file because it is being used by another process." }`: `sealed_outbox_enforces_dependencies_objects_and_batch_limits_after_restart`, `provision_replays_and_read_returns_the_same_durable_identity_after_restart` и `concurrent_provisioning_returns_one_identity`.
+
+Причина подтверждена в test lifecycle, а не в production sync: тесты удаляли SQLite file/directory, пока `rusqlite::Connection` (`reopened` или `connection`) всё ещё был live. В `note_sync.rs` и `account_binding.rs` добавлены минимальные explicit `drop(...)` непосредственно перед cleanup; assertions и file-backed real-schema tests сохранены. Не добавлялись sleep, ignored removal errors, mocks или production/migration/crypto changes.
+
+Дополнительно Windows job в `sqlite-sync-tests.yml` раньше запускал три native `cargo test` и `cargo check` в одном PowerShell step без `$LASTEXITCODE` guard; успешный final `cargo check` мог скрыть test failure. Он разделён на четыре независимых Actions steps: `sqlite`, `note_sync`, `account_binding` и `cargo check`. Каждый native command теперь является единственной командой своего step, поэтому non-zero exit code немедленно завершает job failed; Rust/MSVC target, path filters и все три required filters сохранены.
+
+Локальная macOS verification correction: три exact failed cases — **3 passed, 0 failed**; Rust `note_sync` filter — **80 passed, 0 failed**; `account_binding` — **10 passed, 0 failed**; `sqlite` — **24 passed, 0 failed**; `cargo check` — **passed** с прежними unrelated warnings. YAML обоих sync workflows и `git diff --check` — **passed**. Это не доказывает Windows behaviour: после user push требуется independently inspect новый SHA в обоих workflows, включая отдельные Windows `sqlite`, `note_sync`, `account_binding` и `cargo check` steps. Не записывать новый remote SHA/CI SUCCESS до этой проверки.
+
 # КОНЕЦ ЧЕКПОИНТА
