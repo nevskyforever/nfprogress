@@ -111,6 +111,8 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         database.execute("DROP TABLE cloud_sync_event_objects")
         database.execute("DROP TABLE cloud_sync_inbox")
         database.execute("DROP TABLE cloud_sync_entities")
+        database.execute("DROP TABLE cloud_sync_upload_receipts")
+        database.execute("DROP TABLE cloud_sync_note_upload_cursors")
         database.execute("DROP TABLE cloud_sync_outbox")
         database.execute("DROP TABLE cloud_sync_state")
         database.execute("DROP TABLE application_metadata")
