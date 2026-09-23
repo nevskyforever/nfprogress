@@ -2,15 +2,15 @@
 
 **Дата:** 23 сентября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
-**Официальный зачтённый прогресс:** **66,5%**.\
-**Последний полностью закрытый этап:** **C15.7A — Verified Note Inbox Decryption**.\
-**Текущий этап:** **C15.7B — Decrypt and Atomic Local Apply**, **LOCAL COMPLETE / REMOTE CI PENDING**, локальный commit создан, push ещё не выполнен.\
-**Следующий зачёт:** после полного закрытия C15.7B — **67,5%**.\
-**Последний независимо проверенный remote HEAD:** `c52ebf7861fdda94fc01b41021138a3a642bc8a8`.\
-**Последний завершённый отчёт Codex:** `C15.7B FINAL SECURITY AUDIT + CI-EQUIVALENT ACCEPTANCE + REPO CHECKPOINT` — protected TypeScript/Tauri integration и Rust atomic apply проверены локально; C15.7B scope green, кроме известного unrelated локального сбоя `admin.spec.ts` из-за отсутствующего `localStorage`. Единый локальный commit создан; точный финальный SHA указан в отчёте; push не выполнялся.
-**Текущая задача Codex:** завершена локальная приёмка C15.7B. Локальная приёмка и commit завершены. Следующий шаг — пользовательский push и независимая remote-проверка обоих workflows. Не начинать Full Orchestration/ACK/C17 автоматически.
+**Официальный зачтённый прогресс:** **67,5%**.\
+**Последний полностью закрытый этап:** **C15.7B — Atomic Local Apply**.\
+**Текущий этап:** **Full Orchestration, ACK, Two-Device Acceptance** (вес 2,5), **NOT STARTED**. Перед реализацией требуется отдельный ограниченный design/scope pass.\
+**Следующий зачёт:** после полного закрытия этого пакета C15 — **70,0%**.\
+**Последний независимо проверенный remote HEAD:** `9578706b9e86a12daceb42a3b69bdc8e60921ce9`.\
+**Последняя независимая приёмка:** commit `feat(sync): add atomic encrypted inbox remote apply` для SHA выше; оба требуемых GitHub Actions workflow и все четыре relevant jobs — **SUCCESS**.
+**Текущая задача Codex:** C15.7B закрыт. Не начинать Full Orchestration/ACK/Two-Device Acceptance, C17 или иной следующий implementation stage без отдельного задания.
 
-**ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем актуальные разделы C15.7B.** Terra Medium — модель по умолчанию. Локальная приёмка завершена; следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять C15.7B `CLOSED`, менять официальный процент или scoring methodology**.
+**ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем актуальные разделы C15.7B.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
@@ -20,10 +20,10 @@
 
 - GitHub: `nevskyforever/nfprogress`.
 - Основная ветка разработки WORTA 6.0: `6.0`.
-- Последний независимо проверенный remote HEAD: `c52ebf7861fdda94fc01b41021138a3a642bc8a8`.
-- Commit: `feat(sync): add verified note inbox decryption`.
+- Последний независимо проверенный remote HEAD: `9578706b9e86a12daceb42a3b69bdc8e60921ce9`.
+- Commit: `feat(sync): add atomic encrypted inbox remote apply`.
 - В момент последней независимой проверки remote HEAD **совпадал с этим SHA**.
-- Последующие изменения C15.7B существуют **только в локальном worktree**. GitHub connector не может прочитать эти незакоммиченные изменения; их текущий статус известен из отчётов Codex.
+- C15.7B включён в этот remote commit и независимо принят по двум workflow. Локальный `git status` перед следующими изменениями всё равно проверяется в самом Codex worktree.
 - Точная локальная ветка/путь и `git status` должны проверяться в самом Codex worktree перед изменениями, а не предполагаться по старому отчёту.
 
 ### Последовательность важнейших remote commits
@@ -42,19 +42,20 @@
 | C15.6B           | `22d046a357991713bfe74121414865ff1a2c80fe` | Durable encrypted inbox            |
 | C15.6B follow-up | `3e3059950ad631e02551726984979a963dd10ae5` | Legacy v6 migration fixture repair |
 | C15.7A           | `c52ebf7861fdda94fc01b41021138a3a642bc8a8` | Verified note inbox decryption     |
+| C15.7B           | `9578706b9e86a12daceb42a3b69bdc8e60921ce9` | Atomic encrypted inbox remote apply |
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
 
-**Для SHA `c52ebf7861fdda94fc01b41021138a3a642bc8a8`:**
+**Для SHA `9578706b9e86a12daceb42a3b69bdc8e60921ce9` (C15.7B):**
 
-- [Cloud backend tests — run 35834862870](https://github.com/nevskyforever/nfprogress/actions/runs/35834862870): **SUCCESS**.
+- [Cloud backend tests — run 35868491726](https://github.com/nevskyforever/nfprogress/actions/runs/35868491726): **SUCCESS**.
   - PostgreSQL cloud backend: **SUCCESS**.
   - Frontend admin: **SUCCESS**.
-- [SQLite sync substrate tests — run 35834862746](https://github.com/nevskyforever/nfprogress/actions/runs/35834862746): **SUCCESS**.
+- [SQLite sync substrate tests — run 35868491642](https://github.com/nevskyforever/nfprogress/actions/runs/35868491642): **SUCCESS**.
   - Python SQLite substrate: **SUCCESS**.
   - Rust SQLite substrate: **SUCCESS**.
 
-Эти результаты подтверждают **remote commit C15.7A**, но **не проверяют локальные изменения C15.7B**. После будущего push C15.7B нужно заново проверить оба workflow и каждую релевантную job именно для нового SHA. Успех старого workflow нельзя переносить на новый commit.
+Оба workflow выполнены именно для указанного SHA; независимо подтверждено, что новые C15.7B frontend tests, Python cross-runtime proof и Rust test filters входят в соответствующие CI-команды. Исторические C15.7A workflow results сохраняются в разделе 34.
 
 ## 3. Закреплённая методика прогресса
 
@@ -96,7 +97,7 @@
 | C15.6A Encrypted Pull                          | 2,0      | CLOSED             |
 | C15.6B Durable Inbox                           | 2,0      | CLOSED             |
 | C15.7A Verified Inbox Decryption               | 1,0      | CLOSED             |
-| **C15.7B Atomic Local Apply**                  | **1,0**  | **LOCAL COMPLETE / REMOTE CI PENDING** |
+| **C15.7B Atomic Local Apply**                  | **1,0**  | **CLOSED**             |
 | Full Orchestration, ACK, Two-Device Acceptance | 2,5      | NOT STARTED        |
 | **Итого**                                      | **20,0** |                    |
 
@@ -111,11 +112,11 @@
 - C15.6A: +2,0 → 63,5%.
 - C15.6B: +2,0 → 65,5%.
 - C15.7A: +1,0 → **66,5%**.
-- C15.7B: +0,0 до приёмки; после приёмки +1,0 → **67,5%**.
+- C15.7B: +1,0 → **67,5%**.
 - После полного C15, включая оркестрацию: 70,0%.
 - C16–RC пока 0 / 30,0.
 
-**Официально сейчас 66,5%; осталось 33,5 процентного пункта.** Даже локальный commit C15.7B без пользовательского push и независимого remote CI не увеличивает официальный процент.
+**Официально сейчас 67,5%; осталось 32,5 процентного пункта.** C15.7B увеличил показатель только после commit, пользовательского push и независимой проверки remote SHA и всех required jobs.
 
 ## 7. История прежних оценок
 
@@ -168,9 +169,9 @@ Checkpoint остаётся **одним полным Markdown-документ�
 
 Mac можно использовать для Rust, real SQLite, Python, TypeScript, временной PostgreSQL в Docker, restart/recovery, сетевых сбоев и disposable integration environments **только там, где они реально необходимы**. Порядок: focused tests → минимальное исправление → повтор только затронутого focused test → **один** CI-equivalent full pass после законченного интеграционного этапа перед общим commit. Обычно не больше двух циклов исправления одной ошибки без нового диагноза. Не повторять успешные suites без затронувшего их изменения. Длительные команды — с разумными timeout; Docker не диагностировать бесконечно. Пропущенные tests явно помечать `not run`/`skipped`.
 
-**Актуальный локальный статус тестов:** прежний manifest-path сбой закрыт. Rust golden create/update реально выполнены и прошли **2/2**. Privileged connection security suite прошла, а после atomic-apply изменений релевантные privileged/default-deny regressions прошли **6/6**. Atomic remote-apply focused suite прошла **8/8**. Эти результаты остаются Codex-reported local до будущего push/remote CI.
+**Исторический локальный статус тестов:** прежний manifest-path сбой закрыт. Rust golden create/update реально выполнены и прошли **2/2**. Privileged connection security suite прошла, а после atomic-apply изменений релевантные privileged/default-deny regressions прошли **6/6**. Atomic remote-apply focused suite прошла **8/8**. Эти локальные результаты дополнила independently verified remote CI приёмка C15.7B.
 
-Remote CI проверять по фактическому curated test list и workflow path filters. Для C15.7B нужен один финальный CI-equivalent full pass соответствующих Python/Rust/TS suites до commit, затем оба remote workflows на **новом SHA** после пользовательского push.
+Remote CI проверять по фактическому curated test list и workflow path filters. Для каждого будущего крупного C15 scope нужен один финальный CI-equivalent full pass соответствующих Python/Rust/TS suites до commit, затем оба remote workflows на **новом SHA** после пользовательского push.
 
 ## 14. Экономный выбор модели Codex — ОБЯЗАТЕЛЬНО СОБЛЮДАТЬ
 
@@ -274,17 +275,17 @@ Remote commits `8ccb4b23f876dbebb7ddcb95b00cc270176482b2` и `13ed18d95ec8947
 
 Remote commits `22d046a357991713bfe74121414865ff1a2c80fe` и `3e3059950ad631e02551726984979a963dd10ae5` (дополнительное исправление legacy v6 migration fixture). Зашифрованные события сохраняются durable до расшифровки; inbox имеет состояния, в том числе `received`, `unknown_entity`, `orphan`, `applied`, `conflict`, `rejected`. Дедупликация/связь с persisted encrypted objects и протокольная целостность обязательны. Закрыт, зачёт +2,0. Не смешивать сохранение inbox с применением plaintext.
 
-## 34. C15.7A — verified inbox decryption: последний закрытый этап
+## 34. C15.7A — verified inbox decryption
 
 Remote HEAD/commit `c52ebf7861fdda94fc01b41021138a3a642bc8a8`. Реализован bounded read-only Rust reader для inbox `received` Note events, TypeScript `NoteSyncInboxDecryptor`, проверка authenticated event/envelope внутри `AuthoritativeKeyContextLease.use()`. Существующий приватный `withDecryptedReceivedNoteInbox(...)` предоставляет внутреннему visitor кратковременные decrypted bytes; публичный `decryptOnce()` возвращает **только metadata**, не plaintext, AMK или ключи. Transient plaintext bytes очищаются после visitor. Отдельный тип ошибок Rust/visitor не должен маскироваться как crypto protocol failure.
 
 Remote CI обоих workflow для точного SHA **SUCCESS**, все четыре relevant jobs **SUCCESS**. C15.7A CLOSED; зачёт +1,0; показатель достиг **66,5%**.
 
-## 35. C15.7B — границы и цель
+## 35. C15.7B — границы, реализация и закрытие
 
-**Статус: LOCAL COMPLETE / REMOTE CI PENDING, локальный commit создан, push не выполнен.** Verified decrypted received Note event применяется как безопасное атомарное изменение локальной SQLite. TypeScript выполняет E2EE расшифровку в lease; Rust получает только краткоживущий plaintext payload и маршрутизацию/метаданные, а не AMK. Rust повторно проверяет source inbox/ciphertext identity и актуальную локальную версию перед записью. Обычный local Notes CRUD для remote apply не используется. Один SQLite `BEGIN IMMEDIATE` объединяет Note mutation + `cloud_sync_entities` + `cloud_sync_inbox.state`; rollback не оставляет частичного применения.
+**Статус: CLOSED.** Remote commit `9578706b9e86a12daceb42a3b69bdc8e60921ce9` (`feat(sync): add atomic encrypted inbox remote apply`) независимо принят: Cloud backend run 35868491726 и SQLite substrate run 35868491642 — **SUCCESS**, все четыре relevant jobs — **SUCCESS**. Verified decrypted received Note event применяется как безопасное атомарное изменение локальной SQLite. TypeScript выполняет E2EE расшифровку в lease; Rust получает только краткоживущий plaintext payload и маршрутизацию/метаданные, а не AMK. Rust повторно проверяет source inbox/ciphertext identity и актуальную локальную версию перед записью. Обычный local Notes CRUD для remote apply не используется. Один SQLite `BEGIN IMMEDIATE` объединяет Note mutation + `cloud_sync_entities` + `cloud_sync_inbox.state`; rollback не оставляет частичного применения.
 
-Полный пакет C15.7 = 2,0, из которых A 1,0 уже зачтён, B 1,0 пока нет. После B официальный прогресс станет 67,5%, не раньше remote CI.
+Полный пакет C15.7 = 2,0: A 1,0 и B 1,0 зачтены. После independently verified remote CI C15.7B официальный прогресс достиг 67,5%.
 
 ## 36. C15.7B PASS 1 — migration 015 и remote-apply substrate (локально)
 
@@ -298,9 +299,9 @@ Remote CI обоих workflow для точного SHA **SUCCESS**, все ч
 - Локальные guard branches из migration 010 сохранены; remote mode нельзя получить обычной SQL-командой на непривилегированном соединении.
 - `trusted_schema=1`, только `SQLITE_UTF8` UDF flags (без DIRECTONLY/INNOCUOUS/DETERMINISTIC там, где это ломает trigger contract). Выделенный privileged Rust connection/внутреннее API ещё **не построено**.
 
-Отдельно исправлена полнота local DELETE predicate: stage_id, source_type, source_map_id, source_node_id, content_format и прочие NULL-safe поля tombstone должны совпадать; нельзя допустить обхода intent guard при DELETE. Реальная schema-15 SQLite regression suite: 5 полевых несовпадений отклоняются DELETE guard, несовпадение deleted_at отклоняется upstream insert-validator, корректный tombstone проходит — **7 targeted tests passed** по отчёту Codex. Дополнительно ранее сообщались успешные targeted Python migration/UDF, Rust sqlite15, cargo check и diff-check; **повторный полный PASS 1 regression после всех последующих изменений ещё требуется перед commit**.
+Отдельно исправлена полнота local DELETE predicate: stage_id, source_type, source_map_id, source_node_id, content_format и прочие NULL-safe поля tombstone должны совпадать; нельзя допустить обхода intent guard при DELETE. Реальная schema-15 SQLite regression suite: 5 полевых несовпадений отклоняются DELETE guard, несовпадение deleted_at отклоняется upstream insert-validator, корректный tombstone проходит — **7 targeted tests passed** по отчёту Codex. Дополнительно ранее сообщались успешные targeted Python migration/UDF, Rust sqlite15, cargo check и diff-check; полный CI-equivalent pass был завершён до общего commit, а Python/Rust substrate coverage затем independently verified remote CI.
 
-`.github/workflows/sqlite-sync-tests.yml` обновлялся под Python cross-runtime proof `tests/test_c15_7b_cross_runtime_udf_proof.py` и Rust suites. Все изменения локальны до будущего push; независимой remote проверки migration 015 пока нет.
+`.github/workflows/sqlite-sync-tests.yml` обновлён под Python cross-runtime proof `tests/test_c15_7b_cross_runtime_udf_proof.py` и Rust suites. Эта migration-015 coverage была independently verified в успешном SQLite substrate workflow для SHA C15.7B.
 
 ## 37. C15.7B — Rust plaintext decoder (локально)
 
@@ -321,7 +322,7 @@ Remote CI обоих workflow для точного SHA **SUCCESS**, все ч
 - Rust decoder принимает весь JavaScript-safe integer диапазон `sort_order`, включая 0 и отрицательные значения.
 - Frozen TypeScript codec и исходный golden create не переписывались.
 
-Golden delete, дополнительные eligibility fixtures и полная cross-language negative matrix ещё не объявлены завершёнными. Их следует добить в разумном финальном regression/acceptance slice, а не превращать каждый fixture в отдельный проход.
+Golden delete, дополнительные eligibility fixtures и полная cross-language negative matrix не объявлены отдельным завершённым fixture package. Для закрытого C15.7B достаточность plaintext/apply contract подтверждена существующими focused tests и remote CI; расширять fixture matrix можно только отдельным будущим scope, если это будет обосновано.
 
 ## 39. C15.7B — privileged Rust connection: локально реализовано
 
@@ -379,9 +380,9 @@ Focused atomic remote-apply suite: **8 passed, 0 failed**.
 `git diff --check`: **passed**.
 TypeScript typecheck в этом проходе не запускался, потому что TypeScript не менялся.
 
-Все результаты пока локальные по отчёту Codex; commit создан, push и remote CI отсутствуют.
+Локальные результаты выше сохранены как история разработки; их итог independently verified remote CI для commit C15.7B указан в разделах 2 и 35.
 
-## 41. C15.7B — protected TypeScript / Tauri integration: локально реализовано
+## 41. C15.7B — protected TypeScript / Tauri integration
 
 Реализована композиция:
 
@@ -401,21 +402,21 @@ Durable encrypted inbox → authenticated decrypt внутри `AuthoritativeKey
 
 Focused integration results до финального pass: TypeScript decrypt/apply tests **7/7**, Rust `remote_apply_` tests **10/10**, relevant privileged tests **2/2**, TypeScript typecheck, cargo check и diff-check passed.
 
-## 42. Основные риски и незакрытые пробелы на момент этого чекпоинта
+## 42. Основные риски и оставшиеся ограничения
 
-1. **C15.7B ещё не прошёл remote acceptance.** Локальный commit содержит C15.7B; последним independently verified remote HEAD остаётся `c52ebf...`, push и remote CI отсутствуют.
+1. **C15.7B remote acceptance завершён.** Commit `9578706b9e86a12daceb42a3b69bdc8e60921ce9` и оба required workflow independently verified SUCCESS; это закрывает C15.7B, но не запускает следующий пакет автоматически.
 2. **IPC trust boundary:** зарегистрированный Tauri command технически renderer-callable. Это приемлемо в закреплённой C10/C11 модели, где compromised unlocked renderer/device находится вне E2EE storage guarantee; command не считается отдельной криптографической authority. CSP ограничивает scripts `self`, production использует bundled `frontendDist`, remote IPC scopes отсутствуют. XSS/supply-chain compromise остаётся честно зафиксированным риском C21/C22.
 3. **Rust не повторяет AEAD verification:** authority authenticated decrypt остаётся в TypeScript key lease. Rust проверяет structure и persisted identity/state; произвольный код уже с правами разрешённого renderer остаётся вне этой локальной integrity guarantee.
 4. **Plaintext lifecycle:** TS/Rust очищают доступные mutable buffers best-effort, но невозможно гарантировать уничтожение всех JavaScript/IPC/serde copies.
 5. **Нет одного настоящего browser → Tauri → SQLite end-to-end harness:** boundary доказана композицией focused TypeScript mock-IPC tests и real Rust/SQLite tests. Full orchestration/scheduler относится к следующему пакету.
-6. **Curated frontend local environment:** 190/191 tests passed; unrelated `src/api/admin.spec.ts` failed because Node exposed no `localStorage`. Production build/typecheck and все C15.7B specs passed; remote Linux CI ещё должен подтвердить полный curated job.
-7. **PostgreSQL cloud job локально не запускался:** backend production code C15.7B не менялся; обязательная remote job будет проверена после push.
+6. **Curated frontend local environment:** локальная среда ранее дала 190/191 с unrelated `src/api/admin.spec.ts`/`localStorage` failure. Однако обязательный remote Frontend admin job для SHA C15.7B — **SUCCESS**; production defect по этому локальному исключению не исправлялся.
+7. **PostgreSQL cloud job:** локально не запускался, поскольку backend production code C15.7B не менялся; обязательный remote PostgreSQL cloud backend job для SHA C15.7B — **SUCCESS**.
 8. **Два пользовательских `.pyc` остаются вне scope и не должны попасть в commit.**
-9. **Официальный прогресс остаётся 66,5%** до пользовательского push и independently verified remote CI acceptance.
+9. **Официальный прогресс — 67,5%.** Остающиеся 32,5 пункта не начисляются до независимого закрытия следующих пакетов.
 
 ## 43. Оставшийся roadmap после C15
 
-- **C15 завершение (+3,5 пункта от текущих 66,5):** C15.7B +1,0 → 67,5%; Full Orchestration/ACK/Two-Device Acceptance +2,5 → **70,0%**. Полный цикл outbound sealing/upload/retries/acceptance/pull/inbox/decrypt/atomic apply/cursor & device ACK/restart/two-device tests.
+- **C15 завершение (+2,5 пункта от текущих 67,5):** Full Orchestration/ACK/Two-Device Acceptance +2,5 → **70,0%**. Полный цикл outbound sealing/upload/retries/acceptance/pull/inbox/decrypt/atomic apply/cursor & device ACK/restart/two-device tests. Внутреннее разделение этого пакета не утверждено в данном checkpoint; перед реализацией нужен отдельный ограниченный design/scope pass.
 - **C16 Desktop Sync +3,0** → 73,0%: интегрировать Common Sync Engine в пользовательский desktop workflow.
 - **C17 Shared Conflict Handling +4,0** → 77,0%: безопасное разрешение конфликтов между устройствами; до этого конфликты сохраняются, без silent LWW.
 - **C18 Complete Project Sync +7,0** → 84,0%: Documents, Mind Maps, Stages/Sources, Rewards и другие данные проекта.
@@ -434,19 +435,19 @@ Desktop/Android local-first, Web cloud-first; local-only проекты не �
 
 ## 45. Правило ответа на вопрос «сколько процентов?»
 
-Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт в процентных пунктах, текущий незавершённый этап и условие следующего прибавления. Прямо сейчас ответ: **66,5%; последний закрытый C15.7A; C15.7B локально завершён, commit создан, remote CI pending; после полного закрытия C15.7B будет 67,5%.** Не менять процент из-за большого объёма локальной работы, убедительного отчёта или одноразового зелёного теста.
+Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт в процентных пунктах, текущий незавершённый этап и условие следующего прибавления. Прямо сейчас ответ: **67,5%; последний закрытый C15.7B; следующий пакет Full Orchestration, ACK, Two-Device Acceptance весит 2,5 и после независимого закрытия даст 70,0%.** Не менять процент из-за большого объёма локальной работы, убедительного отчёта или одноразового зелёного теста.
 
 ## 46. Точка продолжения в новом чате — ТЕКУЩЕЕ СОСТОЯНИЕ
 
-**Локальная реализация, финальная bounded-приёмка и единый commit C15.7B завершены.** Новый implementation prompt не нужен до remote CI acceptance.
+**C15.7B закрыт после независимой remote-приёмки.** Следующий implementation prompt не выдавать без отдельного ограниченного design/scope pass для следующего C15 package.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний independently verified remote HEAD:** `c52ebf7861fdda94fc01b41021138a3a642bc8a8`.
-**Remote CI на нём:** Cloud backend run `35834862870` — SUCCESS (PostgreSQL/Frontend); SQLite run `35834862746` — SUCCESS (Python/Rust). Это доказательство только C15.7A.
-**Official progress:** **66,5%**, WORTA ROADMAP SCORING v1.0.
-**Last CLOSED:** C15.7A Verified Inbox Decryption.
-**Now:** C15.7B **LOCAL COMPLETE / REMOTE CI PENDING**, Локальный commit создан без `.pyc`. Migration 015/fail-closed substrate, Rust plaintext decoder, golden create/update, privileged Rust connection, Rust Atomic Apply и protected TS/Tauri integration реализованы локально. Финальный local pass: Python SQLite 75/75; Rust filters 21/21, 75/75 и 4/4; curated frontend 190/191 с единственным известным unrelated `admin.spec.ts`/`localStorage` failure; typecheck/build/cargo check passed.
-**Next:** пользовательский push → ChatGPT независимо проверяет новый SHA и оба workflows → только затем C15.7B `CLOSED`, checkpoint обновляется до **67,5%**.
+**Последний independently verified remote HEAD:** `9578706b9e86a12daceb42a3b69bdc8e60921ce9`.
+**Remote CI на нём:** [Cloud backend run `35868491726`](https://github.com/nevskyforever/nfprogress/actions/runs/35868491726) — SUCCESS (PostgreSQL cloud backend, Frontend admin); [SQLite run `35868491642`](https://github.com/nevskyforever/nfprogress/actions/runs/35868491642) — SUCCESS (Python SQLite substrate, Rust SQLite substrate).
+**Official progress:** **67,5%**, WORTA ROADMAP SCORING v1.0.
+**Last CLOSED:** C15.7B Atomic Local Apply.
+**Now:** Full Orchestration, ACK, Two-Device Acceptance — **NOT STARTED**, вес 2,5. C15.7B commit не включал пользовательские `.pyc`; migration 015/fail-closed substrate, Rust plaintext decoder, golden create/update, privileged Rust connection, Rust Atomic Apply и protected TS/Tauri integration приняты remote CI.
+**Next:** отдельный ограниченный design/scope pass для Full Orchestration, ACK, Two-Device Acceptance; не начинать реализацию, ACK, scheduler или C17 автоматически.
 **Hard rules:** E2EE/lease; frozen TS codec и C11/C15.3; fail-closed schema-15 guards; no silent data loss/echo; no reset/clean/checkout; no unrelated changes; no autonomous commit/push; Terra Medium by default; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
@@ -455,9 +456,9 @@ Desktop/Android local-first, Web cloud-first; local-only проекты не �
 
 **Практический чек-лист перед КАЖДЫМ новым prompt или оценкой отчёта:**
 
-1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. Сейчас C15.7B локально завершён и закоммичен, но push/remote acceptance отсутствуют.
+1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C15.7B закрыт после independently verified remote acceptance; следующий C15 package ещё не начат.
 2. Всегда разделять: **independently verified remote** / **Codex-reported local** / **not run or unknown**.
-3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **66,5%**. C15.7B даёт +1,0 только после полного acceptance, commit, пользовательского push и независимой проверки нового remote CI.
+3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **67,5%**. C15.7B уже дал +1,0 после полного acceptance; следующий пакет C15 весит 2,5 и требует отдельного полного acceptance.
 4. Выбирать минимальный достаточный следующий slice. Не повторять уже закрытый локальный scope без изменения, которое могло его сломать.
 5. **Terra Medium first.** Sol Medium/High только по конкретной доказанной необходимости или на отдельный финальный security audit.
 6. TEST BUDGET: focused tests → минимальный fix → repeat только затронутого → один full CI-equivalent pass перед общим commit.
@@ -513,17 +514,15 @@ Desktop/Android local-first, Web cloud-first; local-only проекты не �
 
 ## 49. Ближайшее действие
 
-Worktree готов к единому C15.7B commit с известным локальным environment-only исключением `admin.spec.ts`; Codex не создаёт commit без отдельного разрешения.
+Следующий roadmap package — **Full Orchestration, ACK, Two-Device Acceptance** (2,5 пункта). Он ещё не начат.
 
 Далее:
 
-- проверить staged scope и исключить два пользовательских `.pyc`;
-- создать один commit `feat(sync): atomically apply remote notes` только по отдельному указанию;
-- пользователь выполняет push;
-- ChatGPT независимо проверяет новый remote SHA, оба workflows, relevant jobs, curated tests/path filters;
-- только после этого C15.7B может стать `CLOSED`, а официальный прогресс — **67,5%**.
+- провести отдельный ограниченный design/scope pass и сохранить frozen contracts;
+- только после утверждения scope переходить к реализации; не начинать ACK, scheduler, C17 или новую архитектуру автоматически;
+- для закрытия будущего пакета повторить полный процесс: локальная приёмка, единый commit, пользовательский push и независимая remote-проверка SHA/workflows/jobs.
 
-## 50. Финальная локальная приёмка C15.7B — 23 сентября 2026
+## 50. Финальная локальная приёмка и remote-закрытие C15.7B — 23 сентября 2026
 
 **Security audit:** подтверждённых C15.7B privilege-escalation defects на renderer/Rust boundary не найдено. Tauri command renderer-callable, но в C10/C11 threat model тот же unlocked renderer уже владеет key-backed decrypt/plaintext authority; compromised unlocked client, XSS и privileged extension находятся вне E2EE storage guarantee. Новый command не принимает SQL, path, capability или keys, а Rust не доверяет caller routing assertions без durable account/device/inbox/encrypted-object/head checks. Production Tauri использует bundled frontend, `script-src 'self'`, и не объявляет remote-domain IPC access. Это не защита от compromised renderer; это bounded trusted-client boundary.
 
@@ -546,6 +545,6 @@ Worktree готов к единому C15.7B commit с известным лок
 
 **CI wiring:** cloud workflow path filters охватывают `frontend/src/**`, Rust apply/lib и workflow; curated Vitest list содержит golden/decrypt/apply specs. SQLite workflow filters охватывают migration/Python substrate, Rust sqlite/note_sync/plaintext/lib/project files, Cargo manifests, shared fixture и C15.7B Python proof; команды запускают все соответствующие Python/Rust suites.
 
-**Authority boundary:** статус только **C15.7B — LOCAL COMPLETE / REMOTE CI PENDING**. Локальный commit создан; push не выполнен; independently verified remote HEAD остаётся `c52ebf7861fdda94fc01b41021138a3a642bc8a8`; официальный прогресс остаётся **66,5%**; последний `CLOSED` этап — C15.7A.
+**Независимая remote-приёмка и закрытие:** commit `9578706b9e86a12daceb42a3b69bdc8e60921ce9` (`feat(sync): add atomic encrypted inbox remote apply`) pushed и independently verified. [Cloud backend tests 35868491726](https://github.com/nevskyforever/nfprogress/actions/runs/35868491726) — **SUCCESS**: Frontend admin и PostgreSQL cloud backend. [SQLite sync substrate tests 35868491642](https://github.com/nevskyforever/nfprogress/actions/runs/35868491642) — **SUCCESS**: Rust SQLite substrate и Python SQLite substrate. C15.7B — **CLOSED**; официальный прогресс — **67,5%**; последний `CLOSED` этап — C15.7B. Следующий пакет Full Orchestration, ACK, Two-Device Acceptance ещё не начат.
 
 # КОНЕЦ ЧЕКПОИНТА
