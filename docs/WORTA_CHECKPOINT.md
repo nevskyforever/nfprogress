@@ -2,13 +2,13 @@
 
 **Дата:** 23 сентября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
-**Официальный зачтённый прогресс:** **67,5%**.\
-**Последний полностью закрытый этап:** **C15.7B — Atomic Local Apply**.\
-**Текущий этап:** **Full Orchestration, ACK, Two-Device Acceptance** (вес 2,5), **IN PROGRESS / LOCAL ACCEPTANCE COMPLETE**: Slices 1–5B и единый headless cross-runtime proof реализованы и проверены локально; пакет не закрыт до пользовательского push и independently verified remote CI.\
-**Следующий зачёт:** после полного закрытия этого пакета C15 — **70,0%**.\
-**Последний независимо проверенный remote HEAD:** `9578706b9e86a12daceb42a3b69bdc8e60921ce9`.\
-**Последняя независимая приёмка:** commit `feat(sync): add atomic encrypted inbox remote apply` для SHA выше; оба требуемых GitHub Actions workflow и все четыре relevant jobs — **SUCCESS**.
-**Текущая задача Codex:** C15.7B закрыт. Slices 1–5B и headless TypeScript→FastAPI/PostgreSQL→Rust/SQLite apply/ACK proof локально реализованы; полный доступный CI-equivalent pass успешен. Локальный implementation commit создаётся после обновления этого checkpoint, без записи собственного SHA в commit. До закрытия пакета остаются пользовательский push и независимая проверка required remote CI на новом SHA. Desktop UI/startup wiring остаётся вне C15. Не начинать C16, C17 или иной следующий implementation stage без отдельного задания.
+**Официальный зачтённый прогресс:** **70,0%**.\
+**Последний полностью закрытый этап:** **C15 Full Orchestration, ACK, Two-Device Acceptance** (2,5).\
+**Текущий этап:** следующий плановый пакет — **C16 Desktop Sync** (вес 3,0), ещё не начат.\
+**Следующий зачёт:** после полного закрытия C16 — **73,0%**.\
+**Последний независимо проверенный remote HEAD:** `25476c611b91e26e5b94798dcf33a55924a45e08`.\
+**Последняя независимая приёмка:** C15 implementation `5b379d32e84da99f13e7f4aee0e56d0267fac78d` и Windows correction `25476c611b91e26e5b94798dcf33a55924a45e08` опубликованы и independently verified; Cloud backend run `35908520926` и SQLite run `35908521004` — **SUCCESS**.
+**Текущая задача Codex:** C15 официально закрыт после remote acceptance. C16 не начинать без отдельного задания: его scope — production normal-user login/unlock UI, подключение headless Notes Sync Runtime к desktop lifecycle, user triggers, sync state и roadmap desktop controls; legacy document interval не использовать. C17 сохраняет conflict resolution.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем актуальные разделы C15.7B.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
@@ -20,10 +20,10 @@
 
 - GitHub: `nevskyforever/nfprogress`.
 - Основная ветка разработки WORTA 6.0: `6.0`.
-- Последний независимо проверенный remote HEAD: `9578706b9e86a12daceb42a3b69bdc8e60921ce9`.
-- Commit: `feat(sync): add atomic encrypted inbox remote apply`.
+- Последний независимо проверенный remote HEAD: `25476c611b91e26e5b94798dcf33a55924a45e08`.
+- Commit: `fix(sync): close SQLite connections before cleanup`.
 - В момент последней независимой проверки remote HEAD **совпадал с этим SHA**.
-- C15.7B включён в этот remote commit и независимо принят по двум workflow. Локальный `git status` перед следующими изменениями всё равно проверяется в самом Codex worktree.
+- C15 implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` и его Windows correction `25476c611b91e26e5b94798dcf33a55924a45e08` independently accepted по двум required workflow; детали сохранены в разделе 60. Локальный `git status` перед следующими изменениями всё равно проверяется в самом Codex worktree.
 - Точная локальная ветка/путь и `git status` должны проверяться в самом Codex worktree перед изменениями, а не предполагаться по старому отчёту.
 
 ### Последовательность важнейших remote commits
@@ -45,6 +45,18 @@
 | C15.7B           | `9578706b9e86a12daceb42a3b69bdc8e60921ce9` | Atomic encrypted inbox remote apply |
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
+
+**Для correction SHA `25476c611b91e26e5b94798dcf33a55924a45e08` (C15 closure):**
+
+- [Cloud backend tests — run 35908520926](https://github.com/nevskyforever/nfprogress/actions/runs/35908520926): **SUCCESS**.
+  - Mandatory PostgreSQL/headless acceptance: **9 passed, 0 skipped**.
+  - Broad backend: **151 passed**.
+  - Frontend curated: **219 passed** в 39 files; typecheck и production build — **SUCCESS**.
+- [SQLite sync substrate tests — run 35908521004](https://github.com/nevskyforever/nfprogress/actions/runs/35908521004): **SUCCESS**.
+  - Python SQLite substrate: **75 passed**.
+  - Windows Rust SQLite: **24 passed**; Notes Sync: **80 passed**; account binding: **10 passed**; отдельный `cargo check` — **SUCCESS**.
+
+Remote results относятся к correction SHA и подтверждают C15 closure. Предыдущая C15.7B приёмка ниже остаётся историческим baseline.
 
 **Для SHA `9578706b9e86a12daceb42a3b69bdc8e60921ce9` (C15.7B):**
 
@@ -98,7 +110,7 @@
 | C15.6B Durable Inbox                           | 2,0      | CLOSED             |
 | C15.7A Verified Inbox Decryption               | 1,0      | CLOSED             |
 | **C15.7B Atomic Local Apply**                  | **1,0**  | **CLOSED**             |
-| Full Orchestration, ACK, Two-Device Acceptance | 2,5      | IN PROGRESS (Slices 1–5B local; remote acceptance pending) |
+| Full Orchestration, ACK, Two-Device Acceptance | 2,5      | CLOSED |
 | **Итого**                                      | **20,0** |                    |
 
 Доля исходного пакета «Decrypt and Local Apply» 2,0 разбита на C15.7A = 1,0 и C15.7B = 1,0; общая стоимость не изменилась.
@@ -113,10 +125,10 @@
 - C15.6B: +2,0 → 65,5%.
 - C15.7A: +1,0 → **66,5%**.
 - C15.7B: +1,0 → **67,5%**.
-- После полного C15, включая оркестрацию: 70,0%.
+- Full Orchestration, ACK, Two-Device Acceptance: +2,5 → **70,0%**.
 - C16–RC пока 0 / 30,0.
 
-**Официально сейчас 67,5%; осталось 32,5 процентного пункта.** C15.7B увеличил показатель только после commit, пользовательского push и независимой проверки remote SHA и всех required jobs.
+**Официально сейчас 70,0%; осталось 30,0 процентных пунктов.** C15 увеличил показатель до 70,0% только после implementation commit, Windows correction commit, пользовательских push и независимой проверки remote SHA и всех required jobs.
 
 ## 7. История прежних оценок
 
@@ -656,5 +668,20 @@ Implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` опублик�
 Дополнительно Windows job в `sqlite-sync-tests.yml` раньше запускал три native `cargo test` и `cargo check` в одном PowerShell step без `$LASTEXITCODE` guard; успешный final `cargo check` мог скрыть test failure. Он разделён на четыре независимых Actions steps: `sqlite`, `note_sync`, `account_binding` и `cargo check`. Каждый native command теперь является единственной командой своего step, поэтому non-zero exit code немедленно завершает job failed; Rust/MSVC target, path filters и все три required filters сохранены.
 
 Локальная macOS verification correction: три exact failed cases — **3 passed, 0 failed**; Rust `note_sync` filter — **80 passed, 0 failed**; `account_binding` — **10 passed, 0 failed**; `sqlite` — **24 passed, 0 failed**; `cargo check` — **passed** с прежними unrelated warnings. YAML обоих sync workflows и `git diff --check` — **passed**. Это не доказывает Windows behaviour: после user push требуется independently inspect новый SHA в обоих workflows, включая отдельные Windows `sqlite`, `note_sync`, `account_binding` и `cargo check` steps. Не записывать новый remote SHA/CI SUCCESS до этой проверки.
+
+## 60. C15 remote acceptance closure
+
+**Статус:** **C15 Full Orchestration, ACK, Two-Device Acceptance — CLOSED**. Приняты все **2,5** пункта пакета; официальный прогресс WORTA 6.0 — **70,0%**. Это закрытие основано на independently verified published commits и remote CI, а не на одном локальном отчёте.
+
+**Публикации и remote acceptance:** implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` был опубликован на `origin/6.0`; затем published correction commit `25476c611b91e26e5b94798dcf33a55924a45e08` исправил Windows-only test cleanup и workflow fail-fast behaviour. Последний SHA independently confirmed на `origin/6.0`.
+
+- [Cloud backend tests — run 35908520926](https://github.com/nevskyforever/nfprogress/actions/runs/35908520926) на correction SHA — **SUCCESS**: mandatory PostgreSQL/headless acceptance **9 passed, 0 skipped**; broad backend **151 passed**; frontend curated **219 passed** в **39** files; TypeScript typecheck и production build — **SUCCESS**.
+- [SQLite sync substrate tests — run 35908521004](https://github.com/nevskyforever/nfprogress/actions/runs/35908521004) на correction SHA — **SUCCESS**: Python SQLite **75 passed**; Windows Rust `sqlite` **24 passed**, `note_sync` **80 passed**, `account_binding` **10 passed**; отдельный Windows `cargo check` — **SUCCESS**.
+
+**Предыдущее false-green объяснено и устранено:** на implementation SHA Windows Rust job визуально завершался SUCCESS, но содержал три failures с `Os { code: 32 }`, потому что tests удаляли file-backed SQLite path при ещё живом соединении; отдельный final `cargo check` в том же PowerShell step скрывал non-zero exit предшествующих native `cargo test`. Correction явно закрывает три соединения перед cleanup и разделяет `sqlite`, `note_sync`, `account_binding` и `cargo check` на самостоятельные fail-fast workflow steps. Новый remote run подтвердил все четыре steps; failures больше не скрыты.
+
+**Доказанная и недоказанная граница:** C15 доказал настоящий headless маршрут TypeScript → FastAPI/PostgreSQL → Rust/SQLite → ACK, включая two-device acceptance и durable/restart invariants. Он **не** является полноценным graphical renderer→live Tauri E2E. Это ограничение сохраняется для планирования C16 и не должно записываться как уже проверенная часть Desktop Sync.
+
+**Следующий этап:** C16 Desktop Sync (3,0) ещё не начат. Его scope: production normal-user login/unlock UI, подключение существующего headless Notes Sync Runtime к desktop lifecycle, user triggers, sync state и предусмотренные roadmap desktop controls — без смешения с legacy document interval. C17 сохраняет полноценное conflict resolution.
 
 # КОНЕЦ ЧЕКПОИНТА
