@@ -785,4 +785,12 @@ Remaining C16 gates: a separately approved safe initial cloud-project bootstrap 
 
 **Localization и remaining gates:** все **58** Pass 3C/C16 UI override keys точно совпадают с generated `en`, `es`, `de`, `fr`, `pt_BR` catalogs, без Russian/source fallback. Qt-dependent localization suite по-прежнему не запущен: PySide6 не установлен и не добавлялся. До C16 closure остаются: remaining manual safety acceptance, user-controlled commit/push без `.pyc`, independent remote GitHub Actions (включая Windows Rust) на новом SHA. Recovery-Key rewrap, C17 conflicts и C18 remaining entities/compression остаются вне C16.
 
+## 66. C16 remote CI correction (локально)
+
+Remote run `36049416310` подтвердил Windows Rust и Frontend admin как **passed**, но Python SQLite упал с **74 passed, 2 failed**: stale v6 fixture не удалял child table `cloud_sync_project_bootstraps`, а recovery migration map не содержал key `16`. Исправлены только test fixtures; targeted cases — **2 passed**, затем точный Python SQLite workflow selection — **76 passed**. Production migration не менялась.
+
+Remote PostgreSQL run `36049416227` упал в mandatory ACK/two-device step, но старый command substitution скрывал pytest output при non-zero exit. Workflow теперь исполняет те же пять mandatory modules напрямую через `2>&1 | tee` с `pipefail`, проверяет оба exit codes и затем fail-closed проверяет skipped output. Local isolated disposable PostgreSQL 16 выполнил эти пять modules: **15 passed, без skips**; remote failure локально не воспроизведён, его конкретная первоначальная причина остаётся неизвестной до нового visible GitHub log.
+
+Новый remote CI run требуется после отдельного corrective commit/push. C16 остаётся `IN PROGRESS`, официальный прогресс — **70,0%**; этот correction не закрывает remaining manual safety acceptance или remote gates.
+
 # КОНЕЦ ЧЕКПОИНТА

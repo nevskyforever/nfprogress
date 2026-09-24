@@ -107,6 +107,7 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         database.execute("DROP TRIGGER notes_remote_apply_consume_insert")
         database.execute("DROP TRIGGER notes_remote_apply_consume_update")
         database.execute("DROP TRIGGER notes_remote_apply_consume_delete")
+        database.execute("DROP TABLE cloud_sync_project_bootstraps")
         database.execute("DROP TABLE cloud_account_bindings")
         database.execute("DROP TABLE cloud_sync_note_intent_cursors")
         database.execute("DROP TABLE cloud_sync_note_intents")
