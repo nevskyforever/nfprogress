@@ -40,5 +40,5 @@ describe('C9 sync protocol', () => {
     expect(() => syncApi.pull('token', event.event_id, Number.MAX_SAFE_INTEGER + 1)).toThrow(RangeError)
     expect(() => syncApi.ack('token', { protocol_version: 1, device_id: event.event_id, cursor: -1 })).toThrow(RangeError)
   })
-  it('does not enable the C8 production gate', () => expect(canEnableCloudProjectSync()).toBe(false))
+  it('enables initial upload only after the C16 durable bootstrap gate', () => expect(canEnableCloudProjectSync()).toBe(true))
 })

@@ -50,6 +50,274 @@ pub(crate) enum NoteSyncError {
 }
 
 #[cfg(test)]
+mod cloud_project_bootstrap_tests {
+    use super::*;
+    use crate::sqlite::apply_migrations;
+
+    const ACCOUNT: &str = "bootstrap-account";
+    const DEVICE: &str = "123e4567-e89b-42d3-a456-426614174001";
+
+    fn note(id: &str, content: &str) -> String {
+        serde_json::json!({
+            "id":id,"project_id":"p","stage_id":null,"source_type":"project",
+            "source_map_id":null,"source_node_id":null,"content_format":"html",
+            "title":"","content":content,"checklist":[],"color":"default",
+            "pinned":false,"archived":false,"sort_order":0,"tags":[],
+            "created_at":"2026-09-24T00:00:00.000000Z",
+            "updated_at":"2026-09-24T00:00:00.000000Z","revision":0,"metadata":{}
+        }).to_string()
+    }
+
+    fn database(notes: &[(&str, &str)]) -> Connection {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        connection.execute(
+            "INSERT INTO mirror_state(id,source_format,source_schema_version,sync_status)
+             VALUES(1,'test','1','healthy')", [],
+        ).unwrap();
+        connection.execute(
+            "UPDATE storage_ownership SET owner='sqlite' WHERE subsystem='notes'", [],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES(?1,?2,0,0,'now','now')",
+            rusqlite::params![ACCOUNT, DEVICE],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('p','Project',NULL,1,'symbols','активен','{}')", [],
+        ).unwrap();
+        connection.execute("INSERT INTO project_order(project_id,position) VALUES('p',0)", []).unwrap();
+        for (id, content) in notes {
+            connection.execute(
+                "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) VALUES(?1,'p',NULL,'2026-09-24T00:00:00.000000Z',?2)",
+                rusqlite::params![id, note(id, content)],
+            ).unwrap();
+        }
+        connection
+    }
+
+    fn prepare_command() -> PrepareCloudProjectBootstrapCommand {
+        PrepareCloudProjectBootstrapCommand {
+            project_id: "p".into(), account_id: ACCOUNT.into(), device_id: DEVICE.into(),
+            mode: CloudProjectBootstrapMode::UploadExisting,
+        }
+    }
+
+    fn scope(record: &CloudProjectBootstrapRecord) -> CloudProjectBootstrapScopeCommand {
+        CloudProjectBootstrapScopeCommand {
+            project_id: record.project_id.clone(), account_id: record.account_id.clone(),
+            device_id: record.device_id.clone(), bootstrap_id: record.bootstrap_id.clone(),
+        }
+    }
+
+    fn registered(connection: &mut Connection, notes: &[(&str, &str)]) -> CloudProjectBootstrapRecord {
+        assert_eq!(connection.query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), notes.len() as i64);
+        let prepared = prepare_cloud_project_bootstrap(connection, &prepare_command()).unwrap();
+        confirm_cloud_project_registration(connection, &ConfirmCloudProjectRegistrationCommand {
+            project_id: "p".into(), account_id: ACCOUNT.into(), device_id: DEVICE.into(),
+            bootstrap_id: prepared.bootstrap_id, remote_state: "initializing".into(),
+            remote_high_water: 0,
+        }).unwrap()
+    }
+
+    #[test]
+    fn bootstrap_capture_is_atomic_complete_and_idempotent() {
+        let notes = [("a", "first"), ("b", "second")];
+        let mut connection = database(&notes);
+        let registered = registered(&mut connection, &notes);
+        let captured = capture_initial_note_sync_intents(&mut connection, &scope(&registered)).unwrap();
+        assert_eq!((captured.phase.as_str(), captured.initial_event_count), ("captured", 2));
+        assert!(captured.initial_local_ordinal_hi >= 2);
+        let event_ids: Vec<String> = connection.prepare(
+            "SELECT event_id FROM cloud_sync_outbox ORDER BY local_ordinal",
+        ).unwrap().query_map([], |row| row.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+        assert_eq!(event_ids.len(), 2);
+        assert_eq!(capture_initial_note_sync_intents(&mut connection, &scope(&registered)).unwrap(), captured);
+        let replayed: Vec<String> = connection.prepare(
+            "SELECT event_id FROM cloud_sync_outbox ORDER BY local_ordinal",
+        ).unwrap().query_map([], |row| row.get(0)).unwrap().collect::<Result<_, _>>().unwrap();
+        assert_eq!(replayed, event_ids);
+    }
+
+    #[test]
+    fn file_backed_restart_reuses_bootstrap_token_and_initial_event_ids() {
+        let root = std::env::temp_dir().join(format!(
+            "worta-c16-bootstrap-restart-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("nfprogress.db");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        connection.execute(
+            "INSERT INTO mirror_state(id,source_format,source_schema_version,sync_status)
+             VALUES(1,'test','1','healthy')", [],
+        ).unwrap();
+        connection.execute("UPDATE storage_ownership SET owner='sqlite' WHERE subsystem='notes'", []).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at)
+             VALUES(?1,?2,0,0,'now','now')", rusqlite::params![ACCOUNT, DEVICE],
+        ).unwrap();
+        connection.execute(
+            "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json)
+             VALUES('p','Project',NULL,1,'symbols','активен','{}')", [],
+        ).unwrap();
+        connection.execute("INSERT INTO project_order(project_id,position) VALUES('p',0)", []).unwrap();
+        connection.execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('a','p',NULL,'2026-09-24T00:00:00.000000Z',?1)", [note("a", "first")],
+        ).unwrap();
+        let registered = registered(&mut connection, &[("a", "first")]);
+        let captured = capture_initial_note_sync_intents(&mut connection, &scope(&registered)).unwrap();
+        let event_id: String = connection.query_row(
+            "SELECT event_id FROM cloud_sync_outbox", [], |row| row.get(0),
+        ).unwrap();
+        drop(connection);
+
+        let mut reopened = crate::sqlite::open_database(&path).unwrap();
+        let prepared = prepare_cloud_project_bootstrap(&mut reopened, &prepare_command()).unwrap();
+        let replayed = capture_initial_note_sync_intents(&mut reopened, &scope(&prepared)).unwrap();
+        let replay_event_id: String = reopened.query_row(
+            "SELECT event_id FROM cloud_sync_outbox", [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(prepared.bootstrap_id, captured.bootstrap_id);
+        assert_eq!(replayed.initial_event_count, 1);
+        assert_eq!(replay_event_id, event_id);
+        drop(reopened);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn bootstrap_capture_rolls_back_binding_and_every_intent_on_failure() {
+        let notes = [("a", "first"), ("b", "second")];
+        let mut connection = database(&notes);
+        let registered = registered(&mut connection, &notes);
+        connection.execute_batch(
+            "CREATE TRIGGER bootstrap_test_failure BEFORE INSERT ON cloud_sync_note_intents
+             WHEN NEW.snapshot_json LIKE '%second%' BEGIN SELECT RAISE(ABORT,'injected'); END;",
+        ).unwrap();
+        assert!(capture_initial_note_sync_intents(&mut connection, &scope(&registered)).is_err());
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_project_bindings", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_note_intents", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT phase FROM cloud_sync_project_bootstraps", [], |row| row.get::<_, String>(0)).unwrap(), "registered");
+    }
+
+    #[test]
+    fn edits_and_deletes_during_bootstrap_preserve_ordered_durable_work() {
+        let mut connection = database(&[("a", "first"), ("b", "second")]);
+        let registered = registered(&mut connection, &[("a", "first"), ("b", "second")]);
+        let captured = capture_initial_note_sync_intents(&mut connection, &scope(&registered)).unwrap();
+
+        crate::update_note_in_connection(
+            &mut connection, "p", "a", &serde_json::json!({"content":"latest"}), None,
+        ).unwrap();
+        let coalesced: (i64, String) = connection.query_row(
+            "SELECT count(*),max(intent.snapshot_json) FROM cloud_sync_outbox event
+             JOIN cloud_sync_note_intents intent USING(event_id) WHERE event.entity_id='a'",
+            [], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap();
+        assert_eq!(coalesced.0, 1);
+        assert!(coalesced.1.contains("latest"));
+
+        let (event_id, generation): (String, i64) = connection.query_row(
+            "SELECT event.event_id,intent.mutation_generation FROM cloud_sync_outbox event
+             JOIN cloud_sync_note_intents intent USING(event_id) WHERE event.entity_id='b'",
+            [], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap();
+        commit_sealed_note_sync_event(&mut connection, &CommitSealedNoteSyncEventCommand {
+            event_id: event_id.clone(), expected_mutation_generation: generation,
+            envelope: EncryptedNoteSyncEnvelope {
+                crypto_version: 1, aad_version: 1,
+                nonce: encode_canonical_base64url(&[3_u8; 24]),
+                ciphertext: encode_canonical_base64url(&[4_u8; 16]),
+            },
+        }).unwrap();
+        crate::delete_note_in_connection(&mut connection, "p", "b", None).unwrap();
+        let follow_up: (String, Option<String>, i64, String) = connection.query_row(
+            "SELECT event_id,parent_event_id,local_ordinal,operation FROM cloud_sync_outbox
+             WHERE entity_id='b' ORDER BY local_ordinal DESC LIMIT 1",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        ).unwrap();
+        assert_ne!(follow_up.0, event_id);
+        assert_eq!(follow_up.1.as_deref(), Some(event_id.as_str()));
+        assert!(follow_up.2 > captured.initial_local_ordinal_hi);
+        assert_eq!(follow_up.3, "delete");
+        assert_eq!(captured.initial_event_count, 2);
+    }
+
+    #[test]
+    fn unsupported_note_blocks_before_token_and_before_capture() {
+        let mut connection = database(&[("a", "first")]);
+        connection.execute(
+            "UPDATE notes SET payload_json=json_set(payload_json,'$.stage_id','stage') WHERE id='a'", [],
+        ).unwrap();
+        assert!(prepare_cloud_project_bootstrap(&mut connection, &prepare_command()).is_err());
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_project_bootstraps", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+
+        connection.execute("UPDATE notes SET payload_json=?1 WHERE id='a'", [note("a", "first")]).unwrap();
+        let registered = registered(&mut connection, &[("a", "first")]);
+        connection.execute(
+            "UPDATE notes SET payload_json=json_set(payload_json,'$.content_format','plain') WHERE id='a'", [],
+        ).unwrap();
+        assert!(capture_initial_note_sync_intents(&mut connection, &scope(&registered)).is_err());
+        assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_project_bindings", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn accepted_cohort_completion_ready_and_pause_resume_are_durable() {
+        let mut connection = database(&[("a", "first")]);
+        let registered = registered(&mut connection, &[("a", "first")]);
+        let captured = capture_initial_note_sync_intents(&mut connection, &scope(&registered)).unwrap();
+        let (event_id, generation): (String, i64) = connection.query_row(
+            "SELECT event.event_id,intent.mutation_generation FROM cloud_sync_outbox event JOIN cloud_sync_note_intents intent ON intent.event_id=event.event_id",
+            [], |row| Ok((row.get(0)?, row.get(1)?)),
+        ).unwrap();
+        commit_sealed_note_sync_event(&mut connection, &CommitSealedNoteSyncEventCommand {
+            event_id: event_id.clone(), expected_mutation_generation: generation,
+            envelope: EncryptedNoteSyncEnvelope {
+                crypto_version: 1, aad_version: 1,
+                nonce: encode_canonical_base64url(&[1_u8; 24]),
+                ciphertext: encode_canonical_base64url(&[2_u8; 16]),
+            },
+        }).unwrap();
+        commit_note_sync_upload_acceptance(&mut connection, &CommitNoteSyncUploadAcceptanceCommand {
+            account_id: ACCOUNT.into(), device_id: DEVICE.into(), receipts: vec![NoteSyncUploadReceipt {
+                event_id, server_sequence: 1, duplicate: false,
+            }],
+        }).unwrap();
+        let completing = mark_cloud_project_bootstrap_completing(&mut connection, &scope(&captured)).unwrap();
+        assert_eq!((completing.phase.as_str(), completing.initial_max_server_sequence), ("completing", Some(1)));
+        let active = confirm_cloud_project_registration(&mut connection, &ConfirmCloudProjectRegistrationCommand {
+            project_id: "p".into(), account_id: ACCOUNT.into(), device_id: DEVICE.into(),
+            bootstrap_id: active_id(&completing), remote_state: "active".into(), remote_high_water: 1,
+        }).unwrap();
+        connection.execute("UPDATE cloud_sync_state SET pull_cursor=1,ack_cursor=1 WHERE account_id=?1", [ACCOUNT]).unwrap();
+        let ready = mark_cloud_project_bootstrap_ready(&mut connection, &scope(&active)).unwrap();
+        assert_eq!(ready.phase, "ready");
+        assert_eq!(set_cloud_project_bootstrap_paused(&mut connection, &scope(&ready), true).unwrap().phase, "paused");
+        assert_eq!(set_cloud_project_bootstrap_paused(&mut connection, &scope(&ready), false).unwrap().phase, "ready");
+    }
+
+    fn active_id(record: &CloudProjectBootstrapRecord) -> String { record.bootstrap_id.clone() }
+
+    #[test]
+    fn remote_import_refuses_same_id_without_lineage() {
+        let mut collision = database(&[]);
+        let command = ImportRemoteCloudProjectCommand {
+            project_id: "p".into(), display_name: "Remote".into(), account_id: ACCOUNT.into(),
+            device_id: DEVICE.into(), bootstrap_id: generate_bootstrap_id().unwrap(), remote_high_water: 0,
+        };
+        assert!(import_remote_cloud_project(&mut collision, &command).is_err());
+
+        let mut clean = Connection::open_in_memory().unwrap();
+        apply_migrations(&clean).unwrap();
+        clean.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES(?1,?2,0,0,'now','now')", rusqlite::params![ACCOUNT, DEVICE]).unwrap();
+        let imported = import_remote_cloud_project(&mut clean, &command).unwrap();
+        assert_eq!((imported.mode.as_str(), imported.phase.as_str()), ("import_remote", "captured"));
+        assert_eq!(import_remote_cloud_project(&mut clean, &command).unwrap(), imported);
+    }
+}
+
+#[cfg(test)]
 mod remote_apply_tests {
     use super::*;
     use crate::note_sync_plaintext::decode_note_sync_plaintext;
@@ -868,12 +1136,94 @@ pub(crate) enum NoteSyncPreflightIssueCode {
     MissingUpdatedAt,
     InvalidUpdatedAt,
     InvalidNotePayload,
+    DependencyNotSynced,
+    UnsupportedContentFormat,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 pub(crate) struct NoteSyncPreflightIssue {
     pub note_id: String,
     pub code: NoteSyncPreflightIssueCode,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CloudProjectBootstrapMode {
+    UploadExisting,
+    ImportRemote,
+}
+
+impl CloudProjectBootstrapMode {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Self::UploadExisting => "upload_existing",
+            Self::ImportRemote => "import_remote",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct PrepareCloudProjectBootstrapCommand {
+    pub project_id: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub mode: CloudProjectBootstrapMode,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ConfirmCloudProjectRegistrationCommand {
+    pub project_id: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub bootstrap_id: String,
+    pub remote_state: String,
+    pub remote_high_water: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CloudProjectBootstrapScopeCommand {
+    pub project_id: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub bootstrap_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ImportRemoteCloudProjectCommand {
+    pub project_id: String,
+    pub display_name: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub bootstrap_id: String,
+    pub remote_high_water: i64,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct CloudProjectBootstrapRecord {
+    pub project_id: String,
+    pub account_id: String,
+    pub device_id: String,
+    pub bootstrap_id: String,
+    pub mode: String,
+    pub phase: String,
+    pub remote_state: Option<String>,
+    pub initial_event_count: i64,
+    pub initial_local_ordinal_hi: i64,
+    pub remote_high_water: Option<i64>,
+    pub initial_max_server_sequence: Option<i64>,
+    pub blocked_reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct CloudProjectInitialCohortStatus {
+    pub event_count: i64,
+    pub accepted_count: i64,
+    pub max_server_sequence: i64,
+    pub complete: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -1450,8 +1800,402 @@ pub(crate) fn preflight_note_sync_project(
                 });
             }
         }
+        if object.get("stage_id").is_some_and(|value| !value.is_null())
+            || object.get("source_type").and_then(serde_json::Value::as_str) != Some("project")
+            || object.get("source_map_id").is_some_and(|value| !value.is_null())
+            || object.get("source_node_id").is_some_and(|value| !value.is_null())
+        {
+            issues.push(NoteSyncPreflightIssue {
+                note_id: note_id.clone(),
+                code: NoteSyncPreflightIssueCode::DependencyNotSynced,
+            });
+        } else if object.get("content_format").and_then(serde_json::Value::as_str) != Some("html") {
+            issues.push(NoteSyncPreflightIssue {
+                note_id: note_id.clone(),
+                code: NoteSyncPreflightIssueCode::UnsupportedContentFormat,
+            });
+        }
     }
     Ok(issues)
+}
+
+fn generate_bootstrap_id() -> Result<String, NoteSyncError> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).map_err(|error| NoteSyncError::Random(error.to_string()))?;
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Ok(format!(
+        "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+        bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15],
+    ))
+}
+
+fn valid_bootstrap_id(value: &str) -> bool {
+    value.len() == 36
+        && value.bytes().enumerate().all(|(index, byte)| match index {
+            8 | 13 | 18 | 23 => byte == b'-',
+            _ => byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte),
+        })
+        && value.as_bytes()[14] == b'4'
+        && matches!(value.as_bytes()[19], b'8' | b'9' | b'a' | b'b')
+}
+
+fn read_bootstrap_record(
+    transaction: &Transaction<'_>, project_id: &str,
+) -> Result<Option<CloudProjectBootstrapRecord>, NoteSyncError> {
+    transaction.query_row(
+        "SELECT project_id,account_id,device_id,bootstrap_id,mode,phase,remote_state,
+                initial_event_count,initial_local_ordinal_hi,remote_high_water,
+                initial_max_server_sequence,blocked_reason
+         FROM cloud_sync_project_bootstraps WHERE project_id=?1",
+        [project_id],
+        |row| Ok(CloudProjectBootstrapRecord {
+            project_id: row.get(0)?, account_id: row.get(1)?, device_id: row.get(2)?,
+            bootstrap_id: row.get(3)?, mode: row.get(4)?, phase: row.get(5)?,
+            remote_state: row.get(6)?, initial_event_count: row.get(7)?,
+            initial_local_ordinal_hi: row.get(8)?, remote_high_water: row.get(9)?,
+            initial_max_server_sequence: row.get(10)?, blocked_reason: row.get(11)?,
+        }),
+    ).optional().map_err(Into::into)
+}
+
+fn validate_bootstrap_scope(
+    transaction: &Transaction<'_>, project_id: &str, account_id: &str, device_id: &str,
+) -> Result<(), NoteSyncError> {
+    if project_id.is_empty() || account_id.is_empty() || device_id.len() != 36 {
+        return Err(NoteSyncError::InvalidSealState("invalid bootstrap scope"));
+    }
+    let stored_device: Option<String> = transaction.query_row(
+        "SELECT device_id FROM cloud_sync_state WHERE account_id=?1", [account_id], |row| row.get(0),
+    ).optional()?;
+    if stored_device.as_deref() != Some(device_id) {
+        return Err(NoteSyncError::InvalidSealState("bootstrap account or device mismatch"));
+    }
+    Ok(())
+}
+
+pub(crate) fn prepare_cloud_project_bootstrap(
+    connection: &mut Connection, command: &PrepareCloudProjectBootstrapCommand,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    if transaction.query_row("SELECT 1 FROM projects WHERE id=?1", [&command.project_id], |_| Ok(())).optional()?.is_none() {
+        return Err(NoteSyncError::InvalidSealState("bootstrap project is missing"));
+    }
+    if let Some(existing) = read_bootstrap_record(&transaction, &command.project_id)? {
+        if existing.account_id != command.account_id || existing.device_id != command.device_id
+            || existing.mode != command.mode.as_str() {
+            return Err(NoteSyncError::InvalidSealState("conflicting local bootstrap lineage"));
+        }
+        transaction.commit()?;
+        return Ok(existing);
+    }
+    if !preflight_note_sync_project(&transaction, &command.project_id)?.is_empty() {
+        return Err(NoteSyncError::InvalidSealState("project contains unsupported notes"));
+    }
+    let bootstrap_id = generate_bootstrap_id()?;
+    transaction.execute(
+        "INSERT INTO cloud_sync_project_bootstraps(
+            project_id,account_id,device_id,bootstrap_id,mode,phase,remote_state,
+            initial_event_count,initial_local_ordinal_hi,remote_high_water,
+            initial_max_server_sequence,blocked_reason,created_at,updated_at
+         ) VALUES(?1,?2,?3,?4,?5,'prepared',NULL,0,0,NULL,NULL,NULL,
+                  strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        rusqlite::params![command.project_id, command.account_id, command.device_id,
+                          bootstrap_id, command.mode.as_str()],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("bootstrap preparation was not persisted"),
+    )?;
+    transaction.commit()?;
+    Ok(record)
+}
+
+pub(crate) fn confirm_cloud_project_registration(
+    connection: &mut Connection, command: &ConfirmCloudProjectRegistrationCommand,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    if !valid_bootstrap_id(&command.bootstrap_id)
+        || !matches!(command.remote_state.as_str(), "initializing" | "active")
+        || !(0..=MAX_SYNC_INTEGER).contains(&command.remote_high_water) {
+        return Err(NoteSyncError::InvalidSealState("invalid remote bootstrap registration"));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    let current = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("local bootstrap is missing"),
+    )?;
+    if current.account_id != command.account_id || current.device_id != command.device_id
+        || current.bootstrap_id != command.bootstrap_id {
+        return Err(NoteSyncError::InvalidSealState("conflicting local/server bootstrap lineage"));
+    }
+    if current.remote_state.as_deref().is_some_and(|state| state == "active" && command.remote_state != "active") {
+        return Err(NoteSyncError::InvalidSealState("remote bootstrap state regressed"));
+    }
+    let phase = if current.phase == "prepared" { "registered" } else { current.phase.as_str() };
+    transaction.execute(
+        "UPDATE cloud_sync_project_bootstraps SET phase=?1,remote_state=?2,remote_high_water=MAX(COALESCE(remote_high_water,0),?3),updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE project_id=?4",
+        rusqlite::params![phase, command.remote_state, command.remote_high_water, command.project_id],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.unwrap();
+    transaction.commit()?;
+    Ok(record)
+}
+
+pub(crate) fn capture_initial_note_sync_intents(
+    connection: &mut Connection, command: &CloudProjectBootstrapScopeCommand,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    let current = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("local bootstrap is missing"),
+    )?;
+    if current.account_id != command.account_id || current.device_id != command.device_id
+        || current.bootstrap_id != command.bootstrap_id || current.mode != "upload_existing" {
+        return Err(NoteSyncError::InvalidSealState("conflicting initial capture scope"));
+    }
+    if matches!(current.phase.as_str(), "captured" | "completing" | "ready" | "paused") {
+        transaction.commit()?;
+        return Ok(current);
+    }
+    if current.phase != "registered" || current.remote_state.as_deref() != Some("initializing") {
+        return Err(NoteSyncError::InvalidSealState("server registration is not initializing"));
+    }
+    if !preflight_note_sync_project(&transaction, &command.project_id)?.is_empty() {
+        return Err(NoteSyncError::InvalidSealState("project contains unsupported notes"));
+    }
+    if transaction.query_row("SELECT 1 FROM cloud_sync_project_bindings WHERE project_id=?1", [&command.project_id], |_| Ok(())).optional()?.is_some() {
+        return Err(NoteSyncError::InvalidSealState("unexpected existing project binding"));
+    }
+    transaction.execute(
+        "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES(?1,?2,strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        rusqlite::params![command.project_id, command.account_id],
+    )?;
+    let notes = {
+        let mut statement = transaction.prepare(
+            "SELECT id,updated_at,payload_json FROM notes WHERE project_id=?1 ORDER BY id",
+        )?;
+        let rows = statement.query_map([&command.project_id], |row| Ok((
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
+        )))?.collect::<Result<Vec<_>, _>>()?;
+        rows
+    };
+    let mut high_water = 0_i64;
+    for (note_id, updated_at, snapshot) in &notes {
+        let prepared = prepare_unsealed_note_intent(&transaction, PrepareNoteIntent {
+            project_id: &command.project_id, entity_id: note_id,
+            operation: NoteSyncOperation::Upsert, updated_at, deleted_at: None,
+            snapshot_json: snapshot, state_updated_at: updated_at,
+        })?.ok_or(NoteSyncError::InvalidSealState("initial Note intent was not created"))?;
+        high_water = high_water.max(prepared.local_ordinal);
+    }
+    transaction.execute(
+        "UPDATE cloud_sync_project_bootstraps SET phase='captured',initial_event_count=?1,initial_local_ordinal_hi=?2,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE project_id=?3",
+        rusqlite::params![notes.len() as i64, high_water, command.project_id],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.unwrap();
+    transaction.commit()?;
+    Ok(record)
+}
+
+pub(crate) fn read_initial_note_cohort_status(
+    connection: &mut Connection, command: &CloudProjectBootstrapScopeCommand,
+) -> Result<CloudProjectInitialCohortStatus, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    let current = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("local bootstrap is missing"),
+    )?;
+    if current.bootstrap_id != command.bootstrap_id || current.account_id != command.account_id
+        || current.device_id != command.device_id {
+        return Err(NoteSyncError::InvalidSealState("conflicting initial cohort scope"));
+    }
+    let (event_count, accepted_count, max_sequence): (i64, i64, i64) = transaction.query_row(
+        "SELECT count(*),
+                sum(CASE WHEN event.lifecycle='accepted' AND receipt.event_id IS NOT NULL THEN 1 ELSE 0 END),
+                COALESCE(max(receipt.server_sequence),0)
+         FROM cloud_sync_outbox AS event
+         LEFT JOIN cloud_sync_upload_receipts AS receipt ON receipt.event_id=event.event_id
+         WHERE event.account_id=?1 AND event.device_id=?2 AND event.project_id=?3
+           AND event.entity_type='note' AND event.local_ordinal>0
+           AND event.local_ordinal<=?4",
+        rusqlite::params![command.account_id, command.device_id, command.project_id,
+                          current.initial_local_ordinal_hi],
+        |row| Ok((row.get(0)?, row.get::<_, Option<i64>>(1)?.unwrap_or(0), row.get(2)?)),
+    )?;
+    let status = CloudProjectInitialCohortStatus {
+        event_count, accepted_count, max_server_sequence: max_sequence,
+        complete: event_count == current.initial_event_count && accepted_count == event_count,
+    };
+    transaction.commit()?;
+    Ok(status)
+}
+
+pub(crate) fn mark_cloud_project_bootstrap_completing(
+    connection: &mut Connection, command: &CloudProjectBootstrapScopeCommand,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    let cohort = read_initial_note_cohort_status(connection, command)?;
+    if !cohort.complete {
+        return Err(NoteSyncError::InvalidSealState("initial Note cohort is not accepted"));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let current = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("local bootstrap is missing"),
+    )?;
+    if current.bootstrap_id != command.bootstrap_id || current.account_id != command.account_id
+        || current.device_id != command.device_id {
+        return Err(NoteSyncError::InvalidSealState("conflicting completion scope"));
+    }
+    transaction.execute(
+        "UPDATE cloud_sync_project_bootstraps SET phase='completing',initial_max_server_sequence=?1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE project_id=?2",
+        rusqlite::params![cohort.max_server_sequence, command.project_id],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.unwrap();
+    transaction.commit()?;
+    Ok(record)
+}
+
+pub(crate) fn mark_cloud_project_bootstrap_ready(
+    connection: &mut Connection, command: &CloudProjectBootstrapScopeCommand,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    let current = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("local bootstrap is missing"),
+    )?;
+    if current.bootstrap_id != command.bootstrap_id || current.remote_state.as_deref() != Some("active") {
+        return Err(NoteSyncError::InvalidSealState("active remote bootstrap is not confirmed"));
+    }
+    let required_cursor = current.remote_high_water.unwrap_or(0).max(
+        current.initial_max_server_sequence.unwrap_or(0),
+    );
+    let ack_cursor: i64 = transaction.query_row(
+        "SELECT ack_cursor FROM cloud_sync_state WHERE account_id=?1", [&command.account_id], |row| row.get(0),
+    )?;
+    if ack_cursor < required_cursor {
+        return Err(NoteSyncError::InvalidSealState("required remote events are not durably acknowledged"));
+    }
+    transaction.execute(
+        "UPDATE cloud_sync_project_bootstraps SET phase='ready',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE project_id=?1",
+        [&command.project_id],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.unwrap();
+    transaction.commit()?;
+    Ok(record)
+}
+
+pub(crate) fn set_cloud_project_bootstrap_paused(
+    connection: &mut Connection, command: &CloudProjectBootstrapScopeCommand, paused: bool,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    let current = read_bootstrap_record(&transaction, &command.project_id)?.ok_or(
+        NoteSyncError::InvalidSealState("local bootstrap is missing"),
+    )?;
+    if current.bootstrap_id != command.bootstrap_id
+        || (paused && current.phase != "ready") || (!paused && current.phase != "paused") {
+        return Err(NoteSyncError::InvalidSealState("invalid bootstrap pause transition"));
+    }
+    let phase = if paused { "paused" } else { "ready" };
+    transaction.execute(
+        "UPDATE cloud_sync_project_bootstraps SET phase=?1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE project_id=?2",
+        rusqlite::params![phase, command.project_id],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.unwrap();
+    transaction.commit()?;
+    Ok(record)
+}
+
+pub(crate) fn list_cloud_project_bootstraps(
+    connection: &mut Connection, account_id: &str,
+) -> Result<Vec<CloudProjectBootstrapRecord>, NoteSyncError> {
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    let mut statement = transaction.prepare(
+        "SELECT project_id,account_id,device_id,bootstrap_id,mode,phase,remote_state,
+                initial_event_count,initial_local_ordinal_hi,remote_high_water,
+                initial_max_server_sequence,blocked_reason
+         FROM cloud_sync_project_bootstraps WHERE account_id=?1 ORDER BY project_id",
+    )?;
+    let records = statement.query_map([account_id], |row| Ok(CloudProjectBootstrapRecord {
+        project_id: row.get(0)?, account_id: row.get(1)?, device_id: row.get(2)?,
+        bootstrap_id: row.get(3)?, mode: row.get(4)?, phase: row.get(5)?,
+        remote_state: row.get(6)?, initial_event_count: row.get(7)?,
+        initial_local_ordinal_hi: row.get(8)?, remote_high_water: row.get(9)?,
+        initial_max_server_sequence: row.get(10)?, blocked_reason: row.get(11)?,
+    }))?.collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+    transaction.commit()?;
+    Ok(records)
+}
+
+pub(crate) fn import_remote_cloud_project(
+    connection: &mut Connection, command: &ImportRemoteCloudProjectCommand,
+) -> Result<CloudProjectBootstrapRecord, NoteSyncError> {
+    if !valid_bootstrap_id(&command.bootstrap_id)
+        || !(0..=MAX_SYNC_INTEGER).contains(&command.remote_high_water)
+        || command.display_name.trim().is_empty() {
+        return Err(NoteSyncError::InvalidSealState("invalid remote project import"));
+    }
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_bootstrap_scope(&transaction, &command.project_id, &command.account_id, &command.device_id)?;
+    if let Some(existing) = read_bootstrap_record(&transaction, &command.project_id)? {
+        if existing.account_id == command.account_id && existing.bootstrap_id == command.bootstrap_id
+            && existing.mode == "import_remote" {
+            transaction.commit()?;
+            return Ok(existing);
+        }
+        return Err(NoteSyncError::InvalidSealState("local project has conflicting bootstrap lineage"));
+    }
+    if transaction.query_row("SELECT 1 FROM projects WHERE id=?1", [&command.project_id], |_| Ok(())).optional()?.is_some() {
+        return Err(NoteSyncError::InvalidSealState("local project ID collision"));
+    }
+    if transaction.query_row("SELECT 1 FROM projects WHERE name=?1", [command.display_name.trim()], |_| Ok(())).optional()?.is_some() {
+        return Err(NoteSyncError::InvalidSealState("local project name collision"));
+    }
+    let now: String = transaction.query_row(
+        "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |row| row.get(0),
+    )?;
+    let name = command.display_name.trim();
+    let payload = serde_json::json!({
+        "id": command.project_id, "name": name, "goal": null, "infinite": true,
+        "total": 0, "progress": 0, "deadline": null, "status": "активен",
+        "unit": "symbols", "created_at": now, "updated_at": now,
+        "notes_updated_at": null, "mindmap_updated_at": null, "completed_at": null,
+        "personal_goal": 0, "today_goal": null, "planning_date": null,
+        "plan_daily_goal": null, "added_today": 0, "remaining": null,
+        "streak_enabled": true, "streak_status": "No", "streak_length": 0,
+        "max_streak": 0, "auto_freeze": true, "progress_entries": [],
+        "project_notes": [], "mindmap": null, "stages": [], "stages_enabled": false,
+        "combine_stage_mindmaps": false, "cover_image": null, "folder_id": null,
+        "sync_available": false, "work_method": "manual", "parent_project_id": null
+    });
+    transaction.execute(
+        "INSERT INTO projects(id,name,goal,infinite,unit,status,created_at,updated_at,payload_json) VALUES(?1,?2,NULL,1,'symbols','активен',?3,?3,?4)",
+        rusqlite::params![command.project_id, name, now, payload.to_string()],
+    )?;
+    let position: i64 = transaction.query_row(
+        "SELECT COALESCE(MAX(position),-1)+1 FROM project_order", [], |row| row.get(0),
+    )?;
+    transaction.execute(
+        "INSERT INTO project_order(project_id,position) VALUES(?1,?2)",
+        rusqlite::params![command.project_id, position],
+    )?;
+    transaction.execute(
+        "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES(?1,?2,?3,?3)",
+        rusqlite::params![command.project_id, command.account_id, now],
+    )?;
+    transaction.execute(
+        "INSERT INTO cloud_sync_project_bootstraps(
+            project_id,account_id,device_id,bootstrap_id,mode,phase,remote_state,
+            initial_event_count,initial_local_ordinal_hi,remote_high_water,
+            initial_max_server_sequence,blocked_reason,created_at,updated_at
+         ) VALUES(?1,?2,?3,?4,'import_remote','captured','active',0,0,?5,NULL,NULL,?6,?6)",
+        rusqlite::params![command.project_id, command.account_id, command.device_id,
+                          command.bootstrap_id, command.remote_high_water, now],
+    )?;
+    let record = read_bootstrap_record(&transaction, &command.project_id)?.unwrap();
+    transaction.commit()?;
+    Ok(record)
 }
 
 pub(crate) fn next_local_ordinal(

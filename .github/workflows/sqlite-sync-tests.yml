@@ -96,6 +96,10 @@ jobs:
         shell: pwsh
         run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_binding
 
+      - name: Run Rust project lifecycle guard filter
+        shell: pwsh
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc project_repository
+
       - name: Check Rust SQLite substrate
         shell: pwsh
         run: cargo check --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc

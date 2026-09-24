@@ -16,6 +16,7 @@ _BASE64URL_RE = re.compile(r'^[A-Za-z0-9_-]*$')
 MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES = 8_388_624
 MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES = 16_777_216
 MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES = 33_554_432
+SYNC_MAX_WIRE_INTEGER = 9_007_199_254_740_991  # JavaScript Number.MAX_SAFE_INTEGER
 
 
 def decode_canonical_base64url(value: str, *, expected_length: int | None = None,
@@ -136,6 +137,43 @@ class CloudProjectsResponse(BaseModel):
     max_cloud_projects: int
 
 
+class CloudProjectBootstrapRegistrationRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    bootstrap_id: UUID
+    device_id: UUID
+
+
+class CloudProjectBootstrapCompletionRequest(CloudProjectBootstrapRegistrationRequest):
+    initial_event_count: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+    initial_max_server_sequence: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+    @model_validator(mode='after')
+    def event_count_and_sequence_must_agree(self):
+        if (self.initial_event_count == 0) != (self.initial_max_server_sequence == 0):
+            raise ValueError('Empty initial upload requires a zero server sequence.')
+        return self
+
+
+class CloudProjectBootstrapDescriptor(BaseModel):
+    project_id: str
+    bootstrap_id: UUID | None
+    origin_device_id: UUID | None
+    state: Literal['legacy', 'initializing', 'active']
+    initial_event_count: int | None = Field(default=None, ge=0, le=SYNC_MAX_WIRE_INTEGER)
+    initial_max_server_sequence: int | None = Field(default=None, ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class CloudProjectBootstrapResponse(BaseModel):
+    project: CloudProjectBootstrapDescriptor
+    current_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class CloudProjectBootstrapListResponse(BaseModel):
+    projects: list[CloudProjectBootstrapDescriptor]
+    current_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
 class PasswordKdfDto(BaseModel):
     """C11 password-KDF public metadata, with binary values encoded as Base64URL."""
 
@@ -176,6 +214,26 @@ class RecoveryWrappedAmkDto(BaseModel):
     _ciphertext = field_validator('ciphertext')(_validate_binary(expected_length=48))
 
 
+class InitialCryptoProvisioningRequest(BaseModel):
+    """Immutable first-time C11 wrapper set for the authenticated user."""
+
+    model_config = ConfigDict(extra='forbid')
+    password: PasswordWrappedAmkDto
+    recovery: RecoveryWrappedAmkDto
+
+    @model_validator(mode='after')
+    def require_supported_initial_wrappers(self):
+        password = self.password
+        recovery = self.recovery
+        if (password.crypto_version != 1 or password.wrapping_version != 1
+                or password.kdf.kdf_version != 1
+                or password.kdf.algorithm != 'argon2id13'
+                or password.kdf.opslimit != 2 or password.kdf.memlimit != 67_108_864
+                or recovery.crypto_version != 1 or recovery.wrapping_version != 1):
+            raise ValueError('Unsupported initial crypto wrapper parameters.')
+        return self
+
+
 class CurrentUserCryptoResponse(BaseModel):
     """Wrapped key material for the authenticated current user only."""
 
@@ -210,7 +268,6 @@ class ObjectEnvelopeDto(BaseModel):
 
 SYNC_PROTOCOL_VERSION = 1
 ENCRYPTED_SYNC_VERSION = 1
-SYNC_MAX_WIRE_INTEGER = 9_007_199_254_740_991  # JavaScript Number.MAX_SAFE_INTEGER
 
 
 class SyncEventEnvelope(BaseModel):

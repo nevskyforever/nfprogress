@@ -2060,6 +2060,95 @@ fn list_unsealed_note_sync_intents(
 }
 
 #[tauri::command]
+fn preflight_cloud_project_bootstrap(project_id: String) -> Result<Vec<note_sync::NoteSyncPreflightIssue>, String> {
+    let connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::preflight_note_sync_project(&connection, &project_id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn prepare_cloud_project_bootstrap(
+    command: note_sync::PrepareCloudProjectBootstrapCommand,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::prepare_cloud_project_bootstrap(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn confirm_cloud_project_registration(
+    command: note_sync::ConfirmCloudProjectRegistrationCommand,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::confirm_cloud_project_registration(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn capture_initial_note_sync_intents(
+    command: note_sync::CloudProjectBootstrapScopeCommand,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::capture_initial_note_sync_intents(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn read_initial_note_cohort_status(
+    command: note_sync::CloudProjectBootstrapScopeCommand,
+) -> Result<note_sync::CloudProjectInitialCohortStatus, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::read_initial_note_cohort_status(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn mark_cloud_project_bootstrap_completing(
+    command: note_sync::CloudProjectBootstrapScopeCommand,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::mark_cloud_project_bootstrap_completing(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn mark_cloud_project_bootstrap_ready(
+    command: note_sync::CloudProjectBootstrapScopeCommand,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::mark_cloud_project_bootstrap_ready(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn set_cloud_project_bootstrap_paused(
+    command: note_sync::CloudProjectBootstrapScopeCommand,
+    paused: bool,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::set_cloud_project_bootstrap_paused(&mut connection, &command, paused).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn list_cloud_project_bootstraps(
+    account_id: String,
+) -> Result<Vec<note_sync::CloudProjectBootstrapRecord>, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::list_cloud_project_bootstraps(&mut connection, &account_id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn import_remote_cloud_project(
+    command: note_sync::ImportRemoteCloudProjectCommand,
+) -> Result<note_sync::CloudProjectBootstrapRecord, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    note_sync::import_remote_cloud_project(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn list_sealed_note_sync_outbox(
     account_id: String,
     limit: u32,
@@ -5390,6 +5479,16 @@ pub fn run() {
             list_notes,
             get_note,
             list_unsealed_note_sync_intents,
+            preflight_cloud_project_bootstrap,
+            prepare_cloud_project_bootstrap,
+            confirm_cloud_project_registration,
+            capture_initial_note_sync_intents,
+            read_initial_note_cohort_status,
+            mark_cloud_project_bootstrap_completing,
+            mark_cloud_project_bootstrap_ready,
+            set_cloud_project_bootstrap_paused,
+            list_cloud_project_bootstraps,
+            import_remote_cloud_project,
             list_sealed_note_sync_outbox,
             record_note_sync_seal_failure,
             commit_sealed_note_sync_event,

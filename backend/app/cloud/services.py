@@ -7,7 +7,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
+from .models import (AuthRefreshToken, AuthSession, CloudProject, EmailVerificationToken,
                      GlobalLimits, PasswordResetToken, RegistrationSettings,
                      ReservedUsername, User, UserLimitOverrides)
 from .passwords import PasswordService
@@ -96,6 +96,12 @@ class CloudProjectLimitError(Exception):
     """A new cloud slot cannot be allocated under the effective C5 limit."""
 
 
+class CloudProjectBootstrapError(Exception):
+    def __init__(self, code: str, message: str, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.code, self.message, self.status_code = code, message, status_code
+
+
 class SyncProtocolError(Exception):
     def __init__(self, code: str, message: str, status_code: int = 409) -> None:
         super().__init__(message)
@@ -109,6 +115,12 @@ class CloudProjectState:
     max_cloud_projects: int
 
 
+@dataclass(frozen=True, slots=True)
+class CloudProjectBootstrapState:
+    projects: list[CloudProject]
+    current_cursor: int
+
+
 class CloudProjectService:
     """C8's metadata-only cloud project registry.
 
@@ -120,6 +132,7 @@ class CloudProjectService:
     def __init__(self) -> None:
         self._projects = CloudProjectRepository()
         self._limits = LimitsService()
+        self._sync = SyncRepository()
 
     def list(self, session: Session, user_id: object) -> CloudProjectState:
         limits = self._limits.effective_for_user(session, user_id)
@@ -154,7 +167,116 @@ class CloudProjectService:
         try:
             session.commit()
             with session.begin():
+                project = self._projects.get(session, user_id, project_id, lock=True)
+                if project is not None and project.bootstrap_state != 'legacy':
+                    raise CloudProjectBootstrapError(
+                        'cloud_project_bootstrap_managed',
+                        'Bootstrap-managed cloud projects cannot be deleted by the legacy endpoint.',
+                    )
                 self._projects.remove(session, user_id, project_id)
+        except Exception:
+            session.rollback()
+            raise
+
+    def list_bootstrap(self, session: Session, user_id: object) -> CloudProjectBootstrapState:
+        state = self._sync.ensure_user_state(session, user_id)
+        return CloudProjectBootstrapState(self._projects.list(session, user_id), state.current_sequence)
+
+    def register_bootstrap(self, session: Session, user_id: object, project_id: str,
+                           bootstrap_id: object, device_id: object) -> CloudProjectBootstrapState:
+        try:
+            session.commit()
+            with session.begin():
+                owner = session.scalar(select(User).where(User.id == user_id).with_for_update())
+                if owner is None:
+                    raise RuntimeError('Authenticated user disappeared.')
+                if self._sync.get_device(session, user_id, device_id) is None:
+                    raise CloudProjectBootstrapError(
+                        'sync_device_not_registered', 'Bootstrap origin device is not registered.',
+                    )
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                project = self._projects.get(session, user_id, project_id, lock=True)
+                if project is None:
+                    history_count, _ = self._sync.project_event_stats(session, user_id, project_id)
+                    if history_count != 0:
+                        raise CloudProjectBootstrapError(
+                            'cloud_project_orphaned_remote_history',
+                            'Remote project history exists without a compatible bootstrap registration.',
+                        )
+                    limits = self._limits.effective_for_user(session, user_id)
+                    if self._projects.count(session, user_id) >= limits.max_cloud_projects:
+                        raise CloudProjectLimitError()
+                    project = self._projects.add(session, user_id, project_id)
+                    project.bootstrap_id = bootstrap_id
+                    project.bootstrap_device_id = device_id
+                    project.bootstrap_state = 'initializing'
+                    session.flush()
+                elif project.bootstrap_state == 'legacy':
+                    raise CloudProjectBootstrapError(
+                        'cloud_project_legacy_reservation',
+                        'The existing cloud project reservation has no bootstrap lineage.',
+                    )
+                elif project.bootstrap_id != bootstrap_id or project.bootstrap_device_id != device_id:
+                    raise CloudProjectBootstrapError(
+                        'cloud_project_bootstrap_conflict',
+                        'Cloud project bootstrap lineage does not match.',
+                    )
+                current_cursor = state.current_sequence
+            return CloudProjectBootstrapState([project], current_cursor)
+        except Exception:
+            session.rollback()
+            raise
+
+    def complete_bootstrap(self, session: Session, user_id: object, project_id: str,
+                           bootstrap_id: object, device_id: object, initial_event_count: int,
+                           initial_max_server_sequence: int) -> CloudProjectBootstrapState:
+        try:
+            session.commit()
+            with session.begin():
+                if self._sync.get_device(session, user_id, device_id) is None:
+                    raise CloudProjectBootstrapError(
+                        'sync_device_not_registered', 'Bootstrap origin device is not registered.',
+                    )
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                project = self._projects.get(session, user_id, project_id, lock=True)
+                if project is None:
+                    raise CloudProjectBootstrapError(
+                        'cloud_project_bootstrap_missing', 'Cloud project bootstrap registration is missing.', 404,
+                    )
+                if project.bootstrap_state == 'legacy':
+                    raise CloudProjectBootstrapError(
+                        'cloud_project_legacy_reservation',
+                        'The existing cloud project reservation has no bootstrap lineage.',
+                    )
+                if project.bootstrap_id != bootstrap_id or project.bootstrap_device_id != device_id:
+                    raise CloudProjectBootstrapError(
+                        'cloud_project_bootstrap_conflict',
+                        'Cloud project bootstrap lineage does not match.',
+                    )
+                if project.bootstrap_state == 'active':
+                    if (project.initial_event_count != initial_event_count
+                            or project.initial_max_server_sequence != initial_max_server_sequence):
+                        raise CloudProjectBootstrapError(
+                            'cloud_project_bootstrap_conflict',
+                            'Completed cloud project bootstrap metadata is immutable.',
+                        )
+                    current_cursor = state.current_sequence
+                else:
+                    event_count, max_sequence = self._sync.project_event_stats(
+                        session, user_id, project_id, device_id=device_id,
+                    )
+                    if event_count < initial_event_count or max_sequence < initial_max_server_sequence:
+                        raise CloudProjectBootstrapError(
+                            'cloud_project_initial_upload_incomplete',
+                            'Server has not accepted the declared initial event cohort.',
+                        )
+                    project.bootstrap_state = 'active'
+                    project.initial_event_count = initial_event_count
+                    project.initial_max_server_sequence = initial_max_server_sequence
+                    project.bootstrap_completed_at = utc_now()
+                    session.flush()
+                    current_cursor = state.current_sequence
+            return CloudProjectBootstrapState([project], current_cursor)
         except Exception:
             session.rollback()
             raise
@@ -267,8 +389,15 @@ class SyncService:
                         continue
                     # C8 validation applies only to a newly accepted event.
                     # An accepted retry remains confirmable after C8 disable.
-                    if self._projects.get(session, user_id, event.project_id) is None:
+                    project = self._projects.get(session, user_id, event.project_id)
+                    if project is None:
                         raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
+                    if (project.bootstrap_state == 'initializing'
+                            and project.bootstrap_device_id != device_id):
+                        raise SyncProtocolError(
+                            'cloud_project_bootstrap_origin_required',
+                            'Only the bootstrap origin device may create events while initialization is in progress.',
+                        )
                     if state.current_sequence >= SYNC_MAX_WIRE_INTEGER:
                         raise SyncProtocolError('sync_sequence_exhausted', 'Sync sequence limit reached.', 409)
                     state.current_sequence += 1
@@ -337,8 +466,15 @@ class SyncService:
                             raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different encrypted object.')
                         results.append(SyncPushResult(event.event_id, existing.server_sequence, True))
                         continue
-                    if self._projects.get(session, user_id, event.project_id) is None:
+                    project = self._projects.get(session, user_id, event.project_id)
+                    if project is None:
                         raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
+                    if (project.bootstrap_state == 'initializing'
+                            and project.bootstrap_device_id != device_id):
+                        raise SyncProtocolError(
+                            'cloud_project_bootstrap_origin_required',
+                            'Only the bootstrap origin device may create events while initialization is in progress.',
+                        )
                     if state.current_sequence >= SYNC_MAX_WIRE_INTEGER:
                         raise SyncProtocolError('sync_sequence_exhausted', 'Sync sequence limit reached.', 409)
                     state.current_sequence += 1

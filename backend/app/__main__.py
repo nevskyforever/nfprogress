@@ -164,6 +164,7 @@ def main(argv: list[str] | None = None) -> int:
         developer_mode=developer_mode,
         environment=environment.environment,
         database_url=environment.database_url,
+        auth_secret=environment.auth_secret,
     )
     if args.parent_pid is not None:
         _start_parent_watchdog(args.parent_pid)

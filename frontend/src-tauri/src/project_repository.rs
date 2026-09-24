@@ -674,6 +674,20 @@ impl<'connection> ProjectsRepository<'connection> {
                 id: project_id.to_string(),
             });
         }
+        if transaction
+            .query_row(
+                "SELECT 1 FROM cloud_sync_project_bindings WHERE project_id=?1",
+                [project_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some()
+        {
+            return Err(RepositoryError::InvalidRelation(
+                "cloud-bound project must be paused and detached by an explicit cloud workflow"
+                    .to_string(),
+            ));
+        }
         let deleted_at: String =
             transaction.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |row| {
                 row.get(0)
@@ -1165,8 +1179,8 @@ mod tests {
     }
 
     #[test]
-    fn note_sync_project_delete_keeps_mixed_tombstones_and_domain_event() {
-        let (root, mut connection) = temp_database("project-note-delete");
+    fn note_sync_project_delete_refuses_cloud_bound_project_without_data_loss() {
+        let (root, mut connection) = temp_database("project-note-delete-guard");
         configure_delete_database(&connection, false);
         insert_test_note(&connection, "ordinary", None, false);
         insert_test_note(&connection, "stage-note", Some("s"), false);
@@ -1174,62 +1188,24 @@ mod tests {
         connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account',?1,0,0,'now','now')", [TEST_DEVICE_ID]).unwrap();
         connection.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('p','account','now','now')", []).unwrap();
 
-        ProjectsRepository::new(&mut connection)
-            .delete_project_with_notes("p")
-            .unwrap();
+        let result = ProjectsRepository::new(&mut connection).delete_project_with_notes("p");
+        assert!(matches!(result, Err(RepositoryError::InvalidRelation(_))));
         drop(connection);
 
         let connection = crate::sqlite::open_database(&root.join("nfprogress.db")).unwrap();
-        for table in ["projects", "notes", "cloud_sync_project_bindings"] {
+        for (table, expected) in [
+            ("projects", 1_i64),
+            ("notes", 3),
+            ("cloud_sync_project_bindings", 1),
+            ("cloud_sync_outbox", 0),
+            ("cloud_sync_note_intents", 0),
+            ("domain_events", 0),
+        ] {
             let count: i64 = connection
-                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| {
-                    row.get(0)
-                })
+                .query_row(&format!("SELECT count(*) FROM {table}"), [], |row| row.get(0))
                 .unwrap();
-            assert_eq!(count, 0, "{table} should be empty");
+            assert_eq!(count, expected, "cloud-bound delete changed {table}");
         }
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT count(*) FROM cloud_sync_outbox AS event
-                     JOIN cloud_sync_note_intents AS intent USING(event_id)
-                     WHERE event.project_id='p' AND event.operation='delete'
-                       AND event.lifecycle='unsealed' AND intent.seal_state='pending'",
-                    [],
-                    |row| row.get::<_, i64>(0)
-                )
-                .unwrap(),
-            3
-        );
-        assert_eq!(
-            connection
-                .query_row(
-                    "SELECT count(*) FROM domain_events
-                     WHERE project_id='p' AND event_type='ProjectDeleted'",
-                    [],
-                    |row| row.get::<_, i64>(0)
-                )
-                .unwrap(),
-            1
-        );
-        let routes: Vec<(Option<String>, String)> = {
-            let mut statement = connection
-                .prepare(
-                    "SELECT json_extract(intent.snapshot_json,'$.stage_id'),
-                            json_extract(intent.snapshot_json,'$.source_type')
-                     FROM cloud_sync_note_intents AS intent
-                     JOIN cloud_sync_outbox AS event USING(event_id)
-                     ORDER BY event.entity_id",
-                )
-                .unwrap();
-            statement
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .unwrap()
-                .collect::<Result<Vec<_>, _>>()
-                .unwrap()
-        };
-        assert!(routes.contains(&(None, "mindmap".to_string())));
-        assert!(routes.contains(&(Some("s".to_string()), "project".to_string())));
         drop(connection);
         std::fs::remove_dir_all(root).unwrap();
     }

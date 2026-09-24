@@ -12,7 +12,9 @@ import '@ionic/vue/css/display.css'
 
 import App from './App.vue'
 import { initializePlatformRuntime } from './platform/runtime'
+import { currentPlatform } from './platform/runtime'
 import router from './router'
+import { useCloudSessionStore } from './stores/cloudSession'
 import { useMotionStore } from './stores/motion'
 import { useThemeStore } from './stores/theme'
 import './theme/tokens.css'
@@ -37,6 +39,11 @@ async function bootstrap(): Promise<void> {
   motion.initialize()
 
   await router.isReady()
+  // Notes cloud sessions are desktop-only and deliberately do not share the
+  // administrator route or the legacy document-sync timer.
+  if (currentPlatform() === 'tauri' && router.currentRoute.value.meta.admin !== true) {
+    useCloudSessionStore(pinia).initialize()
+  }
   app.mount('#app')
 }
 

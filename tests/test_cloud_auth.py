@@ -112,6 +112,34 @@ def _b64(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode('ascii').rstrip('=')
 
 
+def _crypto_provisioning_payload(marker: bytes = b'a') -> dict:
+    return {
+        'password': {
+            'crypto_version': 1,
+            'wrapping_version': 1,
+            'kdf': {
+                'kdf_version': 1,
+                'algorithm': 'argon2id13',
+                'salt': _b64(marker * 16),
+                'opslimit': 2,
+                'memlimit': 67_108_864,
+            },
+            'nonce': _b64(marker * 24),
+            'ciphertext': _b64(marker * 48),
+        },
+        'recovery': {
+            'crypto_version': 1,
+            'wrapping_version': 1,
+            'nonce': _b64(bytes([marker[0] + 1]) * 24),
+            'ciphertext': _b64(bytes([marker[0] + 1]) * 48),
+        },
+    }
+
+
+def _authorization(token: str) -> dict[str, str]:
+    return {'Authorization': f'Bearer {token}'}
+
+
 def test_current_user_crypto_is_auth_scoped_and_never_auto_provisions(cloud_client):
     client, engine = cloud_client
     first_id = create_user(engine, username='CryptoOne', email='crypto-one@example.test')
@@ -161,6 +189,92 @@ def test_current_user_crypto_is_auth_scoped_and_never_auto_provisions(cloud_clie
     assert client.get('/api/v1/account/crypto').status_code == 401
 
 
+def test_initial_crypto_provisioning_is_authenticated_immutable_and_recovery_complete(cloud_client):
+    client, engine = cloud_client
+    first_id = create_user(engine, username='ProvisionOne', email='provision-one@example.test')
+    create_user(engine, username='ProvisionTwo', email='provision-two@example.test')
+    first_token = login(client, 'ProvisionOne').json()['access_token']
+    second_token = login(client, 'ProvisionTwo').json()['access_token']
+    payload = _crypto_provisioning_payload(b'p')
+
+    assert client.post('/api/v1/account/crypto', json=payload).status_code == 401
+    created = client.post('/api/v1/account/crypto', json=payload, headers=_authorization(first_token))
+    assert created.status_code == 201
+    assert created.headers['cache-control'] == 'private, no-store'
+    assert created.json() == client.get('/api/v1/account/crypto', headers=_authorization(first_token)).json()
+    assert created.json()['recovery'] == payload['recovery']
+    assert client.get('/api/v1/account/crypto', headers=_authorization(second_token)).json() == {
+        'provisioned': False, 'password': None, 'recovery': None,
+    }
+
+    replay = client.post('/api/v1/account/crypto', json=payload, headers=_authorization(first_token))
+    assert replay.status_code == 200 and replay.json() == created.json()
+    conflict = client.post('/api/v1/account/crypto', json=_crypto_provisioning_payload(b'q'), headers=_authorization(first_token))
+    assert conflict.status_code == 409
+    assert conflict.json() == {'detail': {
+        'code': 'crypto_already_provisioned',
+        'message': 'Account encryption is already provisioned.',
+    }}
+    with engine.connect() as connection:
+        row = connection.execute(text('''SELECT password_wrapped_amk,recovery_wrapped_amk
+            FROM user_crypto WHERE user_id=:user_id'''), {'user_id': first_id}).one()
+    assert row.password_wrapped_amk == b'p' * 48
+    assert row.recovery_wrapped_amk == b'q' * 48
+    assert b'plaintext' not in row.password_wrapped_amk + row.recovery_wrapped_amk
+
+
+@pytest.mark.parametrize('mutate', [
+    lambda payload: payload.pop('recovery'),
+    lambda payload: payload.update({'unexpected': True}),
+    lambda payload: payload['password']['kdf'].update({'opslimit': 3}),
+    lambda payload: payload['password'].update({'nonce': _b64(b'n' * 25)}),
+    lambda payload: payload['password']['kdf'].update({'salt': _b64(b's' * 16) + '='}),
+])
+def test_initial_crypto_provisioning_rejects_incomplete_or_noncanonical_records(cloud_client, mutate):
+    client, engine = cloud_client
+    create_user(engine, username='ProvisionValidation', email='provision-validation@example.test')
+    token = login(client, 'ProvisionValidation').json()['access_token']
+    payload = _crypto_provisioning_payload(b'v')
+    mutate(payload)
+    response = client.post('/api/v1/account/crypto', json=payload, headers=_authorization(token))
+    assert response.status_code == 422
+    with engine.connect() as connection:
+        assert connection.execute(text('SELECT count(*) FROM user_crypto')).scalar_one() == 0
+
+
+def test_initial_crypto_provisioning_concurrent_create_uses_database_identity_constraint(cloud_client):
+    client, engine = cloud_client
+    create_user(engine, username='ProvisionRaceSame', email='provision-race-same@example.test')
+    same_token = login(client, 'ProvisionRaceSame').json()['access_token']
+    same_payload = _crypto_provisioning_payload(b'r')
+    app = client.app
+    barrier = threading.Barrier(2)
+
+    def create_in_isolated_client(payload: dict) -> int:
+        with TestClient(app) as isolated:
+            barrier.wait()
+            return isolated.post('/api/v1/account/crypto', json=payload, headers=_authorization(same_token)).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        same_statuses = list(executor.map(create_in_isolated_client, [same_payload, same_payload]))
+    assert sorted(same_statuses) == [200, 201]
+
+    create_user(engine, username='ProvisionRaceDifferent', email='provision-race-different@example.test')
+    different_token = login(client, 'ProvisionRaceDifferent').json()['access_token']
+    different_barrier = threading.Barrier(2)
+
+    def create_different(payload: dict) -> int:
+        with TestClient(app) as isolated:
+            different_barrier.wait()
+            return isolated.post('/api/v1/account/crypto', json=payload, headers=_authorization(different_token)).status_code
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        different_statuses = list(executor.map(create_different, [
+            _crypto_provisioning_payload(b'x'), _crypto_provisioning_payload(b'y'),
+        ]))
+    assert sorted(different_statuses) == [201, 409]
+
+
 def test_c2_schema_and_repeated_head_upgrade(migrated_database, monkeypatch):
     assert set(inspect(migrated_database).get_table_names()) == {
         'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
@@ -172,7 +286,7 @@ def test_c2_schema_and_repeated_head_upgrade(migrated_database, monkeypatch):
     monkeypatch.setenv('NFPROGRESS_DATABASE_URL', _database_url())
     command.upgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'head')
     with migrated_database.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c14_encrypted_cover_blobs'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c16_project_bootstrap'
     command.downgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'c2_account_auth_core')
     assert 'email_verification_tokens' not in inspect(migrated_database).get_table_names()
     assert 'password_reset_tokens' not in inspect(migrated_database).get_table_names()

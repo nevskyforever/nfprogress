@@ -1,16 +1,16 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 23 сентября 2026 года.\
+**Дата:** 24 сентября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **70,0%**.\
 **Последний полностью закрытый этап:** **C15 Full Orchestration, ACK, Two-Device Acceptance** (2,5).\
-**Текущий этап:** следующий плановый пакет — **C16 Desktop Sync** (вес 3,0), ещё не начат.\
+**Текущий этап:** **C16 Desktop Sync** (вес 3,0) — `IN PROGRESS`, `LOCAL INTEGRATION COMPLETE / LIVE DESKTOP ACCEPTANCE PENDING / REMOTE CI PENDING`.\
 **Следующий зачёт:** после полного закрытия C16 — **73,0%**.\
-**Последний независимо проверенный remote HEAD:** `25476c611b91e26e5b94798dcf33a55924a45e08`.\
+**Последний независимо проверенный remote HEAD:** `cb44169adf60858b1ed312990cca312ba960fe06`.\
 **Последняя независимая приёмка:** C15 implementation `5b379d32e84da99f13e7f4aee0e56d0267fac78d` и Windows correction `25476c611b91e26e5b94798dcf33a55924a45e08` опубликованы и independently verified; Cloud backend run `35908520926` и SQLite run `35908521004` — **SUCCESS**.
-**Текущая задача Codex:** C15 официально закрыт после remote acceptance. C16 не начинать без отдельного задания: его scope — production normal-user login/unlock UI, подключение headless Notes Sync Runtime к desktop lifecycle, user triggers, sync state и roadmap desktop controls; legacy document interval не использовать. C17 сохраняет conflict resolution.
+**Текущая задача Codex:** C15 официально закрыт после remote acceptance. C16 Pass 1/2/3B/3C и final local integration завершены; следующий gate — пользовательская live desktop acceptance, затем только user-controlled commit/push и independent remote CI. Самостоятельно C17 или C18 не начинать. Legacy document interval не использовать; C17 сохраняет conflict resolution.
 
-**ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем актуальные разделы C15.7B.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
+**ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
@@ -20,8 +20,8 @@
 
 - GitHub: `nevskyforever/nfprogress`.
 - Основная ветка разработки WORTA 6.0: `6.0`.
-- Последний независимо проверенный remote HEAD: `25476c611b91e26e5b94798dcf33a55924a45e08`.
-- Commit: `fix(sync): close SQLite connections before cleanup`.
+- Последний независимо проверенный remote HEAD: `cb44169adf60858b1ed312990cca312ba960fe06`.
+- Commit: `docs(roadmap): close C15 after remote acceptance`.
 - В момент последней независимой проверки remote HEAD **совпадал с этим SHA**.
 - C15 implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` и его Windows correction `25476c611b91e26e5b94798dcf33a55924a45e08` independently accepted по двум required workflow; детали сохранены в разделе 60. Локальный `git status` перед следующими изменениями всё равно проверяется в самом Codex worktree.
 - Точная локальная ветка/путь и `git status` должны проверяться в самом Codex worktree перед изменениями, а не предполагаться по старому отчёту.
@@ -428,39 +428,62 @@ Focused integration results до финального pass: TypeScript decrypt/a
 
 ## 43. Оставшийся roadmap после C15
 
-- **C15 завершение (+2,5 пункта от текущих 67,5):** Full Orchestration/ACK/Two-Device Acceptance +2,5 → **70,0%**. Полный цикл outbound sealing/upload/retries/acceptance/pull/inbox/decrypt/atomic apply/cursor & device ACK/restart/two-device tests. Внутреннее разделение этого пакета не утверждено в данном checkpoint; перед реализацией нужен отдельный ограниченный design/scope pass.
-- **C16 Desktop Sync +3,0** → 73,0%: интегрировать Common Sync Engine в пользовательский desktop workflow.
-- **C17 Shared Conflict Handling +4,0** → 77,0%: безопасное разрешение конфликтов между устройствами; до этого конфликты сохраняются, без silent LWW.
-- **C18 Complete Project Sync +7,0** → 84,0%: Documents, Mind Maps, Stages/Sources, Rewards и другие данные проекта.
-- **C19 Android Local SQLite +3,0** → 87,0%.
-- **C20 Android Sync +3,0** → 90,0%.
-- **C21 Web +4,0** → 94,0%.
-- **C22 Production Hardening +2,0** → 96,0%.
-- **C23 Failure/Disaster Tests +2,0** → 98,0%.
-- **PF 6.0 + Release Candidate +2,0** → **100,0%**.
+- **C16 Desktop Sync +3,0** → **73,0%**.
+- **C17 Shared Conflict Handling +4,0** → **77,0%**.
+- **C18 Complete Project Sync +7,0** → **84,0%**.
+- **C21 Web +4,0** → **88,0%**.
+- **C22 Production Hardening +2,0** → **90,0%**.
+- **C23 Failure/Disaster Tests +2,0** → **92,0%**.
+- **PF 6.0 + Release Candidate +2,0** → **94,0%**.
+- **Первый публичный релиз:** Desktop + Web на отметке **94,0%** полной дорожной карты.
+- **C19 Android Local SQLite +3,0** → **97,0%**.
+- **C20 Android Sync +3,0** → **100,0%**.
 
-Эти проценты — плановые суммы **при условии официального закрытия каждого этапа**; не прогноз даты выпуска и не оценка потраченного времени.
+Это утверждённый **Web First** порядок исполнения. C19/C20 не отменены: их суммарные 6,0 пункта перенесены после первого публичного релиза и не блокируют выпуск Desktop + Web. Номера, веса этапов и WORTA ROADMAP SCORING v1.0 не изменены; исторический прогресс не пересчитывается. Эти проценты — плановые суммы **при условии официального закрытия каждого этапа**, а не прогноз даты выпуска.
+
+### Обязательное требование C18 — метаданные проекта
+
+C18 Complete Project Sync обязан передавать между устройствами пользовательское название проекта, синхронизировать его переименования и остальные поддерживаемые пользовательские метаданные проекта. Названия и метаданные должны быть client-side E2EE; при конкурентном переименовании применяются правила conflict handling C17, без silent overwrite или LWW.
+
+Нужна отдельная безопасная миграция уже подключённых C16 проектов: разные локальные названия на устройствах не являются доказательством общей истории и не дают права автоматически перезаписать одно из них. До завершения этой миграции C16 импорт честно требует обязательное локальное название для создания local project shell; оно не считается синхронизированным.
+
+### Обязательное требование C18 — клиентское сжатие до E2EE
+
+C18 должен спроектировать и реализовать сжатие подходящих plaintext-данных **до** E2EE-шифрования, прежде всего текстов, Notes и структурированных объектов. Версия и алгоритм сжатия обязаны однозначно определяться получателем; уже существующие encrypted objects остаются читаемыми, а frozen C11/C15 crypto/AAD/protocol v1 нельзя задним числом переопределять. Распаковка обязана иметь жёсткие ограничения итогового размера, памяти, CPU/времени и глубины/структуры, чтобы malformed или adversarial input fail closed.
+
+Выбранный формат должен воспроизводимо работать на Desktop, Web и будущем Android. Уже сжатые медиа нельзя автоматически сжимать без измеримого выигрыша. Перед выбором сравнить размер, скорость, peak memory, browser/native/mobile compatibility и качество поддерживаемых реализаций. Zstandard — только кандидат, а не предрешённая зависимость; лицензии конкретных bindings/wrappers и их dependency tree проверяются отдельно от эталонной реализации.
+
+### Обязательное требование C22 — квоты занятого облачного пространства
+
+Существующий лимит количества cloud projects сохраняется. Дополнительно C22 вводит независимую серверную квоту фактически занятого пространства аккаунта: глобальное значение по умолчанию и индивидуальный override для конкретного пользователя. Учёт охватывает реально хранимые encrypted objects и attachments; политика учёта immutable versions/history должна быть явно определена. Enforcement при concurrent uploads должен быть атомарным, а exact immutable replay/retry не должен повторно списывать объём.
+
+Переполнение квоты не уничтожает локальную работу: новые uploads получают понятный typed отказ, но получение и удаление данных не блокируются только из-за превышения лимита. Silent deletion старых версий запрещён без отдельного безопасного retention/compaction contract.
+
+Административная панель C22 должна показывать использованное пространство каждого пользователя, effective quota, глобальную квоту, индивидуальный override и аккаунты, приближающиеся к лимиту. Пользовательские настройки Desktop и Web должны показывать used/total/free, визуальный индикатор, предупреждения при 80% и 95% и понятное сообщение о невозможности новых uploads при заполненной квоте. Admin UI, quota accounting/enforcement и эти user controls не относятся к C16 Pass 3C и сейчас не реализованы.
+
+### Обязательный GPLv3 dependency gate
+
+WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и любой последующей новой зависимости до выбора/добавления библиотеки обязательно проверить точную лицензию используемой версии, транзитивные зависимости, условия распространения Desktop/Web/Android builds, необходимые notices/copyright statements и отсутствие commercial-only, restrictive source-available либо иных несовместимых условий. MIT, BSD и Apache 2.0 допустимы только после конкретной проверки совместимости и distribution obligations. Этот gate применяется ко всем новым runtime/build/test dependencies; compression packages в C16 не добавляются.
 
 ## 44. Принципы релиза
 
-Desktop/Android local-first, Web cloud-first; local-only проекты не выгружать автоматически; E2EE не ослаблять; encrypted pull без verified apply — не завершённая синхронизация; нельзя silently overwrite пользовательский текст. Перед релизом отдельно спроектировать release automation; исторически обсуждавшаяся команда `npm run release -- 6.0.1 --all` и опции `--web`, `--desktop`, `--mobile`, `--dry-run` — план, **не утверждение об уже реализованном script**.
+Первый публичный релиз WORTA 6.0 теперь означает готовые **Desktop + Web** после PF 6.0 / Release Candidate на отметке 94,0% полной roadmap. Android остаётся post-release scope C19/C20 и доводит полную roadmap до 100,0%. Desktop/Android local-first, Web cloud-first; local-only проекты не выгружать автоматически; E2EE не ослаблять; encrypted pull без verified apply — не завершённая синхронизация; нельзя silently overwrite пользовательский текст. Перед релизом отдельно спроектировать release automation; исторически обсуждавшаяся команда `npm run release -- 6.0.1 --all` и опции `--web`, `--desktop`, `--mobile`, `--dry-run` — план, **не утверждение об уже реализованном script**.
 
 ## 45. Правило ответа на вопрос «сколько процентов?»
 
-Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт в процентных пунктах, текущий незавершённый этап и условие следующего прибавления. Прямо сейчас ответ: **67,5%; последний закрытый C15.7B; следующий пакет Full Orchestration, ACK, Two-Device Acceptance весит 2,5 и после независимого закрытия даст 70,0%.** Не менять процент из-за большого объёма локальной работы, убедительного отчёта или одноразового зелёного теста.
+Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт в процентных пунктах, текущий незавершённый этап и условие следующего прибавления. Прямо сейчас ответ: **70,0%; последний закрытый этап — C15; C16 IN PROGRESS имеет вес 3,0 и только после полного commit/push/independent remote acceptance даст 73,0%.** Не менять процент из-за большого объёма локальной работы, убедительного отчёта или одноразового зелёного теста.
 
 ## 46. Точка продолжения в новом чате — ТЕКУЩЕЕ СОСТОЯНИЕ
 
-**C15.7B закрыт после независимой remote-приёмки.** Следующий implementation prompt не выдавать без отдельного ограниченного design/scope pass для следующего C15 package.
+**C15 закрыт после независимой remote-приёмки; C16 Pass 1/2/3B/3C реализованы локально и не приняты remote.** Следующий prompt — только отдельно утверждённая финальная C16 integration/live desktop/remote acceptance; автоматически её не начинать.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний independently verified remote HEAD:** `9578706b9e86a12daceb42a3b69bdc8e60921ce9`.
-**Remote CI на нём:** [Cloud backend run `35868491726`](https://github.com/nevskyforever/nfprogress/actions/runs/35868491726) — SUCCESS (PostgreSQL cloud backend, Frontend admin); [SQLite run `35868491642`](https://github.com/nevskyforever/nfprogress/actions/runs/35868491642) — SUCCESS (Python SQLite substrate, Rust SQLite substrate).
-**Official progress:** **67,5%**, WORTA ROADMAP SCORING v1.0.
-**Last CLOSED:** C15.7B Atomic Local Apply.
-**Now:** Full Orchestration, ACK, Two-Device Acceptance — **IN PROGRESS** (Slices 1–3 local), вес 2,5; пакет не закрыт. C15.7B commit не включал пользовательские `.pyc`; migration 015/fail-closed substrate, Rust plaintext decoder, golden create/update, privileged Rust connection, Rust Atomic Apply и protected TS/Tauri integration приняты remote CI.
-**Next:** отдельный ограниченный design/scope pass для Full Orchestration, ACK, Two-Device Acceptance; не начинать реализацию, ACK, scheduler или C17 автоматически.
-**Hard rules:** E2EE/lease; frozen TS codec и C11/C15.3; fail-closed schema-15 guards; no silent data loss/echo; no reset/clean/checkout; no unrelated changes; no autonomous commit/push; Terra Medium by default; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
+**Последний independently verified remote HEAD:** `cb44169adf60858b1ed312990cca312ba960fe06`.
+**Official progress:** **70,0%**, WORTA ROADMAP SCORING v1.0.
+**Last CLOSED:** C15 Full Orchestration, ACK, Two-Device Acceptance.
+**Now:** C16 Desktop Sync — **IN PROGRESS**, Pass 1/2/3B/3C local, remote CI pending. Migration 016, backend bootstrap control plane, native durable capture/import, account-wide registry gate и explicit desktop project UI добавлены локально; `encryptedInitialUpload=true` относится только к этому durable explicit flow.
+**Next:** отдельная финальная C16 integration acceptance: live desktop renderer→Tauri smoke, полный согласованный local CI-equivalent pass, затем commit/push только по решению пользователя и независимая проверка remote CI. Не начинать final acceptance, C17 либо scheduler автоматически.
+**Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; no autonomous commit/push; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
 
@@ -468,9 +491,9 @@ Desktop/Android local-first, Web cloud-first; local-only проекты не �
 
 **Практический чек-лист перед КАЖДЫМ новым prompt или оценкой отчёта:**
 
-1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C15.7B закрыт после independently verified remote acceptance; следующий C15 package `IN PROGRESS` локально, Slices 1–3 реализованы.
+1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C15 закрыт после independently verified remote acceptance; C16 `IN PROGRESS`, Pass 1/2/3B реализованы локально.
 2. Всегда разделять: **independently verified remote** / **Codex-reported local** / **not run or unknown**.
-3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **67,5%**. C15.7B уже дал +1,0 после полного acceptance; следующий пакет C15 весит 2,5 и требует отдельного полного acceptance.
+3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **70,0%**. C16 весит 3,0 и требует полного independent remote acceptance; Web First меняет порядок исполнения, но не номера, веса или формулу.
 4. Выбирать минимальный достаточный следующий slice. Не повторять уже закрытый локальный scope без изменения, которое могло его сломать.
 5. **Terra Medium first.** Sol Medium/High только по конкретной доказанной необходимости или на отдельный финальный security audit.
 6. TEST BUDGET: focused tests → минимальный fix → repeat только затронутого → один full CI-equivalent pass перед общим commit.
@@ -683,5 +706,83 @@ Implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` опублик�
 **Доказанная и недоказанная граница:** C15 доказал настоящий headless маршрут TypeScript → FastAPI/PostgreSQL → Rust/SQLite → ACK, включая two-device acceptance и durable/restart invariants. Он **не** является полноценным graphical renderer→live Tauri E2E. Это ограничение сохраняется для планирования C16 и не должно записываться как уже проверенная часть Desktop Sync.
 
 **Следующий этап:** C16 Desktop Sync (3,0) ещё не начат. Его scope: production normal-user login/unlock UI, подключение существующего headless Notes Sync Runtime к desktop lifecycle, user triggers, sync state и предусмотренные roadmap desktop controls — без смешения с legacy document interval. C17 сохраняет полноценное conflict resolution.
+
+## 61. C16 Pass 1 — secure E2EE account provisioning (локально)
+
+**Статус:** `IMPLEMENTED LOCALLY / REMOTE CI PENDING`. C16 остаётся `IN PROGRESS`; официальный прогресс WORTA 6.0 остаётся **70,0%**. Этот pass не создаёт desktop UI, Pinia session owner, scheduler, Tauri key storage, cloud-project switch или initial upload.
+
+Добавлен authenticated create-only `POST /api/v1/account/crypto`. Сервер берёт user ID только из normal-user auth, принимает строго один C11 password wrapper и один Recovery-Key wrapper, отклоняет неизвестные поля, noncanonical Base64URL, неверные длины и неподдерживаемые v1/Argon2id13 parameters. Новая запись `UserCrypto` вставляется atomically без миграции: существующая PostgreSQL table уже содержит все required columns and constraints. Exact replay возвращает уже сохранённый record; different wrapper set возвращает only typed `409 crypto_already_provisioned`, without crypto material or overwrite. Primary-key `user_id` plus commit/`IntegrityError` recovery is the authority for concurrent creates; preflight read is only a fast path. Existing legacy record without Recovery wrapper is immutable and conflicts rather than being silently repaired. `GET /account/crypto` remains read-only and `Cache-Control: private, no-store` is preserved for both routes.
+
+Добавлены typed frontend POST transport и `PendingAccountCryptoProvisioning`. После authenticated GET it refuses to generate a replacement AMK for an already provisioned account. For a new account it generates one client-side AMK, one Recovery Key, and the two production wrappers; AMK is cleared after wrapping. A future UI receives only a caller-owned transient Recovery-Key display copy, must call `confirmRecoveryKeySaved()`, and only then may submit wrapper records. No password, plaintext AMK, KEK, or Recovery Key enters HTTP, Pinia/localStorage/cookies/files/logging/Tauri IPC. On network-unknown POST outcome the same retained immutable wrappers are reconciled through authenticated GET; exact persisted match succeeds, mismatch fails closed, and absent state permits only exact replay—not new key generation. Controlled key/wrapper byte buffers are cleared on success/dispose; JavaScript string/copy erasure is intentionally not claimed. Recovery-Key-based password rewrap remains a separate future contract.
+
+Focused local verification: real disposable PostgreSQL 16 FastAPI `tests/test_cloud_auth.py` — **20 passed, 0 failed, 0 skipped** (one existing TestClient deprecation warning), including authenticated create, user isolation, required recovery wrapper, malformed/noncanonical rejection, exact/different replay, PostgreSQL concurrent same/different creates, no plaintext marker and unchanged GET behaviour. New TypeScript transport/provisioning specs — **8 passed, 0 failed**; they use production generation/wrapping/unwrapping, confirmation gate, lost-response reconciliation/exact replay, stale auth and buffer cleanup. `npm run typecheck`, `python3 -m py_compile backend/app/cloud/router.py backend/app/cloud/schemas.py`, cloud workflow YAML parse and `git diff --check` — **passed**. Full curated frontend command, production build, Windows Rust, graphical Tauri E2E and remote CI are **not run**. The disposable container `nfprogress-c16-provisioning-postgres` used host port 55434 without a volume and is removed after this pass.
+
+`cloud-backend-tests.yml` already runs `tests/test_cloud_auth.py` against PostgreSQL; its actual curated Vitest command now explicitly includes `src/api/accountCrypto.spec.ts` and `src/cloud/accountCryptoProvisioning.spec.ts`. Existing path filters cover both backend and frontend changes. Before C16 can close, remaining work is production desktop session/UI composition, explicit safe cloud-project bootstrap/initial upload contract, and live renderer→Tauri acceptance; C17 retains conflict resolution.
+
+## 62. C16 Pass 2 — desktop cloud session and E2EE onboarding UI (локально)
+
+**Статус:** `IMPLEMENTED LOCALLY / REMOTE CI PENDING`. C16 остаётся `IN PROGRESS`; официальный прогресс WORTA 6.0 остаётся **70,0%**. Этот pass не включает cloud-project enable/binding, initial upload, scheduler, Recovery-Key rewrap или conflict resolution.
+
+В desktop-only Pinia owner `cloudSession` появился единственный `NoteSyncRuntime`; instance создаётся only after Tauri platform initialization, never on web/mobile and never from the admin route. Startup does not authenticate or sync: its safe initial state is `logged_out`. Runtime and pending provisioning context are lexical-only, not returned by Pinia and never persisted; visible state contains only redacted username/status, work/blocked hints and generic error text. Logout, 401/stale auth, lock and app unmount dispose pending byte buffers and invalidate the visible session; `NoteSyncRuntime` supplies narrow crypto-record/provision/reconcile methods without exposing its auth context or tokens.
+
+`SettingsPage` now contains a desktop Notes-cloud card, separate from `background_synch` and legacy `run_all_document_sync`. It handles normal-user login, GET-based existing-AMK detection, separate encryption-password setup, client-only Recovery Key display, explicit saved-key confirmation before POST, unlock of an existing AMK, key lock/logout and manual bounded-cycle retry. The Recovery Key stays only in component-local caller-owned bytes; closing the onboarding clears it and disposes Pass 1 context. A lost POST response retains the same immutable wrapper set for retry/reconciliation, never creates another AMK. UI explicitly says that Recovery-Key rewrap is not yet available.
+
+Status language distinguishes logged out, provisioning, key locked, syncing, completed bounded cycle, retryable error, blocked events and remaining work. It never says all data is synchronized after a cycle; with no approved project bootstrap it says that no cloud projects are connected and local projects are not uploaded automatically. Blocked events are displayed without automatic resolution. Existing `background_synch` remains legacy document-source behaviour.
+
+Focused local frontend verification: `App`, `SettingsPage`, `cloudSession`, Settings-card, runtime, Pass 1 transport/provisioning specs — **37 passed, 0 failed** across 7 files; TypeScript typecheck and `git diff --check` — **passed**. The Vitest renderer run emitted only existing Ionic sourcemap and Node-localStorage experimental warnings. Localization catalog/frontend artifacts were regenerated from the shared extractor (110 previously missing source keys, including this UI); deterministic export check passes. Production backend/Rust suites, full curated/frontend build, Docker/PostgreSQL, Windows Rust and graphical live Tauri acceptance were not run in this pass. `cloud-backend-tests.yml` curated frontend command now explicitly includes `cloudSession.spec.ts` and `CloudSyncSettingsCard.spec.ts`; existing `frontend/src/**` filters cover the new files.
+
+Remaining C16 gates: a separately approved safe initial cloud-project bootstrap (registration, durable binding, initial upload/pull and partial-failure rules), Recovery-Key-based rewrap contract, live renderer→Tauri desktop acceptance, and then full independent remote CI. C17 remains conflict resolution.
+
+## 63. C16 Pass 3B — safe project bootstrap substrate + Web First roadmap (локально)
+
+**Статус:** `IMPLEMENTED LOCALLY / REMOTE CI PENDING`. C16 остаётся `IN PROGRESS`; официальный прогресс WORTA 6.0 остаётся **70,0%**. `cloudProjectCapabilities.encryptedInitialUpload` остаётся `false`; UI выбора/включения проекта, scheduler и legacy document sync не подключены.
+
+**Web First утверждён пользователем.** После C18 порядок исполнения теперь C21 Web → C22 Production Hardening → C23 Failure/Disaster Tests → PF 6.0 / Release Candidate. Первый публичный релиз определён как Desktop + Web на отметке 94,0% полной roadmap. C19 Android Local SQLite и C20 Android Sync не отменены и выполняются после первого публичного релиза, доводя roadmap до 97,0% и 100,0%. Номера, фиксированные веса и WORTA ROADMAP SCORING v1.0 не изменены.
+
+**Backend control plane:** Alembic `c16_project_bootstrap` расширяет существующий `cloud_projects` минимальными lineage/state fields и PostgreSQL constraints. Authenticated bootstrap API предоставляет account-wide registry list, create-only initializing registration и immutable completion. Canonical `bootstrap_id` привязан к authenticated user, project и зарегистрированному origin device; exact replay идемпотентен, другая lineage даёт typed conflict, legacy reservation и remote history без registry fail closed. Пока project `initializing`, новые events принимает только origin device, но exact immutable replay ранее принятого event сохраняется. Completion становится `active` только после проверки фактически принятых origin-device events; bootstrap-managed project нельзя удалить legacy endpoint.
+
+**SQLite/native substrate:** schema 16 добавляет `cloud_sync_project_bootstraps` с durable token, account/device/mode, фазами `prepared/registered/captured/completing/ready/paused/blocked`, initial cohort count/ordinal high-water, remote high-water/completion metadata и blocked reason. Все production operations проверяют account/device/token lineage. `BEGIN IMMEDIATE` атомарно создаёт binding и initial unsealed intents для всех eligible existing Notes либо откатывает всё. Повтор после restart возвращает тот же token/event IDs; receipt proof initial cohort отделён от одного HTTP response. Изменения во время bootstrap coalesce до sealing либо становятся ordered child events после sealed head. Unsupported stage/mind-map/plain Note блокирует весь project до server registration и повторно перед capture. Cloud-bound project deletion fail closed; pause сохраняет Notes, binding и queued work. Explicit second-device import создаёт минимальный local shell только для подтверждённой active lineage и отказывает при любом same-ID/name collision без доказательства происхождения.
+
+**Coordinator/runtime gate:** `CloudProjectBootstrapCoordinator` выполняет device registration → server initializing registration → atomic capture → existing C15 seal/upload → durable cohort proof → immutable server completion → account-wide registry reconciliation → existing pull/protected apply/ACK → local `ready`. Все active remote projects аккаунта должны иметь matching local lineage; legacy, missing, initializing, paused, blocked или conflicting project запрещает обычный account-wide cycle. `NoteSyncRuntime.unlock()` больше не запускает upload/pull/ACK: он только unlock + reconciliation. `retry()` допускает обычный cycle лишь через gate. Pass 2 UI поэтому честно показывает blocked/not-connected состояние до отдельного Pass 3C, а local-only projects по-прежнему не подключаются автоматически.
+
+**Фактическая локальная проверка:** disposable PostgreSQL 16 без volume удалён после тестов. Bootstrap backend — **5 passed**; targeted cloud auth/projects/encrypted regressions — **34 passed, 11 deselected**; новый mandatory C16 headless route A capture → partial encrypted upload → restart/same IDs → completion → A protected self-echo/ACK → B explicit import/protected apply/ACK — **1 passed**, без skips. Python SQLite migration suite — **21 passed**. Rust: bootstrap lifecycle/file-backed restart/concurrent edits/import — **7 passed**; migration 15→16 — **1 passed**; project lifecycle guards — **5 passed**; `cargo test --no-run` и `cargo check` — passed с прежними unrelated warnings. Focused frontend provisioning/bootstrap/runtime/session/UI/IPC/crypto — **36 passed** в **9 files**; TypeScript typecheck passed. Workflow YAML parse, deterministic frontend localization export and `git diff --check` passed. Исправленные в ходе focused reruns дефекты (double-encoded bootstrap JSON body, устаревший delete expectation и test-harness cursor/status assumptions) имеют зелёные regression reruns.
+
+**CI wiring:** `cloud-backend-tests.yml` mandatory no-skip command теперь включает PostgreSQL bootstrap tests и C16 cross-runtime bootstrap proof; curated frontend command явно включает bootstrap API/coordinator/IPC specs. Path filters охватывают backend migration, native SQLite/project lifecycle и schema 16. `sqlite-sync-tests.yml` продолжает запускать Rust `note_sync`/`sqlite` filters и отдельно запускает `project_repository`, поэтому новый delete guard не может быть скрыт. Full C16 CI-equivalent pass, production frontend build, Windows Rust и graphical live Tauri renderer→IPC acceptance в этом pass **не запускались**.
+
+**Осталось:** отдельный Pass 3C для явного выбора проекта и активации bootstrap UI/statuses без автоматической выгрузки; live desktop renderer→Tauri acceptance; затем общий C16 integration pass, commit/push пользователя и независимая проверка remote CI. Recovery-Key-based rewrap остаётся отдельным контрактом. C18 должен расширить entity coverage beyond project-level HTML Notes; C17 сохраняет conflict resolution. До этих gates C16 не `CLOSED`, официальный прогресс не меняется.
+
+## 64. C16 Pass 3C — desktop project UI activation (локально)
+
+**Статус:** `IMPLEMENTED LOCALLY / FINAL INTEGRATION AND REMOTE CI PENDING`. C16 остаётся `IN PROGRESS`; официальный прогресс WORTA 6.0 остаётся **70,0%**. Pass 3C не добавляет scheduler, Recovery-Key rewrap, conflict resolution, non-Note entity sync, quota enforcement или compression dependencies.
+
+**Production desktop flow:** единственный desktop-only Pinia owner `cloudSession` по-прежнему владеет единственным `NoteSyncRuntime`. После normal-user login, E2EE onboarding/unlock и account-wide registry reconciliation Settings показывает local-only проекты, native eligibility, durable bootstrap phases, remote-only projects для explicit import, paused/blocked states и remaining work. Local project остаётся local-only до отдельного native preflight и второго явного подтверждения; unsupported Note блокирует весь project до любой server bootstrap registration. Повтор/resume вызывает тот же coordinator и сохраняет durable bootstrap token/event IDs/receipts; repeated click объединяется single-flight. Server token, AMK, KEK, passwords, Recovery Key и plaintext Notes не входят в Pinia/UI diagnostics.
+
+Для второго устройства active remote project можно явно импортировать с обязательным локальным названием: C16 пока синхронизирует Notes, но не передаёт названия и остальные project metadata, поэтому название нужно только для создания local shell на этом устройстве и не выдаётся за синхронизированное. UI прямо указывает, что C18 добавит передачу names/metadata. Native transaction создаёт shell только после проверки remote lineage. Existing same-ID project без доказанной lineage показывает blocker; merge/overwrite не выполняются. Legacy/unknown remote и `initializing` другого устройства также fail closed. Pause/resume сохраняет Notes, binding и queued work. Logout, account switch, key lock, 401 и app disposal меняют lifecycle epoch; поздний async callback старого контекста не может переписать новый UI state.
+
+**Truthful status/account-wide gate:** UI различает local-only/available, unsupported, registering, initial capture, uploading, server completion, pulling, initial Note completion, remaining work, paused и blocked. После bounded cycle не показывается «полностью синхронизировано»; явно указано, что C16 синхронизирует только поддерживаемые project-level HTML Notes, а не весь project. Обычный protocol-v1 pull/ACK доступен только при reconciled registry всего account; один missing/paused/blocked/unresolved project блокирует account-wide cycle и объясняется пользователю. Legacy `background_synch`/`run_all_document_sync` не подключены.
+
+`cloudProjectCapabilities.encryptedInitialUpload` локально переключён в `true`, потому что production UI теперь использует explicit selection, double confirmation, complete native preflight, durable restart-safe bootstrap, safe resume, account-wide reconciliation, second-device explicit import и fail-closed unsupported content. Это не означает independent per-project ACK, complete entity sync или C16 closure.
+
+**Localization:** 57 новых Pass 3C строк имеют явные overrides для `en`, `es`, `de`, `fr`, `pt_BR`; shared catalog и Vue generated locales обновлены. Прямой generator сначала не стартовал из-за отсутствующего PySide6, затем штатный network translation получил HTTP 429; системные packages не устанавливались и TLS validation не отключалась. С безопасным in-memory Qt import stub и checked-in overrides generator сообщил **0 missing** для всех пяти non-Russian languages, deterministic frontend export выполнен. Existing intentional stable system tag `#карта` остаётся одинаковым во всех locales. Полные Qt-dependent `tests/test_localization.py` не запускались из-за отсутствующего PySide6; Qt-free frontend export consistency — **2 passed**.
+
+**Локальные проверки Pass 3C:** focused project capability/bootstrap/runtime/store/component/IPC selection — **46 passed** в 7 files; после отдельного lifecycle regression дополнительно `cloudSession.spec.ts` — **15 passed**. TypeScript typecheck — **passed**; production frontend build — **passed** с прежними chunk-size/dynamic-import warnings. Real file-backed Python SQLite migration/substrate — **21 passed**. Rust `note_sync` filter — **87 passed** (включая 7 bootstrap cases); `project_repository` — **5 passed**; `cargo check` — passed с прежними unrelated warnings. Localization consistency — **2 passed**. Workflow YAML parse и `git diff --check` — passed.
+
+**CI wiring и недоказанная граница:** existing `cloud-backend-tests.yml` path filter `frontend/src/**` охватывает Pass 3C source/tests/locales; curated command реально содержит `cloudSession`, Settings card, project bootstrap/runtime/capability и SQLite bootstrap-repository specs, затем typecheck/build. Existing SQLite workflow охватывает migration 016, native `note_sync`, `lib.rs` и project lifecycle guards. Pass 3C не менял backend production code, поэтому PostgreSQL/headless Pass 3B matrix повторно не запускалась. Automated proof остаётся композицией Vue/Pinia focused tests, typed Tauri repository tests и real file-backed Rust/SQLite tests; полноценный live graphical renderer→Tauri process **не проверен** и остаётся обязательным отдельным финальным C16 gate. Windows Rust и remote GitHub Actions на накопленном локальном diff также не запускались.
+
+**Roadmap requirements:** утверждённый Web First порядок сохранён без изменения номеров/весов. В разделе 43 закреплены future C18 client compression-before-E2EE contract, C22 account storage quota/admin+user UI requirements и обязательный GNU GPLv3 dependency compatibility gate. Новые compression/quota packages или production behaviour в C16 не добавлялись.
+
+**Осталось до C16 closure:** отдельный final integration pass и live desktop smoke для реального renderer→Tauri IPC; полный согласованный C16 CI-equivalent run; user-controlled commit/push без двух `.pyc`; independent verification нового remote SHA и обоих workflows. Recovery-Key-based rewrap остаётся отдельным будущим contract; C17 сохраняет conflicts, C18 — остальные project entities и compression. До independent remote acceptance C16 не `CLOSED`, официальный прогресс остаётся **70,0%**.
+
+## 65. C16 final local integration acceptance
+
+**Статус:** `LOCAL INTEGRATION COMPLETE / LIVE DESKTOP ACCEPTANCE PENDING / REMOTE CI PENDING`. C16 остаётся `IN PROGRESS`, официальный прогресс остаётся **70,0%**. Не было commit, push, reset, destructive checkout, `git clean` или изменения двух пользовательских `.pyc`. `Run Tauri.sh --fresh` самостоятельно выполнил `cargo clean` только для превысивших лимит Tauri build-артефактов (21,8 GiB); source files и test/user data не удалялись.
+
+**Объединённая production-проверка:** на новом disposable PostgreSQL 16 без volume выполнены **84 passed, без skips**: mandatory C15/C16 sync ACK, two-device и headless bootstrap route, C16 project bootstrap, cloud auth/projects/encrypted schema/sync/blob и PostgreSQL foundation. В ходе проверки исправлен только stale expectation `tests/test_cloud_postgresql_foundation.py`: Alembic head после migration должен быть `c16_project_bootstrap`, а не `c14_encrypted_cover_blobs`; отдельный migration regression — **11 passed**. Новый узкий launcher regression — **4 passed**: `backend.app.__main__` сохраняет уже заданный `NFPROGRESS_AUTH_SECRET` в фактическом runtime config, без БД или вывода секрета. Контейнер `nfprogress-c16-final-local-postgres` после проверки удалён. Уже зелёные Pass 3C frontend **46 passed**, TypeScript typecheck/build, file-backed SQLite **21 passed**, Rust note-sync **87 passed** и project-repository **5 passed** не повторялись после этого Python-only assertion fix.
+
+**CI audit:** `cloud-backend-tests.yml` запускает mandatory PostgreSQL command с C16 cross-runtime proof и явно завершает job при `skipped`/`SKIPPED`; его path filters включают backend/migration, `frontend/src/**`, native bridge/runtime/SQLite/project files и schema. Curated frontend command содержит account provisioning, cloud session, Settings card, bootstrap/runtime/capability и SQLite repository specs, после чего выполняются typecheck/build. `sqlite-sync-tests.yml` path filters охватывают schema 16 и native files; Windows commands `sqlite`, `note_sync`, `account_binding`, `project_repository` и `cargo check` являются отдельными commands без `continue-on-error`, поэтому exit code и bootstrap guards нельзя молча скрыть. Windows matrix и GitHub runs остаются remote gates.
+
+**Desktop/live boundary:** `./Run Tauri.sh --check` прошёл; `./Run Tauri.sh --fresh` собрал test-profile и использовал временный `NFPROGRESS_DATA_DIR`, не личную SQLite базу. В репозитории нет existing graphical automation harness. Пользователь вручную подтвердил основной live scenario: в профиле A создан и первоначально подключён тестовый проект, в отдельном профиле B он явно импортирован из облака и Notes успешно получены. После restart B повторный import не требуется: local data и durable cloud binding сохранены. Повторный ввод login/password ожидаем и не является scope C16 automatic session restore. Это **partial live desktop acceptance**, а не закрытие ручной матрицы. По-прежнему требуются safety scenarios (unsupported content/no auto-connect, logout/key lock), а также remote CI; C16 остаётся `IN PROGRESS`, официальный прогресс — **70,0%**.
+
+**Localization и remaining gates:** все **58** Pass 3C/C16 UI override keys точно совпадают с generated `en`, `es`, `de`, `fr`, `pt_BR` catalogs, без Russian/source fallback. Qt-dependent localization suite по-прежнему не запущен: PySide6 не установлен и не добавлялся. До C16 closure остаются: remaining manual safety acceptance, user-controlled commit/push без `.pyc`, independent remote GitHub Actions (включая Windows Rust) на новом SHA. Recovery-Key rewrap, C17 conflicts и C18 remaining entities/compression остаются вне C16.
 
 # КОНЕЦ ЧЕКПОИНТА

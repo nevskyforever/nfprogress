@@ -110,6 +110,24 @@ class CloudProject(Base):
     __tablename__ = 'cloud_projects'
     __table_args__ = (
         CheckConstraint("char_length(project_id) >= 1", name='ck_cloud_projects_project_id_not_empty'),
+        CheckConstraint(
+            "bootstrap_state IN ('legacy', 'initializing', 'active')",
+            name='ck_cloud_projects_bootstrap_state',
+        ),
+        CheckConstraint(
+            "(bootstrap_state = 'legacy' AND bootstrap_id IS NULL AND bootstrap_device_id IS NULL "
+            "AND bootstrap_completed_at IS NULL AND initial_event_count IS NULL "
+            "AND initial_max_server_sequence IS NULL) OR "
+            "(bootstrap_state = 'initializing' AND bootstrap_id IS NOT NULL "
+            "AND bootstrap_device_id IS NOT NULL AND bootstrap_completed_at IS NULL "
+            "AND initial_event_count IS NULL AND initial_max_server_sequence IS NULL) OR "
+            "(bootstrap_state = 'active' AND bootstrap_id IS NOT NULL "
+            "AND bootstrap_device_id IS NOT NULL AND bootstrap_completed_at IS NOT NULL "
+            "AND initial_event_count IS NOT NULL AND initial_event_count >= 0 "
+            "AND initial_max_server_sequence IS NOT NULL AND initial_max_server_sequence >= 0)",
+            name='ck_cloud_projects_bootstrap_shape',
+        ),
+        UniqueConstraint('user_id', 'bootstrap_id', name='uq_cloud_projects_user_bootstrap_id'),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -118,6 +136,14 @@ class CloudProject(Base):
     # Legacy, SQLite and Tauri project IDs are string contracts.  Keep their
     # established 32-hex IDs and any compatible historical values losslessly.
     project_id: Mapped[str] = mapped_column(String(512), primary_key=True)
+    bootstrap_id: Mapped[uuid.UUID | None] = mapped_column()
+    bootstrap_device_id: Mapped[uuid.UUID | None] = mapped_column()
+    bootstrap_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default='legacy', server_default=text("'legacy'"),
+    )
+    initial_event_count: Mapped[int | None] = mapped_column(BIGINT)
+    initial_max_server_sequence: Mapped[int | None] = mapped_column(BIGINT)
+    bootstrap_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
     )

@@ -3,15 +3,18 @@ from __future__ import annotations
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
                             get_cloud_session, get_current_user, get_email_sender)
 from .email import EmailSender, OutgoingEmail
-from .schemas import (AccountLimitsResponse, AccountResponse, CurrentUserCryptoResponse, LoginRequest,
+from .schemas import (AccountLimitsResponse, AccountResponse, CurrentUserCryptoResponse,
+                      InitialCryptoProvisioningRequest, LoginRequest,
                       PasswordKdfDto, PasswordResetConfirmRequest, PasswordWrappedAmkDto,
                       PasswordResetRequest, PublicVerificationRequest,
                       RecoveryWrappedAmkDto, RefreshRequest, RegistrationRequest, TokenResponse,
+                      decode_canonical_base64url,
                       encode_canonical_base64url,
                       VerificationTokenRequest)
 from .services import (AccountEmailService, AuthenticationError,
@@ -33,6 +36,33 @@ def _invalid_recovery_token() -> HTTPException:
     return HTTPException(status_code=400, detail={
         'code': 'invalid_or_expired_token', 'message': 'Invalid or expired token.',
     })
+
+
+def _crypto_provisioning_conflict() -> HTTPException:
+    return HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+        'code': 'crypto_already_provisioned',
+        'message': 'Account encryption is already provisioned.',
+    })
+
+
+def _same_crypto_record(record, payload: InitialCryptoProvisioningRequest) -> bool:
+    password = payload.password
+    recovery = payload.recovery
+    return (
+        record.password_crypto_version == password.crypto_version
+        and record.password_wrapping_version == password.wrapping_version
+        and record.kdf_version == password.kdf.kdf_version
+        and record.kdf_algorithm == password.kdf.algorithm
+        and record.kdf_salt == decode_canonical_base64url(password.kdf.salt, expected_length=16)
+        and record.kdf_opslimit == password.kdf.opslimit
+        and record.kdf_memlimit == password.kdf.memlimit
+        and record.password_nonce == decode_canonical_base64url(password.nonce, expected_length=24)
+        and record.password_wrapped_amk == decode_canonical_base64url(password.ciphertext, expected_length=48)
+        and record.recovery_crypto_version == recovery.crypto_version
+        and record.recovery_wrapping_version == recovery.wrapping_version
+        and record.recovery_nonce == decode_canonical_base64url(recovery.nonce, expected_length=24)
+        and record.recovery_wrapped_amk == decode_canonical_base64url(recovery.ciphertext, expected_length=48)
+    )
 
 
 def _email_service(request: Request) -> AccountEmailService:
@@ -167,6 +197,58 @@ def account_crypto(response: Response, current: AuthenticatedUser = Depends(get_
         password=password,
         recovery=recovery,
     )
+
+
+@router.post('/account/crypto', response_model=CurrentUserCryptoResponse,
+             status_code=status.HTTP_201_CREATED)
+def provision_account_crypto(
+        payload: InitialCryptoProvisioningRequest,
+        response: Response,
+        current: AuthenticatedUser = Depends(get_current_user),
+        session: Session = Depends(get_cloud_session),
+) -> CurrentUserCryptoResponse:
+    """Create exactly one opaque C11 wrapper set for the current normal user."""
+    from .models import UserCrypto
+
+    response.headers['Cache-Control'] = 'private, no-store'
+    existing = session.get(UserCrypto, current.user.id)
+    if existing is not None:
+        if _same_crypto_record(existing, payload):
+            response.status_code = status.HTTP_200_OK
+            return account_crypto(response, current, session)
+        raise _crypto_provisioning_conflict()
+
+    password = payload.password
+    recovery = payload.recovery
+    record = UserCrypto(
+        user_id=current.user.id,
+        password_crypto_version=password.crypto_version,
+        password_wrapping_version=password.wrapping_version,
+        kdf_version=password.kdf.kdf_version,
+        kdf_algorithm=password.kdf.algorithm,
+        kdf_salt=decode_canonical_base64url(password.kdf.salt, expected_length=16),
+        kdf_opslimit=password.kdf.opslimit,
+        kdf_memlimit=password.kdf.memlimit,
+        password_nonce=decode_canonical_base64url(password.nonce, expected_length=24),
+        password_wrapped_amk=decode_canonical_base64url(password.ciphertext, expected_length=48),
+        recovery_crypto_version=recovery.crypto_version,
+        recovery_wrapping_version=recovery.wrapping_version,
+        recovery_nonce=decode_canonical_base64url(recovery.nonce, expected_length=24),
+        recovery_wrapped_amk=decode_canonical_base64url(recovery.ciphertext, expected_length=48),
+    )
+    try:
+        session.add(record)
+        session.commit()
+    except IntegrityError:
+        # The primary-key constraint is the authority for concurrent first
+        # provisioning. A preflight read above is only a fast path.
+        session.rollback()
+        existing = session.get(UserCrypto, current.user.id)
+        if existing is not None and _same_crypto_record(existing, payload):
+            response.status_code = status.HTTP_200_OK
+            return account_crypto(response, current, session)
+        raise _crypto_provisioning_conflict() from None
+    return account_crypto(response, current, session)
 
 
 @router.get('/account/limits', response_model=AccountLimitsResponse)

@@ -87,3 +87,31 @@ def test_dev_data_cannot_be_combined_with_explicit_directory(
 ) -> None:
     with pytest.raises(SystemExit, match='cannot be combined'):
         backend_cli.main(['--dev-data', '--data-dir', str(tmp_path)])
+
+
+def test_launcher_preserves_configured_auth_secret(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    configured_secret = 'a' * 32
+
+    monkeypatch.setenv('NFPROGRESS_AUTH_SECRET', configured_secret)
+    monkeypatch.setattr(
+        backend_cli,
+        'create_app',
+        lambda config: captured.setdefault('config', config),
+    )
+    monkeypatch.setattr(
+        backend_cli.uvicorn,
+        'run',
+        lambda _app, **kwargs: captured.setdefault('uvicorn', kwargs),
+    )
+
+    assert backend_cli.main([
+        '--host', '127.0.0.1', '--port', '8123', '--platform', 'web',
+        '--data-dir', str(tmp_path),
+    ]) == 0
+
+    config = captured['config']
+    assert config.auth_secret == configured_secret

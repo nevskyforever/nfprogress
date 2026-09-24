@@ -10,7 +10,8 @@ import NotificationStack from '@/components/ui/NotificationStack.vue'
 import UpdatePrompt from '@/components/ui/UpdatePrompt.vue'
 import AppShell from '@/layouts/AppShell.vue'
 import { isWorkspaceWindow } from '@/platform/workspaceWindows'
-import { supportsUpdateChecks } from '@/platform/runtime'
+import { currentPlatform, supportsUpdateChecks } from '@/platform/runtime'
+import { useCloudSessionStore } from '@/stores/cloudSession'
 import { isSupportedLanguage, useLocaleStore } from '@/stores/locale'
 import { isMotionPreference, useMotionStore } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -27,6 +28,7 @@ const theme = useThemeStore()
 const motion = useMotionStore()
 const notifications = useNotificationsStore()
 const updater = useUpdaterStore()
+const cloudSession = useCloudSessionStore()
 const t = locale.translate
 const appIcon = '/icons/icon-192.webp'
 const bootstrapState = ref<BootstrapState>('loading')
@@ -86,12 +88,14 @@ watch(isAdminRoute, (admin) => {
   } else if (bootstrapState.value === 'loading') {
     void bootstrapApplication()
   }
+  if (!admin && currentPlatform() === 'tauri') cloudSession.initialize()
 }, { immediate: true })
 onAdminSessionInvalidated(() => {
   if (isAdminRoute.value) void router.replace('/admin/login')
 })
 onBeforeUnmount(() => {
   if (updateTimer !== null) window.clearInterval(updateTimer)
+  void cloudSession.dispose()
   onAdminSessionInvalidated(null)
 })
 </script>

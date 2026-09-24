@@ -3,17 +3,27 @@ import { KeyNotProvisionedError, RuntimeKeyContext, type AuthoritativeKeyContext
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import { SQLiteCloudAccountBindingRepository, type CloudAccountBindingRepository } from '@/infrastructure/sqlite/cloudAccountBindingRepository'
 import { SQLiteCloudIdentityRepository, type CloudIdentity, type CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdentityRepository'
+import { SQLiteCloudProjectBootstrapRepository } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
 import { SQLiteNoteSyncAckRepository } from '@/infrastructure/sqlite/noteSyncAckRepository'
 import { SQLiteNoteSyncInboxRepository } from '@/infrastructure/sqlite/noteSyncInboxRepository'
 import { SQLiteNoteSyncIntentRepository } from '@/infrastructure/sqlite/noteSyncIntentRepository'
 import { SQLiteNoteSyncOutboxRepository } from '@/infrastructure/sqlite/noteSyncOutboxRepository'
 import { SQLiteNoteSyncRemoteApplyRepository } from '@/infrastructure/sqlite/noteSyncRemoteApplyRepository'
 import { NoteSyncDeviceAckAdapter } from './noteSyncDeviceAck'
+import { accountCryptoApi, type CurrentUserCryptoRecord } from '@/api/accountCrypto'
+import { PendingAccountCryptoProvisioning } from './accountCryptoProvisioning'
 import { NoteSyncInboxRemoteApplier } from './noteSyncInboxApply'
 import { DurableNoteSyncInbox } from './noteSyncInbox'
 import { NoteSyncOrchestrator, type NoteSyncOrchestratorOptions, type NoteSyncOrchestratorResult } from './noteSyncOrchestrator'
 import { NoteSyncPuller } from './noteSyncPull'
 import { NoteSyncUploader } from './noteSyncUpload'
+import { sealPendingNoteSyncIntents } from './noteSyncIntent'
+import {
+  CloudProjectBootstrapCoordinator,
+  type CloudProjectBootstrapReporter,
+  type CloudProjectBootstrapProgress,
+  type CloudRegistryReconciliation,
+} from './projectBootstrap'
 
 const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
@@ -28,6 +38,15 @@ interface RuntimeKeyManager {
   dispose(): Promise<void>
 }
 
+interface ProjectBootstrapGate {
+  reconcile(identity: { localAccountId: string, deviceId: string }): Promise<CloudRegistryReconciliation>
+  preflightLocalProject(projectId: string): Promise<Array<{ note_id: string, code: string }>>
+  runReadyCycle(identity: { localAccountId: string, deviceId: string }): Promise<NoteSyncOrchestratorResult>
+  bootstrapLocalProject(identity: { localAccountId: string, deviceId: string }, projectId: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
+  importRemoteProject(identity: { localAccountId: string, deviceId: string }, projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
+  setPaused(identity: { localAccountId: string, deviceId: string }, projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
+}
+
 export interface NoteSyncRuntimeDependencies {
   readonly auth?: NormalUserAuthRuntime
   readonly identityRepository?: CloudIdentityRepository
@@ -35,6 +54,7 @@ export interface NoteSyncRuntimeDependencies {
   readonly bindings?: AuthoritativeAccountBinding
   readonly keys?: RuntimeKeyManager
   readonly orchestrator?: NoteSyncRunner
+  readonly bootstrap?: ProjectBootstrapGate
 }
 
 export interface NoteSyncRuntimeLoginResult {
@@ -44,7 +64,7 @@ export interface NoteSyncRuntimeLoginResult {
 
 export interface NoteSyncRuntimeUnlockResult {
   readonly identity: CloudIdentity
-  readonly sync: NoteSyncOrchestratorResult
+  readonly registry: CloudRegistryReconciliation
 }
 
 export class CloudIdentityUnavailableError extends Error {
@@ -65,6 +85,7 @@ export class NoteSyncRuntime {
   private readonly bindings: AuthoritativeAccountBinding
   private readonly keys: RuntimeKeyManager
   private readonly orchestrator: NoteSyncRunner
+  private readonly bootstrap: ProjectBootstrapGate
   private flight: { readonly key: string, readonly promise: Promise<NoteSyncOrchestratorResult> } | null = null
   private disposed = false
 
@@ -74,7 +95,9 @@ export class NoteSyncRuntime {
     const bindingRepository = dependencies.bindingRepository ?? new SQLiteCloudAccountBindingRepository()
     this.bindings = dependencies.bindings ?? new AuthoritativeAccountBinding(this.auth, bindingRepository)
     this.keys = dependencies.keys ?? new RuntimeKeyContext(this.auth, this.bindings)
-    this.orchestrator = dependencies.orchestrator ?? this.composeOrchestrator()
+    const composition = this.composeSync(dependencies.orchestrator)
+    this.orchestrator = composition.orchestrator
+    this.bootstrap = dependencies.bootstrap ?? composition.bootstrap
   }
 
   async login(username: string, password: string): Promise<NoteSyncRuntimeLoginResult> {
@@ -84,14 +107,36 @@ export class NoteSyncRuntime {
     return { context, identity }
   }
 
-  /** Unlocks an existing wrapped AMK and runs exactly one bounded cycle. */
-  async unlock(passphrase: string, options?: NoteSyncOrchestratorOptions): Promise<NoteSyncRuntimeUnlockResult> {
+  /** Reads the authenticated user's immutable E2EE bootstrap record. */
+  async cryptoRecord(): Promise<CurrentUserCryptoRecord> {
+    this.assertNotDisposed()
+    return (await this.auth.authorized(accessToken => accountCryptoApi.get(accessToken))).value
+  }
+
+  /** Starts a transient first-provisioning context without exposing auth tokens. */
+  async beginCryptoProvisioning(encryptionPassword: string): Promise<PendingAccountCryptoProvisioning> {
+    this.assertNotDisposed()
+    return PendingAccountCryptoProvisioning.begin(this.auth, encryptionPassword)
+  }
+
+  async submitCryptoProvisioning(pending: PendingAccountCryptoProvisioning): Promise<CurrentUserCryptoRecord> {
+    this.assertNotDisposed()
+    return pending.submit(this.auth)
+  }
+
+  async reconcileCryptoProvisioning(pending: PendingAccountCryptoProvisioning): Promise<CurrentUserCryptoRecord | null> {
+    this.assertNotDisposed()
+    return pending.reconcile(this.auth)
+  }
+
+  /** Unlocks an existing wrapped AMK without starting pull, upload, or ACK. */
+  async unlock(passphrase: string): Promise<NoteSyncRuntimeUnlockResult> {
     this.assertNotDisposed()
     const context = this.auth.requireContext()
     const identity = await this.readFor(context)
     const lease = await this.keys.unlockWithPassphrase(identity.local_account_id, passphrase)
     this.assertLease(context, identity, lease)
-    return { identity, sync: await this.runFor(context, identity, options) }
+    return { identity, registry: await this.bootstrap.reconcile(this.bootstrapIdentity(identity)) }
   }
 
   async retry(options?: NoteSyncOrchestratorOptions): Promise<NoteSyncOrchestratorResult> {
@@ -99,6 +144,48 @@ export class NoteSyncRuntime {
     const context = this.auth.requireContext()
     const identity = await this.readFor(context)
     return this.runFor(context, identity, options)
+  }
+
+  async reconcileProjects(): Promise<CloudRegistryReconciliation> {
+    this.assertNotDisposed()
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.bootstrap.reconcile(this.bootstrapIdentity(identity))
+  }
+
+  async preflightLocalProject(projectId: string): Promise<Array<{ note_id: string, code: string }>> {
+    this.assertNotDisposed()
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    const issues = await this.bootstrap.preflightLocalProject(projectId)
+    this.assertCurrent(context)
+    return issues
+  }
+
+  async bootstrapLocalProject(projectId: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress> {
+    this.assertNotDisposed()
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.bootstrap.bootstrapLocalProject(this.bootstrapIdentity(identity), projectId, report)
+  }
+
+  async importRemoteProject(projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress> {
+    this.assertNotDisposed()
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.bootstrap.importRemoteProject(this.bootstrapIdentity(identity), projectId, displayName, report)
+  }
+
+  async setProjectPaused(projectId: string, paused: boolean): Promise<CloudRegistryReconciliation> {
+    this.assertNotDisposed()
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.bootstrap.setPaused(this.bootstrapIdentity(identity), projectId, paused)
   }
 
   async lock(): Promise<void> {
@@ -118,7 +205,7 @@ export class NoteSyncRuntime {
     await this.keys.dispose()
   }
 
-  private composeOrchestrator(): NoteSyncOrchestrator {
+  private composeSync(injected?: NoteSyncRunner): { orchestrator: NoteSyncRunner, bootstrap: ProjectBootstrapGate } {
     const intents = new SQLiteNoteSyncIntentRepository()
     const outbox = new SQLiteNoteSyncOutboxRepository()
     const inboxRepository = new SQLiteNoteSyncInboxRepository()
@@ -129,7 +216,20 @@ export class NoteSyncRuntime {
     )
     const uploader = new NoteSyncUploader(this.auth, this.bindings, outbox)
     const deviceAck = new NoteSyncDeviceAckAdapter(this.auth, this.bindings, new SQLiteNoteSyncAckRepository())
-    return new NoteSyncOrchestrator(this.auth, this.keys as RuntimeKeyContext, intents, uploader, inbox, applier, deviceAck)
+    const orchestrator = injected ?? new NoteSyncOrchestrator(
+      this.auth, this.keys as RuntimeKeyContext, intents, uploader, inbox, applier, deviceAck,
+    )
+    const bootstrap = new CloudProjectBootstrapCoordinator(
+      this.auth,
+      new SQLiteCloudProjectBootstrapRepository(),
+      {
+        registerDevice: (localAccountId, deviceId) => deviceAck.registerOnce(localAccountId, deviceId),
+        sealOnce: () => sealPendingNoteSyncIntents(intents, this.keys as RuntimeKeyContext),
+        uploadOnce: localAccountId => uploader.uploadOnce(localAccountId),
+        runOnce: (localAccountId, deviceId) => orchestrator.runOnce(localAccountId, deviceId),
+      },
+    )
+    return { orchestrator, bootstrap }
   }
 
   private async provisionFor(context: AuthContextSnapshot): Promise<CloudIdentity> {
@@ -159,13 +259,32 @@ export class NoteSyncRuntime {
     this.assertLease(context, identity, lease)
     const key = `${context.userId}\u0000${context.authEpoch}\u0000${identity.local_account_id}\u0000${identity.device_id}\u0000${lease.keyContextId}\u0000${lease.keyEpoch}`
     if (this.flight?.key === key) return this.flight.promise
-    const promise = this.orchestrator.runOnce(identity.local_account_id, identity.device_id, options)
+    const promise = options === undefined
+      ? this.bootstrap.runReadyCycle(this.bootstrapIdentity(identity))
+      : this.runGatedWithOptions(identity, options)
     this.flight = { key, promise }
     try {
       return await promise
     } finally {
       if (this.flight?.promise === promise) this.flight = null
     }
+  }
+
+  private async runGatedWithOptions(identity: CloudIdentity, options: NoteSyncOrchestratorOptions): Promise<NoteSyncOrchestratorResult> {
+    const bootstrapIdentity = this.bootstrapIdentity(identity)
+    const registry = await this.bootstrap.reconcile(bootstrapIdentity)
+    if (!registry.readyForNormalCycle) return this.bootstrap.runReadyCycle(bootstrapIdentity)
+    return this.orchestrator.runOnce(identity.local_account_id, identity.device_id, options)
+  }
+
+  private assertUnlocked(context: AuthContextSnapshot, identity: CloudIdentity): void {
+    const lease = this.keys.leaseForAccount(identity.local_account_id)
+    if (lease === null) throw new KeyNotProvisionedError()
+    this.assertLease(context, identity, lease)
+  }
+
+  private bootstrapIdentity(identity: CloudIdentity): { localAccountId: string, deviceId: string } {
+    return { localAccountId: identity.local_account_id, deviceId: identity.device_id }
   }
 
   private assertLease(context: AuthContextSnapshot, identity: CloudIdentity, lease: AuthoritativeKeyContextLease): void {

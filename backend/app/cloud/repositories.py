@@ -111,6 +111,11 @@ class UserLimitOverridesRepository:
 
 
 class CloudProjectRepository:
+    def list(self, session: Session, user_id: object) -> list[CloudProject]:
+        return session.scalars(select(CloudProject).where(
+            CloudProject.user_id == user_id,
+        ).order_by(CloudProject.created_at, CloudProject.project_id)).all()
+
     def list_ids(self, session: Session, user_id: object) -> list[str]:
         return session.scalars(select(CloudProject.project_id).where(
             CloudProject.user_id == user_id,
@@ -121,8 +126,14 @@ class CloudProjectRepository:
             CloudProject.user_id == user_id,
         )) or 0)
 
-    def get(self, session: Session, user_id: object, project_id: str) -> CloudProject | None:
-        return session.get(CloudProject, (user_id, project_id))
+    def get(self, session: Session, user_id: object, project_id: str, *, lock: bool = False) -> CloudProject | None:
+        statement = select(CloudProject).where(
+            CloudProject.user_id == user_id,
+            CloudProject.project_id == project_id,
+        )
+        if lock:
+            statement = statement.with_for_update()
+        return session.scalar(statement)
 
     def add(self, session: Session, user_id: object, project_id: str) -> CloudProject:
         row = CloudProject(user_id=user_id, project_id=project_id)
@@ -148,6 +159,16 @@ class EncryptedBlobRepository:
 
 
 class SyncRepository:
+    def project_event_stats(self, session: Session, user_id: object, project_id: str,
+                            *, device_id: object | None = None) -> tuple[int, int]:
+        filters = [SyncEvent.user_id == user_id, SyncEvent.project_id == project_id]
+        if device_id is not None:
+            filters.append(SyncEvent.device_id == device_id)
+        row = session.execute(select(
+            func.count(SyncEvent.event_id), func.coalesce(func.max(SyncEvent.server_sequence), 0),
+        ).where(*filters)).one()
+        return int(row[0]), int(row[1])
+
     def get_device(self, session: Session, user_id: object, device_id: object, *, lock: bool = False) -> SyncDevice | None:
         statement = select(SyncDevice).where(SyncDevice.user_id == user_id, SyncDevice.device_id == device_id)
         if lock:

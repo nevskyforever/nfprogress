@@ -14,6 +14,7 @@ interface SealRequest {
   device_id: string
   event: SyncEventEnvelope
   note: NoteSyncRecord
+  amk?: number[]
 }
 
 interface OpenRequest {
@@ -30,7 +31,9 @@ type BridgeRequest = SealRequest | OpenRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
   if (request.action === 'seal') {
-    const amk = await generateAccountMasterKey()
+    const amk = request.amk === undefined
+      ? await generateAccountMasterKey()
+      : asAccountMasterKey(Uint8Array.from(request.amk))
     const sealed = await sealNoteSyncEvent(amk, request.canonical_user_id, request.event, null, request.note)
     const push = {
       protocol_version: 1 as const,

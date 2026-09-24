@@ -13,6 +13,9 @@ on:
       - 'frontend/src-tauri/src/note_sync.rs'
       - 'frontend/src-tauri/src/c15_headless_test_bridge.rs'
       - 'frontend/src-tauri/src/lib.rs'
+      - 'frontend/src-tauri/src/sqlite.rs'
+      - 'frontend/src-tauri/src/project_repository.rs'
+      - 'nfprogress/core/sqlite/**'
       - 'frontend/package*.json'
       - 'docs/cloud/**'
       - '.github/workflows/cloud-backend-tests.yml'
@@ -28,6 +31,9 @@ on:
       - 'frontend/src-tauri/src/note_sync.rs'
       - 'frontend/src-tauri/src/c15_headless_test_bridge.rs'
       - 'frontend/src-tauri/src/lib.rs'
+      - 'frontend/src-tauri/src/sqlite.rs'
+      - 'frontend/src-tauri/src/project_repository.rs'
+      - 'nfprogress/core/sqlite/**'
       - 'frontend/package*.json'
       - 'docs/cloud/**'
       - '.github/workflows/cloud-backend-tests.yml'
@@ -117,7 +123,7 @@ jobs:
           NFPROGRESS_ENV: test
           NFPROGRESS_TEST_DATABASE_URL: postgresql+psycopg://cloud_test_user:cloud_test_password@127.0.0.1:5432/nfprogress_c1_test
         run: |
-          acceptance_output="$(python -m pytest -q -rs tests/test_cloud_sync.py tests/test_cloud_two_device_acceptance.py tests/test_cloud_c15_headless_cross_runtime.py)"
+          acceptance_output="$(python -m pytest -q -rs tests/test_cloud_sync.py tests/test_cloud_two_device_acceptance.py tests/test_cloud_c15_headless_cross_runtime.py tests/test_cloud_project_bootstrap.py tests/test_cloud_c16_bootstrap_cross_runtime.py)"
           echo "$acceptance_output"
           if echo "$acceptance_output" | grep -Eiq '[0-9]+ skipped|SKIPPED'; then
             echo 'Mandatory sync acceptance unexpectedly skipped tests.' >&2
@@ -159,7 +165,7 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/api/client.spec.ts src/auth/userAuth.spec.ts src/auth/accountBinding.spec.ts src/auth/keyContext.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/api/base64url.spec.ts src/api/encryptedSync.spec.ts src/cloud/encryptedSyncProtocol.spec.ts src/cloud/noteSyncTwoDeviceCryptoAcceptance.spec.ts src/cloud/noteSyncHeadlessCryptoBridge.spec.ts src/cloud/syncTimestamp.spec.ts src/cloud/noteSyncCodec.spec.ts src/cloud/noteSyncCodec.golden.spec.ts src/cloud/noteSyncIntent.spec.ts src/cloud/noteSyncIntent.authority.spec.ts src/cloud/noteSyncUpload.spec.ts src/cloud/noteSyncPull.spec.ts src/cloud/noteSyncInbox.spec.ts src/cloud/noteSyncInboxDecrypt.spec.ts src/cloud/noteSyncInboxApply.spec.ts src/cloud/noteSyncDeviceAck.spec.ts src/cloud/noteSyncOrchestrator.spec.ts src/cloud/noteSyncRuntime.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/infrastructure/sqlite/cloudAccountBindingRepository.spec.ts src/infrastructure/sqlite/cloudIdentityRepository.spec.ts src/infrastructure/sqlite/noteSyncIntentRepository.spec.ts src/infrastructure/sqlite/noteSyncOutboxRepository.spec.ts src/infrastructure/sqlite/noteSyncAckRepository.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
+      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/api/client.spec.ts src/api/accountCrypto.spec.ts src/api/cloudProjects.spec.ts src/auth/userAuth.spec.ts src/auth/accountBinding.spec.ts src/auth/keyContext.spec.ts src/cloud/accountCryptoProvisioning.spec.ts src/stores/cloudSession.spec.ts src/components/settings/CloudSyncSettingsCard.spec.ts src/cloud/projectState.spec.ts src/cloud/projectBootstrap.spec.ts src/cloud/syncProtocol.spec.ts src/api/base64url.spec.ts src/api/encryptedSync.spec.ts src/cloud/encryptedSyncProtocol.spec.ts src/cloud/noteSyncTwoDeviceCryptoAcceptance.spec.ts src/cloud/noteSyncHeadlessCryptoBridge.spec.ts src/cloud/syncTimestamp.spec.ts src/cloud/noteSyncCodec.spec.ts src/cloud/noteSyncCodec.golden.spec.ts src/cloud/noteSyncIntent.spec.ts src/cloud/noteSyncIntent.authority.spec.ts src/cloud/noteSyncUpload.spec.ts src/cloud/noteSyncPull.spec.ts src/cloud/noteSyncInbox.spec.ts src/cloud/noteSyncInboxDecrypt.spec.ts src/cloud/noteSyncInboxApply.spec.ts src/cloud/noteSyncDeviceAck.spec.ts src/cloud/noteSyncOrchestrator.spec.ts src/cloud/noteSyncRuntime.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/infrastructure/sqlite/cloudAccountBindingRepository.spec.ts src/infrastructure/sqlite/cloudIdentityRepository.spec.ts src/infrastructure/sqlite/cloudProjectBootstrapRepository.spec.ts src/infrastructure/sqlite/noteSyncIntentRepository.spec.ts src/infrastructure/sqlite/noteSyncOutboxRepository.spec.ts src/infrastructure/sqlite/noteSyncAckRepository.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
         working-directory: frontend
       - run: npm run build
         working-directory: frontend

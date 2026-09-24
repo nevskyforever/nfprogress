@@ -9,9 +9,16 @@ use serde_json::{json, Value};
 use crate::account_binding::{provision_cloud_identity, CloudIdentity};
 use crate::note_sync::{
     apply_verified_received_note_ipc, commit_note_sync_ack, commit_note_sync_inbound_page,
-    prepare_note_sync_ack, ApplyVerifiedReceivedNoteIpcCommand, CommitNoteSyncAckCommand,
-    CommitNoteSyncInboundPageCommand, EncryptedNoteSyncEnvelope, InboundNoteSyncItem,
-    PrepareNoteSyncAckCommand,
+    prepare_note_sync_ack, prepare_cloud_project_bootstrap, confirm_cloud_project_registration,
+    capture_initial_note_sync_intents, read_initial_note_cohort_status,
+    mark_cloud_project_bootstrap_completing, mark_cloud_project_bootstrap_ready,
+    import_remote_cloud_project, commit_sealed_note_sync_event,
+    commit_note_sync_upload_acceptance, ApplyVerifiedReceivedNoteIpcCommand,
+    CommitNoteSyncAckCommand, CommitNoteSyncInboundPageCommand, EncryptedNoteSyncEnvelope,
+    InboundNoteSyncItem, PrepareNoteSyncAckCommand, PrepareCloudProjectBootstrapCommand,
+    ConfirmCloudProjectRegistrationCommand, CloudProjectBootstrapScopeCommand,
+    ImportRemoteCloudProjectCommand, CommitSealedNoteSyncEventCommand,
+    CommitNoteSyncUploadAcceptanceCommand, NoteSyncUploadReceipt,
 };
 use crate::sqlite::{open_database, open_privileged_remote_apply_database};
 
@@ -50,24 +57,172 @@ fn provision(request: &Value) -> Value {
         required_string(request, "canonical_user_id"),
     ).expect("provision cloud identity");
     let project_id = required_string(request, "project_id");
-    connection.execute(
-        "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json)
-         VALUES(?1,'Cross-runtime project',NULL,1,'symbols','active','{}')",
-        [project_id],
-    ).expect("create project fixture");
-    connection.execute(
-        "INSERT INTO project_order(project_id,position) VALUES(?1,0)",
-        [project_id],
-    ).expect("create project order fixture");
-    connection.execute(
-        "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at)
-         VALUES(?1,?2,'2026-09-23T00:00:00.000000Z','2026-09-23T00:00:00.000000Z')",
-        rusqlite::params![project_id, identity.local_account_id],
-    ).expect("create explicit cloud project binding fixture");
+    let create_project = request.get("create_project").and_then(Value::as_bool).unwrap_or(true);
+    if create_project {
+        connection.execute(
+            "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json)
+             VALUES(?1,'Cross-runtime project',NULL,1,'symbols','active','{}')",
+            [project_id],
+        ).expect("create project fixture");
+        connection.execute(
+            "INSERT INTO project_order(project_id,position) VALUES(?1,0)",
+            [project_id],
+        ).expect("create project order fixture");
+    }
+    if create_project && request.get("bind_project").and_then(Value::as_bool).unwrap_or(true) {
+        connection.execute(
+            "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at)
+             VALUES(?1,?2,'2026-09-23T00:00:00.000000Z','2026-09-23T00:00:00.000000Z')",
+            rusqlite::params![project_id, identity.local_account_id],
+        ).expect("create explicit cloud project binding fixture");
+    }
+    if let Some(notes) = request.get("notes").and_then(Value::as_array) {
+        for note in notes {
+            connection.execute(
+                "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+                 VALUES(?1,?2,NULL,?3,?4)",
+                rusqlite::params![
+                    required_string(note, "id"), project_id,
+                    required_string(note, "updated_at"), serde_json::to_string(note).unwrap(),
+                ],
+            ).expect("create Note fixture");
+        }
+    }
     json!({
         "local_account_id": identity.local_account_id,
         "device_id": identity.device_id,
     })
+}
+
+fn bootstrap_scope(request: &Value) -> CloudProjectBootstrapScopeCommand {
+    CloudProjectBootstrapScopeCommand {
+        project_id: required_string(request, "project_id").to_string(),
+        account_id: required_string(request, "local_account_id").to_string(),
+        device_id: required_string(request, "device_id").to_string(),
+        bootstrap_id: required_string(request, "bootstrap_id").to_string(),
+    }
+}
+
+fn bootstrap_prepare(request: &Value) -> Value {
+    let path = database_path(request);
+    let mut connection = open_database(&path).expect("open bootstrap database");
+    serde_json::to_value(prepare_cloud_project_bootstrap(&mut connection, &PrepareCloudProjectBootstrapCommand {
+        project_id: required_string(request, "project_id").to_string(),
+        account_id: required_string(request, "local_account_id").to_string(),
+        device_id: required_string(request, "device_id").to_string(),
+        mode: crate::note_sync::CloudProjectBootstrapMode::UploadExisting,
+    }).expect("prepare durable bootstrap token")).unwrap()
+}
+
+fn bootstrap_prepare_capture(request: &Value) -> Value {
+    let path = database_path(request);
+    let mut connection = open_database(&path).expect("open bootstrap database");
+    let prepared = prepare_cloud_project_bootstrap(&mut connection, &PrepareCloudProjectBootstrapCommand {
+        project_id: required_string(request, "project_id").to_string(),
+        account_id: required_string(request, "local_account_id").to_string(),
+        device_id: required_string(request, "device_id").to_string(),
+        mode: crate::note_sync::CloudProjectBootstrapMode::UploadExisting,
+    }).expect("prepare durable bootstrap token");
+    assert_eq!(prepared.bootstrap_id, required_string(request, "bootstrap_id"));
+    let registered = confirm_cloud_project_registration(&mut connection, &ConfirmCloudProjectRegistrationCommand {
+        project_id: prepared.project_id.clone(), account_id: prepared.account_id.clone(),
+        device_id: prepared.device_id.clone(), bootstrap_id: prepared.bootstrap_id.clone(),
+        remote_state: "initializing".to_string(), remote_high_water: required_i64(request, "remote_high_water"),
+    }).expect("confirm server registration");
+    let captured = capture_initial_note_sync_intents(&mut connection, &CloudProjectBootstrapScopeCommand {
+        project_id: registered.project_id, account_id: registered.account_id,
+        device_id: registered.device_id, bootstrap_id: registered.bootstrap_id,
+    }).expect("capture initial Note cohort");
+    let mut statement = connection.prepare(
+        "SELECT event.event_id,event.project_id,event.entity_id,event.entity_type,event.operation,
+                event.revision,event.updated_at,event.deleted_at,intent.mutation_generation,intent.snapshot_json
+         FROM cloud_sync_outbox event JOIN cloud_sync_note_intents intent USING(event_id)
+         WHERE event.account_id=?1 AND event.device_id=?2 AND event.local_ordinal<=?3
+         ORDER BY event.local_ordinal",
+    ).expect("prepare captured cohort read");
+    let events: Vec<Value> = statement.query_map(
+        rusqlite::params![captured.account_id, captured.device_id, captured.initial_local_ordinal_hi],
+        |row| Ok(json!({
+            "event_id":row.get::<_,String>(0)?, "project_id":row.get::<_,String>(1)?,
+            "entity_id":row.get::<_,String>(2)?, "entity_type":row.get::<_,String>(3)?,
+            "operation":row.get::<_,String>(4)?, "revision":row.get::<_,i64>(5)?,
+            "updated_at":row.get::<_,String>(6)?, "deleted_at":row.get::<_,Option<String>>(7)?,
+            "mutation_generation":row.get::<_,i64>(8)?,
+            "note":serde_json::from_str::<Value>(&row.get::<_,String>(9)?).unwrap(),
+        })),
+    ).expect("read captured cohort").collect::<Result<_,_>>().expect("collect captured cohort");
+    drop(statement);
+    let mut ids_statement = connection.prepare(
+        "SELECT event_id FROM cloud_sync_outbox WHERE account_id=?1 AND device_id=?2
+         AND local_ordinal<=?3 ORDER BY local_ordinal",
+    ).expect("prepare cohort identity read");
+    let event_ids: Vec<String> = ids_statement.query_map(
+        rusqlite::params![captured.account_id, captured.device_id, captured.initial_local_ordinal_hi],
+        |row| row.get(0),
+    ).expect("read cohort identities").collect::<Result<_,_>>().expect("collect cohort identities");
+    json!({"record":captured,"events":events,"event_ids":event_ids})
+}
+
+fn bootstrap_commit_upload(request: &Value) -> Value {
+    let path = database_path(request);
+    let mut connection = open_database(&path).expect("open bootstrap receipt database");
+    for accepted in request.get("accepted").and_then(Value::as_array).expect("accepted receipts") {
+        let object = accepted.get("object").expect("sealed object");
+        commit_sealed_note_sync_event(&mut connection, &CommitSealedNoteSyncEventCommand {
+            event_id: required_string(accepted, "event_id").to_string(),
+            expected_mutation_generation: required_i64(accepted, "mutation_generation"),
+            envelope: EncryptedNoteSyncEnvelope {
+                crypto_version: required_i64(object, "crypto_version"),
+                aad_version: required_i64(object, "aad_version"),
+                nonce: required_string(object, "nonce").to_string(),
+                ciphertext: required_string(object, "ciphertext").to_string(),
+            },
+        }).expect("commit immutable sealed envelope");
+        commit_note_sync_upload_acceptance(&mut connection, &CommitNoteSyncUploadAcceptanceCommand {
+            account_id: required_string(request, "local_account_id").to_string(),
+            device_id: required_string(request, "device_id").to_string(),
+            receipts: vec![NoteSyncUploadReceipt {
+                event_id: required_string(accepted, "event_id").to_string(),
+                server_sequence: required_i64(accepted, "server_sequence"), duplicate: false,
+            }],
+        }).expect("commit durable server receipt");
+    }
+    let cohort = read_initial_note_cohort_status(&mut connection, &bootstrap_scope(request)).expect("read initial cohort");
+    let completing = if cohort.complete {
+        Some(mark_cloud_project_bootstrap_completing(&mut connection, &bootstrap_scope(request)).expect("mark completing"))
+    } else { None };
+    json!({"cohort":cohort,"completing":completing})
+}
+
+fn bootstrap_confirm_active(request: &Value) -> Value {
+    let path = database_path(request);
+    let mut connection = open_database(&path).expect("open active bootstrap database");
+    serde_json::to_value(confirm_cloud_project_registration(&mut connection, &ConfirmCloudProjectRegistrationCommand {
+        project_id: required_string(request, "project_id").to_string(),
+        account_id: required_string(request, "local_account_id").to_string(),
+        device_id: required_string(request, "device_id").to_string(),
+        bootstrap_id: required_string(request, "bootstrap_id").to_string(),
+        remote_state: "active".to_string(), remote_high_water: required_i64(request, "remote_high_water"),
+    }).expect("confirm active server registry")).unwrap()
+}
+
+fn bootstrap_import(request: &Value) -> Value {
+    let path = database_path(request);
+    let mut connection = open_database(&path).expect("open import database");
+    serde_json::to_value(import_remote_cloud_project(&mut connection, &ImportRemoteCloudProjectCommand {
+        project_id: required_string(request, "project_id").to_string(),
+        display_name: required_string(request, "display_name").to_string(),
+        account_id: required_string(request, "local_account_id").to_string(),
+        device_id: required_string(request, "device_id").to_string(),
+        bootstrap_id: required_string(request, "bootstrap_id").to_string(),
+        remote_high_water: required_i64(request, "remote_high_water"),
+    }).expect("import active remote project")).unwrap()
+}
+
+fn bootstrap_mark_ready(request: &Value) -> Value {
+    let path = database_path(request);
+    let mut connection = open_database(&path).expect("open ready bootstrap database");
+    serde_json::to_value(mark_cloud_project_bootstrap_ready(&mut connection, &bootstrap_scope(request)).expect("mark bootstrap ready")).unwrap()
 }
 
 fn receive_apply_prepare(request: &Value) -> Value {
@@ -82,12 +237,13 @@ fn receive_apply_prepare(request: &Value) -> Value {
     let server_sequence = required_i64(event, "server_sequence");
     let source_device_id = required_string(event, "device_id").to_string();
     let next_cursor = required_i64(request, "next_cursor");
+    let expected_cursor = request.get("expected_cursor").and_then(Value::as_i64).unwrap_or(0);
 
     let inbound = CommitNoteSyncInboundPageCommand {
         account_id: account_id.clone(),
         device_id: device_id.clone(),
         canonical_user_id: canonical_user_id.clone(),
-        expected_cursor: 0,
+        expected_cursor,
         next_cursor,
         has_more: false,
         items: vec![InboundNoteSyncItem {
@@ -212,6 +368,12 @@ fn c15_headless_native_bridge() {
     ).expect("parse bridge request");
     let response = match required_string(&request, "action") {
         "provision" => provision(&request),
+        "bootstrap_prepare" => bootstrap_prepare(&request),
+        "bootstrap_prepare_capture" => bootstrap_prepare_capture(&request),
+        "bootstrap_commit_upload" => bootstrap_commit_upload(&request),
+        "bootstrap_confirm_active" => bootstrap_confirm_active(&request),
+        "bootstrap_import" => bootstrap_import(&request),
+        "bootstrap_mark_ready" => bootstrap_mark_ready(&request),
         "receive_apply_prepare" => receive_apply_prepare(&request),
         "commit_ack" => commit_ack(&request),
         action => panic!("unsupported native bridge action {action}"),

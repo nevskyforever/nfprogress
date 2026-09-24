@@ -34,9 +34,9 @@ describe('C8 cloud project state contract', () => {
     expect(transitionCloudProjectState('DISABLING_SYNC', 'LOCAL_ONLY')).toBe('LOCAL_ONLY')
   })
 
-  it('does not expose a production path that could claim registry reservation is synced', () => {
-    expect(canEnableCloudProjectSync()).toBe(false)
-    expect(canEnableCloudProjectSync({ encryptedInitialUpload: true })).toBe(true)
+  it('exposes the capability only for the durable C16 encrypted bootstrap path', () => {
+    expect(canEnableCloudProjectSync()).toBe(true)
+    expect(canEnableCloudProjectSync({ encryptedInitialUpload: false })).toBe(false)
   })
 
   it('keeps document work_method sync unrelated to the WORTA cloud lifecycle', () => {
