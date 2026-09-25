@@ -12,7 +12,7 @@ from nfprogress.core.sqlite.ordering import (
 
 
 MIGRATIONS_DIR = Path(__file__).with_name('migrations')
-CURRENT_SCHEMA_VERSION = 19
+CURRENT_SCHEMA_VERSION = 20
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
@@ -63,6 +63,7 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
             17: '017_note_sync_conflicts.sql',
             18: '018_note_sync_pending_resolutions.sql',
             19: '019_note_sync_resolution_outbox.sql',
+            20: '020_note_sync_resolution_sealing.sql',
         }[next_version]
         sql = migration.read_text(encoding='utf-8')
         # executescript is wrapped explicitly because its implicit transaction

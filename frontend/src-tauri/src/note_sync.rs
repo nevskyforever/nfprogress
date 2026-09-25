@@ -582,6 +582,26 @@ mod remote_apply_tests {
         }
     }
 
+    fn applied_resolution_for_sealing(connection:&mut PrivilegedRemoteApplyConnection) -> (PrepareNoteConflictResolutionCommand,String,String) {
+        let (local,remote)=prepare_edit_conflict(connection);
+        let command=resolution_command(connection,"choose_version",Some(&remote),None);
+        prepare_note_conflict_resolution(connection.connection_mut_for_test(),&command).unwrap();
+        apply_prepared_note_conflict_resolution(connection,&command).unwrap();
+        (command,local,remote)
+    }
+
+    fn resolution_seal_command(command:&PrepareNoteConflictResolutionCommand) -> CommitSealedNoteResolutionCommand {
+        let value:serde_json::Value=serde_json::from_slice(&command.canonical_payload).unwrap();
+        CommitSealedNoteResolutionCommand{
+            event_id:value["header"]["event_id"].as_str().unwrap().into(),
+            account_id:command.account_id.clone(),canonical_user_id:command.canonical_user_id.clone(),
+            device_id:command.device_id.clone(),project_id:"p".into(),entity_id:"n".into(),
+            expected_canonical_payload:encode_canonical_base64url(&command.canonical_payload),
+            envelope:EncryptedNoteSyncEnvelope{crypto_version:1,aad_version:1,
+                nonce:"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(),ciphertext:"AAAAAAAAAAAAAAAAAAAAAA".into()},
+        }
+    }
+
     #[test]
     fn remote_apply_create_updates_note_head_and_inbox_without_echo() {
         let mut connection = database();
@@ -1434,6 +1454,106 @@ mod remote_apply_tests {
     }
 
     #[test]
+    fn resolution_sealing_is_atomic_exact_and_restart_durable() {
+        let (root,path)=conflict_database_path("resolution-sealing-restart");
+        let mut connection=configured_database(Connection::open(&path).unwrap());
+        let (resolution,_,_)=applied_resolution_for_sealing(&mut connection);
+        let seal=resolution_seal_command(&resolution);
+        assert_eq!(list_unsealed_note_resolution_intents(connection.connection_mut_for_test(),ACCOUNT,10).unwrap().len(),1);
+        assert_eq!(commit_sealed_note_resolution_event(connection.connection_mut_for_test(),&seal).unwrap(),CommitSealedNoteResolutionResult::Sealed);
+        assert_eq!(connection.connection().query_row("SELECT lifecycle FROM cloud_sync_note_resolution_outbox",[],|r|r.get::<_,String>(0)).unwrap(),"sealed_local");
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|r.get::<_,i64>(0)).unwrap(),1);
+        assert!(list_unsealed_note_resolution_intents(connection.connection_mut_for_test(),ACCOUNT,10).unwrap().is_empty());
+        drop(connection);
+        let mut reopened=crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(commit_sealed_note_resolution_event(&mut reopened,&seal).unwrap(),CommitSealedNoteResolutionResult::AlreadySealed);
+        let stored:(Vec<u8>,Vec<u8>)=reopened.query_row("SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        assert_eq!(stored,(vec![0;24],vec![0;16]));
+        let mut changed=seal.clone();changed.envelope.nonce="AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEB".into();
+        assert!(matches!(commit_sealed_note_resolution_event(&mut reopened,&changed),Err(NoteSyncError::ConflictingEncryptedObject)));
+        assert_eq!(reopened.query_row("SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|Ok((r.get::<_,Vec<u8>>(0)?,r.get::<_,Vec<u8>>(1)?))).unwrap(),stored);
+        assert!(reopened.execute("UPDATE cloud_sync_event_objects SET nonce=?1 WHERE event_id=?2",rusqlite::params![vec![3_u8;24],seal.event_id]).is_err());
+        assert!(reopened.execute("DELETE FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id]).is_err());
+        drop(reopened);std::fs::remove_file(path).unwrap();std::fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
+    fn resolution_sealing_rejects_scope_payload_collision_and_rolls_back_injected_failure() {
+        let mut injected=database();let (resolution,_,_)=applied_resolution_for_sealing(&mut injected);let seal=resolution_seal_command(&resolution);
+        assert!(commit_sealed_note_resolution_event_inner(injected.connection_mut_for_test(),&seal,true).is_err());
+        assert_eq!(injected.connection().query_row("SELECT count(*) FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(injected.connection().query_row("SELECT lifecycle FROM cloud_sync_note_resolution_outbox",[],|r|r.get::<_,String>(0)).unwrap(),"local_pending");
+        for changed in [
+            CommitSealedNoteResolutionCommand{account_id:"other".into(),..seal.clone()},
+            CommitSealedNoteResolutionCommand{device_id:REMOTE_DEVICE.into(),..seal.clone()},
+            CommitSealedNoteResolutionCommand{project_id:"other".into(),..seal.clone()},
+            CommitSealedNoteResolutionCommand{entity_id:"other".into(),..seal.clone()},
+            CommitSealedNoteResolutionCommand{expected_canonical_payload:encode_canonical_base64url(b"{}"),..seal.clone()},
+        ] { assert!(commit_sealed_note_resolution_event(injected.connection_mut_for_test(),&changed).is_err()); }
+        injected.connection().execute("INSERT INTO cloud_sync_event_objects(account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at) VALUES(?1,?2,1,1,?3,?4,'now')",rusqlite::params![ACCOUNT,seal.event_id,vec![9_u8;24],vec![9_u8;16]]).unwrap();
+        assert!(matches!(commit_sealed_note_resolution_event(injected.connection_mut_for_test(),&seal),Err(NoteSyncError::ConflictingEncryptedObject)));
+        assert_eq!(injected.connection().query_row("SELECT nonce FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|r.get::<_,Vec<u8>>(0)).unwrap(),vec![9;24]);
+    }
+
+    #[test]
+    fn resolution_readiness_rechecks_exact_remote_and_local_publication_proof() {
+        let mut connection=database();let (resolution,local,remote)=applied_resolution_for_sealing(&mut connection);let seal=resolution_seal_command(&resolution);
+        commit_sealed_note_resolution_event(connection.connection_mut_for_test(),&seal).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        let generation:i64=connection.connection().query_row("SELECT local_mutation_generation FROM cloud_sync_note_resolution_dependencies WHERE parent_event_id=?1",[&local],|r|r.get(0)).unwrap();
+        commit_sealed_note_sync_event(connection.connection_mut_for_test(),&CommitSealedNoteSyncEventCommand{event_id:local.clone(),expected_mutation_generation:generation,envelope:EncryptedNoteSyncEnvelope{crypto_version:1,aad_version:1,nonce:"AgICAgICAgICAgICAgICAgICAgICAgIC".into(),ciphertext:"AgICAgICAgICAgICAgICAg".into()}}).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        commit_note_sync_upload_acceptance(connection.connection_mut_for_test(),&CommitNoteSyncUploadAcceptanceCommand{account_id:ACCOUNT.into(),device_id:PULLING_DEVICE.into(),receipts:vec![NoteSyncUploadReceipt{event_id:local.clone(),server_sequence:42,duplicate:false}]}).unwrap();
+        assert!(read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_inbox SET server_sequence=99 WHERE event_id=?1",[&remote]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_inbox SET server_sequence=2 WHERE event_id=?1",[&remote]).unwrap();
+        assert!(read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_inbox SET project_id='other' WHERE event_id=?1",[&remote]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_inbox SET project_id='p',sync_revision=3 WHERE event_id=?1",[&remote]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_inbox SET sync_revision=2 WHERE event_id=?1",[&remote]).unwrap();
+        assert!(read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("DELETE FROM cloud_sync_upload_receipts WHERE event_id=?1",[&local]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("INSERT INTO cloud_sync_upload_receipts(account_id,event_id,device_id,server_sequence,duplicate,accepted_at) VALUES(?1,?2,?3,42,0,'now')",rusqlite::params![ACCOUNT,local,PULLING_DEVICE]).unwrap();
+        assert!(read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("DELETE FROM cloud_sync_inbox WHERE event_id=?1",[&remote]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        assert!(connection.connection().execute("UPDATE cloud_sync_note_resolution_outbox SET canonical_payload=x'7b7d'",[]).is_err());
+        assert!(connection.connection().execute("DELETE FROM cloud_sync_note_resolution_outbox",[]).is_err());
+        assert!(connection.connection().execute("UPDATE cloud_sync_note_resolution_dependencies SET snapshot_json='{}'",[]).is_err());
+        assert!(connection.connection().execute("DELETE FROM cloud_sync_note_resolution_dependencies",[]).is_err());
+    }
+
+    #[test]
+    fn resolution_readiness_requires_exact_remote_applied_causal_history() {
+        let mut connection=database();apply_create(&mut connection);
+        let applied=received(&connection,plaintext(UPDATE_EVENT,Some(CREATE_EVENT),2,"upsert","2026-01-02T00:00:00.000000Z","first remote"),2,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection,&applied).unwrap(),ApplyVerifiedReceivedNoteResult::Applied);
+        let sibling_id="123e4567-e89b-42d3-a456-426614174103";
+        let sibling=received(&connection,plaintext(sibling_id,Some(CREATE_EVENT),2,"upsert","2026-01-02T00:01:00.000000Z","second remote"),3,"123e4567-e89b-42d3-a456-426614174003");
+        assert_eq!(apply_verified_received_note(&mut connection,&sibling).unwrap(),ApplyVerifiedReceivedNoteResult::Conflict);
+        let resolution=resolution_command(&connection,"choose_version",Some(sibling_id),None);
+        prepare_note_conflict_resolution(connection.connection_mut_for_test(),&resolution).unwrap();
+        apply_prepared_note_conflict_resolution(&mut connection,&resolution).unwrap();
+        let seal=resolution_seal_command(&resolution);
+        commit_sealed_note_resolution_event(connection.connection_mut_for_test(),&seal).unwrap();
+        assert!(read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        // Simulate corrupted durable history after proving the production
+        // immutability trigger exists; readiness must still fail closed.
+        assert!(connection.connection().execute("UPDATE cloud_sync_note_causal_history SET revision=9 WHERE event_id=?1",[UPDATE_EVENT]).is_err());
+        connection.connection().execute_batch("DROP TRIGGER cloud_sync_note_causal_history_immutable_update").unwrap();
+        connection.connection().execute("UPDATE cloud_sync_note_causal_history SET revision=9 WHERE event_id=?1",[UPDATE_EVENT]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_note_causal_history SET revision=2,server_sequence=9 WHERE event_id=?1",[UPDATE_EVENT]).unwrap();
+        assert!(!read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+        connection.connection().execute("UPDATE cloud_sync_note_causal_history SET server_sequence=2 WHERE event_id=?1",[UPDATE_EVENT]).unwrap();
+        assert!(read_note_resolution_readiness(connection.connection_mut_for_test(),ACCOUNT,&seal.event_id).unwrap().ready);
+    }
+
+    #[test]
     fn frozen_resolution_parent_can_seal_and_record_upload_acceptance() {
         let mut connection=database();
         let (local,remote)=prepare_edit_conflict(&mut connection);
@@ -2016,6 +2136,32 @@ pub(crate) struct CommitSealedNoteSyncEventCommand {
     pub event_id: String,
     pub expected_mutation_generation: i64,
     pub envelope: EncryptedNoteSyncEnvelope,
+}
+
+/// Private C17 queue input. Its plaintext is canonical v2 bytes, never a
+/// reconstructed Note snapshot and never part of the v1 intent queue.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct UnsealedNoteResolutionIntent {
+    pub event_id: String, pub account_id: String, pub device_id: String,
+    pub project_id: String, pub entity_id: String, pub canonical_payload: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitSealedNoteResolutionCommand {
+    pub event_id: String, pub account_id: String, pub canonical_user_id: String,
+    pub device_id: String, pub project_id: String, pub entity_id: String,
+    pub expected_canonical_payload: String,
+    pub envelope: EncryptedNoteSyncEnvelope,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CommitSealedNoteResolutionResult { Sealed, AlreadySealed }
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub(crate) struct NoteResolutionReadiness {
+    pub event_id: String, pub ready: bool,
 }
 
 /// Opaque, already transport-validated data accepted into the durable inbox.
@@ -3797,6 +3943,86 @@ pub(crate) fn commit_sealed_note_sync_event(
     }
     transaction.commit()?;
     Ok(CommitSealedNoteSyncEventResult::Sealed)
+}
+
+pub(crate) fn list_unsealed_note_resolution_intents(
+    connection: &mut Connection, account_id: &str, limit: u32,
+) -> Result<Vec<UnsealedNoteResolutionIntent>, NoteSyncError> {
+    if account_id.is_empty() || !(1..=MAX_UNSEALED_INTENT_LIST_LIMIT).contains(&limit) {
+        return Err(NoteSyncError::InvalidListLimit);
+    }
+    let mut statement = connection.prepare(
+        "SELECT resolution_event_id,account_id,device_id,project_id,entity_id,canonical_payload
+         FROM cloud_sync_note_resolution_outbox WHERE account_id=?1 AND lifecycle='local_pending'
+         ORDER BY applied_at,resolution_event_id LIMIT ?2",
+    )?;
+    let intents = statement.query_map(rusqlite::params![account_id,i64::from(limit)], |row| Ok(UnsealedNoteResolutionIntent {
+        event_id:row.get(0)?,account_id:row.get(1)?,device_id:row.get(2)?,project_id:row.get(3)?,entity_id:row.get(4)?,
+        canonical_payload:encode_canonical_base64url(&row.get::<_,Vec<u8>>(5)?),
+    }))?.collect::<Result<Vec<_>,_>>().map_err(NoteSyncError::Database)?;
+    Ok(intents)
+}
+
+pub(crate) fn commit_sealed_note_resolution_event(
+    connection: &mut Connection, command: &CommitSealedNoteResolutionCommand,
+) -> Result<CommitSealedNoteResolutionResult, NoteSyncError> {
+    commit_sealed_note_resolution_event_inner(connection,command,false)
+}
+
+fn commit_sealed_note_resolution_event_inner(
+    connection: &mut Connection, command: &CommitSealedNoteResolutionCommand,
+    inject_failure_after_object: bool,
+) -> Result<CommitSealedNoteResolutionResult, NoteSyncError> {
+    let envelope=decode_encrypted_note_sync_envelope(&command.envelope)?;
+    let expected_payload=decode_canonical_base64url(&command.expected_canonical_payload,1,8_388_608)?;
+    let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_pull_scope(&transaction,&command.account_id,&command.device_id,&command.canonical_user_id)?;
+    let project_bound:i64=transaction.query_row(
+        "SELECT EXISTS(SELECT 1 FROM cloud_sync_project_bindings WHERE project_id=?1 AND account_id=?2)",
+        rusqlite::params![command.project_id,command.account_id],|row|row.get(0),
+    )?;
+    if project_bound!=1 { return Err(NoteSyncError::InvalidSealState("resolution project scope mismatch")); }
+    let row:Option<(String,String,String,String,Vec<u8>,String)>=transaction.query_row(
+        "SELECT account_id,device_id,project_id,entity_id,canonical_payload,lifecycle FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1",
+        [&command.event_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?)),
+    ).optional()?;
+    let Some((account,device,project,entity,payload,lifecycle))=row else { return Err(NoteSyncError::MissingEvent); };
+    if account!=command.account_id || device!=command.device_id || project!=command.project_id
+        || entity!=command.entity_id || payload!=expected_payload {
+        return Err(NoteSyncError::InvalidSealState("resolution identity changed"));
+    }
+    if lifecycle=="sealed_local" {
+        ensure_matching_sealed_envelope(&transaction,&account,&command.event_id,&envelope)?;
+        transaction.commit()?;
+        return Ok(CommitSealedNoteResolutionResult::AlreadySealed);
+    }
+    if lifecycle!="local_pending" { return Err(NoteSyncError::UnexpectedLifecycle); }
+    if transaction.query_row("SELECT 1 FROM cloud_sync_event_objects WHERE event_id=?1",[&command.event_id],|_|Ok(())).optional()?.is_some() {
+        return Err(NoteSyncError::ConflictingEncryptedObject);
+    }
+    transaction.execute("INSERT INTO cloud_sync_event_objects(account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at) VALUES(?1,?2,?3,?4,?5,?6,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        rusqlite::params![account,command.event_id,envelope.crypto_version,envelope.aad_version,envelope.nonce,envelope.ciphertext])?;
+    if inject_failure_after_object { return Err(NoteSyncError::InvalidSealState("injected resolution sealing failure")); }
+    let changed=transaction.execute("UPDATE cloud_sync_note_resolution_outbox SET lifecycle='sealed_local',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE resolution_event_id=?1 AND lifecycle='local_pending'",[&command.event_id])?;
+    if changed!=1 { return Err(NoteSyncError::UnexpectedLifecycle); }
+    transaction.commit()?;
+    Ok(CommitSealedNoteResolutionResult::Sealed)
+}
+
+/// This is intentionally a read-only proof for a future v2 dispatcher. A
+/// sealed local parent is insufficient: local branches require acceptance.
+pub(crate) fn read_note_resolution_readiness(connection:&mut Connection, account_id:&str, event_id:&str) -> Result<NoteResolutionReadiness,NoteSyncError> {
+    let transaction=connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    let lifecycle:Option<String>=transaction.query_row("SELECT lifecycle FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1 AND account_id=?2",rusqlite::params![event_id,account_id],|r|r.get(0)).optional()?;
+    let Some(lifecycle)=lifecycle else{return Err(NoteSyncError::MissingEvent)};
+    let invalid:i64=transaction.query_row(
+        "SELECT count(*) FROM cloud_sync_note_resolution_dependencies d WHERE d.resolution_event_id=?1 AND NOT (
+          (d.source='remote_applied' AND EXISTS(SELECT 1 FROM cloud_sync_note_causal_history h JOIN cloud_sync_note_conflict_versions v ON v.event_id=h.event_id AND v.group_id=(SELECT conflict_group_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) WHERE h.account_id=?2 AND h.event_id=d.parent_event_id AND h.server_sequence=d.server_sequence AND h.project_id=(SELECT project_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND h.entity_id=(SELECT entity_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND h.entity_type='note' AND h.revision=v.revision AND h.snapshot_json=d.snapshot_json AND v.snapshot_json=d.snapshot_json))
+          OR (d.source='remote' AND EXISTS(SELECT 1 FROM cloud_sync_inbox i JOIN cloud_sync_note_conflict_versions v ON v.event_id=i.event_id AND v.group_id=(SELECT conflict_group_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) WHERE i.account_id=?2 AND i.event_id=d.parent_event_id AND i.server_sequence=d.server_sequence AND i.project_id=(SELECT project_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND i.entity_id=(SELECT entity_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND i.entity_type='note' AND i.sync_revision=v.revision AND i.state='conflict_preserved' AND v.snapshot_json=d.snapshot_json))
+          OR (d.source='local_unsealed' AND EXISTS(SELECT 1 FROM cloud_sync_outbox o JOIN cloud_sync_upload_receipts r ON r.account_id=o.account_id AND r.event_id=o.event_id JOIN cloud_sync_note_conflict_versions v ON v.event_id=o.event_id AND v.group_id=(SELECT conflict_group_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) WHERE o.account_id=?2 AND o.event_id=d.parent_event_id AND o.project_id=(SELECT project_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND o.entity_id=(SELECT entity_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND o.entity_type='note' AND o.revision=v.revision AND o.lifecycle='accepted' AND v.local_mutation_generation=d.local_mutation_generation AND v.snapshot_json=d.snapshot_json))
+        )",rusqlite::params![event_id,account_id],|r|r.get(0))?;
+    transaction.commit()?;
+    Ok(NoteResolutionReadiness{event_id:event_id.into(),ready:lifecycle=="sealed_local" && invalid==0})
 }
 
 fn valid_inbound_identity(value: &str, maximum: usize) -> bool {

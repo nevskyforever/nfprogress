@@ -64,7 +64,7 @@ def test_c17_upgrade_from_v16_preserves_existing_inbox_rows():
     connection.execute('INSERT INTO schema_info VALUES(16)')
     _insert_inbox(connection)
 
-    assert apply_migrations(connection) == 19
+    assert apply_migrations(connection) == 20
     assert connection.execute(
         'SELECT event_id,state,conflict_group_id,conflict_preserved_at '
         'FROM cloud_sync_inbox'
@@ -85,7 +85,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 19
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 20
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {

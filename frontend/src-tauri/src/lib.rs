@@ -2180,6 +2180,27 @@ fn commit_sealed_note_sync_event(
 }
 
 #[tauri::command]
+fn list_unsealed_note_resolution_intents(account_id: String, limit: u32) -> Result<Vec<note_sync::UnsealedNoteResolutionIntent>, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::list_unsealed_note_resolution_intents(&mut connection, &account_id, limit).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn commit_sealed_note_resolution_event(command: note_sync::CommitSealedNoteResolutionCommand) -> Result<note_sync::CommitSealedNoteResolutionResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::commit_sealed_note_resolution_event(&mut connection, &command).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn read_note_resolution_readiness(account_id: String, event_id: String) -> Result<note_sync::NoteResolutionReadiness, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::read_note_resolution_readiness(&mut connection, &account_id, &event_id).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 fn commit_note_sync_upload_acceptance(
     command: note_sync::CommitNoteSyncUploadAcceptanceCommand,
 ) -> Result<Vec<note_sync::CommitNoteSyncUploadAcceptanceResult>, String> {
@@ -5492,6 +5513,9 @@ pub fn run() {
             list_sealed_note_sync_outbox,
             record_note_sync_seal_failure,
             commit_sealed_note_sync_event,
+            list_unsealed_note_resolution_intents,
+            commit_sealed_note_resolution_event,
+            read_note_resolution_readiness,
             commit_note_sync_upload_acceptance,
             record_note_sync_upload_failure,
             ensure_cloud_account_binding,

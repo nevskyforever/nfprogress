@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 19;
+pub const CURRENT_SCHEMA_VERSION: i64 = 20;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -53,8 +53,8 @@ mod c16_c17_migration_tests {
             [],
         ).unwrap();
 
-        assert_eq!(apply_migrations(&connection).unwrap(), 19);
-        assert_eq!(connection.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), 19);
+        assert_eq!(apply_migrations(&connection).unwrap(), 20);
+        assert_eq!(connection.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), 20);
         assert_eq!(connection.query_row("SELECT count(*) FROM projects", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_state", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_project_bootstraps", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
@@ -81,7 +81,7 @@ mod c16_c17_migration_tests {
             [],
         ).unwrap();
 
-        assert_eq!(apply_migrations(&connection).unwrap(), 19);
+        assert_eq!(apply_migrations(&connection).unwrap(), 20);
         assert_eq!(connection.query_row(
             "SELECT state FROM cloud_sync_inbox WHERE event_id='123e4567-e89b-42d3-a456-426614174010'",
             [], |row| row.get::<_, String>(0),
@@ -113,12 +113,12 @@ mod c16_c17_migration_tests {
         connection.execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);").unwrap();
         for (_, sql) in MIGRATIONS.iter().take(17) { connection.execute_batch(sql).unwrap(); }
         connection.execute("INSERT INTO schema_info VALUES(17)", []).unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 19);
+        assert_eq!(apply_migrations(&connection).unwrap(), 20);
         drop(connection);
         let reopened = open_database(&path).unwrap();
         assert_eq!(reopened.query_row(
             "SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)
-        ).unwrap(), 19);
+        ).unwrap(), 20);
         assert_eq!(reopened.query_row(
             "SELECT count(*) FROM cloud_sync_note_pending_resolutions", [], |row| row.get::<_, i64>(0)
         ).unwrap(), 0);
@@ -139,12 +139,12 @@ mod c16_c17_migration_tests {
         connection.execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);").unwrap();
         for (_, sql) in MIGRATIONS.iter().take(18) { connection.execute_batch(sql).unwrap(); }
         connection.execute("INSERT INTO schema_info VALUES(18)", []).unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 19);
+        assert_eq!(apply_migrations(&connection).unwrap(), 20);
         drop(connection);
         let reopened = open_database(&path).unwrap();
         assert_eq!(reopened.query_row(
             "SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)
-        ).unwrap(), 19);
+        ).unwrap(), 20);
         assert_eq!(reopened.query_row(
             "SELECT count(*) FROM cloud_sync_note_resolution_outbox", [], |row| row.get::<_, i64>(0)
         ).unwrap(), 0);
@@ -514,7 +514,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 19] = [
+const MIGRATIONS: [(i64, &str); 20] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -580,6 +580,7 @@ const MIGRATIONS: [(i64, &str); 19] = [
     (17, include_str!("../../../nfprogress/core/sqlite/migrations/017_note_sync_conflicts.sql")),
     (18, include_str!("../../../nfprogress/core/sqlite/migrations/018_note_sync_pending_resolutions.sql")),
     (19, include_str!("../../../nfprogress/core/sqlite/migrations/019_note_sync_resolution_outbox.sql")),
+    (20, include_str!("../../../nfprogress/core/sqlite/migrations/020_note_sync_resolution_sealing.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
