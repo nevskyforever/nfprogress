@@ -344,6 +344,15 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
         raise RecoveryError("corrupt_sqlite: required application metadata table is missing")
     if version >= 12 and "cloud_account_bindings" not in available:
         raise RecoveryError("corrupt_sqlite: required cloud account bindings table is missing")
+    if version >= 17:
+        required_v17 = {
+            "cloud_sync_note_conflict_groups",
+            "cloud_sync_note_conflict_versions",
+            "cloud_sync_note_conflict_tips",
+            "cloud_sync_note_causal_history",
+        }
+        if not required_v17.issubset(available):
+            raise RecoveryError("corrupt_sqlite: required conflict table is missing")
     for table in ("projects", "stages", "progress_entries", "notes", "settings", "game_state"):
         column = "value_json" if table == "settings" else "payload_json"
         for row in connection.execute(f"SELECT {column} FROM {table}"):

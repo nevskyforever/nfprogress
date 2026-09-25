@@ -335,6 +335,19 @@ mod remote_apply_tests {
 
     fn database() -> PrivilegedRemoteApplyConnection {
         let connection = Connection::open_in_memory().unwrap();
+        configured_database(connection)
+    }
+
+    fn conflict_database_path(label: &str) -> (std::path::PathBuf, std::path::PathBuf) {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-{label}-{}", canonical_uuid_v4().unwrap()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("nfprogress.db");
+        (root, path)
+    }
+
+    fn configured_database(connection: Connection) -> PrivilegedRemoteApplyConnection {
         apply_migrations(&connection).unwrap();
         connection.execute(
             "INSERT INTO projects(id,name,infinite,unit,status,payload_json)
@@ -460,6 +473,50 @@ mod remote_apply_tests {
         );
         assert_eq!(apply_verified_received_note(connection, &command).unwrap(), ApplyVerifiedReceivedNoteResult::Applied);
         command
+    }
+
+    fn prepare_local_branch(
+        connection: &PrivilegedRemoteApplyConnection,
+        operation: NoteSyncOperation,
+        content: &str,
+    ) -> PreparedNoteIntent {
+        let updated_at = "2026-01-02T00:00:00.000000Z";
+        let snapshot = if operation == NoteSyncOperation::Delete {
+            let current: String = connection.connection().query_row(
+                "SELECT payload_json FROM notes WHERE id='n'", [], |row| row.get(0),
+            ).unwrap();
+            build_note_tombstone(&serde_json::from_str(&current).unwrap(), updated_at).unwrap()
+        } else {
+            match plaintext(
+                "123e4567-e89b-42d3-a456-426614174110",
+                Some(CREATE_EVENT), 2, "upsert", updated_at, content,
+            ) {
+                NoteSyncPlaintext::Update { note, .. } => note_payload_from_record(&note).unwrap(),
+                _ => unreachable!(),
+            }
+        };
+        let transaction = connection.connection().unchecked_transaction().unwrap();
+        let prepared = prepare_unsealed_note_intent(
+            &transaction,
+            PrepareNoteIntent {
+                project_id: "p", entity_id: "n", operation,
+                updated_at, deleted_at: (operation == NoteSyncOperation::Delete).then_some(updated_at),
+                snapshot_json: &snapshot, state_updated_at: updated_at,
+            },
+        ).unwrap().unwrap();
+        match operation {
+            NoteSyncOperation::Upsert => {
+                transaction.execute(
+                    "UPDATE notes SET updated_at=?1,payload_json=?2 WHERE id='n' AND project_id='p'",
+                    rusqlite::params![updated_at, snapshot],
+                ).unwrap();
+            }
+            NoteSyncOperation::Delete => {
+                transaction.execute("DELETE FROM notes WHERE id='n' AND project_id='p'", []).unwrap();
+            }
+        }
+        transaction.commit().unwrap();
+        prepared
     }
 
     #[test]
@@ -609,7 +666,44 @@ mod remote_apply_tests {
         let mut connection = database();
         let command = apply_create(&mut connection);
         assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(), ApplyVerifiedReceivedNoteResult::AlreadyApplied);
+        let mut conflicting = command.clone();
+        conflicting.plaintext = plaintext(
+            CREATE_EVENT, None, 1, "upsert", "2026-01-01T00:00:00.000000Z",
+            "same event id, different plaintext",
+        );
+        assert!(apply_verified_received_note(&mut connection, &conflicting).is_err());
         assert_eq!(connection.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+    }
+
+    #[test]
+    fn concurrent_remote_tips_are_durably_preserved_from_causal_history() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        let first = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+                      "2026-01-02T00:00:00.000000Z", "first remote tip"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &first).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Applied);
+        let sibling = received(&connection,
+            plaintext(DELETE_EVENT, Some(CREATE_EVENT), 2, "delete",
+                      "2026-01-02T00:00:01.000000Z", ""),
+            3, "123e4567-e89b-42d3-a456-426614174003");
+        assert_eq!(apply_verified_received_note(&mut connection, &sibling).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [DELETE_EVENT],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "conflict_preserved");
+        assert_eq!(connection.connection().query_row(
+            "SELECT group_concat(source,',') FROM (
+                SELECT source FROM cloud_sync_note_conflict_versions ORDER BY source
+             )", [], |row| row.get::<_, String>(0),
+        ).unwrap(), "remote,remote_applied");
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "first remote tip");
     }
 
     #[test]
@@ -724,6 +818,218 @@ mod remote_apply_tests {
         command.ciphertext[0] ^= 1;
         assert_eq!(apply_verified_received_note(&mut mismatch, &command).unwrap(), ApplyVerifiedReceivedNoteResult::Rejected);
         assert_eq!(mismatch.connection().query_row("SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn causal_edit_conflict_preserves_both_tips_and_allows_ack() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        let local = prepare_local_branch(&connection, NoteSyncOperation::Upsert, "local edit");
+        let command = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+                      "2026-01-02T00:00:00.000000Z", "remote edit"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [UPDATE_EVENT],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "conflict_preserved");
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_versions", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 2);
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(snapshot_json,'$.content')
+             FROM cloud_sync_note_conflict_versions WHERE source='local_unsealed'", [],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "local edit");
+        assert_eq!(connection.connection().query_row(
+            "SELECT local_mutation_generation FROM cloud_sync_note_conflict_versions
+             WHERE source='local_unsealed'", [], |row| row.get::<_, i64>(0),
+        ).unwrap(), local.mutation_generation);
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "local edit");
+
+        // Exact replay neither duplicates versions nor increments generation.
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT generation FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 1);
+
+        let coalesced = prepare_local_branch(
+            &connection, NoteSyncOperation::Upsert, "local after preservation",
+        );
+        assert_eq!(coalesced.event_id, local.event_id);
+        assert!(coalesced.mutation_generation > local.mutation_generation);
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(snapshot_json,'$.content')
+             FROM cloud_sync_note_conflict_versions WHERE source='local_unsealed'", [],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "local edit");
+
+        connection.connection().execute(
+            "UPDATE cloud_sync_state SET pull_cursor=3 WHERE account_id=?1", [ACCOUNT],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at
+             ) VALUES(?1,'123e4567-e89b-42d3-a456-426614174105',3,?2,'p','independent',
+                      'note','upsert',1,'2026-01-03T00:00:00.000000Z',NULL,'applied','now')",
+            rusqlite::params![ACCOUNT, REMOTE_DEVICE],
+        ).unwrap();
+        let candidate = prepare_note_sync_ack(connection.connection_mut_for_test(),
+            &PrepareNoteSyncAckCommand {
+                account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(),
+                canonical_user_id: CANONICAL_USER.into(),
+            }).unwrap();
+        assert_eq!(candidate.candidate_cursor, 3);
+        assert_eq!(commit_note_sync_ack(
+            connection.connection_mut_for_test(),
+            &CommitNoteSyncAckCommand {
+                account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(),
+                canonical_user_id: CANONICAL_USER.into(),
+                expected_old_ack_cursor: 0, acknowledged_cursor: 3,
+            },
+        ).unwrap(), CommitNoteSyncAckResult::Advanced);
+    }
+
+    #[test]
+    fn preserved_conflict_survives_database_restart() {
+        let (root, path) = conflict_database_path("conflict-restart");
+        let raw = Connection::open(&path).unwrap();
+        let mut connection = configured_database(raw);
+        apply_create(&mut connection);
+        prepare_local_branch(&connection, NoteSyncOperation::Upsert, "restart local");
+        let command = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+                      "2026-01-02T00:00:00.000000Z", "restart remote"),
+            2, REMOTE_DEVICE);
+        apply_verified_received_note(&mut connection, &command).unwrap();
+        drop(connection);
+
+        let reopened = Connection::open(&path).unwrap();
+        assert_eq!(reopened.query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [UPDATE_EVENT],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "conflict_preserved");
+        assert_eq!(reopened.query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_versions", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 2);
+        assert_eq!(reopened.query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "restart local");
+        drop(reopened);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn causal_delete_edit_conflict_keeps_tombstone_and_visible_remote_is_not_applied() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        prepare_local_branch(&connection, NoteSyncOperation::Delete, "");
+        let command = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+                      "2026-01-02T00:00:00.000000Z", "remote survives"),
+            2, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT operation,json_extract(snapshot_json,'$.deleted_at')
+             FROM cloud_sync_note_conflict_versions WHERE source='local_unsealed'", [],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        ).unwrap(), ("delete".into(), "2026-01-02T00:00:00.000000Z".into()));
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM notes", [], |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+    }
+
+    #[test]
+    fn preserved_group_accepts_multiple_causal_tips_and_rolls_back_injected_failure() {
+        let mut connection = database();
+        apply_create(&mut connection);
+        prepare_local_branch(&connection, NoteSyncOperation::Upsert, "local");
+        let first = received(&connection,
+            plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+                      "2026-01-02T00:00:00.000000Z", "remote one"),
+            2, REMOTE_DEVICE);
+        apply_verified_received_note(&mut connection, &first).unwrap();
+        let third_event = "123e4567-e89b-42d3-a456-426614174103";
+        let third = received(&connection,
+            plaintext(third_event, Some(CREATE_EVENT), 2, "delete",
+                      "2026-01-02T00:00:01.000000Z", ""),
+            3, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &third).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT generation FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 2);
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_tips", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 3);
+
+        let fourth_event = "123e4567-e89b-42d3-a456-426614174104";
+        let fourth = received(&connection,
+            plaintext(fourth_event, Some(CREATE_EVENT), 2, "upsert",
+                      "2026-01-02T00:00:02.000000Z", "rollback"),
+            4, REMOTE_DEVICE);
+        connection.connection().execute_batch(
+            "CREATE TRIGGER conflict_preservation_test_fail
+             BEFORE INSERT ON cloud_sync_note_conflict_tips
+             WHEN NEW.event_id='123e4567-e89b-42d3-a456-426614174104'
+             BEGIN SELECT RAISE(ABORT,'injected conflict preservation failure'); END;",
+        ).unwrap();
+        assert!(apply_verified_received_note(&mut connection, &fourth).is_err());
+        assert_eq!(connection.connection().query_row(
+            "SELECT generation FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 2);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [fourth_event],
+            |row| row.get::<_, String>(0),
+        ).unwrap(), "received");
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_versions WHERE event_id=?1",
+            [fourth_event], |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+    }
+
+    #[test]
+    fn revision_one_id_collision_is_not_promoted_to_durable_conflict() {
+        let mut connection = database();
+        let local_plaintext = plaintext(CREATE_EVENT, None, 1, "upsert",
+            "2026-01-01T00:00:00.000000Z", "unproven local");
+        let payload = match local_plaintext {
+            NoteSyncPlaintext::Create { note, .. } => note_payload_from_record(&note).unwrap(),
+            _ => unreachable!(),
+        };
+        connection.connection().execute("DELETE FROM cloud_sync_project_bindings", []).unwrap();
+        connection.connection().execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('n','p',NULL,'2026-01-01T00:00:00.000000Z',?1)", [&payload],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_project_bindings VALUES('p',?1,'now','now')", [ACCOUNT],
+        ).unwrap();
+        let command = received(&connection,
+            plaintext(UPDATE_EVENT, None, 1, "upsert",
+                      "2026-01-01T00:00:00.000000Z", "remote collision"),
+            1, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(),
+                   ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
     }
 
     #[test]
@@ -3021,11 +3327,31 @@ fn contiguous_applied_ack_prefix(
     let mut candidate = ack_cursor;
     while candidate < pull_cursor {
         let next = candidate.checked_add(1).ok_or(NoteSyncError::InvalidEnvelope("ACK cursor overflow"))?;
-        let state: Option<String> = transaction.query_row(
-            "SELECT state FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence=?2",
+        let durable: Option<i64> = transaction.query_row(
+            "SELECT CASE
+                WHEN inbox.state='applied' THEN 1
+                WHEN inbox.state='conflict_preserved'
+                 AND inbox.conflict_preserved_at IS NOT NULL
+                 AND EXISTS(
+                    SELECT 1 FROM cloud_sync_note_conflict_groups AS conflict_group
+                    JOIN cloud_sync_note_conflict_versions AS remote_version
+                      ON remote_version.group_id=conflict_group.group_id
+                     AND remote_version.account_id=inbox.account_id
+                     AND remote_version.event_id=inbox.event_id
+                     AND remote_version.source='remote'
+                    WHERE conflict_group.group_id=inbox.conflict_group_id
+                      AND conflict_group.account_id=inbox.account_id
+                      AND conflict_group.project_id=inbox.project_id
+                      AND conflict_group.entity_id=inbox.entity_id
+                      AND conflict_group.entity_type=inbox.entity_type
+                      AND (SELECT count(*) FROM cloud_sync_note_conflict_tips AS tip
+                           WHERE tip.group_id=conflict_group.group_id) >= 2
+                 ) THEN 1 ELSE 0 END
+             FROM cloud_sync_inbox AS inbox
+             WHERE inbox.account_id=?1 AND inbox.server_sequence=?2",
             rusqlite::params![account_id, next], |row| row.get(0),
         ).optional()?;
-        if state.as_deref() != Some("applied") { break; }
+        if durable != Some(1) { break; }
         candidate = next;
     }
     Ok(candidate)
@@ -3628,6 +3954,7 @@ struct VerifiedIncomingNote {
     deleted_at: Option<String>,
     route: NoteSyncRoute,
     payload_json: Option<String>,
+    version_json: String,
 }
 
 #[derive(Clone, Debug)]
@@ -3680,6 +4007,7 @@ fn verified_incoming_note(
             deleted_at: header.deleted_at.clone(),
             route: note.route.clone(),
             payload_json: Some(note_payload_from_record(note)?),
+            version_json: note_payload_from_record(note)?,
         }),
         NoteSyncPlaintext::Delete { header, note } => Ok(VerifiedIncomingNote {
             event_id: header.event_id.clone(),
@@ -3692,6 +4020,8 @@ fn verified_incoming_note(
             deleted_at: header.deleted_at.clone(),
             route: note.route.clone(),
             payload_json: None,
+            version_json: serde_json::to_string(note)
+                .map_err(|_| NoteSyncError::InvalidSnapshot("could not encode remote tombstone"))?,
         }),
     }
 }
@@ -3769,6 +4099,290 @@ fn classify_remote_apply(
             updated_at: String::new(),
         },
     ))
+}
+
+fn update_preserved_conflict_inbox_state(
+    transaction: &Transaction<'_>,
+    account_id: &str,
+    event_id: &str,
+    group_id: &str,
+) -> rusqlite::Result<()> {
+    let changed = transaction.execute(
+        "UPDATE cloud_sync_inbox
+         SET state='conflict_preserved',error_code='causal_conflict_preserved',
+             conflict_group_id=?1,
+             conflict_preserved_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE account_id=?2 AND event_id=?3 AND state='received'",
+        rusqlite::params![group_id, account_id, event_id],
+    )?;
+    if changed != 1 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    Ok(())
+}
+
+fn preserved_remote_version_matches(
+    transaction: &Transaction<'_>,
+    command: &ApplyVerifiedReceivedNoteCommand,
+    incoming: &VerifiedIncomingNote,
+) -> rusqlite::Result<bool> {
+    transaction
+        .query_row(
+            "SELECT version.project_id,version.entity_id,version.parent_event_id,
+                    version.revision,version.server_sequence,version.operation,
+                    version.snapshot_json
+             FROM cloud_sync_note_conflict_versions AS version
+             JOIN cloud_sync_inbox AS inbox
+               ON inbox.conflict_group_id=version.group_id
+              AND inbox.account_id=version.account_id
+              AND inbox.event_id=version.event_id
+             WHERE version.account_id=?1 AND version.event_id=?2
+               AND version.source='remote'",
+            rusqlite::params![command.account_id, command.event_id],
+            |row| {
+                Ok(row.get::<_, String>(0)? == incoming.project_id
+                    && row.get::<_, String>(1)? == incoming.entity_id
+                    && Some(row.get::<_, String>(2)?) == incoming.parent_event_id
+                    && row.get::<_, i64>(3)? == incoming.revision
+                    && row.get::<_, i64>(4)? == command.server_sequence
+                    && row.get::<_, String>(5)? == incoming.operation
+                    && row.get::<_, String>(6)? == incoming.version_json)
+            },
+        )
+        .optional()
+        .map(|value| value == Some(true))
+}
+
+fn record_remote_note_causal_history(
+    transaction: &Transaction<'_>,
+    command: &ApplyVerifiedReceivedNoteCommand,
+    incoming: &VerifiedIncomingNote,
+) -> rusqlite::Result<()> {
+    transaction.execute(
+        "INSERT INTO cloud_sync_note_causal_history(
+            account_id,event_id,project_id,entity_id,entity_type,parent_event_id,
+            revision,server_sequence,operation,snapshot_json,recorded_at
+         ) VALUES(?1,?2,?3,?4,'note',?5,?6,?7,?8,?9,
+                  strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        rusqlite::params![command.account_id, incoming.event_id, incoming.project_id,
+                          incoming.entity_id, incoming.parent_event_id, incoming.revision,
+                          command.server_sequence, incoming.operation, incoming.version_json],
+    )?;
+    Ok(())
+}
+
+fn applied_remote_history_matches(
+    transaction: &Transaction<'_>,
+    command: &ApplyVerifiedReceivedNoteCommand,
+    incoming: &VerifiedIncomingNote,
+) -> rusqlite::Result<bool> {
+    transaction.query_row(
+        "SELECT project_id,entity_id,parent_event_id,revision,server_sequence,
+                operation,snapshot_json
+         FROM cloud_sync_note_causal_history
+         WHERE account_id=?1 AND event_id=?2",
+        rusqlite::params![command.account_id, command.event_id],
+        |row| Ok(
+            row.get::<_, String>(0)? == incoming.project_id
+                && row.get::<_, String>(1)? == incoming.entity_id
+                && row.get::<_, Option<String>>(2)? == incoming.parent_event_id
+                && row.get::<_, i64>(3)? == incoming.revision
+                && row.get::<_, i64>(4)? == command.server_sequence
+                && row.get::<_, String>(5)? == incoming.operation
+                && row.get::<_, String>(6)? == incoming.version_json
+        ),
+    ).optional().map(|value| value == Some(true))
+}
+
+fn preserve_causal_note_conflict(
+    transaction: &Transaction<'_>,
+    command: &ApplyVerifiedReceivedNoteCommand,
+    incoming: &VerifiedIncomingNote,
+) -> Result<Option<RemoteApplyPlan>, StorageError> {
+    let Some(common_parent) = incoming.parent_event_id.as_deref() else {
+        return Ok(None);
+    };
+    if incoming.revision < 2 {
+        return Ok(None);
+    }
+
+    let open_group: Option<(String, String, i64, i64)> = transaction
+        .query_row(
+            "SELECT group_id,common_parent_event_id,tip_revision,generation
+             FROM cloud_sync_note_conflict_groups
+             WHERE account_id=?1 AND project_id=?2 AND entity_id=?3
+               AND entity_type='note' AND lifecycle='open'",
+            rusqlite::params![command.account_id, incoming.project_id, incoming.entity_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional()?;
+
+    let (group_id, generation) = if let Some((group_id, stored_parent, tip_revision, generation)) = open_group {
+        if stored_parent != common_parent || tip_revision != incoming.revision {
+            return Ok(None);
+        }
+        let generation = generation.checked_add(1).filter(|value| *value <= MAX_SYNC_INTEGER)
+            .ok_or_else(|| StorageError::RemoteApplyAuthorization("conflict generation overflow".into()))?;
+        transaction.execute(
+            "UPDATE cloud_sync_note_conflict_groups
+             SET generation=?1,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE group_id=?2 AND generation=?3 AND lifecycle='open'",
+            rusqlite::params![generation, group_id, generation - 1],
+        )?;
+        (group_id, generation)
+    } else {
+        let local: Option<(String, String, i64, String, i64, String)> = transaction
+            .query_row(
+                "SELECT outbox.event_id,outbox.parent_event_id,outbox.revision,
+                        outbox.operation,intent.mutation_generation,intent.snapshot_json
+                 FROM cloud_sync_outbox AS outbox
+                 JOIN cloud_sync_note_intents AS intent ON intent.event_id=outbox.event_id
+                 WHERE outbox.account_id=?1 AND outbox.project_id=?2
+                   AND outbox.entity_id=?3 AND outbox.entity_type='note'
+                   AND outbox.lifecycle='unsealed' AND outbox.local_ordinal>0",
+                rusqlite::params![command.account_id, incoming.project_id, incoming.entity_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            )
+            .optional()?;
+        let parent_known = transaction.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM cloud_sync_entities
+                  WHERE account_id=?1 AND project_id=?2 AND entity_id=?3
+                    AND entity_type='note' AND head_event_id=?4
+                 UNION ALL
+                 SELECT 1 FROM cloud_sync_outbox
+                  WHERE account_id=?1 AND project_id=?2 AND entity_id=?3
+                    AND entity_type='note' AND event_id=?4
+                    AND lifecycle IN ('sealed','accepted')
+                 UNION ALL
+                 SELECT 1 FROM cloud_sync_note_causal_history
+                  WHERE account_id=?1 AND project_id=?2 AND entity_id=?3
+                    AND entity_type='note' AND event_id=?4
+             )",
+            rusqlite::params![command.account_id, incoming.project_id, incoming.entity_id, common_parent],
+            |row| row.get::<_, i64>(0),
+        )? != 0;
+        if !parent_known {
+            return Ok(None);
+        }
+
+        let (local_event_id, local_revision, local_operation, local_snapshot,
+             local_source, local_server_sequence, mutation_generation) =
+            if let Some((local_event_id, local_parent, local_revision, local_operation,
+                         mutation_generation, local_snapshot)) = local {
+                if local_event_id == incoming.event_id || local_parent != common_parent
+                    || local_revision != incoming.revision
+                {
+                    return Ok(None);
+                }
+                (local_event_id, local_revision, local_operation, local_snapshot,
+                 "local_unsealed", None, Some(mutation_generation))
+            } else {
+                let applied: Option<(String, Option<String>, i64, i64, String, String)> = transaction
+                    .query_row(
+                        "SELECT history.event_id,history.parent_event_id,history.revision,
+                                history.server_sequence,history.operation,history.snapshot_json
+                         FROM cloud_sync_entities AS entity
+                         JOIN cloud_sync_note_causal_history AS history
+                           ON history.account_id=entity.account_id
+                          AND history.event_id=entity.head_event_id
+                         WHERE entity.account_id=?1 AND entity.project_id=?2
+                           AND entity.entity_id=?3 AND entity.entity_type='note'",
+                        rusqlite::params![command.account_id, incoming.project_id, incoming.entity_id],
+                        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+                    ).optional()?;
+                let Some((event_id, parent, revision, server_sequence, operation, snapshot)) = applied else {
+                    return Ok(None);
+                };
+                if event_id == incoming.event_id || parent.as_deref() != Some(common_parent)
+                    || revision != incoming.revision
+                {
+                    return Ok(None);
+                }
+                (event_id, revision, operation, snapshot,
+                 "remote_applied", Some(server_sequence), None)
+            };
+        let visible: Option<String> = transaction.query_row(
+            "SELECT payload_json FROM notes WHERE id=?1 AND project_id=?2",
+            rusqlite::params![incoming.entity_id, incoming.project_id],
+            |row| row.get(0),
+        ).optional()?;
+        if (local_operation == "upsert" && visible.as_deref() != Some(local_snapshot.as_str()))
+            || (local_operation == "delete" && visible.is_some())
+        {
+            return Ok(None);
+        }
+
+        let group_id = canonical_uuid_v4()
+            .map_err(|error| StorageError::RemoteApplyAuthorization(format!("{error:?}")))?;
+        transaction.execute(
+            "INSERT INTO cloud_sync_note_conflict_groups(
+                group_id,account_id,project_id,entity_id,entity_type,
+                common_parent_event_id,tip_revision,generation,lifecycle,created_at,updated_at
+             ) VALUES(?1,?2,?3,?4,'note',?5,?6,1,'open',
+                      strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            rusqlite::params![group_id, command.account_id, incoming.project_id,
+                              incoming.entity_id, common_parent, incoming.revision],
+        )?;
+        let local_version_id = match mutation_generation {
+            Some(value) => format!("local:{}:{local_event_id}:{value}", command.account_id),
+            None => format!("applied:{}:{local_event_id}", command.account_id),
+        };
+        transaction.execute(
+            "INSERT INTO cloud_sync_note_conflict_versions(
+                version_id,group_id,account_id,project_id,entity_id,entity_type,
+                event_id,parent_event_id,revision,server_sequence,operation,snapshot_json,
+                source,local_mutation_generation,local_outbox_lifecycle,
+                conflict_generation,preserved_at
+             ) VALUES(?1,?2,?3,?4,?5,'note',?6,?7,?8,?9,?10,?11,
+                      ?12,?13,?14,1,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            rusqlite::params![local_version_id, group_id, command.account_id,
+                              incoming.project_id, incoming.entity_id, local_event_id,
+                              common_parent, local_revision, local_server_sequence,
+                              local_operation, local_snapshot, local_source,
+                              mutation_generation,
+                              mutation_generation.map(|_| "unsealed")],
+        )?;
+        transaction.execute(
+            "INSERT INTO cloud_sync_note_conflict_tips(group_id,version_id,event_id,generation)
+             VALUES(?1,?2,?3,1)",
+            rusqlite::params![group_id, local_version_id, local_event_id],
+        )?;
+        (group_id, 1)
+    };
+
+    let remote_version_id = format!("remote:{}:{}", command.account_id, incoming.event_id);
+    transaction.execute(
+        "INSERT INTO cloud_sync_note_conflict_versions(
+            version_id,group_id,account_id,project_id,entity_id,entity_type,
+            event_id,parent_event_id,revision,server_sequence,operation,snapshot_json,
+            source,local_mutation_generation,local_outbox_lifecycle,
+            conflict_generation,preserved_at
+         ) VALUES(?1,?2,?3,?4,?5,'note',?6,?7,?8,?9,?10,?11,
+                  'remote',NULL,NULL,?12,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+        rusqlite::params![remote_version_id, group_id, command.account_id,
+                          incoming.project_id, incoming.entity_id, incoming.event_id,
+                          common_parent, incoming.revision, command.server_sequence,
+                          incoming.operation, incoming.version_json, generation],
+    )?;
+    transaction.execute(
+        "INSERT INTO cloud_sync_note_conflict_tips(group_id,version_id,event_id,generation)
+         VALUES(?1,?2,?3,?4)",
+        rusqlite::params![group_id, remote_version_id, incoming.event_id, generation],
+    )?;
+    update_preserved_conflict_inbox_state(
+        transaction, &command.account_id, &command.event_id, &group_id,
+    )?;
+    Ok(Some(RemoteApplyPlan {
+        result: ApplyVerifiedReceivedNoteResult::Conflict,
+        mutation: RemoteNoteMutation::None,
+        account_id: command.account_id.clone(),
+        project_id: incoming.project_id.clone(),
+        entity_id: incoming.entity_id.clone(),
+        event_id: incoming.event_id.clone(),
+        revision: incoming.revision,
+        updated_at: incoming.updated_at.clone(),
+    }))
 }
 
 fn remote_apply_storage_error(error: StorageError) -> NoteSyncError {
@@ -3905,10 +4519,35 @@ pub(crate) fn apply_verified_received_note(
                     .map_err(Into::into);
                 }
                 if inbox_state == "applied" {
+                    if !applied_remote_history_matches(transaction, command, &incoming)? {
+                        return Err(StorageError::RemoteApplyAuthorization(
+                            "conflicting applied event replay".to_string(),
+                        ));
+                    }
                     return Ok((
                         None,
                         RemoteApplyPlan {
                             result: ApplyVerifiedReceivedNoteResult::AlreadyApplied,
+                            mutation: RemoteNoteMutation::None,
+                            account_id: command.account_id.clone(),
+                            project_id,
+                            entity_id,
+                            event_id: command.event_id.clone(),
+                            revision,
+                            updated_at,
+                        },
+                    ));
+                }
+                if inbox_state == "conflict_preserved" {
+                    if !preserved_remote_version_matches(transaction, command, &incoming)? {
+                        return Err(StorageError::RemoteApplyAuthorization(
+                            "conflicting preserved event replay".to_string(),
+                        ));
+                    }
+                    return Ok((
+                        None,
+                        RemoteApplyPlan {
+                            result: ApplyVerifiedReceivedNoteResult::Conflict,
                             mutation: RemoteNoteMutation::None,
                             account_id: command.account_id.clone(),
                             project_id,
@@ -4018,6 +4657,7 @@ pub(crate) fn apply_verified_received_note(
                     if head.as_ref().is_none_or(|(_, value)| *value < incoming.revision) {
                         advance_remote_entity_head(transaction, &plan)?;
                     }
+                    record_remote_note_causal_history(transaction, command, &incoming)?;
                     update_received_inbox_state(transaction, &command.account_id, &command.event_id,
                         "applied", None, Some(&incoming.updated_at))?;
                     return Ok((None, plan));
@@ -4031,9 +4671,15 @@ pub(crate) fn apply_verified_received_note(
                     |_| Ok(()),
                 ).optional()?.is_some();
                 if local_unsealed {
+                    if let Some(plan) = preserve_causal_note_conflict(transaction, command, &incoming)? {
+                        return Ok((None, plan));
+                    }
                     return classify_remote_apply(transaction, command,
                         ApplyVerifiedReceivedNoteResult::Conflict, "conflict", "local_unsealed_change")
                         .map_err(Into::into);
+                }
+                if let Some(plan) = preserve_causal_note_conflict(transaction, command, &incoming)? {
+                    return Ok((None, plan));
                 }
                 let head = match read_entity_sync_head(
                     transaction, &command.account_id, &incoming.project_id, &incoming.entity_id,
@@ -4108,6 +4754,7 @@ pub(crate) fn apply_verified_received_note(
                     ),
                     (None, None) => (RemoteNoteMutation::None, None),
                 };
+                record_remote_note_causal_history(transaction, command, &incoming)?;
                 Ok((authorization, RemoteApplyPlan {
                     result: ApplyVerifiedReceivedNoteResult::Applied, mutation,
                     account_id: command.account_id.clone(), project_id: incoming.project_id.clone(),

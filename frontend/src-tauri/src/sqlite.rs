@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 16;
+pub const CURRENT_SCHEMA_VERSION: i64 = 17;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -29,11 +29,11 @@ pub(crate) fn register_fail_closed_remote_apply_guard(connection: &Connection) -
 }
 
 #[cfg(test)]
-mod c16_bootstrap_migration_tests {
+mod c16_c17_migration_tests {
     use super::*;
 
     #[test]
-    fn populated_schema_15_advances_to_16_without_rewriting_sync_data() {
+    fn populated_schema_15_advances_to_latest_without_rewriting_sync_data() {
         let connection = Connection::open_in_memory().unwrap();
         register_fail_closed_remote_apply_guard(&connection).unwrap();
         connection.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
@@ -53,11 +53,47 @@ mod c16_bootstrap_migration_tests {
             [],
         ).unwrap();
 
-        assert_eq!(apply_migrations(&connection).unwrap(), 16);
-        assert_eq!(connection.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), 16);
+        assert_eq!(apply_migrations(&connection).unwrap(), 17);
+        assert_eq!(connection.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), 17);
         assert_eq!(connection.query_row("SELECT count(*) FROM projects", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_state", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_project_bootstraps", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+    }
+
+    #[test]
+    fn populated_schema_16_advances_to_17_with_inbox_intact() {
+        let connection = Connection::open_in_memory().unwrap();
+        register_fail_closed_remote_apply_guard(&connection).unwrap();
+        connection.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+        connection.execute_batch(DOMAIN_EVENTS_SCHEMA).unwrap();
+        connection.execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);").unwrap();
+        for (_, sql) in MIGRATIONS.iter().take(16) {
+            connection.execute_batch(sql).unwrap();
+        }
+        connection.execute("INSERT INTO schema_info VALUES(16)", []).unwrap();
+        connection.execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at
+             ) VALUES('account','123e4567-e89b-42d3-a456-426614174010',1,
+                      '123e4567-e89b-42d3-a456-426614174001','project','note',
+                      'note','upsert',1,'2026-09-25T00:00:00.000000Z',NULL,'received','now')",
+            [],
+        ).unwrap();
+
+        assert_eq!(apply_migrations(&connection).unwrap(), 17);
+        assert_eq!(connection.query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id='123e4567-e89b-42d3-a456-426614174010'",
+            [], |row| row.get::<_, String>(0),
+        ).unwrap(), "received");
+        assert_eq!(connection.query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+        assert_eq!(connection.query_row(
+            "SELECT count(*) FROM cloud_sync_note_causal_history", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
     }
 }
 
@@ -250,6 +286,11 @@ impl PrivilegedRemoteApplyConnection {
     pub(crate) fn connection(&self) -> &Connection {
         &self.connection
     }
+
+    #[cfg(test)]
+    pub(crate) fn connection_mut_for_test(&mut self) -> &mut Connection {
+        &mut self.connection
+    }
 }
 
 pub(crate) fn open_privileged_remote_apply_database(
@@ -271,7 +312,7 @@ fn random_remote_apply_capability() -> Result<String, StorageError> {
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 26] = [
+const USER_DATA_TABLES: [&str; 30] = [
     "projects",
     "stages",
     "progress_entries",
@@ -298,6 +339,10 @@ const USER_DATA_TABLES: [&str; 26] = [
     "cloud_sync_note_intent_cursors",
     "cloud_account_bindings",
     "cloud_sync_upload_receipts",
+    "cloud_sync_note_conflict_groups",
+    "cloud_sync_note_conflict_versions",
+    "cloud_sync_note_conflict_tips",
+    "cloud_sync_note_causal_history",
 ];
 
 #[derive(Debug)]
@@ -331,7 +376,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 16] = [
+const MIGRATIONS: [(i64, &str); 17] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -394,6 +439,7 @@ const MIGRATIONS: [(i64, &str); 16] = [
     ),
     (15, include_str!("../../../nfprogress/core/sqlite/migrations/015_note_sync_remote_apply.sql")),
     (16, include_str!("../../../nfprogress/core/sqlite/migrations/016_cloud_project_bootstrap.sql")),
+    (17, include_str!("../../../nfprogress/core/sqlite/migrations/017_note_sync_conflicts.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
@@ -581,6 +627,10 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "cloud_sync_note_intent_cursors",
         "cloud_account_bindings",
         "cloud_sync_project_bootstraps",
+        "cloud_sync_note_conflict_groups",
+        "cloud_sync_note_conflict_versions",
+        "cloud_sync_note_conflict_tips",
+        "cloud_sync_note_causal_history",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(

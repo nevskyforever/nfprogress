@@ -22,6 +22,9 @@ _USER_DATA_TABLES = (
     'cloud_sync_entities', 'cloud_sync_project_bindings',
     'cloud_sync_note_intents', 'cloud_sync_note_intent_cursors',
     'cloud_account_bindings',
+    'cloud_sync_note_conflict_groups', 'cloud_sync_note_conflict_versions',
+    'cloud_sync_note_conflict_tips',
+    'cloud_sync_note_causal_history',
 )
 
 

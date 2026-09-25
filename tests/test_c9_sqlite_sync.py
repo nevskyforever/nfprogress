@@ -54,6 +54,27 @@ def _insert_inbox(connection: sqlite3.Connection, *, account: str = 'account',
     ))
 
 
+def test_c17_upgrade_from_v16_preserves_existing_inbox_rows():
+    connection = sqlite3.connect(':memory:')
+    migration_files = sorted(MIGRATIONS_DIR.glob('*.sql'))[:16]
+    assert migration_files[-1].name == '016_cloud_project_bootstrap.sql'
+    for migration in migration_files:
+        connection.executescript(migration.read_text(encoding='utf-8'))
+    connection.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(16)')
+    _insert_inbox(connection)
+
+    assert apply_migrations(connection) == 17
+    assert connection.execute(
+        'SELECT event_id,state,conflict_group_id,conflict_preserved_at '
+        'FROM cloud_sync_inbox'
+    ).fetchone() == (UUID_1, 'received', None, None)
+    assert connection.execute(
+        "SELECT count(*) FROM sqlite_master WHERE type='table' "
+        "AND name LIKE 'cloud_sync_note_conflict_%'"
+    ).fetchone()[0] == 3
+
+
 def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     connection = sqlite3.connect(':memory:')
     connection.execute("""CREATE TABLE domain_events (
@@ -64,7 +85,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 16
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 17
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -75,6 +96,10 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
         'cloud_account_bindings',
         'cloud_sync_upload_receipts',
         'cloud_sync_project_bootstraps',
+        'cloud_sync_note_conflict_groups',
+        'cloud_sync_note_conflict_versions',
+        'cloud_sync_note_conflict_tips',
+        'cloud_sync_note_causal_history',
     } <= tables
     columns = {row[1] for row in connection.execute('PRAGMA table_info(cloud_sync_outbox)')}
     assert not {

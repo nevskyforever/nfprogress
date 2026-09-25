@@ -5,6 +5,8 @@ export type NoteSyncRemoteApplyStatus =
   | 'already_applied'
   | 'self_echo_applied'
   | 'orphan'
+  // Rust reports the unresolved user-visible classification here; only the
+  // native ACK boundary can prove whether its versions are durably preserved.
   | 'conflict'
   | 'rejected'
 
