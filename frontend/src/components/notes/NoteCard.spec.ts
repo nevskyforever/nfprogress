@@ -75,4 +75,20 @@ describe('NoteCard', () => {
       'blue',
     ])
   })
+
+  it('keeps an active note editable after it was received from cloud sync', async () => {
+    const note = noteFixture({ revision: 4, read_only: false })
+    const wrapper = mount(NoteCard, {
+      props: { note },
+      global: {
+        plugins: [createPinia()],
+        stubs: { IonIcon: true },
+      },
+    })
+
+    const edit = wrapper.get('button[aria-label="Редактировать заметку"]')
+    expect(edit.attributes('disabled')).toBeUndefined()
+    await edit.trigger('click')
+    expect(wrapper.emitted('edit')?.[0]?.[0]).toEqual(note)
+  })
 })
