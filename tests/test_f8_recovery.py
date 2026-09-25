@@ -145,6 +145,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 16: "016_cloud_project_bootstrap.sql",
                 17: "017_note_sync_conflicts.sql",
                 18: "018_note_sync_pending_resolutions.sql",
+                19: "019_note_sync_resolution_outbox.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(
