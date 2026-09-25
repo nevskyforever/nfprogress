@@ -105,6 +105,23 @@ describe('C15.7B protected decrypt-to-apply adapter', () => {
     expect(apply.applyVerified).not.toHaveBeenCalled()
   })
 
+  it('keeps the Rust conflict classification distinct from an apply failure', async () => {
+    const auth = runtime(); await auth.login('u', 'p')
+    const item = await received(amk)
+    const apply: NoteSyncRemoteApplyRepository = {
+      applyVerified: vi.fn().mockResolvedValue('conflict'),
+    }
+    const result = await new NoteSyncInboxRemoteApplier(
+      auth, bindings(auth), { leaseForAccount: vi.fn(() => lease(amk)) } as unknown as RuntimeKeyContext,
+      inbox(item), apply,
+    ).applyOnce('local', DEVICE)
+    expect(result).toEqual({
+      listed: 1,
+      results: [{ event_id: EVENT, server_sequence: 1, status: 'conflict' }],
+    })
+    expect(apply.applyVerified).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps IPC failures distinct from decrypt failures and clears transient bytes', async () => {
     const auth = runtime(); await auth.login('u', 'p')
     const item = await received(amk)

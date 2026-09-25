@@ -85,6 +85,26 @@ describe('bounded Notes sync orchestration', () => {
     expect(result.ack).toEqual({ status: 'no_progress', cursor: 1 })
   })
 
+  it('allows native ACK to advance after durable conflict preservation without resolving the conflict', async () => {
+    const { h, value } = await orchestrator()
+    h.applier.applyOnce.mockResolvedValueOnce({
+      listed: 1,
+      results: [{ event_id: 'e', server_sequence: 2, status: 'conflict' }],
+    })
+    h.deviceAck.ackOnce.mockResolvedValueOnce({ status: 'advanced', cursor: 2 })
+
+    const preserved = await value.runOnce('local', DEVICE)
+    expect(preserved.blocked).toEqual(['conflict'])
+    expect(preserved.errors).toEqual([])
+    expect(preserved.ack).toEqual({ status: 'advanced', cursor: 2 })
+    expect(preserved.hasRemainingWork).toBe(false)
+
+    const restarted = await value.runOnce('local', DEVICE)
+    expect(restarted.applied).toEqual([{ listed: 0, results: [] }])
+    expect(restarted.blocked).toEqual([])
+    expect(h.applier.applyOnce).toHaveBeenCalledTimes(2)
+  })
+
   it('does not start dependent stages after registration failure or stale key context', async () => {
     const { h, value } = await orchestrator()
     h.deviceAck.registerOnce.mockRejectedValueOnce(new Error('registration timeout'))
