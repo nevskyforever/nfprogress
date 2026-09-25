@@ -1,0 +1,181 @@
+{
+  "fixture_version": 1,
+  "purpose": "C17 Pass 2A shared future TypeScript/Rust Note plaintext v2 resolution codec fixtures; no parser exists yet.",
+  "examples": [
+    {
+      "name": "edit_edit_choose_version",
+      "history": {
+        "tip_revisions": {
+          "123e4567-e89b-42d3-a456-426614174010": 3,
+          "123e4567-e89b-42d3-a456-426614174011": 3
+        }
+      },
+      "plaintext": {
+        "version": 2,
+        "header": {
+          "event_id": "123e4567-e89b-42d3-a456-426614174100",
+          "parent_event_id": "123e4567-e89b-42d3-a456-426614174010",
+          "additional_parent_event_ids": ["123e4567-e89b-42d3-a456-426614174011"],
+          "project_id": "project-resolution",
+          "entity_id": "note-resolution",
+          "entity_type": "note",
+          "operation": "resolution",
+          "revision": 4,
+          "updated_at": "2026-09-25T10:00:00.000000Z"
+        },
+        "mutation": "resolution",
+        "resolution": {
+          "conflict_group_id": "123e4567-e89b-42d3-a456-426614174900",
+          "conflict_generation": 3,
+          "resolved_event_ids": ["123e4567-e89b-42d3-a456-426614174010", "123e4567-e89b-42d3-a456-426614174011"],
+          "strategy": "choose_version",
+          "selected_event_id": "123e4567-e89b-42d3-a456-426614174011"
+        },
+        "result": {
+          "operation": "upsert",
+          "note": {
+            "id": "note-resolution",
+            "project_id": "project-resolution",
+            "stage_id": null,
+            "source_type": "project",
+            "source_map_id": null,
+            "source_node_id": null,
+            "content_format": "html",
+            "title": "Chosen edit",
+            "content": "<p>second edit</p>",
+            "checklist": [],
+            "color": "default",
+            "pinned": false,
+            "archived": false,
+            "sort_order": 0,
+            "tags": [],
+            "created_at": "2026-09-25T09:00:00.000000Z",
+            "updated_at": "2026-09-25T09:03:00.000000Z",
+            "metadata": {}
+          }
+        }
+      },
+      "canonical_json": "{\"header\":{\"additional_parent_event_ids\":[\"123e4567-e89b-42d3-a456-426614174011\"],\"entity_id\":\"note-resolution\",\"entity_type\":\"note\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"resolution\",\"parent_event_id\":\"123e4567-e89b-42d3-a456-426614174010\",\"project_id\":\"project-resolution\",\"revision\":4,\"updated_at\":\"2026-09-25T10:00:00.000000Z\"},\"mutation\":\"resolution\",\"resolution\":{\"conflict_generation\":3,\"conflict_group_id\":\"123e4567-e89b-42d3-a456-426614174900\",\"resolved_event_ids\":[\"123e4567-e89b-42d3-a456-426614174010\",\"123e4567-e89b-42d3-a456-426614174011\"],\"selected_event_id\":\"123e4567-e89b-42d3-a456-426614174011\",\"strategy\":\"choose_version\"},\"result\":{\"note\":{\"archived\":false,\"checklist\":[],\"color\":\"default\",\"content\":\"<p>second edit</p>\",\"content_format\":\"html\",\"created_at\":\"2026-09-25T09:00:00.000000Z\",\"id\":\"note-resolution\",\"metadata\":{},\"pinned\":false,\"project_id\":\"project-resolution\",\"sort_order\":0,\"source_map_id\":null,\"source_node_id\":null,\"source_type\":\"project\",\"stage_id\":null,\"tags\":[],\"title\":\"Chosen edit\",\"updated_at\":\"2026-09-25T09:03:00.000000Z\"},\"operation\":\"upsert\"},\"version\":2}"
+    },
+    {
+      "name": "delete_edit_choose_edit",
+      "history": {
+        "tip_operations": {
+          "123e4567-e89b-42d3-a456-426614174020": "delete",
+          "123e4567-e89b-42d3-a456-426614174021": "upsert"
+        },
+        "tip_revisions": {
+          "123e4567-e89b-42d3-a456-426614174020": 5,
+          "123e4567-e89b-42d3-a456-426614174021": 5
+        }
+      },
+      "plaintext": {
+        "version": 2,
+        "header": {
+          "event_id": "123e4567-e89b-42d3-a456-426614174101",
+          "parent_event_id": "123e4567-e89b-42d3-a456-426614174020",
+          "additional_parent_event_ids": ["123e4567-e89b-42d3-a456-426614174021"],
+          "project_id": "project-resolution",
+          "entity_id": "note-resolution",
+          "entity_type": "note",
+          "operation": "resolution",
+          "revision": 6,
+          "updated_at": "2026-09-25T10:01:00.000000Z"
+        },
+        "mutation": "resolution",
+        "resolution": {
+          "conflict_group_id": "123e4567-e89b-42d3-a456-426614174901",
+          "conflict_generation": 7,
+          "resolved_event_ids": ["123e4567-e89b-42d3-a456-426614174020", "123e4567-e89b-42d3-a456-426614174021"],
+          "strategy": "choose_version",
+          "selected_event_id": "123e4567-e89b-42d3-a456-426614174021"
+        },
+        "result": {
+          "operation": "upsert",
+          "note": {
+            "id": "note-resolution",
+            "project_id": "project-resolution",
+            "stage_id": null,
+            "source_type": "project",
+            "source_map_id": null,
+            "source_node_id": null,
+            "content_format": "html",
+            "title": "Edit survives",
+            "content": "<p>keep edit</p>",
+            "checklist": [],
+            "color": "default",
+            "pinned": false,
+            "archived": false,
+            "sort_order": 0,
+            "tags": [],
+            "created_at": "2026-09-25T09:00:00.000000Z",
+            "updated_at": "2026-09-25T09:05:00.000000Z",
+            "metadata": {}
+          }
+        }
+      },
+      "canonical_json": "{\"header\":{\"additional_parent_event_ids\":[\"123e4567-e89b-42d3-a456-426614174021\"],\"entity_id\":\"note-resolution\",\"entity_type\":\"note\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"operation\":\"resolution\",\"parent_event_id\":\"123e4567-e89b-42d3-a456-426614174020\",\"project_id\":\"project-resolution\",\"revision\":6,\"updated_at\":\"2026-09-25T10:01:00.000000Z\"},\"mutation\":\"resolution\",\"resolution\":{\"conflict_generation\":7,\"conflict_group_id\":\"123e4567-e89b-42d3-a456-426614174901\",\"resolved_event_ids\":[\"123e4567-e89b-42d3-a456-426614174020\",\"123e4567-e89b-42d3-a456-426614174021\"],\"selected_event_id\":\"123e4567-e89b-42d3-a456-426614174021\",\"strategy\":\"choose_version\"},\"result\":{\"note\":{\"archived\":false,\"checklist\":[],\"color\":\"default\",\"content\":\"<p>keep edit</p>\",\"content_format\":\"html\",\"created_at\":\"2026-09-25T09:00:00.000000Z\",\"id\":\"note-resolution\",\"metadata\":{},\"pinned\":false,\"project_id\":\"project-resolution\",\"sort_order\":0,\"source_map_id\":null,\"source_node_id\":null,\"source_type\":\"project\",\"stage_id\":null,\"tags\":[],\"title\":\"Edit survives\",\"updated_at\":\"2026-09-25T09:05:00.000000Z\"},\"operation\":\"upsert\"},\"version\":2}"
+    },
+    {
+      "name": "unequal_depth_manual_merge",
+      "history": {
+        "tip_revisions": {
+          "123e4567-e89b-42d3-a456-426614174030": 4,
+          "123e4567-e89b-42d3-a456-426614174031": 6
+        }
+      },
+      "plaintext": {
+        "version": 2,
+        "header": {
+          "event_id": "123e4567-e89b-42d3-a456-426614174102",
+          "parent_event_id": "123e4567-e89b-42d3-a456-426614174030",
+          "additional_parent_event_ids": ["123e4567-e89b-42d3-a456-426614174031"],
+          "project_id": "project-resolution",
+          "entity_id": "note-resolution",
+          "entity_type": "note",
+          "operation": "resolution",
+          "revision": 7,
+          "updated_at": "2026-09-25T10:02:00.000000Z"
+        },
+        "mutation": "resolution",
+        "resolution": {
+          "conflict_group_id": "123e4567-e89b-42d3-a456-426614174902",
+          "conflict_generation": 11,
+          "resolved_event_ids": ["123e4567-e89b-42d3-a456-426614174030", "123e4567-e89b-42d3-a456-426614174031"],
+          "strategy": "manual_merge"
+        },
+        "result": {
+          "operation": "upsert",
+          "note": {
+            "id": "note-resolution",
+            "project_id": "project-resolution",
+            "stage_id": null,
+            "source_type": "project",
+            "source_map_id": null,
+            "source_node_id": null,
+            "content_format": "html",
+            "title": "Manual merge",
+            "content": "<p>combined by user</p>",
+            "checklist": [],
+            "color": "default",
+            "pinned": false,
+            "archived": false,
+            "sort_order": 0,
+            "tags": [],
+            "created_at": "2026-09-25T09:00:00.000000Z",
+            "updated_at": "2026-09-25T10:02:00.000000Z",
+            "metadata": {}
+          }
+        }
+      },
+      "canonical_json": "{\"header\":{\"additional_parent_event_ids\":[\"123e4567-e89b-42d3-a456-426614174031\"],\"entity_id\":\"note-resolution\",\"entity_type\":\"note\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174102\",\"operation\":\"resolution\",\"parent_event_id\":\"123e4567-e89b-42d3-a456-426614174030\",\"project_id\":\"project-resolution\",\"revision\":7,\"updated_at\":\"2026-09-25T10:02:00.000000Z\"},\"mutation\":\"resolution\",\"resolution\":{\"conflict_generation\":11,\"conflict_group_id\":\"123e4567-e89b-42d3-a456-426614174902\",\"resolved_event_ids\":[\"123e4567-e89b-42d3-a456-426614174030\",\"123e4567-e89b-42d3-a456-426614174031\"],\"strategy\":\"manual_merge\"},\"result\":{\"note\":{\"archived\":false,\"checklist\":[],\"color\":\"default\",\"content\":\"<p>combined by user</p>\",\"content_format\":\"html\",\"created_at\":\"2026-09-25T09:00:00.000000Z\",\"id\":\"note-resolution\",\"metadata\":{},\"pinned\":false,\"project_id\":\"project-resolution\",\"sort_order\":0,\"source_map_id\":null,\"source_node_id\":null,\"source_type\":\"project\",\"stage_id\":null,\"tags\":[],\"title\":\"Manual merge\",\"updated_at\":\"2026-09-25T10:02:00.000000Z\"},\"operation\":\"upsert\"},\"version\":2}"
+    }
+  ],
+  "negative_cases": [
+    { "case": "duplicate_parent", "expected_error": "invalid_note_payload", "reason": "parents and resolved_event_ids must be unique" },
+    { "case": "unsorted_resolved_event_ids", "expected_error": "invalid_note_payload", "reason": "parent and resolved lists require strict lexical ordering" },
+    { "case": "self_referential_event", "expected_error": "invalid_note_payload", "reason": "event_id cannot be a parent or resolved event" },
+    { "case": "wrong_revision", "expected_error": "causal_history_required", "reason": "native history requires max(tip revisions) + 1" },
+    { "case": "unknown_field", "expected_error": "invalid_note_payload", "reason": "every v2 object has an exact key set" }
+  ]
+}

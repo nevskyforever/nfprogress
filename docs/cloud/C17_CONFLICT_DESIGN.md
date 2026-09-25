@@ -80,3 +80,108 @@ explicit follow-up contract before ACK eligibility can be broadened.
 Resolution events remain future C17 work and require Note plaintext v2 plus
 encrypted sync protocol v2. Any pre-release hard cutover must be coordinated
 between client and server, with incompatible older clients failing closed.
+
+## Pass 2A freeze: Note plaintext v2 resolution event
+
+This section freezes the payload for a future implementation; it does not add
+a parser, an IPC command, a schema migration, or a protocol cutover.  V1
+payloads and their codec stay byte-for-byte and semantically unchanged.
+
+### Root and header
+
+A v2 resolution payload has exactly these root keys:
+`version`, `header`, `mutation`, `resolution`, and `result`.  `version` is the
+number `2` and `mutation` is the string `resolution`.  No unknown root or
+nested keys are permitted.
+
+`header` has exactly these keys:
+`event_id`, `parent_event_id`, `additional_parent_event_ids`, `project_id`,
+`entity_id`, `entity_type`, `operation`, `revision`, and `updated_at`.
+
+* `event_id`, `parent_event_id`, every additional parent, every resolved event,
+  and `conflict_group_id` are lowercase canonical UUIDs.  `event_id` must not
+  occur in any parent or resolved-event list.
+* `parent_event_id` is the primary parent.  It is the lexicographically smallest
+  UUID in `resolved_event_ids`; it is not a user-selected winner.
+  `additional_parent_event_ids` is the remaining parent UUIDs in strictly
+  ascending byte/ASCII lexical order.
+* `project_id` and `entity_id` are non-empty strings, `entity_type` is `note`,
+  `operation` is `resolution`, `revision` is a safe integer at least `2`, and
+  `updated_at` is the existing canonical six-fractional-digit UTC timestamp.
+
+`resolved_event_ids` is the complete conflict-tip set the user saw: from two
+to 64 distinct canonical UUIDs, in strictly ascending byte/ASCII lexical
+order.  It must equal `[parent_event_id, ...additional_parent_event_ids]`
+exactly.  This canonical parent ordering makes independently encoded
+resolutions deterministic even when their chosen version differs.
+
+### Resolution and result variants
+
+`resolution` always has `conflict_group_id`, `conflict_generation`,
+`resolved_event_ids`, and `strategy`.  `conflict_generation` is a safe integer
+at least `1`.  Variant keys are exact:
+
+| `strategy` | Additional `resolution` keys | `result` |
+| --- | --- | --- |
+| `choose_version` | `selected_event_id` | `{ operation: "upsert"|"delete", note: NoteSyncRecord|NoteSyncTombstone }` |
+| `manual_merge` | none | `{ operation: "upsert", note: NoteSyncRecord }` |
+| `keep_both` | `selected_event_id`, `retained_event_id`, `retained_note` | `{ operation: "upsert", note: NoteSyncRecord }` |
+| `delete` | none | `{ operation: "delete", note: NoteSyncTombstone }` |
+
+`result` has exactly `operation` and `note`.  Its `note` uses the existing v1
+record or tombstone shape, except that its timestamps describe the resulting
+snapshot rather than the resolution event's `updated_at`.  Its route must have
+the header's project/entity identity; a tombstone is required only for
+`operation: delete`.  Thus choosing a version can carry its immutable historical
+snapshot without forging a new timestamp.
+
+For `choose_version`, `selected_event_id` is one member of
+`resolved_event_ids`, and native history must prove that `result.note` is its
+exact immutable snapshot and that `result.operation` is its operation.  For
+`manual_merge`, the user supplies a complete upsert record; automatic HTML
+merge remains forbidden.  For `delete`, no version is selected: the complete
+observed tip set is deliberately replaced by the supplied tombstone.
+
+`keep_both` is deliberately limited to exactly two upsert tips.  The selected
+tip remains the original Note through `result`; `retained_event_id` is the
+other member of `resolved_event_ids`; and `retained_note` is a complete new
+`NoteSyncRecord` in the same project with an `id` distinct from the original
+`entity_id`.  Native history must prove it is a clone of `retained_event_id`'s
+record with only the route `id` and creation/update timestamps changed to form
+the new Note.  A delete/edit group cannot use `keep_both`; it must use
+`choose_version`, `manual_merge`, or `delete`.
+
+### Causal and freshness rules
+
+The codec performs only local structural checks: exact keys; canonical UUID,
+timestamp, safe-integer, list length/order/uniqueness, variant shape, root and
+route identity, and obvious self-reference.  It cannot establish causal truth.
+
+Inside one future native SQLite transaction, local causal history must prove
+that the group is open, account/project/entity-scoped, and that its current
+generation exactly equals `conflict_generation`.  It must prove that the
+sorted current tip event IDs exactly equal `resolved_event_ids`, that every
+parent belongs to that group and identity, and that all selected/retained
+snapshots match their immutable history.  The resolution revision must be
+`max(tip revisions) + 1`, not an increment from an arbitrary selected parent;
+this is the rule for branches of unequal depth.  The transaction re-reads the
+group generation and tips while committing, so an unknown parent, stale
+generation, changed tip set, or new competing edit fails closed and receives
+no ACK as a resolution.
+
+Pre-017 history without sufficient immutable causal evidence remains
+unresolvable.  The deferred sealed-local-delete and post-preservation coalesced
+generation cases from Pass 1 also remain fail-closed until their explicit
+contracts exist.
+
+### Encryption and cutover
+
+Note plaintext v2 is encrypted under the existing AMK with the existing
+`crypto_version=1` and `aad_version=1`; the server stores and transports only
+opaque encrypted bytes and learns neither plaintext nor the parent DAG.  The
+future encrypted sync protocol v2 is a coordinated pre-public-release hard
+cutover: client and server must be deployed together, and a protocol-v1 client
+must reject v2 envelopes/events fail-closed.  No mixed v1/v2 apply, downgrade,
+or server-side winner selection is permitted.  Existing v1 events continue to
+be decoded and applied only by the v1 path; v2 resolution events require the
+new v2 path and the local schema-17 conflict evidence.

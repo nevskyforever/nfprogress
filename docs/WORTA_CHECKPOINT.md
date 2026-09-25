@@ -1,14 +1,14 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 24 сентября 2026 года.\
+**Дата:** 25 сентября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **70,0%**.\
 **Последний полностью закрытый этап:** **C15 Full Orchestration, ACK, Two-Device Acceptance** (2,5).\
-**Текущий этап:** **C16 Desktop Sync** (вес 3,0) — `IN PROGRESS`, `LOCAL INTEGRATION COMPLETE / LIVE DESKTOP ACCEPTANCE PENDING / REMOTE CI PENDING`.\
+**Текущий этап:** **C16 Desktop Sync** (вес 3,0) — `IN PROGRESS`; последние GUI-исправления в `6.0` ожидают отложенной ручной приёмки.\
 **Следующий зачёт:** после полного закрытия C16 — **73,0%**.\
 **Последний независимо проверенный remote HEAD:** `cb44169adf60858b1ed312990cca312ba960fe06`.\
 **Последняя независимая приёмка:** C15 implementation `5b379d32e84da99f13e7f4aee0e56d0267fac78d` и Windows correction `25476c611b91e26e5b94798dcf33a55924a45e08` опубликованы и independently verified; Cloud backend run `35908520926` и SQLite run `35908521004` — **SUCCESS**.
-**Текущая задача Codex:** C17 Pass 1 durable conflict preservation и ACK fairness выполняется независимо в отдельном worktree `6.0-C17` от baseline `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`. C16 остаётся `IN PROGRESS` в другом worktree; его незакоммиченные GUI изменения и acceptance-профили A/B не затрагивать. Официальный прогресс остаётся 70,0%. Не начинать C17 Pass 2 или C18 автоматически.
+**Последняя задача Codex:** C17 Pass 2A resolution-v2 contract freeze выполнен только как uncommitted documentation/fixture slice в отдельном `6.0-C17` worktree от baseline `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`. C17 Pass 1 (`3361f9c4c9a304a9dcc3780182ae5d92726e4a37`) опубликован, и оба required GitHub Actions workflow прошли. C16 остаётся `IN PROGRESS` в другом worktree; его GUI-исправления и acceptance-профили A/B не затрагивать. Официальный прогресс остаётся 70,0%. Не начинать C17 Pass 2B или C18 автоматически.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
@@ -793,9 +793,9 @@ Remote PostgreSQL run `36049416227` упал в mandatory ACK/two-device step, �
 
 Новый remote CI run требуется после отдельного corrective commit/push. C16 остаётся `IN PROGRESS`, официальный прогресс — **70,0%**; этот correction не закрывает remaining manual safety acceptance или remote gates.
 
-## 67. C17 Pass 1 — durable conflict preservation и ACK fairness (разработка в отдельном worktree)
+## 67. C17 Pass 1 и Pass 2A — conflict preservation и resolution v2 contract (отдельный worktree)
 
-**Статус: IN PROGRESS, не CLOSED.** C17 Pass 1 разрабатывается независимо в ветке/worktree `6.0-C17` от baseline `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`, пока C16 остаётся `IN PROGRESS` в другом worktree. Незакоммиченные C16 GUI изменения и профили acceptance A/B не переносятся и не затрагиваются. Официальный прогресс WORTA остаётся **70,0%**.
+**Статус: IN PROGRESS, не CLOSED.** C17 ведётся независимо в ветке/worktree `6.0-C17` от baseline `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`; Pass 1 завершён локальным commit `3361f9c4c9a304a9dcc3780182ae5d92726e4a37`, а оба required GitHub Actions workflow успешно прошли, включая frontend/PostgreSQL и Windows Rust/SQLite. C16 остаётся `IN PROGRESS` в отдельном `6.0` worktree: последние GUI-исправления ждут отложенной ручной приёмки; профили A/B и их backups не переносятся и не затрагиваются. Официальный прогресс WORTA остаётся **70,0%**.
 
 Design freeze закреплён в `docs/cloud/C17_CONFLICT_DESIGN.md`: E2EE, AMK, crypto/AAD v1 сохраняются; plaintext/protocol v2 только зарезервированы для будущих resolution events; сервер не видит plaintext и не выбирает победителя; все доказанные конкурирующие версии должны сохраняться. ACK означает durable receipt, поэтому допускает только atomic `conflict_preserved`, но не `received`, обычный `conflict`, `orphan` или `rejected`. ACK сам по себе не разрешает server-side pruning без отдельного будущего retention contract. Автоматического HTML merge не будет; пользовательское разрешение и ручное объединение относятся к следующим проходам C17. Конфликты E2EE project names/metadata остаются C18.
 
@@ -805,12 +805,16 @@ Pass 1 вводит forward-only SQLite migration 017 с immutable full Note ver
 
 **Оставшиеся границы следующих проходов:** безопасная совместимость с pre-017 applied histories без сохранённого causal snapshot; sealed локальные delete-ветви без durable plaintext tombstone; новые coalesced generations, созданные после первоначального сохранения конфликта; resolution-event Note plaintext v2/encrypted protocol v2 и согласованный hard cutover. Эти случаи Pass 1 полностью не реализует и не выдаёт за ACK-eligible.
 
-**Параллельные ветки и Git:** ветка/worktree `6.0` продолжает C16 с незакоммиченными GUI-исправлениями; оставшаяся ручная приёмка отложена. `6.0-C17` независимо ведёт C17 от baseline `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`. После завершения C16 его исправления переносятся в C17 отдельным контролируемым действием. После завершения C17 создаётся Pull Request с base `6.0` и compare `6.0-C17`; пользователь впервые работает с PR, поэтому Codex не выполняет самостоятельный merge. Текущий C17 Pass 1 оформляется одним локальным commit на HEAD с указанным baseline как parent; push не выполняется. C16 и C17 остаются `IN PROGRESS`, официальный прогресс — **70,0%**.
+**Параллельные ветки и Git:** ветка/worktree `6.0` продолжает C16 с незакоммиченными GUI-исправлениями; оставшаяся ручная приёмка отложена. `6.0-C17` независимо ведёт C17 от baseline `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`. После закрытия C16 его изменения переносятся в C17 отдельным контролируемым действием. После завершения C17 пользователь создаёт первый Pull Request с base `6.0` и compare `6.0-C17`; помощь с PR будет дана отдельным заданием, самостоятельный merge Codex запрещён. C16 и C17 остаются `IN PROGRESS`, официальный прогресс — **70,0%**.
 
 Утверждённый **Web First** roadmap сохраняется: после C18 следуют C21 Web, C22 Production Hardening, C23 Failure/Disaster Tests и PF 6.0/RC; C19/C20 остаются после первого публичного Desktop + Web релиза. C18 по-прежнему обязан реализовать versioned client compression-before-E2EE с bounded decompression и E2EE project names/metadata. C22 сохраняет account storage quotas, atomic concurrent enforcement, admin/user usage UI и явную политику учёта immutable versions. Для C18/C21/C22 и любых новых dependencies действует обязательный GPLv3 compatibility/distribution gate.
 
 **Проверки C17 Pass 1:** Python SQLite/recovery/metadata — **54 passed**; Rust migration — **2 passed**; Rust remote apply — **18 passed**; Rust ACK — **4 passed**; Rust SQLite — **18 passed**; `cargo check` — passed. `npm ci` завершён из существующего lockfile без его изменения; targeted TypeScript IPC/inbox apply/orchestrator/ACK — **18 passed в 4 files**, TypeScript typecheck и финальный `git diff --check` — **passed**. Existing `cloud-backend-tests.yml` path filter `frontend/src/**` и curated test command охватывают изменённые inbox/orchestrator specs; `sqlite-sync-tests.yml` охватывает migration/native Rust files. Remote CI остаётся pending до отдельного пользовательского push.
 
-Pass 2 автоматически не начинается. Следующий шаг только по отдельному заданию: уточнить перечисленные ограничения, затем проектировать resolution-event protocol/plaintext v2, UX и ручное разрешение, не ослабляя retention и fail-closed правила Pass 1.
+**Pass 2A фактически выполнен:** design freeze теперь задаёт exact-key JSON Note plaintext v2: multi-parent resolution header, sorted unique complete `resolved_event_ids`, strategies `choose_version`/`manual_merge`/`keep_both`/`delete`, max-parent-revision rule, codec-vs-SQLite causal boundary и fail-closed protocol-v2 hard cutover. Общий будущий fixture `frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json` содержит synthetic edit/edit choice, delete/edit choice и unequal-depth manual merge, плюс compact negative matrix. Production TypeScript/Rust codec, API, backend, migration 017 и CI не менялись; fixture не имеет фиктивного passing test.
+
+**Проверки Pass 2A:** новый JSON fixture и все его canonical expected bytes проверены локальным JSON/canonicality validation; `git diff --check` — passed. Никакие TypeScript/Rust suites, dependencies, full matrices или production tests для несуществующего v2 parser не запускались.
+
+**Следующий строго отдельный Pass 2B:** реализовать v2 codec в TypeScript и Rust с этими общими fixtures, сохранив v1 compatibility и без UI/automatic HTML merge. До него остаются открытыми implementation-level choices для atomic `keep_both` clone application и retention/lifecycle после resolution; они не должны быть решены неявно. Не начинать Pass 2B автоматически.
 
 # КОНЕЦ ЧЕКПОИНТА
