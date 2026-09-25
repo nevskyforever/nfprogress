@@ -353,6 +353,8 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
         }
         if not required_v17.issubset(available):
             raise RecoveryError("corrupt_sqlite: required conflict table is missing")
+    if version >= 18 and "cloud_sync_note_pending_resolutions" not in available:
+        raise RecoveryError("corrupt_sqlite: required pending resolution table is missing")
     for table in ("projects", "stages", "progress_entries", "notes", "settings", "game_state"):
         column = "value_json" if table == "settings" else "payload_json"
         for row in connection.execute(f"SELECT {column} FROM {table}"):
