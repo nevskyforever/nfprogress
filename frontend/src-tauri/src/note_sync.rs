@@ -8063,6 +8063,53 @@ mod tests {
     }
 
     #[test]
+    fn cloud_applied_note_remains_editable_and_queues_the_local_change() {
+        const REMOTE_HEAD: &str = "123e4567-e89b-42d3-a456-426614174120";
+        let mut connection = direct_database(false);
+        let received = serde_json::json!({
+            "id":"received-note","project_id":"project","stage_id":null,
+            "source_type":"project","source_map_id":null,"source_node_id":null,
+            "content_format":"html","title":"Received","content":"<p>Remote</p>",
+            "checklist":[],"color":"default","pinned":false,"archived":false,
+            "sort_order":0,"tags":[],"created_at":"2026-01-01T00:00:00Z",
+            "updated_at":"2026-01-01T00:00:00Z","revision":0,"metadata":{}
+        });
+        connection.execute(
+            "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
+             VALUES('received-note','project',NULL,'2026-01-01T00:00:00Z',?1)",
+            [received.to_string()],
+        ).unwrap();
+        bind_direct_project(&connection);
+        connection.execute(
+            "INSERT INTO cloud_sync_entities(
+                account_id,project_id,entity_id,entity_type,head_event_id,
+                head_sync_revision,updated_at
+             ) VALUES('account','project','received-note','note',?1,1,'2026-01-01T00:00:00Z')",
+            [REMOTE_HEAD],
+        ).unwrap();
+
+        crate::update_note_in_connection(
+            &mut connection,
+            "project",
+            "received-note",
+            &serde_json::json!({"content":"<p>Local edit</p>"}),
+            None,
+        ).unwrap();
+
+        let stored: String = connection.query_row(
+            "SELECT payload_json FROM notes WHERE id='received-note'",
+            [],
+            |row| row.get(0),
+        ).unwrap();
+        let payload: serde_json::Value = serde_json::from_str(&stored).unwrap();
+        let event = outbox_identity(&connection, "received-note");
+        assert_eq!(payload["content"], "<p>Local edit</p>");
+        assert_eq!(event.1, 2);
+        assert_eq!(event.2.as_deref(), Some(REMOTE_HEAD));
+        assert_eq!(event.4, "upsert");
+    }
+
+    #[test]
     fn note_sync_direct_delete_coalesces_or_advances_from_sealed_head() {
         let mut coalesced = direct_database(true);
         crate::create_note_in_connection(&mut coalesced, "project", None, "note").unwrap();

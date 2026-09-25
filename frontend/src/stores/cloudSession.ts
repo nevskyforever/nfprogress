@@ -211,6 +211,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
       lifecycleEpoch += 1
       clearPending()
       resetVisibleSession()
+      busy.value = false
       status.value = 'logged_out'
       return
     }

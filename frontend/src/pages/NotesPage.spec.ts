@@ -111,4 +111,47 @@ describe('NotesPage', () => {
     expect(wrapper.find('.mindmap-panel').exists()).toBe(true)
     wrapper.unmount()
   })
+
+  it('does not reopen the editor until the previous Ionic overlay has dismissed', async () => {
+    const wrapper = mount(NotesPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonIcon: true,
+          IonSpinner: true,
+          RouterLink: { template: '<a><slot /></a>' },
+          MindMapEditor: true,
+          NoteEditorDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    const edit = wrapper.get('button[aria-label="Редактировать заметку"]')
+    await edit.trigger('click')
+    const dialog = wrapper.findComponent({ name: 'NoteEditorDialog' })
+    expect(dialog.props('open')).toBe(true)
+
+    dialog.vm.$emit('close')
+    await flushPromises()
+    expect(dialog.props('open')).toBe(false)
+    expect(edit.attributes('disabled')).toBeDefined()
+
+    await edit.trigger('click')
+    expect(dialog.props('open')).toBe(false)
+
+    dialog.vm.$emit('dismissed')
+    await flushPromises()
+    expect(edit.attributes('disabled')).toBeUndefined()
+    await edit.trigger('click')
+    expect(dialog.props('open')).toBe(true)
+
+    const lifecycle = wrapper.vm as unknown as { onIonViewWillLeave?: Array<() => void> }
+    expect(lifecycle.onIonViewWillLeave).toHaveLength(1)
+    lifecycle.onIonViewWillLeave?.forEach(hook => hook())
+    await flushPromises()
+    expect(dialog.props('open')).toBe(false)
+    expect(edit.attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
 })

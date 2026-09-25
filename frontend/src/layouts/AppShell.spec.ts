@@ -14,7 +14,7 @@ import type { SettingsResponse } from '@/types/content'
 import AppShell from './AppShell.vue'
 
 const routerMock = vi.hoisted(() => ({
-  route: { meta: { title: 'Проекты' }, fullPath: '/projects', name: 'projects' },
+  route: { meta: { title: 'Проекты' }, path: '/projects', fullPath: '/projects', name: 'projects' },
   push: vi.fn().mockResolvedValue(undefined),
 }))
 
@@ -85,7 +85,7 @@ function mountShell() {
 
 describe('AppShell preferences', () => {
   beforeEach(() => {
-    Object.assign(routerMock.route, { meta: { title: 'Проекты' }, fullPath: '/projects', name: 'projects' })
+    Object.assign(routerMock.route, { meta: { title: 'Проекты' }, path: '/projects', fullPath: '/projects', name: 'projects' })
     routerMock.push.mockClear()
     try {
       window.localStorage?.removeItem('nfprogress.theme')
@@ -138,6 +138,17 @@ describe('AppShell preferences', () => {
     expect(navigation).toContain('Заметки')
     expect(navigation).toContain('Игра')
     expect(navigation).not.toContain('Игровой режим')
+  })
+
+  it('keys the Ionic outlet by path so a cached page cannot retain a stale overlay', () => {
+    routerMock.route.path = '/notes/project-42'
+    routerMock.route.fullPath = '/notes/project-42?view=notes'
+    routerMock.route.name = 'global-project-notes'
+    const { wrapper } = mountShell()
+
+    const outlet = wrapper.findComponent({ name: 'IonRouterOutlet' })
+    expect(outlet.vm.$.vnode.key).toBe('/notes/project-42')
+    wrapper.unmount()
   })
 
   it('starts collapsed and remembers sidebar preference changes', async () => {

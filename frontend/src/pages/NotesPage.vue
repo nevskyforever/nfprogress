@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { IonContent, IonIcon, IonPage } from '@ionic/vue'
+import { IonContent, IonIcon, IonPage, onIonViewWillLeave } from '@ionic/vue'
 import {
   addOutline,
   alertCircleOutline,
@@ -45,6 +45,7 @@ const activeView = ref<WorkspaceView>(restoredView())
 const search = ref('')
 const showArchived = ref(false)
 const editingNote = ref<ProjectNote | null>(null)
+const editorClosing = ref(false)
 const pendingFocusNode = ref<string | null>(null)
 const mindMapEditor = ref<InstanceType<typeof MindMapEditor> | null>(null)
 
@@ -106,7 +107,22 @@ async function saveNote(noteId: string, patch: ProjectNotePatch): Promise<void> 
     mindMapEditor.value?.updateNodeNote(previous.source_node_id, updated.content)
     await workspace.refreshMindMap()
   }
+  closeEditor()
+}
+
+function openEditor(note: ProjectNote): void {
+  if (editorClosing.value) return
+  editingNote.value = note
+}
+
+function closeEditor(): void {
+  if (editingNote.value === null) return
   editingNote.value = null
+  editorClosing.value = true
+}
+
+function editorDismissed(): void {
+  editorClosing.value = false
 }
 
 async function togglePin(note: ProjectNote): Promise<void> {
@@ -162,7 +178,7 @@ function selectStage(event: Event): void {
 
 function leaveWorkspace(): void {
   if (editingNote.value) {
-    editingNote.value = null
+    closeEditor()
     return
   }
   void router.push(
@@ -181,7 +197,7 @@ function handleEscape(event: KeyboardEvent): void {
 watch(
   [projectId, stageId],
   () => {
-    editingNote.value = null
+    closeEditor()
     void workspace.load()
   },
   { immediate: true },
@@ -193,6 +209,7 @@ watch(activeView, (view) => {
 })
 
 onMounted(() => window.addEventListener('keydown', handleEscape, true))
+onIonViewWillLeave(closeEditor)
 onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape, true))
 onBeforeUnmount(workspace.invalidate)
 </script>
@@ -311,10 +328,10 @@ onBeforeUnmount(workspace.invalidate)
               v-for="note in visibleNotes"
               :key="note.id"
               :note="note"
-              :disabled="workspace.mutating.value"
+              :disabled="workspace.mutating.value || editorClosing"
               :can-move-up="canMove(note, -1)"
               :can-move-down="canMove(note, 1)"
-              @edit="editingNote = $event"
+              @edit="openEditor"
               @toggle-pin="togglePin"
               @toggle-archive="toggleArchive"
               @set-color="setNoteColor"
@@ -361,7 +378,8 @@ onBeforeUnmount(workspace.invalidate)
       :note="editingNote"
       :submitting="workspace.mutating.value"
       :api-error="workspace.error.value"
-      @close="editingNote = null"
+      @close="closeEditor"
+      @dismissed="editorDismissed"
       @submit="saveNote"
     />
   </IonPage>

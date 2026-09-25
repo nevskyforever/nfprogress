@@ -174,6 +174,7 @@ describe('desktop cloud session owner', () => {
     await expect(store.submitProvisioning()).rejects.toBeDefined()
     expect(store.status).toBe('logged_out')
     expect(store.username).toBeNull()
+    expect(store.busy).toBe(false)
     expect(retained.dispose).toHaveBeenCalled()
   })
 
@@ -376,6 +377,7 @@ describe('desktop cloud session owner', () => {
     expect(store.status).toBe('logged_out')
     expect(store.username).toBeNull()
     expect(store.errorMessage).toBeNull()
+    expect(store.busy).toBe(false)
   })
 
   it('surfaces paused projects and resumes without deleting durable state', async () => {

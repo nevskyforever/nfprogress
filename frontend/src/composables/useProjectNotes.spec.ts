@@ -84,4 +84,46 @@ describe('useProjectNotes', () => {
     )
     expect(workspace.mindMap.value).toBeNull()
   })
+
+  it('persists an edit to a cloud-applied note and keeps it editable after reload', async () => {
+    const received = noteFixture({
+      content: '<p>Получено с другого устройства</p>',
+      revision: 3,
+      read_only: false,
+    })
+    const edited = noteFixture({
+      content: '<p>Изменено после синхронизации</p>',
+      revision: 4,
+      read_only: false,
+    })
+    vi.mocked(notesApi.list)
+      .mockResolvedValueOnce({
+        notes: [received],
+        read_only: false,
+        context: { hasStages: false, stages: [] },
+      })
+      .mockResolvedValueOnce({
+        notes: [edited],
+        read_only: false,
+        context: { hasStages: false, stages: [] },
+      })
+    vi.mocked(notesApi.mindMap).mockResolvedValue(mindMapFixture())
+    vi.mocked(notesApi.update).mockResolvedValue(edited)
+    const workspace = useProjectNotes(ref('project-id'), ref(null))
+
+    await workspace.load()
+    const result = await workspace.updateNote(received.id, { content: edited.content })
+
+    expect(notesApi.update).toHaveBeenCalledWith(
+      { projectId: 'project-id', stageId: null },
+      received.id,
+      { content: edited.content },
+    )
+    expect(result).toEqual(edited)
+    expect(workspace.notes.value[0]?.read_only).toBe(false)
+
+    await workspace.load()
+    expect(workspace.notes.value).toEqual([edited])
+    expect(workspace.readOnly.value).toBe(false)
+  })
 })

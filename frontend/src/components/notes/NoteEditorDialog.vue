@@ -22,12 +22,14 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   close: []
+  dismissed: []
   submit: [noteId: string, patch: ProjectNotePatch]
 }>()
 
 const locale = useLocaleStore()
 const t = locale.translate
 const contentEditor = ref<HTMLElement | null>(null)
+const editorReady = ref(false)
 const form = reactive({
   title: '',
   content: '',
@@ -38,18 +40,23 @@ const form = reactive({
 
 function reset(): void {
   const note = props.note
+  editorReady.value = false
   form.title = note?.title ?? ''
   form.content = note?.content ?? ''
   form.tags = note?.tags.join(', ') ?? ''
   form.color = note?.color ?? 'default'
   form.checklist = note?.checklist.map((item) => ({ ...item })) ?? []
-  void nextTick(() => {
-    const editor = contentEditor.value
-    if (!editor) return
-    if (note?.source_type === 'mindmap') editor.textContent = form.content
-    else editor.innerHTML = form.content
-    editor.focus()
-  })
+  void hydrateEditor()
+}
+
+async function hydrateEditor(): Promise<void> {
+  await nextTick()
+  const editor = contentEditor.value
+  if (!props.open || !props.note || !editor) return
+  if (props.note.source_type === 'mindmap') editor.textContent = form.content
+  else editor.innerHTML = form.content
+  editorReady.value = true
+  editor.focus()
 }
 
 function contentChanged(event: Event): void {
@@ -73,7 +80,7 @@ function normalizedTags(): string[] {
 }
 
 function submit(): void {
-  if (!props.note || props.submitting) return
+  if (!props.note || props.submitting || !editorReady.value) return
   const patch: ProjectNotePatch = {
     title: form.title,
     content: form.content,
@@ -90,9 +97,16 @@ function requestClose(): void {
   if (!props.submitting) emit('close')
 }
 
+function handleDismiss(): void {
+  editorReady.value = false
+  if (props.open) emit('close')
+  emit('dismissed')
+}
+
 watch([() => props.open, () => props.note?.id], ([open]) => {
   if (open) reset()
-})
+  else editorReady.value = false
+}, { immediate: true })
 </script>
 
 <template>
@@ -101,7 +115,8 @@ watch([() => props.open, () => props.note?.id], ([open]) => {
     css-class="note-editor-modal"
     :backdrop-dismiss="!submitting"
     :keyboard-close="!submitting"
-    @did-dismiss="requestClose"
+    @did-present="hydrateEditor"
+    @did-dismiss="handleDismiss"
   >
     <IonHeader class="note-dialog__header ion-no-border">
       <div>
@@ -139,7 +154,7 @@ watch([() => props.open, () => props.note?.id], ([open]) => {
           <div
             ref="contentEditor"
             class="note-content-editor"
-            :contenteditable="!submitting"
+            :contenteditable="editorReady && !submitting"
             role="textbox"
             aria-multiline="true"
             aria-labelledby="note-content-label"
@@ -204,7 +219,7 @@ watch([() => props.open, () => props.note?.id], ([open]) => {
           <button class="nf-button nf-button--secondary" type="button" @click="requestClose">
             {{ t('Отмена') }}
           </button>
-          <button class="nf-button" type="submit" :disabled="submitting || !note">
+          <button class="nf-button" type="submit" :disabled="submitting || !note || !editorReady">
             <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
             {{ submitting ? t('Сохраняем…') : t('Сохранить') }}
           </button>

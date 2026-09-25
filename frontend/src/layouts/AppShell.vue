@@ -55,7 +55,15 @@ let writingDayTimer: number | undefined
 let lastWritingDay: string | null = null
 let writingDayRefreshInFlight = false
 const WRITING_DAY_CHECK_INTERVAL_MS = 5 * 60 * 1000
+const NOTES_WORKSPACE_ROUTES = new Set([
+  'project-notes',
+  'global-project-notes',
+  'global-project-map',
+])
 const hasBanner = computed(() => !online.value || Boolean(startupError))
+const routerOutletKey = computed(() => (
+  NOTES_WORKSPACE_ROUTES.has(String(route.name)) ? route.path : 'app'
+))
 const lastProjectPath = ref('/projects')
 const lastMapsPath = ref('/maps')
 const lastNotesPath = ref('/notes')
@@ -467,7 +475,7 @@ watchEffect(() => {
       :class="{ 'app-main--with-banner': hasBanner }"
       tabindex="-1"
     >
-      <IonRouterOutlet />
+      <IonRouterOutlet :key="routerOutletKey" />
     </main>
 
     <nav class="mobile-navigation" :aria-label="t('Основная навигация')">
