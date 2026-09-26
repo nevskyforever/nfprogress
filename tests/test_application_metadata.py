@@ -107,6 +107,13 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         database.execute("DROP TRIGGER notes_remote_apply_consume_insert")
         database.execute("DROP TRIGGER notes_remote_apply_consume_update")
         database.execute("DROP TRIGGER notes_remote_apply_consume_delete")
+        # Migration 021 owns one trigger on the still-existing v1 receipt
+        # table, so remove it before deleting its referenced resolution table.
+        database.execute("DROP TRIGGER cloud_sync_upload_receipts_resolution_sequence_conflict")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_receipts_v1_sequence_conflict")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_receipt_requires_sealed_object")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_outbox_accepted_requires_receipt")
+        database.execute("DROP TABLE cloud_sync_note_resolution_upload_receipts")
         database.execute("DROP TABLE cloud_sync_project_bootstraps")
         database.execute("DROP TABLE cloud_account_bindings")
         database.execute("DROP TABLE cloud_sync_note_intent_cursors")
