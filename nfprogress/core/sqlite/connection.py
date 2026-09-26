@@ -25,6 +25,9 @@ _USER_DATA_TABLES = (
     'cloud_sync_note_conflict_groups', 'cloud_sync_note_conflict_versions',
     'cloud_sync_note_conflict_tips',
     'cloud_sync_note_causal_history',
+    'cloud_sync_note_resolution_upload_receipts',
+    'cloud_sync_note_applied_resolutions',
+    'cloud_sync_note_applied_resolution_parents',
 )
 
 

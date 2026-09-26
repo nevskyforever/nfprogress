@@ -362,6 +362,15 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
         }
         if not required_v19.issubset(available):
             raise RecoveryError("corrupt_sqlite: required resolution outbox table is missing")
+    if version >= 21 and "cloud_sync_note_resolution_upload_receipts" not in available:
+        raise RecoveryError("corrupt_sqlite: required resolution receipt table is missing")
+    if version >= 23:
+        required_v23 = {
+            "cloud_sync_note_applied_resolutions",
+            "cloud_sync_note_applied_resolution_parents",
+        }
+        if not required_v23.issubset(available):
+            raise RecoveryError("corrupt_sqlite: required applied resolution table is missing")
     for table in ("projects", "stages", "progress_entries", "notes", "settings", "game_state"):
         column = "value_json" if table == "settings" else "payload_json"
         for row in connection.execute(f"SELECT {column} FROM {table}"):

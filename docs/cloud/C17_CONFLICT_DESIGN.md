@@ -169,6 +169,22 @@ group generation and tips while committing, so an unknown parent, stale
 generation, changed tip set, or new competing edit fails closed and receives
 no ACK as a resolution.
 
+The preceding equality rule is strict for a resolution prepared and applied on
+the same device: that writer must CAS its own local `conflict_group_id` and
+`conflict_generation`.  In an authenticated inbound resolution, however,
+those two payload fields identify the sender's conflict group and sender-local
+generation.  Conflict-group UUIDs are generated locally and are not expected
+to match independently generated receiver UUIDs; discovery order may likewise
+make the numeric generations differ.  A receiving device therefore maps the
+sender evidence to an existing local group only by exact account/project/entity
+scope, common parent, complete sorted tip set, immutable tip snapshots and
+revisions.  It then performs an independent CAS against that local group's ID,
+generation and current tips.  It must not invent a local group when this proof
+is absent.  The applied-resolution ledger retains both sender and local group
+IDs and both generations together with the full parent proof, so replay never
+depends on current Note contents or UUID equality.  This clarification changes
+no v2 payload key or encoding.
+
 Pre-017 history without sufficient immutable causal evidence remains
 unresolvable.  The deferred sealed-local-delete and post-preservation coalesced
 generation cases from Pass 1 also remain fail-closed until their explicit
@@ -184,4 +200,7 @@ cutover: client and server must be deployed together, and a protocol-v1 client
 must reject v2 envelopes/events fail-closed.  No mixed v1/v2 apply, downgrade,
 or server-side winner selection is permitted.  Existing v1 events continue to
 be decoded and applied only by the v1 path; v2 resolution events require the
-new v2 path and the local schema-17 conflict evidence.
+new v2 path and the local schema-17 conflict evidence.  Until Pass 2F-E
+coordinates activation, clients implementing the clarified sender-scoped
+group semantics must not participate as uncoordinated protocol-v2 writers or
+readers; capability version alone is not semantic-cutover authorization.

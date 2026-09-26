@@ -17,6 +17,10 @@ UUID_1 = '123e4567-e89b-42d3-a456-426614174000'
 UUID_2 = '123e4567-e89b-42d3-a456-426614174001'
 UUID_3 = '123e4567-e89b-42d3-a456-426614174002'
 UUID_4 = '123e4567-e89b-42d3-a456-426614174003'
+UUID_5 = '123e4567-e89b-42d3-a456-426614174004'
+UUID_6 = '123e4567-e89b-42d3-a456-426614174005'
+UUID_7 = '123e4567-e89b-42d3-a456-426614174006'
+UUID_8 = '123e4567-e89b-42d3-a456-426614174007'
 
 
 def _create_v8_database() -> sqlite3.Connection:
@@ -126,7 +130,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 22
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 23
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -145,6 +149,8 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
         'cloud_sync_note_resolution_outbox',
         'cloud_sync_note_resolution_dependencies',
         'cloud_sync_note_resolution_upload_receipts',
+        'cloud_sync_note_applied_resolutions',
+        'cloud_sync_note_applied_resolution_parents',
     } <= tables
     columns = {row[1] for row in connection.execute('PRAGMA table_info(cloud_sync_outbox)')}
     assert not {
@@ -239,6 +245,542 @@ def test_c17_upgrade_from_v20_preserves_sealed_resolution_envelope_and_adds_rece
         connection.execute("""INSERT INTO cloud_sync_upload_receipts(
             account_id,event_id,device_id,server_sequence,duplicate,accepted_at
         ) VALUES(?,?,?,?,?,?)""", ('account', '123e4567-e89b-42d3-a456-426614174004', UUID_2, 1, 0, 'now'))
+
+
+def _seed_resolution_proof_inputs(
+        connection: sqlite3.Connection, *, tip_generations: tuple[int, int] = (7, 7),
+        inbox_operations: tuple[str, str] = ('upsert', 'upsert')
+) -> None:
+    parent_snapshots = ('{"body":"left"}', '{"body":"right"}')
+    connection.execute("""INSERT INTO cloud_sync_note_conflict_groups(
+        group_id,account_id,project_id,entity_id,entity_type,common_parent_event_id,
+        tip_revision,generation,lifecycle,created_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_4, 'account', 'project', 'entity', 'note', UUID_6,
+        2, 7, 'open', 'now', 'now',
+    ))
+    for ordinal, (event_id, version_id, sequence, snapshot) in enumerate(zip(
+        (UUID_1, UUID_2), ('version-left', 'version-right'), (1, 2), parent_snapshots,
+    )):
+        connection.execute("""INSERT INTO cloud_sync_note_conflict_versions(
+            version_id,group_id,account_id,project_id,entity_id,entity_type,event_id,
+            parent_event_id,revision,server_sequence,operation,snapshot_json,source,
+            local_mutation_generation,local_outbox_lifecycle,conflict_generation,preserved_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            version_id, UUID_4, 'account', 'project', 'entity', 'note', event_id,
+            UUID_6, 2, sequence, 'upsert', snapshot, 'remote', None, None, 7, 'now',
+        ))
+        connection.execute("""INSERT INTO cloud_sync_note_conflict_tips(
+            group_id,version_id,event_id,generation
+        ) VALUES(?,?,?,?)""", (UUID_4, version_id, event_id, tip_generations[ordinal]))
+        inbox_operation = inbox_operations[ordinal]
+        connection.execute("""INSERT INTO cloud_sync_inbox(
+            account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,
+            operation,sync_revision,updated_at,deleted_at,state,received_at,
+            conflict_group_id,conflict_preserved_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', event_id, sequence, UUID_5, 'project', 'entity', 'note',
+            inbox_operation, 2, f'parent-{ordinal}',
+            'deleted' if inbox_operation == 'delete' else None,
+            'conflict_preserved', 'now', UUID_4, 'now',
+        ))
+    connection.execute("""INSERT INTO cloud_sync_inbox(
+        account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,
+        operation,sync_revision,updated_at,deleted_at,state,received_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_3, 3, UUID_5, 'project', 'entity', 'note',
+        'resolution', 3, 'resolution-time', None, 'received', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_event_objects(
+        account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+    ) VALUES(?,?,?,?,?,?,?)""", (
+        'account', UUID_3, 1, 1, b'n' * 24, b'ciphertext-resolution', 'now',
+    ))
+
+
+def _insert_applying_resolution_ledger(
+        connection: sqlite3.Connection, *, strategy: str = 'choose_version',
+        result_operation: str = 'upsert'
+) -> None:
+    connection.execute("""INSERT INTO cloud_sync_note_applied_resolutions(
+        account_id,resolution_event_id,source_device_id,server_sequence,project_id,
+        entity_id,revision,event_updated_at,remote_conflict_group_id,
+        local_conflict_group_id,remote_conflict_generation,local_conflict_generation,
+        parent_event_ids_json,parent_count,strategy,result_operation,canonical_payload,
+        result_snapshot_json,clone_entity_id,clone_snapshot_json,lifecycle,applied_at,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_3, UUID_5, 3, 'project', 'entity', 3, 'resolution-time',
+        UUID_6, UUID_4, 19, 7, json.dumps([UUID_1, UUID_2]), 2,
+        strategy, result_operation, b'canonical-v2', '{"body":"left"}',
+        None, None, 'applying', None, 'now',
+    ))
+
+
+def _insert_resolution_parent_edges(connection: sqlite3.Connection) -> None:
+    for ordinal, (event_id, version_id, sequence, snapshot) in enumerate(zip(
+        (UUID_1, UUID_2), ('version-left', 'version-right'), (1, 2),
+        ('{"body":"left"}', '{"body":"right"}'),
+    )):
+        connection.execute("""INSERT INTO cloud_sync_note_applied_resolution_parents(
+            account_id,resolution_event_id,parent_ordinal,parent_event_id,
+            conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+            publication_source,server_sequence,local_mutation_generation,recorded_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', UUID_3, ordinal, event_id, version_id, 2, 'upsert', snapshot,
+            'remote', sequence, None, 'now',
+        ))
+
+
+def test_c17_schema23_applied_resolution_proof_is_complete_and_immutable():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection)
+    _insert_applying_resolution_ledger(connection)
+
+    with pytest.raises(sqlite3.IntegrityError, match='parent_proof_incomplete'):
+        connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+            SET lifecycle='applied',applied_at='now'
+            WHERE account_id='account' AND resolution_event_id=?""", (UUID_3,))
+    with pytest.raises(sqlite3.IntegrityError, match='applied_proof_missing'):
+        connection.execute("""UPDATE cloud_sync_inbox SET state='applied',applied_at='now'
+            WHERE account_id='account' AND event_id=?""", (UUID_3,))
+
+    _insert_resolution_parent_edges(connection)
+    connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+        SET lifecycle='applied',applied_at='now'
+        WHERE account_id='account' AND resolution_event_id=?""", (UUID_3,))
+    connection.execute("""UPDATE cloud_sync_inbox SET state='applied',applied_at='now'
+        WHERE account_id='account' AND event_id=?""", (UUID_3,))
+
+    row = connection.execute("""SELECT remote_conflict_group_id,
+        local_conflict_group_id,remote_conflict_generation,local_conflict_generation,
+        lifecycle FROM cloud_sync_note_applied_resolutions""").fetchone()
+    assert row == (UUID_6, UUID_4, 19, 7, 'applied')
+    with pytest.raises(sqlite3.IntegrityError, match='is_immutable'):
+        connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+            SET remote_conflict_generation=20 WHERE resolution_event_id=?""", (UUID_3,))
+    with pytest.raises(sqlite3.IntegrityError, match='parent_is_immutable'):
+        connection.execute("""DELETE FROM cloud_sync_note_applied_resolution_parents
+            WHERE resolution_event_id=? AND parent_event_id=?""", (UUID_3, UUID_1))
+    with pytest.raises(sqlite3.IntegrityError, match='applied_is_final'):
+        connection.execute("UPDATE cloud_sync_inbox SET state='orphan' WHERE event_id=?", (UUID_3,))
+    with pytest.raises(sqlite3.IntegrityError, match='causal_sequence_conflict'):
+        connection.execute("""INSERT INTO cloud_sync_note_causal_history(
+            account_id,event_id,project_id,entity_id,entity_type,parent_event_id,
+            revision,server_sequence,operation,snapshot_json,recorded_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', UUID_6, 'project', 'other', 'note', None,
+            1, 3, 'upsert', '{}', 'now',
+        ))
+    connection.execute("""INSERT INTO cloud_sync_outbox(
+        event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+        revision,updated_at,deleted_at,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_6, 'account', UUID_5, 'project', 'other', 'note', 'upsert',
+        1, 'now', None, 'now',
+    ))
+    with pytest.raises(sqlite3.IntegrityError, match='receipt_sequence_conflict'):
+        connection.execute("""INSERT INTO cloud_sync_upload_receipts(
+            account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+        ) VALUES(?,?,?,?,?,?)""", ('account', UUID_6, UUID_5, 3, 0, 'now'))
+    assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
+
+    # Migration 023 does not alter historical v1 inbox transitions.
+    connection.execute("""INSERT INTO cloud_sync_inbox(
+        account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,
+        operation,sync_revision,updated_at,deleted_at,state,received_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_6, 4, UUID_5, 'project', 'other', 'note',
+        'upsert', 1, 'now', None, 'received', 'now',
+    ))
+    connection.execute("UPDATE cloud_sync_inbox SET state='applied',applied_at='now' WHERE event_id=?", (UUID_6,))
+
+
+def test_c17_schema23_atomic_proof_rollback_leaves_resolution_received():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection)
+    connection.commit()
+
+    connection.execute('BEGIN IMMEDIATE')
+    _insert_applying_resolution_ledger(connection)
+    connection.execute("""INSERT INTO cloud_sync_note_applied_resolution_parents(
+        account_id,resolution_event_id,parent_ordinal,parent_event_id,
+        conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+        publication_source,server_sequence,local_mutation_generation,recorded_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_3, 0, UUID_1, 'version-left', 2, 'upsert', '{"body":"left"}',
+        'remote', 1, None, 'now',
+    ))
+    connection.rollback()
+
+    assert connection.execute('SELECT count(*) FROM cloud_sync_note_applied_resolutions').fetchone()[0] == 0
+    assert connection.execute('SELECT count(*) FROM cloud_sync_note_applied_resolution_parents').fetchone()[0] == 0
+    assert connection.execute("SELECT state FROM cloud_sync_inbox WHERE event_id=?", (UUID_3,)).fetchone()[0] == 'received'
+
+
+def test_c17_schema23_rejects_parent_set_that_is_not_current_local_tips():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection, tip_generations=(7, 8))
+    with pytest.raises(sqlite3.IntegrityError):
+        _insert_applying_resolution_ledger(
+            connection, strategy='manual_merge', result_operation='delete'
+        )
+    _insert_applying_resolution_ledger(connection)
+    _insert_resolution_parent_edges(connection)
+
+    with pytest.raises(sqlite3.IntegrityError, match='parent_proof_incomplete'):
+        connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+            SET lifecycle='applied',applied_at='now' WHERE resolution_event_id=?""", (UUID_3,))
+
+
+def test_c17_schema23_parent_publication_operation_must_match_version():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(
+        connection, inbox_operations=('delete', 'upsert')
+    )
+    _insert_applying_resolution_ledger(connection)
+
+    with pytest.raises(sqlite3.IntegrityError, match='parent_proof_invalid'):
+        _insert_resolution_parent_edges(connection)
+
+
+@pytest.mark.parametrize('existing_sequence_proof', ['causal_history', 'v1_receipt'])
+def test_c17_schema23_rejects_preexisting_v1_sequence_for_applied_resolution(
+        existing_sequence_proof: str):
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection)
+    if existing_sequence_proof == 'causal_history':
+        connection.execute("""INSERT INTO cloud_sync_note_causal_history(
+            account_id,event_id,project_id,entity_id,entity_type,parent_event_id,
+            revision,server_sequence,operation,snapshot_json,recorded_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', UUID_6, 'project', 'other', 'note', None,
+            1, 3, 'upsert', '{}', 'now',
+        ))
+    else:
+        connection.execute("""INSERT INTO cloud_sync_outbox(
+            event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+            revision,updated_at,deleted_at,created_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+            UUID_6, 'account', UUID_5, 'project', 'other', 'note', 'upsert',
+            1, 'now', None, 'now',
+        ))
+        connection.execute("""INSERT INTO cloud_sync_upload_receipts(
+            account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+        ) VALUES(?,?,?,?,?,?)""", ('account', UUID_6, UUID_5, 3, 0, 'now'))
+
+    with pytest.raises(sqlite3.IntegrityError, match='proof_invalid'):
+        _insert_applying_resolution_ledger(connection)
+
+
+def test_c17_schema23_sequence_guards_are_account_scoped():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection)
+    connection.execute("""INSERT INTO cloud_sync_outbox(
+        event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+        revision,updated_at,deleted_at,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_6, 'other-account', UUID_5, 'project', 'other', 'note', 'upsert',
+        1, 'now', None, 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_upload_receipts(
+        account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+    ) VALUES(?,?,?,?,?,?)""", (
+        'other-account', UUID_6, UUID_5, 3, 0, 'now',
+    ))
+
+    _insert_applying_resolution_ledger(connection)
+
+
+def _create_populated_v22_resolution_database() -> sqlite3.Connection:
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    migrations = sorted(MIGRATIONS_DIR.glob('*.sql'))[:22]
+    assert migrations[-1].name == '022_note_sync_resolution_inbox.sql'
+    for migration in migrations:
+        connection.executescript(migration.read_text(encoding='utf-8'))
+    connection.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(22)')
+    connection.execute("""INSERT INTO cloud_sync_note_conflict_groups(
+        group_id,account_id,project_id,entity_id,entity_type,common_parent_event_id,
+        tip_revision,generation,lifecycle,created_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_4, 'account', 'project', 'entity', 'note', UUID_6,
+        2, 1, 'resolving', 'now', 'now',
+    ))
+    for event_id, version_id, sequence, snapshot in zip(
+        (UUID_1, UUID_2), ('v22-left', 'v22-right'), (1, 2),
+        ('{"body":"left"}', '{"body":"right"}'),
+    ):
+        connection.execute("""INSERT INTO cloud_sync_note_conflict_versions(
+            version_id,group_id,account_id,project_id,entity_id,entity_type,event_id,
+            parent_event_id,revision,server_sequence,operation,snapshot_json,source,
+            local_mutation_generation,local_outbox_lifecycle,conflict_generation,preserved_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            version_id, UUID_4, 'account', 'project', 'entity', 'note', event_id,
+            UUID_6, 2, sequence, 'upsert', snapshot, 'remote', None, None, 1, 'now',
+        ))
+        connection.execute(
+            "INSERT INTO cloud_sync_note_conflict_tips VALUES(?,?,?,1)",
+            (UUID_4, version_id, event_id),
+        )
+        connection.execute("""INSERT INTO cloud_sync_inbox(
+            account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,
+            operation,sync_revision,updated_at,deleted_at,state,received_at,
+            conflict_group_id,conflict_preserved_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', event_id, sequence, UUID_5, 'project', 'entity', 'note',
+            'upsert', 2, 'parent-time', None, 'conflict_preserved', 'now', UUID_4, 'now',
+        ))
+    connection.execute("""INSERT INTO cloud_sync_note_pending_resolutions(
+        resolution_event_id,account_id,device_id,project_id,entity_id,conflict_group_id,
+        expected_conflict_generation,resolution_revision,tip_event_ids_json,strategy,
+        result_operation,canonical_payload,lifecycle,prepared_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_3, 'account', UUID_2, 'project', 'entity', UUID_4, 1, 3,
+        json.dumps([UUID_1, UUID_2]), 'keep_both', 'upsert', b'canonical-v2',
+        'consumed', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_note_resolution_outbox(
+        resolution_event_id,account_id,device_id,project_id,entity_id,clone_entity_id,
+        conflict_group_id,conflict_generation,revision,parent_event_ids_json,strategy,
+        result_operation,canonical_payload,lifecycle,applied_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_3, 'account', UUID_2, 'project', 'entity', 'clone', UUID_4, 1, 3,
+        json.dumps([UUID_1, UUID_2]), 'keep_both', 'upsert', b'canonical-v2',
+        'local_pending', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_event_objects(
+        account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+    ) VALUES(?,?,?,?,?,?,?)""", ('account', UUID_3, 1, 1, b'n' * 24, b'c' * 16, 'now'))
+    connection.execute("UPDATE cloud_sync_note_resolution_outbox SET lifecycle='sealed_local' WHERE resolution_event_id=?", (UUID_3,))
+    connection.execute("""INSERT INTO cloud_sync_note_resolution_upload_receipts(
+        account_id,resolution_event_id,device_id,server_sequence,duplicate,accepted_at
+    ) VALUES(?,?,?,?,?,?)""", ('account', UUID_3, UUID_2, 7, 1, 'accepted'))
+    connection.execute("UPDATE cloud_sync_note_resolution_outbox SET lifecycle='accepted' WHERE resolution_event_id=?", (UUID_3,))
+    connection.commit()
+    return connection
+
+
+def test_c17_upgrade_from_populated_v22_preserves_resolution_receipt():
+    connection = _create_populated_v22_resolution_database()
+
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
+    assert connection.execute("""SELECT account_id,resolution_event_id,device_id,
+        server_sequence,duplicate,acceptance_source,accepted_at
+        FROM cloud_sync_note_resolution_upload_receipts""").fetchone() == (
+            'account', UUID_3, UUID_2, 7, 1, 'push_response', 'accepted',
+        )
+    assert connection.execute(
+        "SELECT count(*) FROM cloud_sync_inbox WHERE state='conflict_preserved'"
+    ).fetchone()[0] == 2
+    assert connection.execute(
+        "SELECT count(*) FROM cloud_sync_note_conflict_versions"
+    ).fetchone()[0] == 2
+    assert connection.execute(
+        "SELECT count(*) FROM cloud_sync_note_conflict_tips"
+    ).fetchone()[0] == 2
+    assert connection.execute("SELECT lifecycle FROM cloud_sync_note_resolution_outbox").fetchone()[0] == 'accepted'
+    assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
+    assert connection.execute(
+        "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%_v22%'"
+    ).fetchone()[0] == 0
+    with pytest.raises(sqlite3.IntegrityError, match='receipt_is_immutable'):
+        connection.execute("""UPDATE cloud_sync_note_resolution_upload_receipts
+            SET acceptance_source='pull_self_echo',duplicate=NULL""")
+    with pytest.raises(sqlite3.IntegrityError, match='receipt_is_immutable'):
+        connection.execute("DELETE FROM cloud_sync_note_resolution_upload_receipts")
+
+    # Acceptance alone cannot release a new v1 mutation for either the
+    # original or keep-both clone. An unrelated Note remains writable.
+    for local_ordinal, (event_id, entity_id) in enumerate(
+        ((UUID_5, 'entity'), (UUID_7, 'clone'), (UUID_8, 'other')), start=1
+    ):
+        connection.execute("""INSERT INTO cloud_sync_outbox(
+            event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+            revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            event_id, 'account', UUID_2, 'project', entity_id, 'note', 'upsert',
+            3, 'later', None, 'later', UUID_3, local_ordinal, 'unsealed',
+        ))
+        def insert_intent() -> None:
+            connection.execute("""INSERT INTO cloud_sync_note_intents(
+                event_id,mutation_generation,snapshot_json,seal_state,
+                seal_attempt_count,state_updated_at
+            ) VALUES(?,?,?,?,?,?)""", (
+                event_id, 1, json.dumps({'id': entity_id, 'project_id': 'project'}),
+                'pending', 0, 'later',
+            ))
+        if entity_id == 'other':
+            insert_intent()
+        else:
+            with pytest.raises(sqlite3.IntegrityError, match='requires_protocol_v2'):
+                insert_intent()
+
+
+def test_c17_schema23_migration_failure_rolls_back_receipt_rebuild():
+    connection = _create_populated_v22_resolution_database()
+    connection.execute("CREATE TABLE cloud_sync_note_applied_resolutions(sentinel TEXT)")
+    connection.commit()
+
+    with pytest.raises(sqlite3.OperationalError, match='already exists'):
+        apply_migrations(connection)
+
+    assert not connection.in_transaction
+    assert connection.execute("SELECT schema_version FROM schema_info").fetchone()[0] == 22
+    receipt_columns = {
+        row[1] for row in connection.execute(
+            "PRAGMA table_info(cloud_sync_note_resolution_upload_receipts)"
+        )
+    }
+    assert 'acceptance_source' not in receipt_columns
+    assert connection.execute("""SELECT server_sequence,duplicate,accepted_at
+        FROM cloud_sync_note_resolution_upload_receipts""").fetchone() == (7, 1, 'accepted')
+    assert connection.execute(
+        "SELECT count(*) FROM sqlite_master WHERE name LIKE '%_v22%'"
+    ).fetchone()[0] == 0
+    assert connection.execute("""SELECT count(*) FROM sqlite_master
+        WHERE type='trigger'
+          AND name='cloud_sync_note_resolution_receipt_requires_sealed_object'""").fetchone()[0] == 1
+    assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
+
+
+def _complete_structural_self_echo_ledger(
+        connection: sqlite3.Connection, *, remote_group_id: str
+) -> None:
+    connection.execute("""INSERT INTO cloud_sync_inbox(
+        account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,
+        operation,sync_revision,updated_at,deleted_at,state,received_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_3, 7, UUID_2, 'project', 'entity', 'note',
+        'resolution', 3, 'resolution-time', None, 'received', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_note_applied_resolutions(
+        account_id,resolution_event_id,source_device_id,server_sequence,project_id,
+        entity_id,revision,event_updated_at,remote_conflict_group_id,
+        local_conflict_group_id,remote_conflict_generation,local_conflict_generation,
+        parent_event_ids_json,parent_count,strategy,result_operation,canonical_payload,
+        result_snapshot_json,clone_entity_id,clone_snapshot_json,lifecycle,applied_at,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_3, UUID_2, 7, 'project', 'entity', 3, 'resolution-time',
+        remote_group_id, UUID_4, 1, 1, json.dumps([UUID_1, UUID_2]), 2,
+        'keep_both', 'upsert', b'canonical-v2', '{"body":"left"}',
+        'clone', '{"body":"right"}', 'applying', None, 'now',
+    ))
+    for ordinal, (event_id, version_id, sequence, snapshot) in enumerate(zip(
+        (UUID_1, UUID_2), ('v22-left', 'v22-right'), (1, 2),
+        ('{"body":"left"}', '{"body":"right"}'),
+    )):
+        connection.execute("""INSERT INTO cloud_sync_note_applied_resolution_parents(
+            account_id,resolution_event_id,parent_ordinal,parent_event_id,
+            conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+            publication_source,server_sequence,local_mutation_generation,recorded_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', UUID_3, ordinal, event_id, version_id, 2, 'upsert', snapshot,
+            'remote', sequence, None, 'now',
+        ))
+    connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+        SET lifecycle='applied',applied_at='applied'
+        WHERE resolution_event_id=?""", (UUID_3,))
+    connection.execute("""UPDATE cloud_sync_inbox SET state='applied',applied_at='applied'
+        WHERE event_id=?""", (UUID_3,))
+
+
+@pytest.mark.parametrize('remote_group_id,releases_v1', [
+    (UUID_6, False),
+    (UUID_4, True),
+])
+def test_c17_schema23_v1_edit_guard_requires_exact_self_echo_evidence(
+        remote_group_id: str, releases_v1: bool):
+    connection = _create_populated_v22_resolution_database()
+    apply_migrations(connection)
+    _complete_structural_self_echo_ledger(
+        connection, remote_group_id=remote_group_id
+    )
+    connection.execute("""INSERT INTO cloud_sync_outbox(
+        event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+        revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_5, 'account', UUID_2, 'project', 'entity', 'note', 'upsert',
+        4, 'later', None, 'later', UUID_3, 1, 'unsealed',
+    ))
+    insert = """INSERT INTO cloud_sync_note_intents(
+        event_id,mutation_generation,snapshot_json,seal_state,
+        seal_attempt_count,state_updated_at
+    ) VALUES(?,?,?,?,?,?)"""
+    values = (
+        UUID_5, 1, json.dumps({'id': 'entity', 'project_id': 'project'}),
+        'pending', 0, 'later',
+    )
+    if releases_v1:
+        connection.execute(insert, values)
+    else:
+        with pytest.raises(sqlite3.IntegrityError, match='requires_protocol_v2'):
+            connection.execute(insert, values)
+
+
+def test_c17_schema23_pull_self_echo_receipt_has_unknown_duplicate_flag():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    connection.execute("""INSERT INTO cloud_sync_note_conflict_groups(
+        group_id,account_id,project_id,entity_id,entity_type,common_parent_event_id,
+        tip_revision,generation,lifecycle,created_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_7, 'account', 'project', 'entity', 'note', UUID_6,
+        2, 1, 'resolving', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_note_pending_resolutions(
+        resolution_event_id,account_id,device_id,project_id,entity_id,conflict_group_id,
+        expected_conflict_generation,resolution_revision,tip_event_ids_json,strategy,
+        result_operation,canonical_payload,lifecycle,prepared_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_8, 'account', UUID_2, 'project', 'entity', UUID_7, 1, 2,
+        json.dumps([UUID_1, UUID_2]), 'choose_version', 'upsert', b'canonical-v2',
+        'consumed', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_note_resolution_outbox(
+        resolution_event_id,account_id,device_id,project_id,entity_id,clone_entity_id,
+        conflict_group_id,conflict_generation,revision,parent_event_ids_json,strategy,
+        result_operation,canonical_payload,lifecycle,applied_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_8, 'account', UUID_2, 'project', 'entity', None, UUID_7, 1, 2,
+        json.dumps([UUID_1, UUID_2]), 'choose_version', 'upsert', b'canonical-v2',
+        'local_pending', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_event_objects(
+        account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+    ) VALUES(?,?,?,?,?,?,?)""", ('account', UUID_8, 1, 1, b'n' * 24, b'c' * 16, 'now'))
+    connection.execute("UPDATE cloud_sync_note_resolution_outbox SET lifecycle='sealed_local' WHERE resolution_event_id=?", (UUID_8,))
+
+    with pytest.raises(sqlite3.IntegrityError):
+        connection.execute("""INSERT INTO cloud_sync_note_resolution_upload_receipts(
+            account_id,resolution_event_id,device_id,server_sequence,duplicate,
+            acceptance_source,accepted_at
+        ) VALUES(?,?,?,?,?,?,?)""", (
+            'account', UUID_8, UUID_2, 8, 0, 'pull_self_echo', 'now',
+        ))
+    connection.execute("""INSERT INTO cloud_sync_note_resolution_upload_receipts(
+        account_id,resolution_event_id,device_id,server_sequence,duplicate,
+        acceptance_source,accepted_at
+    ) VALUES(?,?,?,?,?,?,?)""", (
+        'account', UUID_8, UUID_2, 8, None, 'pull_self_echo', 'now',
+    ))
+    assert connection.execute("""SELECT duplicate,acceptance_source
+        FROM cloud_sync_note_resolution_upload_receipts""").fetchone() == (
+            None, 'pull_self_echo',
+        )
 
 
 def test_c15_upgrade_from_populated_v8_preserves_authoritative_data():

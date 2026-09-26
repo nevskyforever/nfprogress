@@ -95,6 +95,25 @@ def test_c9_sync_metadata_writes_track_the_application_version(tmp_path):
         assert _metadata(database)['data_last_written_by_version'] == '9.8.7-test.1'
 
 
+def test_c17_resolution_proof_tables_install_application_version_triggers(tmp_path):
+    with open_database(tmp_path) as database:
+        trigger_names = {
+            row[0]
+            for row in database.execute(
+                "SELECT name FROM sqlite_master WHERE type='trigger' "
+                "AND name LIKE 'nfprogress_app_version_cloud_sync_note_%'"
+            )
+        }
+
+    for table in (
+        'cloud_sync_note_resolution_upload_receipts',
+        'cloud_sync_note_applied_resolutions',
+        'cloud_sync_note_applied_resolution_parents',
+    ):
+        for operation in ('insert', 'update', 'delete'):
+            assert f'nfprogress_app_version_{table}_{operation}' in trigger_names
+
+
 
 def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path):
     with open_database(tmp_path):
@@ -113,10 +132,29 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         database.execute("DROP TRIGGER cloud_sync_note_resolution_receipts_v1_sequence_conflict")
         database.execute("DROP TRIGGER cloud_sync_note_resolution_receipt_requires_sealed_object")
         database.execute("DROP TRIGGER cloud_sync_note_resolution_outbox_accepted_requires_receipt")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_receipt_immutable_update")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_receipt_immutable_delete")
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_immutable_update")
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_immutable_delete")
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_object_immutable_update")
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_object_immutable_delete")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_insert_guard")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_parent_set_guard")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_immutable_update")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_completion_guard")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_immutable_delete")
+        database.execute("DROP TRIGGER cloud_sync_upload_receipts_applied_resolution_sequence_conflict")
+        database.execute("DROP TRIGGER cloud_sync_note_causal_history_applied_resolution_sequence_conflict")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_receipts_applied_sequence_conflict")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_parent_insert_guard")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_parent_immutable_update")
+        database.execute("DROP TRIGGER cloud_sync_note_applied_resolution_parent_immutable_delete")
+        database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_insert_guard")
+        database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_update_guard")
+        database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_is_final")
+        database.execute("DROP TRIGGER cloud_sync_note_resolution_block_v1_intent")
+        database.execute("DROP TABLE cloud_sync_note_applied_resolution_parents")
+        database.execute("DROP TABLE cloud_sync_note_applied_resolutions")
         database.execute("DROP TABLE cloud_sync_note_resolution_upload_receipts")
         database.execute("DROP TABLE cloud_sync_project_bootstraps")
         database.execute("DROP TABLE cloud_account_bindings")

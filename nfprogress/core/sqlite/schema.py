@@ -12,7 +12,7 @@ from nfprogress.core.sqlite.ordering import (
 
 
 MIGRATIONS_DIR = Path(__file__).with_name('migrations')
-CURRENT_SCHEMA_VERSION = 22
+CURRENT_SCHEMA_VERSION = 23
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
@@ -66,6 +66,7 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
             20: '020_note_sync_resolution_sealing.sql',
             21: '021_note_sync_resolution_upload_receipts.sql',
             22: '022_note_sync_resolution_inbox.sql',
+            23: '023_note_sync_applied_resolutions.sql',
         }[next_version]
         sql = migration.read_text(encoding='utf-8')
         # executescript is wrapped explicitly because its implicit transaction
@@ -74,8 +75,8 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
         # Migration 003 creates the order relation, so an existing project
         # aggregate must not be allowed to advance the schema marker while
         # that relation is empty or incomplete.
-        connection.executescript(f'BEGIN;\n{sql}\n')
         try:
+            connection.executescript(f'BEGIN;\n{sql}\n')
             if next_version >= 3:
                 validate_project_order(connection)
             if next_version >= 4:

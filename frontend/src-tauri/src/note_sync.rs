@@ -6440,8 +6440,134 @@ mod tests {
         assert!(connection.execute("UPDATE cloud_sync_inbox SET operation='resolution',sync_revision=2 WHERE account_id='inbox-account' AND event_id=?1", [&page.items[0].event_id]).is_err());
         connection.execute("UPDATE cloud_sync_inbox SET state='orphan' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).unwrap();
         assert_eq!(connection.query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [&resolution.event_id], |row| row.get::<_, String>(0)).unwrap(), "orphan");
-        connection.execute("UPDATE cloud_sync_inbox SET state='applied',applied_at='now' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).unwrap();
-        assert_eq!(connection.query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [&resolution.event_id], |row| row.get::<_, String>(0)).unwrap(), "applied");
+        assert!(connection.execute("UPDATE cloud_sync_inbox SET state='applied',applied_at='now' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).is_err());
+        assert_eq!(connection.query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [&resolution.event_id], |row| row.get::<_, String>(0)).unwrap(), "orphan");
+    }
+
+    fn seed_applied_resolution_proof(connection: &Connection) {
+        connection.execute_batch(r#"
+            UPDATE cloud_sync_state SET pull_cursor=3 WHERE account_id='inbox-account';
+            INSERT INTO cloud_sync_note_conflict_groups(
+                group_id,account_id,project_id,entity_id,entity_type,common_parent_event_id,
+                tip_revision,generation,lifecycle,created_at,updated_at
+            ) VALUES(
+                'aaaaaaaa-0000-0000-0000-000000000001','inbox-account','project','note',
+                'note','aaaaaaaa-0000-0000-0000-000000000002',2,7,'open','now','now'
+            );
+            INSERT INTO cloud_sync_note_conflict_versions VALUES(
+                'left-version','aaaaaaaa-0000-0000-0000-000000000001','inbox-account',
+                'project','note','note','aaaaaaaa-0000-0000-0000-000000000003',
+                'aaaaaaaa-0000-0000-0000-000000000002',2,1,'upsert','{"body":"left"}',
+                'remote',NULL,NULL,7,'now'
+            );
+            INSERT INTO cloud_sync_note_conflict_versions VALUES(
+                'right-version','aaaaaaaa-0000-0000-0000-000000000001','inbox-account',
+                'project','note','note','aaaaaaaa-0000-0000-0000-000000000004',
+                'aaaaaaaa-0000-0000-0000-000000000002',2,2,'upsert','{"body":"right"}',
+                'remote',NULL,NULL,7,'now'
+            );
+            INSERT INTO cloud_sync_note_conflict_tips VALUES(
+                'aaaaaaaa-0000-0000-0000-000000000001','left-version',
+                'aaaaaaaa-0000-0000-0000-000000000003',7
+            );
+            INSERT INTO cloud_sync_note_conflict_tips VALUES(
+                'aaaaaaaa-0000-0000-0000-000000000001','right-version',
+                'aaaaaaaa-0000-0000-0000-000000000004',7
+            );
+            INSERT INTO cloud_sync_inbox VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000003',1,
+                'aaaaaaaa-0000-0000-0000-000000000010','project','note','note','upsert',2,
+                'left-time',NULL,'conflict_preserved','now',NULL,NULL,
+                'aaaaaaaa-0000-0000-0000-000000000001','now'
+            );
+            INSERT INTO cloud_sync_inbox VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000004',2,
+                'aaaaaaaa-0000-0000-0000-000000000010','project','note','note','upsert',2,
+                'right-time',NULL,'conflict_preserved','now',NULL,NULL,
+                'aaaaaaaa-0000-0000-0000-000000000001','now'
+            );
+            INSERT INTO cloud_sync_inbox VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000005',3,
+                'aaaaaaaa-0000-0000-0000-000000000010','project','note','note','resolution',3,
+                'resolution-time',NULL,'received','now',NULL,NULL,NULL,NULL
+            );
+            INSERT INTO cloud_sync_event_objects VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000005',1,1,
+                X'000000000000000000000000000000000000000000000000',
+                X'00000000000000000000000000000000','now'
+            );
+        "#).unwrap();
+    }
+
+    fn insert_applying_resolution_proof(transaction: &Transaction<'_>) {
+        transaction.execute_batch(r#"
+            INSERT INTO cloud_sync_note_applied_resolutions VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000005',
+                'aaaaaaaa-0000-0000-0000-000000000010',3,'project','note',3,
+                'resolution-time','aaaaaaaa-0000-0000-0000-000000000006',
+                'aaaaaaaa-0000-0000-0000-000000000001',19,7,
+                '["aaaaaaaa-0000-0000-0000-000000000003","aaaaaaaa-0000-0000-0000-000000000004"]',
+                2,'choose_version','upsert',X'63616e6f6e6963616c2d7632','{"body":"left"}',
+                NULL,NULL,'applying',NULL,'now'
+            );
+            INSERT INTO cloud_sync_note_applied_resolution_parents VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000005',0,
+                'aaaaaaaa-0000-0000-0000-000000000003','left-version',2,'upsert',
+                '{"body":"left"}','remote',1,NULL,'now'
+            );
+        "#).unwrap();
+    }
+
+    #[test]
+    fn applied_resolution_proof_is_atomic_and_controls_ack_eligibility() {
+        let (root, path) = temporary_database_path("applied-resolution-proof");
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        configure_database(&connection); inbound_scope(&mut connection);
+        seed_applied_resolution_proof(&connection);
+        assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap().candidate_cursor, 2);
+
+        {
+            let transaction = connection.transaction().unwrap();
+            insert_applying_resolution_proof(&transaction);
+            transaction.rollback().unwrap();
+        }
+        assert_eq!(connection.query_row(
+            "SELECT count(*) FROM cloud_sync_note_applied_resolutions", [], |row| row.get::<_, i64>(0),
+        ).unwrap(), 0);
+        assert_eq!(connection.query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE server_sequence=3", [], |row| row.get::<_, String>(0),
+        ).unwrap(), "received");
+
+        let transaction = connection.transaction().unwrap();
+        insert_applying_resolution_proof(&transaction);
+        transaction.execute_batch(r#"
+            INSERT INTO cloud_sync_note_applied_resolution_parents VALUES(
+                'inbox-account','aaaaaaaa-0000-0000-0000-000000000005',1,
+                'aaaaaaaa-0000-0000-0000-000000000004','right-version',2,'upsert',
+                '{"body":"right"}','remote',2,NULL,'now'
+            );
+            UPDATE cloud_sync_note_applied_resolutions
+               SET lifecycle='applied',applied_at='now'
+             WHERE account_id='inbox-account'
+               AND resolution_event_id='aaaaaaaa-0000-0000-0000-000000000005';
+            UPDATE cloud_sync_inbox SET state='applied',applied_at='now'
+             WHERE account_id='inbox-account'
+               AND event_id='aaaaaaaa-0000-0000-0000-000000000005';
+        "#).unwrap();
+        transaction.commit().unwrap();
+
+        assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap().candidate_cursor, 3);
+        drop(connection);
+        let mut connection = crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap().candidate_cursor, 3);
+        assert_eq!(connection.query_row(
+            "SELECT lifecycle FROM cloud_sync_note_applied_resolutions", [], |row| row.get::<_, String>(0),
+        ).unwrap(), "applied");
+        assert_eq!(connection.query_row(
+            "PRAGMA foreign_key_check", [], |_| Ok(1_i64),
+        ).optional().unwrap(), None);
+        drop(connection);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 22;
+pub const CURRENT_SCHEMA_VERSION: i64 = 23;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -156,10 +156,10 @@ mod c16_c17_migration_tests {
     }
 
     #[test]
-    fn populated_schema_19_through_21_advance_to_latest_and_reopen() {
-        for version in [19usize, 20usize, 21usize] {
+    fn populated_schema_19_through_22_advance_to_latest_and_reopen() {
+        for version in [19usize, 20usize, 21usize, 22usize] {
             let path = std::env::temp_dir().join(format!(
-                "nfprogress-schema22-from{version}-{}-{}.db", std::process::id(),
+                "nfprogress-schema23-from{version}-{}-{}.db", std::process::id(),
                 std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
             ));
             let connection = Connection::open(&path).unwrap();
@@ -470,7 +470,7 @@ fn random_remote_apply_capability() -> Result<String, StorageError> {
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 33] = [
+const USER_DATA_TABLES: [&str; 36] = [
     "projects",
     "stages",
     "progress_entries",
@@ -504,6 +504,9 @@ const USER_DATA_TABLES: [&str; 33] = [
     "cloud_sync_note_pending_resolutions",
     "cloud_sync_note_resolution_outbox",
     "cloud_sync_note_resolution_dependencies",
+    "cloud_sync_note_resolution_upload_receipts",
+    "cloud_sync_note_applied_resolutions",
+    "cloud_sync_note_applied_resolution_parents",
 ];
 
 #[derive(Debug)]
@@ -537,7 +540,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 22] = [
+const MIGRATIONS: [(i64, &str); 23] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -606,6 +609,7 @@ const MIGRATIONS: [(i64, &str); 22] = [
     (20, include_str!("../../../nfprogress/core/sqlite/migrations/020_note_sync_resolution_sealing.sql")),
     (21, include_str!("../../../nfprogress/core/sqlite/migrations/021_note_sync_resolution_upload_receipts.sql")),
     (22, include_str!("../../../nfprogress/core/sqlite/migrations/022_note_sync_resolution_inbox.sql")),
+    (23, include_str!("../../../nfprogress/core/sqlite/migrations/023_note_sync_applied_resolutions.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
@@ -797,6 +801,12 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "cloud_sync_note_conflict_versions",
         "cloud_sync_note_conflict_tips",
         "cloud_sync_note_causal_history",
+        "cloud_sync_note_pending_resolutions",
+        "cloud_sync_note_resolution_outbox",
+        "cloud_sync_note_resolution_dependencies",
+        "cloud_sync_note_resolution_upload_receipts",
+        "cloud_sync_note_applied_resolutions",
+        "cloud_sync_note_applied_resolution_parents",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(

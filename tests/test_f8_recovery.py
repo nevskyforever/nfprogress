@@ -122,6 +122,21 @@ def test_sqlite_validation_rejects_missing_tables_and_invalid_header(tmp_path):
         validate_sqlite_file(missing_table)
 
 
+def test_current_sqlite_validation_requires_applied_resolution_proof_tables(tmp_path):
+    root = tmp_path / "profile"
+    root.mkdir()
+    with open_database(root):
+        pass
+    database = root / "nfprogress.db"
+    connection = sqlite3.connect(database)
+    connection.execute("DROP TABLE cloud_sync_note_applied_resolution_parents")
+    connection.commit()
+    connection.close()
+
+    with pytest.raises(RecoveryError, match="required applied resolution table"):
+        validate_sqlite_file(database)
+
+
 @pytest.mark.parametrize("version", range(1, CURRENT_SCHEMA_VERSION + 1))
 def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
     database = tmp_path / f"v{version}.db"
@@ -149,6 +164,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 20: "020_note_sync_resolution_sealing.sql",
                 21: "021_note_sync_resolution_upload_receipts.sql",
                 22: "022_note_sync_resolution_inbox.sql",
+                23: "023_note_sync_applied_resolutions.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(
