@@ -130,7 +130,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 23
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 24
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -425,13 +425,82 @@ def test_c17_schema23_rejects_parent_set_that_is_not_current_local_tips():
     connection = sqlite3.connect(':memory:')
     connection.execute('PRAGMA foreign_keys = ON')
     apply_migrations(connection)
-    _seed_resolution_proof_inputs(connection, tip_generations=(7, 8))
+    _seed_resolution_proof_inputs(connection)
     with pytest.raises(sqlite3.IntegrityError):
         _insert_applying_resolution_ledger(
             connection, strategy='manual_merge', result_operation='delete'
         )
     _insert_applying_resolution_ledger(connection)
     _insert_resolution_parent_edges(connection)
+    connection.execute("""INSERT INTO cloud_sync_note_conflict_versions(
+        version_id,group_id,account_id,project_id,entity_id,entity_type,event_id,
+        parent_event_id,revision,server_sequence,operation,snapshot_json,source,
+        local_mutation_generation,local_outbox_lifecycle,conflict_generation,preserved_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'version-extra', UUID_4, 'account', 'project', 'entity', 'note', UUID_7,
+        UUID_6, 2, 6, 'upsert', '{"body":"extra"}', 'remote', None, None, 7, 'now',
+    ))
+    connection.execute(
+        "INSERT INTO cloud_sync_note_conflict_tips VALUES(?,?,?,?)",
+        (UUID_4, 'version-extra', UUID_7, 7),
+    )
+
+    with pytest.raises(sqlite3.IntegrityError, match='parent_proof_incomplete'):
+        connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+            SET lifecycle='applied',applied_at='now' WHERE resolution_event_id=?""", (UUID_3,))
+
+
+@pytest.mark.parametrize('defect', [
+    'wrong_version', 'changed_snapshot', 'wrong_common_parent', 'missing_publication',
+])
+def test_c17_schema24_parent_membership_remains_fail_closed(defect: str):
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection)
+    _insert_applying_resolution_ledger(connection)
+    version_id = 'version-left'
+    snapshot = '{"body":"left"}'
+    if defect == 'wrong_version':
+        version_id = 'version-right'
+    elif defect == 'changed_snapshot':
+        snapshot = '{"body":"changed"}'
+    elif defect == 'wrong_common_parent':
+        connection.execute(
+            "UPDATE cloud_sync_note_conflict_groups SET common_parent_event_id=?",
+            (UUID_8,),
+        )
+    elif defect == 'missing_publication':
+        connection.execute(
+            "DELETE FROM cloud_sync_inbox WHERE account_id='account' AND event_id=?",
+            (UUID_1,),
+        )
+
+    with pytest.raises(sqlite3.IntegrityError, match='parent_proof_invalid'):
+        connection.execute("""INSERT INTO cloud_sync_note_applied_resolution_parents(
+            account_id,resolution_event_id,parent_ordinal,parent_event_id,
+            conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+            publication_source,server_sequence,local_mutation_generation,recorded_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (
+            'account', UUID_3, 0, UUID_1, version_id, 2, 'upsert', snapshot,
+            'remote', 1, None, 'now',
+        ))
+
+
+def test_c17_schema24_missing_older_generation_tip_blocks_completion():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    apply_migrations(connection)
+    _seed_resolution_proof_inputs(connection, tip_generations=(6, 7))
+    _insert_applying_resolution_ledger(connection)
+    connection.execute("""INSERT INTO cloud_sync_note_applied_resolution_parents(
+        account_id,resolution_event_id,parent_ordinal,parent_event_id,
+        conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+        publication_source,server_sequence,local_mutation_generation,recorded_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_3, 1, UUID_2, 'version-right', 2, 'upsert',
+        '{"body":"right"}', 'remote', 2, None, 'now',
+    ))
 
     with pytest.raises(sqlite3.IntegrityError, match='parent_proof_incomplete'):
         connection.execute("""UPDATE cloud_sync_note_applied_resolutions
@@ -627,6 +696,115 @@ def test_c17_upgrade_from_populated_v22_preserves_resolution_receipt():
         else:
             with pytest.raises(sqlite3.IntegrityError, match='requires_protocol_v2'):
                 insert_intent()
+
+
+def test_c17_upgrade_from_populated_v23_replaces_only_generation_guards(tmp_path):
+    database_path = tmp_path / 'populated_schema_23.db'
+    connection = sqlite3.connect(database_path)
+    connection.execute('PRAGMA foreign_keys = ON')
+    migrations = sorted(MIGRATIONS_DIR.glob('*.sql'))[:23]
+    assert migrations[-1].name == '023_note_sync_applied_resolutions.sql'
+    for migration in migrations:
+        connection.executescript(migration.read_text(encoding='utf-8'))
+    connection.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(23)')
+    _seed_resolution_proof_inputs(connection)
+    _insert_applying_resolution_ledger(connection)
+    _insert_resolution_parent_edges(connection)
+    connection.execute("""UPDATE cloud_sync_note_applied_resolutions
+        SET lifecycle='applied',applied_at='applied' WHERE resolution_event_id=?""", (UUID_3,))
+    connection.execute("""UPDATE cloud_sync_inbox SET state='applied',applied_at='applied'
+        WHERE event_id=?""", (UUID_3,))
+    connection.commit()
+    replaced = {
+        'cloud_sync_note_applied_resolution_parent_insert_guard',
+        'cloud_sync_note_applied_resolution_completion_guard',
+    }
+    preserved_triggers = dict(connection.execute(
+        "SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name"
+    ))
+    for name in replaced:
+        preserved_triggers.pop(name)
+
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
+    assert connection.execute("""SELECT lifecycle,local_conflict_generation
+        FROM cloud_sync_note_applied_resolutions""").fetchone() == ('applied', 7)
+    assert connection.execute(
+        "SELECT count(*) FROM cloud_sync_note_applied_resolution_parents"
+    ).fetchone()[0] == 2
+    current_triggers = dict(connection.execute(
+        "SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name"
+    ))
+    for name in replaced:
+        current_triggers.pop(name)
+    assert current_triggers == preserved_triggers
+    parent_guard = connection.execute("""SELECT sql FROM sqlite_master
+        WHERE type='trigger' AND name='cloud_sync_note_applied_resolution_parent_insert_guard'""").fetchone()[0]
+    completion_guard = connection.execute("""SELECT sql FROM sqlite_master
+        WHERE type='trigger' AND name='cloud_sync_note_applied_resolution_completion_guard'""").fetchone()[0]
+    assert 'version.conflict_generation = resolution.local_conflict_generation' not in parent_guard
+    assert 'conflict_group.generation = resolution.local_conflict_generation' in parent_guard
+    assert 'tip.generation = NEW.local_conflict_generation' not in completion_guard
+    assert 'conflict_group.generation = NEW.local_conflict_generation' in completion_guard
+    assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
+    connection.close()
+
+    reopened = sqlite3.connect(database_path)
+    reopened.execute('PRAGMA foreign_keys = ON')
+    assert apply_migrations(reopened) == CURRENT_SCHEMA_VERSION
+    assert reopened.execute("SELECT schema_version FROM schema_info").fetchone()[0] == 24
+    assert reopened.execute("""SELECT lifecycle,local_conflict_generation
+        FROM cloud_sync_note_applied_resolutions""").fetchone() == ('applied', 7)
+    assert reopened.execute(
+        "SELECT count(*) FROM cloud_sync_note_applied_resolution_parents"
+    ).fetchone()[0] == 2
+    assert reopened.execute('PRAGMA foreign_key_check').fetchall() == []
+    reopened.close()
+
+
+def test_c17_schema24_migration_failure_rolls_back_trigger_replacement():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    migrations = sorted(MIGRATIONS_DIR.glob('*.sql'))[:23]
+    assert migrations[-1].name == '023_note_sync_applied_resolutions.sql'
+    for migration in migrations:
+        connection.executescript(migration.read_text(encoding='utf-8'))
+    connection.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(23)')
+    connection.commit()
+    trigger_names = (
+        'cloud_sync_note_applied_resolution_parent_insert_guard',
+        'cloud_sync_note_applied_resolution_completion_guard',
+    )
+    original_triggers = dict(connection.execute(
+        "SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name IN (?,?)",
+        trigger_names,
+    ))
+    assert set(original_triggers) == set(trigger_names)
+
+    def deny_completion_trigger(action, name, _table, _database, _source):
+        if action == sqlite3.SQLITE_CREATE_TRIGGER and name == trigger_names[1]:
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+
+    connection.set_authorizer(deny_completion_trigger)
+    try:
+        with pytest.raises(sqlite3.DatabaseError, match='not authorized'):
+            apply_migrations(connection)
+    finally:
+        connection.set_authorizer(None)
+
+    assert not connection.in_transaction
+    assert connection.execute(
+        'SELECT schema_version FROM schema_info'
+    ).fetchone()[0] == 23
+    restored_triggers = dict(connection.execute(
+        "SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name IN (?,?)",
+        trigger_names,
+    ))
+    assert restored_triggers == original_triggers
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
 
 
 def test_c17_schema23_migration_failure_rolls_back_receipt_rebuild():

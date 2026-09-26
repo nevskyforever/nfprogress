@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 23;
+pub const CURRENT_SCHEMA_VERSION: i64 = 24;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -156,10 +156,10 @@ mod c16_c17_migration_tests {
     }
 
     #[test]
-    fn populated_schema_19_through_22_advance_to_latest_and_reopen() {
-        for version in [19usize, 20usize, 21usize, 22usize] {
+    fn populated_schema_19_through_23_advance_to_latest_and_reopen() {
+        for version in [19usize, 20usize, 21usize, 22usize, 23usize] {
             let path = std::env::temp_dir().join(format!(
-                "nfprogress-schema23-from{version}-{}-{}.db", std::process::id(),
+                "nfprogress-schema24-from{version}-{}-{}.db", std::process::id(),
                 std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
             ));
             let connection = Connection::open(&path).unwrap();
@@ -540,7 +540,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 23] = [
+const MIGRATIONS: [(i64, &str); 24] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -610,6 +610,7 @@ const MIGRATIONS: [(i64, &str); 23] = [
     (21, include_str!("../../../nfprogress/core/sqlite/migrations/021_note_sync_resolution_upload_receipts.sql")),
     (22, include_str!("../../../nfprogress/core/sqlite/migrations/022_note_sync_resolution_inbox.sql")),
     (23, include_str!("../../../nfprogress/core/sqlite/migrations/023_note_sync_applied_resolutions.sql")),
+    (24, include_str!("../../../nfprogress/core/sqlite/migrations/024_note_sync_multigeneration_tips.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {

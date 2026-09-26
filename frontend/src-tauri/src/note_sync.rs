@@ -542,6 +542,174 @@ mod remote_apply_tests {
         (local.event_id, UPDATE_EVENT.into())
     }
 
+    fn seed_three_tip_applying_resolution(
+        connection: &mut PrivilegedRemoteApplyConnection,
+    ) -> String {
+        apply_create(connection);
+        let local = prepare_local_branch(connection, NoteSyncOperation::Upsert, "local edit");
+        let first = received(
+            connection,
+            plaintext(
+                UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+                "2026-01-02T00:00:00.000000Z", "remote one",
+            ),
+            2, REMOTE_DEVICE,
+        );
+        assert_eq!(
+            apply_verified_received_note(connection, &first).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Conflict,
+        );
+        let third_event = "123e4567-e89b-42d3-a456-426614174103";
+        let third = received(
+            connection,
+            plaintext(
+                third_event, Some(CREATE_EVENT), 2, "upsert",
+                "2026-01-02T00:00:01.000000Z", "remote two",
+            ),
+            3, REMOTE_DEVICE,
+        );
+        assert_eq!(
+            apply_verified_received_note(connection, &third).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Conflict,
+        );
+        assert_eq!(connection.connection().query_row(
+            "SELECT generation FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 2);
+        assert_eq!(connection.connection().prepare(
+            "SELECT generation,count(*) FROM cloud_sync_note_conflict_tips
+             GROUP BY generation ORDER BY generation",
+        ).unwrap().query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)))
+            .unwrap().collect::<Result<Vec<_>, _>>().unwrap(), vec![(1, 2), (2, 1)]);
+
+        let mutation_generation: i64 = connection.connection().query_row(
+            "SELECT mutation_generation FROM cloud_sync_note_intents WHERE event_id=?1",
+            [&local.event_id], |row| row.get(0),
+        ).unwrap();
+        commit_sealed_note_sync_event(
+            connection.connection_mut_for_test(),
+            &CommitSealedNoteSyncEventCommand {
+                event_id: local.event_id.clone(),
+                expected_mutation_generation: mutation_generation,
+                envelope: EncryptedNoteSyncEnvelope {
+                    crypto_version: 1, aad_version: 1,
+                    nonce: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(),
+                    ciphertext: "AAAAAAAAAAAAAAAAAAAAAA".into(),
+                },
+            },
+        ).unwrap();
+        commit_note_sync_upload_acceptance(
+            connection.connection_mut_for_test(),
+            &CommitNoteSyncUploadAcceptanceCommand {
+                account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(),
+                receipts: vec![NoteSyncUploadReceipt {
+                    event_id: local.event_id.clone(), server_sequence: 4, duplicate: false,
+                }],
+            },
+        ).unwrap();
+        let (local_operation, local_revision, local_updated_at): (String, i64, String) =
+            connection.connection().query_row(
+                "SELECT operation,revision,updated_at FROM cloud_sync_outbox WHERE event_id=?1",
+                [&local.event_id], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,
+                received_at,applied_at
+             ) VALUES(?1,?2,4,?3,'p','n','note',?4,?5,?6,NULL,'applied','now','now')",
+            rusqlite::params![ACCOUNT, local.event_id, PULLING_DEVICE, local_operation,
+                              local_revision, local_updated_at],
+        ).unwrap();
+
+        let command = resolution_command(connection, "choose_version", None, None);
+        let mut payload: serde_json::Value =
+            serde_json::from_slice(&command.canonical_payload).unwrap();
+        payload["resolution"]["conflict_group_id"] = serde_json::Value::String(
+            "123e4567-e89b-42d3-a456-426614174299".into(),
+        );
+        payload["resolution"]["conflict_generation"] = serde_json::Value::from(9);
+        let canonical_payload = canonical_json(&payload).unwrap().into_bytes();
+        let event_id = payload["header"]["event_id"].as_str().unwrap().to_string();
+        let updated_at = payload["header"]["updated_at"].as_str().unwrap().to_string();
+        let revision = payload["header"]["revision"].as_i64().unwrap();
+        let (local_group_id, local_generation): (String, i64) = connection.connection()
+            .query_row(
+                "SELECT group_id,generation FROM cloud_sync_note_conflict_groups
+                 WHERE account_id=?1 AND lifecycle='open'",
+                [ACCOUNT], |row| Ok((row.get(0)?, row.get(1)?)),
+            ).unwrap();
+        let parent_ids: Vec<String> = payload["resolution"]["resolved_event_ids"]
+            .as_array().unwrap().iter().map(|value| value.as_str().unwrap().to_string()).collect();
+        let parents_json = serde_json::to_string(&parent_ids).unwrap();
+        let result_snapshot = canonical_json(&payload["result"]["note"]).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at
+             ) VALUES(?1,?2,5,?3,'p','n','note','resolution',?4,?5,NULL,'received','now')",
+            rusqlite::params![ACCOUNT, event_id, REMOTE_DEVICE, revision, updated_at],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_event_objects VALUES(?1,?2,1,1,?3,?4,'now')",
+            rusqlite::params![ACCOUNT, event_id, vec![5_u8; 24], vec![35_u8; 16]],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_note_applied_resolutions(
+                account_id,resolution_event_id,source_device_id,server_sequence,
+                project_id,entity_id,revision,event_updated_at,remote_conflict_group_id,
+                local_conflict_group_id,remote_conflict_generation,local_conflict_generation,
+                parent_event_ids_json,parent_count,strategy,result_operation,canonical_payload,
+                result_snapshot_json,clone_entity_id,clone_snapshot_json,lifecycle,applied_at,created_at
+             ) VALUES(?1,?2,?3,5,'p','n',?4,?5,?6,?7,9,?8,?9,?10,
+                      'choose_version','upsert',?11,?12,NULL,NULL,'applying',NULL,'now')",
+            rusqlite::params![ACCOUNT, event_id, REMOTE_DEVICE, revision, updated_at,
+                "123e4567-e89b-42d3-a456-426614174299", local_group_id,
+                local_generation, parents_json, parent_ids.len() as i64,
+                canonical_payload, result_snapshot],
+        ).unwrap();
+
+        let mut statement = connection.connection().prepare(
+            "SELECT version.version_id,version.event_id,version.revision,version.operation,
+                    version.snapshot_json,version.source,version.local_mutation_generation,
+                    version.server_sequence
+             FROM cloud_sync_note_conflict_tips AS tip
+             JOIN cloud_sync_note_conflict_versions AS version
+               ON version.version_id=tip.version_id
+             WHERE tip.group_id=?1 ORDER BY version.event_id",
+        ).unwrap();
+        let tips = statement.query_map([&local_group_id], |row| Ok((
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?,
+            row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?,
+            row.get::<_, Option<i64>>(6)?, row.get::<_, Option<i64>>(7)?,
+        ))).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+        drop(statement);
+        for (ordinal, tip) in tips.into_iter().enumerate() {
+            let (publication_source, server_sequence) = if tip.5 == "local_unsealed" {
+                let sequence = connection.connection().query_row(
+                    "SELECT server_sequence FROM cloud_sync_upload_receipts WHERE event_id=?1",
+                    [&tip.1], |row| row.get::<_, i64>(0),
+                ).unwrap();
+                ("local_accepted", sequence)
+            } else {
+                (tip.5.as_str(), tip.7.unwrap())
+            };
+            connection.connection().execute(
+                "INSERT INTO cloud_sync_note_applied_resolution_parents(
+                    account_id,resolution_event_id,parent_ordinal,parent_event_id,
+                    conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+                    publication_source,server_sequence,local_mutation_generation,recorded_at
+                 ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,'now')",
+                rusqlite::params![ACCOUNT, event_id, ordinal as i64, tip.1, tip.0,
+                    tip.2, tip.3, tip.4, publication_source, server_sequence, tip.6],
+            ).unwrap();
+        }
+        connection.connection().execute(
+            "UPDATE cloud_sync_state SET pull_cursor=5 WHERE account_id=?1", [ACCOUNT],
+        ).unwrap();
+        event_id
+    }
+
     fn resolution_command(
         connection: &PrivilegedRemoteApplyConnection,
         strategy: &str,
@@ -1099,6 +1267,85 @@ mod remote_apply_tests {
             "SELECT count(*) FROM cloud_sync_note_conflict_versions WHERE event_id=?1",
             [fourth_event], |row| row.get::<_, i64>(0),
         ).unwrap(), 0);
+    }
+
+    #[test]
+    fn multigeneration_tip_proof_completes_and_controls_ack() {
+        let mut connection = database();
+        let resolution_event = seed_three_tip_applying_resolution(&mut connection);
+        let ack = PrepareNoteSyncAckCommand {
+            account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(),
+            canonical_user_id: CANONICAL_USER.into(),
+        };
+        assert_eq!(
+            prepare_note_sync_ack(connection.connection_mut_for_test(), &ack).unwrap().candidate_cursor,
+            4,
+        );
+        let transaction = connection.connection_mut_for_test()
+            .transaction_with_behavior(TransactionBehavior::Immediate).unwrap();
+        transaction.execute(
+            "UPDATE cloud_sync_note_applied_resolutions
+             SET lifecycle='applied',applied_at='applied'
+             WHERE account_id=?1 AND resolution_event_id=?2",
+            rusqlite::params![ACCOUNT, resolution_event],
+        ).unwrap();
+        transaction.execute(
+            "UPDATE cloud_sync_inbox SET state='applied',applied_at='applied'
+             WHERE account_id=?1 AND event_id=?2",
+            rusqlite::params![ACCOUNT, resolution_event],
+        ).unwrap();
+        transaction.commit().unwrap();
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_applied_resolution_parents
+             WHERE resolution_event_id=?1", [&resolution_event], |row| row.get::<_, i64>(0),
+        ).unwrap(), 3);
+        assert_eq!(
+            prepare_note_sync_ack(connection.connection_mut_for_test(), &ack).unwrap().candidate_cursor,
+            5,
+        );
+        assert_eq!(connection.connection().query_row(
+            "PRAGMA foreign_key_check", [], |_| Ok(1_i64),
+        ).optional().unwrap(), None);
+    }
+
+    #[test]
+    fn multigeneration_tip_proof_rejects_newer_group_generation() {
+        let mut connection = database();
+        let resolution_event = seed_three_tip_applying_resolution(&mut connection);
+        let fourth_event = "123e4567-e89b-42d3-a456-426614174104";
+        let fourth = received(
+            &connection,
+            plaintext(
+                fourth_event, Some(CREATE_EVENT), 2, "upsert",
+                "2026-01-02T00:00:02.000000Z", "remote three",
+            ),
+            6, REMOTE_DEVICE,
+        );
+        assert_eq!(
+            apply_verified_received_note(&mut connection, &fourth).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Conflict,
+        );
+        assert_eq!(connection.connection().query_row(
+            "SELECT generation FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_, i64>(0),
+        ).unwrap(), 3);
+        let transaction = connection.connection_mut_for_test()
+            .transaction_with_behavior(TransactionBehavior::Immediate).unwrap();
+        assert!(transaction.execute(
+            "UPDATE cloud_sync_note_applied_resolutions
+             SET lifecycle='applied',applied_at='applied'
+             WHERE account_id=?1 AND resolution_event_id=?2",
+            rusqlite::params![ACCOUNT, resolution_event],
+        ).is_err());
+        transaction.rollback().unwrap();
+        assert_eq!(connection.connection().query_row(
+            "SELECT lifecycle FROM cloud_sync_note_applied_resolutions
+             WHERE resolution_event_id=?1", [&resolution_event], |row| row.get::<_, String>(0),
+        ).unwrap(), "applying");
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",
+            [&resolution_event], |row| row.get::<_, String>(0),
+        ).unwrap(), "received");
     }
 
     #[test]

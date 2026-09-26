@@ -165,6 +165,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 21: "021_note_sync_resolution_upload_receipts.sql",
                 22: "022_note_sync_resolution_inbox.sql",
                 23: "023_note_sync_applied_resolutions.sql",
+                24: "024_note_sync_multigeneration_tips.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(
