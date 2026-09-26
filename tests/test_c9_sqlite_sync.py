@@ -15,6 +15,8 @@ from nfprogress.core.sqlite.schema import (
 
 UUID_1 = '123e4567-e89b-42d3-a456-426614174000'
 UUID_2 = '123e4567-e89b-42d3-a456-426614174001'
+UUID_3 = '123e4567-e89b-42d3-a456-426614174002'
+UUID_4 = '123e4567-e89b-42d3-a456-426614174003'
 
 
 def _create_v8_database() -> sqlite3.Connection:
@@ -64,7 +66,7 @@ def test_c17_upgrade_from_v16_preserves_existing_inbox_rows():
     connection.execute('INSERT INTO schema_info VALUES(16)')
     _insert_inbox(connection)
 
-    assert apply_migrations(connection) == 20
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
     assert connection.execute(
         'SELECT event_id,state,conflict_group_id,conflict_preserved_at '
         'FROM cloud_sync_inbox'
@@ -85,7 +87,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 20
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 21
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -103,6 +105,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
         'cloud_sync_note_pending_resolutions',
         'cloud_sync_note_resolution_outbox',
         'cloud_sync_note_resolution_dependencies',
+        'cloud_sync_note_resolution_upload_receipts',
     } <= tables
     columns = {row[1] for row in connection.execute('PRAGMA table_info(cloud_sync_outbox)')}
     assert not {
@@ -120,6 +123,83 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
         1, '2026-09-21T00:00:00Z', '2026-09-21T00:00:00Z', '2026-09-21T00:00:00Z',
     ))
     assert connection.execute("SELECT parent_event_id,local_ordinal,lifecycle FROM cloud_sync_outbox").fetchone() == (None, 0, 'legacy')
+
+
+def test_c17_upgrade_from_v20_preserves_sealed_resolution_envelope_and_adds_receipts():
+    connection = sqlite3.connect(':memory:')
+    migration_files = sorted(MIGRATIONS_DIR.glob('*.sql'))[:20]
+    assert migration_files[-1].name == '020_note_sync_resolution_sealing.sql'
+    for migration in migration_files:
+        connection.executescript(migration.read_text(encoding='utf-8'))
+    connection.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(20)')
+    connection.execute('PRAGMA foreign_keys = ON')
+    connection.execute("""INSERT INTO cloud_sync_note_conflict_groups(
+        group_id,account_id,project_id,entity_id,entity_type,common_parent_event_id,
+        tip_revision,generation,lifecycle,created_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_4, 'account', 'project', 'entity', 'note', UUID_1, 2, 1, 'resolving', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_note_pending_resolutions(
+        resolution_event_id,account_id,device_id,project_id,entity_id,conflict_group_id,
+        expected_conflict_generation,resolution_revision,tip_event_ids_json,strategy,
+        result_operation,canonical_payload,lifecycle,prepared_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_3, 'account', UUID_2, 'project', 'entity', UUID_4, 1, 2,
+        json.dumps([UUID_1, UUID_2]), 'choose_version', 'upsert', b'canonical-v2',
+        'consumed', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_note_resolution_outbox(
+        resolution_event_id,account_id,device_id,project_id,entity_id,clone_entity_id,
+        conflict_group_id,conflict_generation,revision,parent_event_ids_json,strategy,
+        result_operation,canonical_payload,lifecycle,applied_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_3, 'account', UUID_2, 'project', 'entity', None, UUID_4, 1, 2,
+        json.dumps([UUID_1, UUID_2]), 'choose_version', 'upsert', b'canonical-v2',
+        'local_pending', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_event_objects(
+        account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+    ) VALUES(?,?,?,?,?,?,?)""", ('account', UUID_3, 1, 1, b'n' * 24, b'c' * 16, 'now'))
+    connection.execute("""UPDATE cloud_sync_note_resolution_outbox
+        SET lifecycle='sealed_local' WHERE resolution_event_id=?""", (UUID_3,))
+    connection.commit()
+
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
+    assert connection.execute("SELECT lifecycle,canonical_payload FROM cloud_sync_note_resolution_outbox").fetchone() == ('sealed_local', b'canonical-v2')
+    assert connection.execute("SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE event_id=?", (UUID_3,)).fetchone() == (b'n' * 24, b'c' * 16)
+    connection.execute("""INSERT INTO cloud_sync_outbox(
+        event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+        revision,updated_at,deleted_at,created_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_1, 'account', UUID_2, 'project', 'v1-note', 'note', 'upsert', 1,
+        'now', None, 'now',
+    ))
+    # First v1, then resolution: the resolution-table trigger rejects a shared sequence.
+    connection.execute("""INSERT INTO cloud_sync_upload_receipts(
+        account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+    ) VALUES(?,?,?,?,?,?)""", ('account', UUID_1, UUID_2, 2, 0, 'now'))
+    with pytest.raises(sqlite3.IntegrityError, match='note_sync_receipt_sequence_conflict'):
+        connection.execute("""INSERT INTO cloud_sync_note_resolution_upload_receipts(
+            account_id,resolution_event_id,device_id,server_sequence,duplicate,accepted_at
+        ) VALUES(?,?,?,?,?,?)""", ('account', UUID_3, UUID_2, 2, 0, 'now'))
+    connection.execute("""INSERT INTO cloud_sync_note_resolution_upload_receipts(
+        account_id,resolution_event_id,device_id,server_sequence,duplicate,accepted_at
+    ) VALUES(?,?,?,?,?,?)""", ('account', UUID_3, UUID_2, 1, 0, 'now'))
+    connection.execute("UPDATE cloud_sync_note_resolution_outbox SET lifecycle='accepted' WHERE resolution_event_id=?", (UUID_3,))
+    assert connection.execute("SELECT lifecycle FROM cloud_sync_note_resolution_outbox").fetchone()[0] == 'accepted'
+    # First resolution, then v1: the v1-table trigger protects its actual write path too.
+    connection.execute("""INSERT INTO cloud_sync_outbox(
+        event_id, account_id, device_id, project_id, entity_id, entity_type,
+        operation, revision, updated_at, deleted_at, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (
+        '123e4567-e89b-42d3-a456-426614174004', 'account', UUID_2, 'project', 'v1-note-2', 'note', 'upsert',
+        1, 'now', None, 'now',
+    ))
+    with pytest.raises(sqlite3.IntegrityError, match='note_sync_receipt_sequence_conflict'):
+        connection.execute("""INSERT INTO cloud_sync_upload_receipts(
+            account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+        ) VALUES(?,?,?,?,?,?)""", ('account', '123e4567-e89b-42d3-a456-426614174004', UUID_2, 1, 0, 'now'))
 
 
 def test_c15_upgrade_from_populated_v8_preserves_authoritative_data():

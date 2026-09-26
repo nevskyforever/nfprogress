@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 20;
+pub const CURRENT_SCHEMA_VERSION: i64 = 21;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -53,8 +53,8 @@ mod c16_c17_migration_tests {
             [],
         ).unwrap();
 
-        assert_eq!(apply_migrations(&connection).unwrap(), 20);
-        assert_eq!(connection.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), 20);
+        assert_eq!(apply_migrations(&connection).unwrap(), CURRENT_SCHEMA_VERSION);
+        assert_eq!(connection.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), CURRENT_SCHEMA_VERSION);
         assert_eq!(connection.query_row("SELECT count(*) FROM projects", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_state", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_project_bootstraps", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
@@ -81,7 +81,7 @@ mod c16_c17_migration_tests {
             [],
         ).unwrap();
 
-        assert_eq!(apply_migrations(&connection).unwrap(), 20);
+        assert_eq!(apply_migrations(&connection).unwrap(), CURRENT_SCHEMA_VERSION);
         assert_eq!(connection.query_row(
             "SELECT state FROM cloud_sync_inbox WHERE event_id='123e4567-e89b-42d3-a456-426614174010'",
             [], |row| row.get::<_, String>(0),
@@ -101,7 +101,7 @@ mod c16_c17_migration_tests {
     }
 
     #[test]
-    fn populated_schema_17_advances_to_19_and_reopens() {
+    fn populated_schema_17_advances_to_latest_and_reopens() {
         let path = std::env::temp_dir().join(format!(
             "nfprogress-schema19-from17-{}-{}.db", std::process::id(),
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
@@ -113,12 +113,12 @@ mod c16_c17_migration_tests {
         connection.execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);").unwrap();
         for (_, sql) in MIGRATIONS.iter().take(17) { connection.execute_batch(sql).unwrap(); }
         connection.execute("INSERT INTO schema_info VALUES(17)", []).unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 20);
+        assert_eq!(apply_migrations(&connection).unwrap(), CURRENT_SCHEMA_VERSION);
         drop(connection);
         let reopened = open_database(&path).unwrap();
         assert_eq!(reopened.query_row(
             "SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)
-        ).unwrap(), 20);
+        ).unwrap(), CURRENT_SCHEMA_VERSION);
         assert_eq!(reopened.query_row(
             "SELECT count(*) FROM cloud_sync_note_pending_resolutions", [], |row| row.get::<_, i64>(0)
         ).unwrap(), 0);
@@ -127,7 +127,7 @@ mod c16_c17_migration_tests {
     }
 
     #[test]
-    fn populated_schema_18_advances_to_19_and_reopens() {
+    fn populated_schema_18_advances_to_latest_and_reopens() {
         let path = std::env::temp_dir().join(format!(
             "nfprogress-schema19-from18-{}-{}.db", std::process::id(),
             std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
@@ -139,12 +139,12 @@ mod c16_c17_migration_tests {
         connection.execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);").unwrap();
         for (_, sql) in MIGRATIONS.iter().take(18) { connection.execute_batch(sql).unwrap(); }
         connection.execute("INSERT INTO schema_info VALUES(18)", []).unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 20);
+        assert_eq!(apply_migrations(&connection).unwrap(), CURRENT_SCHEMA_VERSION);
         drop(connection);
         let reopened = open_database(&path).unwrap();
         assert_eq!(reopened.query_row(
             "SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)
-        ).unwrap(), 20);
+        ).unwrap(), CURRENT_SCHEMA_VERSION);
         assert_eq!(reopened.query_row(
             "SELECT count(*) FROM cloud_sync_note_resolution_outbox", [], |row| row.get::<_, i64>(0)
         ).unwrap(), 0);
@@ -153,6 +153,29 @@ mod c16_c17_migration_tests {
         ).unwrap(), 0);
         drop(reopened);
         std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn populated_schema_19_and_20_advance_to_latest_and_reopen() {
+        for version in [19usize, 20usize] {
+            let path = std::env::temp_dir().join(format!(
+                "nfprogress-schema21-from{version}-{}-{}.db", std::process::id(),
+                std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos(),
+            ));
+            let connection = Connection::open(&path).unwrap();
+            register_fail_closed_remote_apply_guard(&connection).unwrap();
+            connection.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+            connection.execute_batch(DOMAIN_EVENTS_SCHEMA).unwrap();
+            connection.execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);").unwrap();
+            for (_, sql) in MIGRATIONS.iter().take(version) { connection.execute_batch(sql).unwrap(); }
+            connection.execute("INSERT INTO schema_info VALUES(?1)", [version as i64]).unwrap();
+            assert_eq!(apply_migrations(&connection).unwrap(), CURRENT_SCHEMA_VERSION);
+            drop(connection);
+            let reopened = open_database(&path).unwrap();
+            assert_eq!(reopened.query_row("SELECT schema_version FROM schema_info", [], |row| row.get::<_, i64>(0)).unwrap(), CURRENT_SCHEMA_VERSION);
+            drop(reopened);
+            std::fs::remove_file(path).unwrap();
+        }
     }
 }
 
@@ -514,7 +537,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 20] = [
+const MIGRATIONS: [(i64, &str); 21] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -581,6 +604,7 @@ const MIGRATIONS: [(i64, &str); 20] = [
     (18, include_str!("../../../nfprogress/core/sqlite/migrations/018_note_sync_pending_resolutions.sql")),
     (19, include_str!("../../../nfprogress/core/sqlite/migrations/019_note_sync_resolution_outbox.sql")),
     (20, include_str!("../../../nfprogress/core/sqlite/migrations/020_note_sync_resolution_sealing.sql")),
+    (21, include_str!("../../../nfprogress/core/sqlite/migrations/021_note_sync_resolution_upload_receipts.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {

@@ -25,6 +25,7 @@ const MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES: usize = 8_388_624;
 const MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES: usize = 16_777_216;
 const MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES: usize = 33_554_432;
 const MAX_RECEIVED_INBOX_LIST_LIMIT: u32 = 32;
+const MAX_SEALED_RESOLUTION_UPLOAD_LIST_LIMIT: u32 = 100;
 const SUPPORTED_CRYPTO_VERSION: i64 = 1;
 const SUPPORTED_AAD_VERSION: i64 = 1;
 
@@ -599,6 +600,20 @@ mod remote_apply_tests {
             expected_canonical_payload:encode_canonical_base64url(&command.canonical_payload),
             envelope:EncryptedNoteSyncEnvelope{crypto_version:1,aad_version:1,
                 nonce:"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(),ciphertext:"AAAAAAAAAAAAAAAAAAAAAA".into()},
+        }
+    }
+
+    fn resolution_upload_list_command() -> ListSealedNoteResolutionUploadsCommand {
+        ListSealedNoteResolutionUploadsCommand {
+            account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(),
+            canonical_user_id: CANONICAL_USER.into(), limit: 10,
+        }
+    }
+
+    fn resolution_receipt_command(event_id: &str, sequence: i64) -> CommitNoteResolutionUploadAcceptanceCommand {
+        CommitNoteResolutionUploadAcceptanceCommand {
+            account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(), canonical_user_id: CANONICAL_USER.into(),
+            receipts: vec![NoteSyncUploadReceipt { event_id: event_id.into(), server_sequence: sequence, duplicate: false }],
         }
     }
 
@@ -1554,6 +1569,47 @@ mod remote_apply_tests {
     }
 
     #[test]
+    fn sealed_resolution_upload_reader_rechecks_parent_proofs_and_hides_plaintext() {
+        let mut connection=database(); let (resolution,local,_)=applied_resolution_for_sealing(&mut connection);
+        let seal=resolution_seal_command(&resolution);
+        commit_sealed_note_resolution_event(connection.connection_mut_for_test(),&seal).unwrap();
+        assert!(list_sealed_note_resolution_uploads(connection.connection_mut_for_test(),&resolution_upload_list_command()).unwrap().is_empty());
+        let generation:i64=connection.connection().query_row("SELECT local_mutation_generation FROM cloud_sync_note_resolution_dependencies WHERE parent_event_id=?1",[&local],|r|r.get(0)).unwrap();
+        commit_sealed_note_sync_event(connection.connection_mut_for_test(),&CommitSealedNoteSyncEventCommand{event_id:local.clone(),expected_mutation_generation:generation,envelope:EncryptedNoteSyncEnvelope{crypto_version:1,aad_version:1,nonce:"AgICAgICAgICAgICAgICAgICAgICAgIC".into(),ciphertext:"AgICAgICAgICAgICAgICAg".into()}}).unwrap();
+        commit_note_sync_upload_acceptance(connection.connection_mut_for_test(),&CommitNoteSyncUploadAcceptanceCommand{account_id:ACCOUNT.into(),device_id:PULLING_DEVICE.into(),receipts:vec![NoteSyncUploadReceipt{event_id:local.clone(),server_sequence:42,duplicate:false}]}).unwrap();
+        let items=list_sealed_note_resolution_uploads(connection.connection_mut_for_test(),&resolution_upload_list_command()).unwrap();
+        assert_eq!(items.len(),1); assert_eq!(items[0].event_id,seal.event_id); assert_eq!(items[0].operation,"resolution");
+        assert_eq!(items[0].envelope.nonce,seal.envelope.nonce); assert!(!format!("{:?}",items[0]).contains("canonical_payload"));
+        connection.connection().execute("DELETE FROM cloud_sync_upload_receipts WHERE event_id=?1",[&local]).unwrap();
+        assert!(list_sealed_note_resolution_uploads(connection.connection_mut_for_test(),&resolution_upload_list_command()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn resolution_upload_receipt_is_atomic_idempotent_and_preserves_envelope() {
+        let (root,path)=conflict_database_path("resolution-upload-receipt");
+        let mut connection=configured_database(Connection::open(&path).unwrap()); let (resolution,local,_)=applied_resolution_for_sealing(&mut connection);
+        let seal=resolution_seal_command(&resolution); commit_sealed_note_resolution_event(connection.connection_mut_for_test(),&seal).unwrap();
+        let generation:i64=connection.connection().query_row("SELECT local_mutation_generation FROM cloud_sync_note_resolution_dependencies WHERE parent_event_id=?1",[&local],|r|r.get(0)).unwrap();
+        commit_sealed_note_sync_event(connection.connection_mut_for_test(),&CommitSealedNoteSyncEventCommand{event_id:local.clone(),expected_mutation_generation:generation,envelope:EncryptedNoteSyncEnvelope{crypto_version:1,aad_version:1,nonce:"AgICAgICAgICAgICAgICAgICAgICAgIC".into(),ciphertext:"AgICAgICAgICAgICAgICAg".into()}}).unwrap();
+        commit_note_sync_upload_acceptance(connection.connection_mut_for_test(),&CommitNoteSyncUploadAcceptanceCommand{account_id:ACCOUNT.into(),device_id:PULLING_DEVICE.into(),receipts:vec![NoteSyncUploadReceipt{event_id:local,server_sequence:42,duplicate:false}]}).unwrap();
+        assert!(matches!(commit_note_resolution_upload_acceptance(connection.connection_mut_for_test(),&resolution_receipt_command(&seal.event_id,42)),Err(NoteSyncError::ConflictingUploadReceipt)));
+        let receipt=resolution_receipt_command(&seal.event_id,43);
+        assert!(commit_note_resolution_upload_acceptance_inner(connection.connection_mut_for_test(),&receipt,true).is_err());
+        assert_eq!(connection.connection().query_row("SELECT lifecycle FROM cloud_sync_note_resolution_outbox",[],|r|r.get::<_,String>(0)).unwrap(),"sealed_local");
+        assert_eq!(connection.connection().query_row("SELECT count(*) FROM cloud_sync_note_resolution_upload_receipts",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(commit_note_resolution_upload_acceptance(connection.connection_mut_for_test(),&receipt).unwrap(),vec![CommitNoteResolutionUploadAcceptanceResult::Accepted]);
+        let envelope:(Vec<u8>,Vec<u8>)=connection.connection().query_row("SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        drop(connection); let mut reopened=crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(commit_note_resolution_upload_acceptance(&mut reopened,&receipt).unwrap(),vec![CommitNoteResolutionUploadAcceptanceResult::AlreadyAccepted]);
+        let mut replay=receipt.clone(); replay.receipts[0].duplicate=true;
+        assert_eq!(commit_note_resolution_upload_acceptance(&mut reopened,&replay).unwrap(),vec![CommitNoteResolutionUploadAcceptanceResult::AlreadyAccepted]);
+        assert_eq!(reopened.query_row("SELECT duplicate FROM cloud_sync_note_resolution_upload_receipts WHERE resolution_event_id=?1",[&seal.event_id],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(reopened.query_row("SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",[&seal.event_id],|r|Ok((r.get::<_,Vec<u8>>(0)?,r.get::<_,Vec<u8>>(1)?))).unwrap(),envelope);
+        assert!(matches!(commit_note_resolution_upload_acceptance(&mut reopened,&resolution_receipt_command(&seal.event_id,44)),Err(NoteSyncError::ConflictingUploadReceipt)));
+        drop(reopened); std::fs::remove_file(path).unwrap(); std::fs::remove_dir(root).unwrap();
+    }
+
+    #[test]
     fn frozen_resolution_parent_can_seal_and_record_upload_acceptance() {
         let mut connection=database();
         let (local,remote)=prepare_edit_conflict(&mut connection);
@@ -2163,6 +2219,34 @@ pub(crate) enum CommitSealedNoteResolutionResult { Sealed, AlreadySealed }
 pub(crate) struct NoteResolutionReadiness {
     pub event_id: String, pub ready: bool,
 }
+
+/// Opaque v2 transport input. Canonical resolution plaintext remains in the
+/// private outbox; this reader exposes only the frozen routing metadata and
+/// durable envelope needed by a future uploader.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ListSealedNoteResolutionUploadsCommand {
+    pub account_id: String, pub device_id: String, pub canonical_user_id: String, pub limit: u32,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct SealedNoteResolutionUploadItem {
+    pub event_id: String, pub account_id: String, pub device_id: String,
+    pub project_id: String, pub entity_id: String, pub entity_type: String,
+    pub operation: String, pub revision: i64, pub updated_at: String,
+    pub envelope: StoredEncryptedNoteSyncEnvelope,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitNoteResolutionUploadAcceptanceCommand {
+    pub account_id: String, pub device_id: String, pub canonical_user_id: String,
+    pub receipts: Vec<NoteSyncUploadReceipt>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum CommitNoteResolutionUploadAcceptanceResult { Accepted, AlreadyAccepted }
 
 /// Opaque, already transport-validated data accepted into the durable inbox.
 /// This is intentionally separate from the outbox commands: receipt never
@@ -4013,6 +4097,14 @@ fn commit_sealed_note_resolution_event_inner(
 /// sealed local parent is insufficient: local branches require acceptance.
 pub(crate) fn read_note_resolution_readiness(connection:&mut Connection, account_id:&str, event_id:&str) -> Result<NoteResolutionReadiness,NoteSyncError> {
     let transaction=connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    let ready=resolution_dependencies_ready(&transaction,account_id,event_id)?;
+    transaction.commit()?;
+    Ok(NoteResolutionReadiness{event_id:event_id.into(),ready})
+}
+
+/// Re-evaluates every frozen parent from durable evidence in the caller's
+/// transaction. This deliberately has no cached readiness state.
+fn resolution_dependencies_ready(transaction:&Transaction<'_>, account_id:&str, event_id:&str) -> Result<bool,NoteSyncError> {
     let lifecycle:Option<String>=transaction.query_row("SELECT lifecycle FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1 AND account_id=?2",rusqlite::params![event_id,account_id],|r|r.get(0)).optional()?;
     let Some(lifecycle)=lifecycle else{return Err(NoteSyncError::MissingEvent)};
     let invalid:i64=transaction.query_row(
@@ -4021,8 +4113,110 @@ pub(crate) fn read_note_resolution_readiness(connection:&mut Connection, account
           OR (d.source='remote' AND EXISTS(SELECT 1 FROM cloud_sync_inbox i JOIN cloud_sync_note_conflict_versions v ON v.event_id=i.event_id AND v.group_id=(SELECT conflict_group_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) WHERE i.account_id=?2 AND i.event_id=d.parent_event_id AND i.server_sequence=d.server_sequence AND i.project_id=(SELECT project_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND i.entity_id=(SELECT entity_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND i.entity_type='note' AND i.sync_revision=v.revision AND i.state='conflict_preserved' AND v.snapshot_json=d.snapshot_json))
           OR (d.source='local_unsealed' AND EXISTS(SELECT 1 FROM cloud_sync_outbox o JOIN cloud_sync_upload_receipts r ON r.account_id=o.account_id AND r.event_id=o.event_id JOIN cloud_sync_note_conflict_versions v ON v.event_id=o.event_id AND v.group_id=(SELECT conflict_group_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) WHERE o.account_id=?2 AND o.event_id=d.parent_event_id AND o.project_id=(SELECT project_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND o.entity_id=(SELECT entity_id FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1) AND o.entity_type='note' AND o.revision=v.revision AND o.lifecycle='accepted' AND v.local_mutation_generation=d.local_mutation_generation AND v.snapshot_json=d.snapshot_json))
         )",rusqlite::params![event_id,account_id],|r|r.get(0))?;
-    transaction.commit()?;
-    Ok(NoteResolutionReadiness{event_id:event_id.into(),ready:lifecycle=="sealed_local" && invalid==0})
+    Ok(lifecycle=="sealed_local" && invalid==0)
+}
+
+/// Reads a bounded, freshly-proven set of sealed v2 resolution envelopes.
+/// It never returns the canonical v2 plaintext, parent set, AMK, or a durable
+/// readiness flag. A future uploader must repeat this query immediately before
+/// dispatch because no SQLite transaction is held across HTTP.
+pub(crate) fn list_sealed_note_resolution_uploads(
+    connection:&mut Connection, command:&ListSealedNoteResolutionUploadsCommand,
+) -> Result<Vec<SealedNoteResolutionUploadItem>,NoteSyncError> {
+    if !(1..=MAX_SEALED_RESOLUTION_UPLOAD_LIST_LIMIT).contains(&command.limit) {
+        return Err(NoteSyncError::InvalidListLimit);
+    }
+    let transaction=connection.transaction_with_behavior(TransactionBehavior::Deferred)?;
+    validate_pull_scope(&transaction,&command.account_id,&command.device_id,&command.canonical_user_id)?;
+    let mut statement=transaction.prepare(
+        "SELECT resolution.resolution_event_id,resolution.account_id,resolution.device_id,
+                resolution.project_id,resolution.entity_id,resolution.revision,resolution.canonical_payload,
+                object.crypto_version,object.aad_version,object.nonce,object.ciphertext
+         FROM cloud_sync_note_resolution_outbox AS resolution
+         LEFT JOIN cloud_sync_event_objects AS object
+           ON object.account_id=resolution.account_id AND object.event_id=resolution.resolution_event_id
+         WHERE resolution.account_id=?1 AND resolution.device_id=?2 AND resolution.lifecycle='sealed_local'
+         ORDER BY resolution.applied_at,resolution.resolution_event_id LIMIT ?3"
+    )?;
+    let rows=statement.query_map(rusqlite::params![command.account_id,command.device_id,i64::from(command.limit)],|row| {
+        Ok((row.get::<_,String>(0)?,row.get::<_,String>(1)?,row.get::<_,String>(2)?,row.get::<_,String>(3)?,
+            row.get::<_,String>(4)?,row.get::<_,i64>(5)?,row.get::<_,Vec<u8>>(6)?,row.get::<_,Option<i64>>(7)?,
+            row.get::<_,Option<i64>>(8)?,row.get::<_,Option<Vec<u8>>>(9)?,row.get::<_,Option<Vec<u8>>>(10)?))
+    })?;
+    let mut items=Vec::new(); let mut aggregate=0usize;
+    for row in rows {
+        let (event_id,account_id,device_id,project_id,entity_id,revision,payload,crypto_version,aad_version,nonce,ciphertext)=row?;
+        if !resolution_dependencies_ready(&transaction,&command.account_id,&event_id)? { continue; }
+        let (crypto_version,aad_version,nonce,ciphertext)=match (crypto_version,aad_version,nonce,ciphertext) {
+            (Some(crypto),Some(aad),Some(nonce),Some(ciphertext))=>(crypto,aad,nonce,ciphertext),
+            _=>return Err(NoteSyncError::SealedObjectMissing),
+        };
+        let decoded=decode_encrypted_note_sync_envelope(&EncryptedNoteSyncEnvelope{
+            crypto_version,aad_version,nonce:encode_canonical_base64url(&nonce),ciphertext:encode_canonical_base64url(&ciphertext),
+        })?;
+        aggregate=aggregate.checked_add(decoded.ciphertext.len()).ok_or(NoteSyncError::InvalidEnvelope("resolution upload object overflow"))?;
+        if aggregate>MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES { return Err(NoteSyncError::InvalidEnvelope("resolution upload batch too large")); }
+        let plaintext=decode_note_sync_resolution_v2(&payload).map_err(|_|NoteSyncError::InvalidSealState("invalid stored resolution payload"))?;
+        if plaintext.header.event_id!=event_id || plaintext.header.project_id!=project_id || plaintext.header.entity_id!=entity_id || plaintext.header.revision!=revision {
+            return Err(NoteSyncError::InvalidSealState("resolution transport metadata mismatch"));
+        }
+        items.push(SealedNoteResolutionUploadItem{event_id,account_id,device_id,project_id,entity_id,
+            entity_type:"note".into(),operation:"resolution".into(),revision,updated_at:plaintext.header.updated_at,
+            envelope:StoredEncryptedNoteSyncEnvelope{crypto_version:decoded.crypto_version,aad_version:decoded.aad_version,
+                nonce:encode_canonical_base64url(&decoded.nonce),ciphertext:encode_canonical_base64url(&decoded.ciphertext)}});
+    }
+    drop(statement); transaction.commit()?; Ok(items)
+}
+
+pub(crate) fn commit_note_resolution_upload_acceptance(
+    connection:&mut Connection, command:&CommitNoteResolutionUploadAcceptanceCommand,
+) -> Result<Vec<CommitNoteResolutionUploadAcceptanceResult>,NoteSyncError> {
+    commit_note_resolution_upload_acceptance_inner(connection,command,false)
+}
+
+fn commit_note_resolution_upload_acceptance_inner(
+    connection:&mut Connection, command:&CommitNoteResolutionUploadAcceptanceCommand, inject_failure_after_receipt:bool,
+) -> Result<Vec<CommitNoteResolutionUploadAcceptanceResult>,NoteSyncError> {
+    if command.receipts.is_empty() || command.receipts.len()>MAX_SEALED_RESOLUTION_UPLOAD_LIST_LIMIT as usize { return Err(NoteSyncError::InvalidSealState("invalid resolution receipt batch")); }
+    let transaction=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    validate_pull_scope(&transaction,&command.account_id,&command.device_id,&command.canonical_user_id)?;
+    let mut results=Vec::with_capacity(command.receipts.len());
+    for receipt in &command.receipts {
+        if receipt.event_id.len()!=36 || !(1..=MAX_SYNC_INTEGER).contains(&receipt.server_sequence) { return Err(NoteSyncError::InvalidSealState("invalid resolution receipt")); }
+        let row:Option<(String,String,String)>=transaction.query_row(
+            "SELECT account_id,device_id,lifecycle FROM cloud_sync_note_resolution_outbox WHERE resolution_event_id=?1",[&receipt.event_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+        ).optional()?;
+        let Some((account_id,device_id,lifecycle))=row else{return Err(NoteSyncError::MissingEvent)};
+        if account_id!=command.account_id || device_id!=command.device_id { return Err(NoteSyncError::ConflictingUploadReceipt); }
+        let object:Option<(i64,i64,Vec<u8>,Vec<u8>)>=transaction.query_row(
+            "SELECT crypto_version,aad_version,nonce,ciphertext FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
+            rusqlite::params![account_id,receipt.event_id],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?)),
+        ).optional()?;
+        let Some((crypto_version,aad_version,nonce,ciphertext))=object else{return Err(NoteSyncError::SealedObjectMissing)};
+        decode_encrypted_note_sync_envelope(&EncryptedNoteSyncEnvelope{
+            crypto_version,aad_version,nonce:encode_canonical_base64url(&nonce),ciphertext:encode_canonical_base64url(&ciphertext),
+        })?;
+        let existing:Option<i64>=transaction.query_row(
+            "SELECT server_sequence FROM cloud_sync_note_resolution_upload_receipts WHERE resolution_event_id=?1",[&receipt.event_id],|row|row.get(0),
+        ).optional()?;
+        if let Some(sequence)=existing {
+            if sequence!=receipt.server_sequence || lifecycle!="accepted" { return Err(NoteSyncError::ConflictingUploadReceipt); }
+            results.push(CommitNoteResolutionUploadAcceptanceResult::AlreadyAccepted); continue;
+        }
+        if lifecycle!="sealed_local" { return Err(NoteSyncError::UnexpectedLifecycle); }
+        let v1_sequence_in_use:bool=transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM cloud_sync_upload_receipts WHERE account_id=?1 AND server_sequence=?2)",
+            rusqlite::params![command.account_id,receipt.server_sequence],|row|row.get(0),
+        )?;
+        if v1_sequence_in_use { return Err(NoteSyncError::ConflictingUploadReceipt); }
+        transaction.execute("INSERT INTO cloud_sync_note_resolution_upload_receipts(account_id,resolution_event_id,device_id,server_sequence,duplicate,accepted_at) VALUES(?1,?2,?3,?4,?5,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+            rusqlite::params![command.account_id,receipt.event_id,command.device_id,receipt.server_sequence,i64::from(receipt.duplicate)])?;
+        if inject_failure_after_receipt { return Err(NoteSyncError::InvalidSealState("injected resolution receipt failure")); }
+        let changed=transaction.execute("UPDATE cloud_sync_note_resolution_outbox SET lifecycle='accepted',updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE resolution_event_id=?1 AND lifecycle='sealed_local'",[&receipt.event_id])?;
+        if changed!=1 { return Err(NoteSyncError::UnexpectedLifecycle); }
+        results.push(CommitNoteResolutionUploadAcceptanceResult::Accepted);
+    }
+    transaction.commit()?; Ok(results)
 }
 
 fn valid_inbound_identity(value: &str, maximum: usize) -> bool {
