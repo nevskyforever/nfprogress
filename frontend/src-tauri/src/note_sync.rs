@@ -4411,7 +4411,7 @@ pub(crate) fn list_received_note_sync_inbox(
         if aggregate > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES {
             return Err(NoteSyncError::InvalidEnvelope("inbox aggregate too large"));
         }
-        if !matches!(operation.as_str(), "upsert" | "delete") {
+        if !matches!(operation.as_str(), "upsert" | "delete" | "resolution") {
             return Err(NoteSyncError::InvalidEnvelope("unsupported Note operation"));
         }
         items.push(ReceivedNoteSyncInboxItem {
@@ -4452,6 +4452,17 @@ pub(crate) fn commit_note_sync_inbound_page(
     if current != command.expected_cursor && !exact_replay {
         return Err(NoteSyncError::InvalidEnvelope("stale pull cursor"));
     }
+    if exact_replay {
+        let stored_page_events: i64 = transaction.query_row(
+            "SELECT COUNT(*) FROM cloud_sync_inbox
+             WHERE account_id=?1 AND server_sequence>?2 AND server_sequence<=?3",
+            rusqlite::params![command.account_id, command.expected_cursor, command.next_cursor],
+            |row| row.get(0),
+        )?;
+        if stored_page_events != command.items.len() as i64 {
+            return Err(NoteSyncError::InvalidEnvelope("incomplete inbox replay"));
+        }
+    }
     let mut previous = if exact_replay { 0 } else { command.expected_cursor };
     let mut aggregate = 0usize;
     let mut new_events = 0u32;
@@ -4463,9 +4474,12 @@ pub(crate) fn commit_note_sync_inbound_page(
             || !valid_inbound_identity(&item.entity_type, 128) || !(1..=MAX_SYNC_INTEGER).contains(&item.revision)
             || !valid_note_sync_timestamp(&item.updated_at)
             || item.deleted_at.as_deref().is_some_and(|value| !valid_note_sync_timestamp(value))
-            || !matches!(item.operation.as_str(), "upsert" | "delete" | "event")
+            || !matches!(item.operation.as_str(), "upsert" | "delete" | "event" | "resolution")
             || (item.operation == "delete") != item.deleted_at.is_some() {
             return Err(NoteSyncError::InvalidEnvelope("invalid inbound event"));
+        }
+        if item.operation == "resolution" && (item.entity_type != "note" || item.revision < 2) {
+            return Err(NoteSyncError::InvalidEnvelope("invalid inbound resolution"));
         }
         if item.entity_type == "note" && item.envelope.is_none() {
             return Err(NoteSyncError::InvalidEnvelope("note object missing"));
@@ -6393,6 +6407,68 @@ mod tests {
         assert_eq!(connection.query_row("SELECT pull_cursor,ack_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| Ok((row.get::<_, i64>(0)?,row.get::<_, i64>(1)?))).unwrap(), (1, 0));
         assert_eq!(connection.query_row("SELECT count(*) FROM cloud_sync_inbox", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
         assert_eq!(commit_note_sync_inbound_page(&mut connection, &command).unwrap().replayed_events, 1);
+    }
+
+    #[test]
+    fn inbound_resolution_shares_stream_is_immutable_and_blocks_ack() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        let mut page = inbound_command(); page.next_cursor = 3; page.has_more = false;
+        let mut resolution = page.items[0].clone();
+        resolution.event_id = "123e4567-e89b-42d3-a456-426614174098".into();
+        resolution.server_sequence = 2; resolution.operation = "resolution".into(); resolution.revision = 2;
+        let mut deleted = page.items[0].clone();
+        deleted.event_id = "123e4567-e89b-42d3-a456-426614174097".into();
+        deleted.server_sequence = 3; deleted.operation = "delete".into();
+        deleted.deleted_at = Some("2026-09-22T00:00:01Z".into());
+        page.items = vec![page.items[0].clone(), resolution.clone(), deleted];
+        assert_eq!(commit_note_sync_inbound_page(&mut connection, &page).unwrap().new_events, 3);
+        assert_eq!(commit_note_sync_inbound_page(&mut connection, &page).unwrap().replayed_events, 3);
+        assert_eq!(connection.query_row("SELECT pull_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 3);
+        assert_eq!(list_received_note_sync_inbox(&connection, &received_list_command(8)).unwrap()[1].operation, "resolution");
+        assert_eq!(prepare_note_sync_ack(&mut connection, &ack_prepare_command()).unwrap().candidate_cursor, 0);
+        assert!(connection.execute("UPDATE cloud_sync_inbox SET project_id='other' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).is_err());
+        assert!(connection.execute("DELETE FROM cloud_sync_event_objects WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).is_err());
+        assert!(connection.execute("UPDATE cloud_sync_event_objects SET ciphertext=X'01' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).is_err());
+        let mut changed = page.clone(); changed.items[1].updated_at = "2026-09-22T00:00:02Z".into();
+        assert!(commit_note_sync_inbound_page(&mut connection, &changed).is_err());
+        let mut changed_object = page.clone();
+        changed_object.items[1].envelope.as_mut().unwrap().ciphertext = "AQAAAAAAAAAAAAAAAAAAAA".into();
+        assert!(commit_note_sync_inbound_page(&mut connection, &changed_object).is_err());
+        let mut partial = page.clone(); partial.items.remove(0);
+        assert!(commit_note_sync_inbound_page(&mut connection, &partial).is_err());
+        assert_eq!(connection.query_row("SELECT pull_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 3);
+        assert!(connection.execute("UPDATE cloud_sync_inbox SET operation='resolution',sync_revision=2 WHERE account_id='inbox-account' AND event_id=?1", [&page.items[0].event_id]).is_err());
+        connection.execute("UPDATE cloud_sync_inbox SET state='orphan' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).unwrap();
+        assert_eq!(connection.query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [&resolution.event_id], |row| row.get::<_, String>(0)).unwrap(), "orphan");
+        connection.execute("UPDATE cloud_sync_inbox SET state='applied',applied_at='now' WHERE account_id='inbox-account' AND event_id=?1", [&resolution.event_id]).unwrap();
+        assert_eq!(connection.query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [&resolution.event_id], |row| row.get::<_, String>(0)).unwrap(), "applied");
+    }
+
+    #[test]
+    fn invalid_resolution_rolls_back_the_complete_mixed_page() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        let mut page = inbound_command(); page.next_cursor = 2;
+        let mut resolution = page.items[0].clone();
+        resolution.event_id = "123e4567-e89b-42d3-a456-426614174098".into();
+        resolution.server_sequence = 2; resolution.operation = "resolution".into();
+        resolution.revision = 1;
+        page.items.push(resolution);
+        assert!(commit_note_sync_inbound_page(&mut connection, &page).is_err());
+        assert_eq!(connection.query_row("SELECT pull_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM cloud_sync_inbox WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM cloud_sync_event_objects WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+
+        page.items[1].revision = 2;
+        page.items[1].envelope = None;
+        assert!(commit_note_sync_inbound_page(&mut connection, &page).is_err());
+        page.items[1].envelope = page.items[0].envelope.clone();
+        page.items[1].entity_type = "document".into();
+        assert!(commit_note_sync_inbound_page(&mut connection, &page).is_err());
+        page.items[1].entity_type = "note".into();
+        page.items[1].server_sequence = 1;
+        assert!(commit_note_sync_inbound_page(&mut connection, &page).is_err());
+        assert_eq!(connection.query_row("SELECT pull_cursor FROM cloud_sync_state WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+        assert_eq!(connection.query_row("SELECT COUNT(*) FROM cloud_sync_inbox WHERE account_id='inbox-account'", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
     }
 
     #[test]

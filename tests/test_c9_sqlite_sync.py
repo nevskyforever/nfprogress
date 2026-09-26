@@ -77,6 +77,45 @@ def test_c17_upgrade_from_v16_preserves_existing_inbox_rows():
     ).fetchone()[0] == 3
 
 
+def test_c17_upgrade_from_v21_preserves_conflict_inbox_and_foreign_keys():
+    connection = sqlite3.connect(':memory:')
+    connection.execute('PRAGMA foreign_keys = ON')
+    migration_files = sorted(MIGRATIONS_DIR.glob('*.sql'))[:21]
+    assert migration_files[-1].name == '021_note_sync_resolution_upload_receipts.sql'
+    for migration in migration_files:
+        connection.executescript(migration.read_text(encoding='utf-8'))
+    connection.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(21)')
+    connection.execute("""INSERT INTO cloud_sync_note_conflict_groups(
+        group_id,account_id,project_id,entity_id,entity_type,common_parent_event_id,
+        tip_revision,generation,lifecycle,created_at,updated_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?)""", (
+        UUID_4, 'account', 'project', 'entity', 'note', UUID_2,
+        2, 1, 'open', 'now', 'now',
+    ))
+    connection.execute("""INSERT INTO cloud_sync_inbox(
+        account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,
+        operation,sync_revision,updated_at,deleted_at,state,received_at,
+        conflict_group_id,conflict_preserved_at
+    ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", (
+        'account', UUID_1, 1, UUID_2, 'project', 'entity', 'note', 'upsert', 2,
+        '2026-09-21T00:00:00Z', None, 'conflict_preserved',
+        '2026-09-21T00:00:00Z', UUID_4, '2026-09-21T00:00:01Z',
+    ))
+    connection.commit()
+
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
+    assert connection.execute("""SELECT event_id,server_sequence,state,
+        conflict_group_id,conflict_preserved_at FROM cloud_sync_inbox""").fetchone() == (
+        UUID_1, 1, 'conflict_preserved', UUID_4, '2026-09-21T00:00:01Z',
+    )
+    assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
+    assert connection.execute(
+        "SELECT count(*) FROM sqlite_master WHERE sql LIKE '%cloud_sync_inbox_v21%'"
+    ).fetchone()[0] == 0
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION
+
+
 def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     connection = sqlite3.connect(':memory:')
     connection.execute("""CREATE TABLE domain_events (
@@ -87,7 +126,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 21
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 22
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
