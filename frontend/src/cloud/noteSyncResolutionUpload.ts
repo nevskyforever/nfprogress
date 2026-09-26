@@ -1,5 +1,6 @@
-import { encodeV2Push, encryptedSyncV2Api, parseV2Capabilities, parseV2PushResponse, type V2PushRequest } from '@/api/encryptedSyncV2'
+import { encodeV2Push, encryptedSyncV2Api, parseV2Capabilities, parseV2PushResponse, validateV2PushItem, type V2PushRequest, type V2ResolutionPushItem } from '@/api/encryptedSyncV2'
 import { ApiError } from '@/api/client'
+import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from '@/api/encryptedSync'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import type { NoteSyncResolutionUploadRepository, ResolutionUploadItem } from '@/infrastructure/sqlite/noteSyncResolutionUploadRepository'
@@ -8,15 +9,14 @@ import type { CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdent
 const LIMIT=100
 export class NoteSyncResolutionUploadError extends Error { constructor(readonly code:'mode_incompatible'|'malformed_receipt'|'wire_limit',message:string){super(message)} }
 function identical(a:ResolutionUploadItem,b:ResolutionUploadItem){return a.event_id===b.event_id&&a.account_id===b.account_id&&a.device_id===b.device_id&&a.project_id===b.project_id&&a.entity_id===b.entity_id&&a.entity_type===b.entity_type&&a.operation===b.operation&&a.revision===b.revision&&a.updated_at===b.updated_at&&a.envelope.crypto_version===b.envelope.crypto_version&&a.envelope.aad_version===b.envelope.aad_version&&a.envelope.nonce===b.envelope.nonce&&a.envelope.ciphertext===b.envelope.ciphertext}
-function request(device:string,items:readonly ResolutionUploadItem[]):V2PushRequest{return {protocol_version:2,encrypted_sync_version:2,device_id:device,items:items.map(x=>({event:{event_id:x.event_id,project_id:x.project_id,entity_id:x.entity_id,entity_type:'note',operation:'resolution',revision:x.revision,updated_at:x.updated_at,deleted_at:null},object:x.envelope}))}}
+function wireItem(x:ResolutionUploadItem):V2ResolutionPushItem{return {event:{event_id:x.event_id,project_id:x.project_id,entity_id:x.entity_id,entity_type:'note',operation:'resolution',revision:x.revision,updated_at:x.updated_at,deleted_at:null},object:x.envelope}}
+function request(device:string,items:readonly ResolutionUploadItem[]):V2PushRequest{return {protocol_version:2,encrypted_sync_version:2,device_id:device,items:items.map(wireItem)}}
 function bounded(device:string,items:readonly ResolutionUploadItem[]):ResolutionUploadItem[]{
- const selected:ResolutionUploadItem[]=[]
+ const selected:ResolutionUploadItem[]=[]; const eventIds=new Set<string>(); const encoder=new TextEncoder(); const prefix=`{"protocol_version":2,"encrypted_sync_version":2,"device_id":${JSON.stringify(device)},"items":[`; const fixedBytes=encoder.encode(`${prefix}]}`).byteLength; let ciphertextBytes=0; let itemBytes=0
  for(const item of items.slice(0,LIMIT)){
-  try { encodeV2Push(request(device,[...selected,item])) } catch(error) {
-   if(!selected.length) throw error
-   encodeV2Push(request(device,[item]))
-   break
-  }
+  const wire=wireItem(item); const validated=validateV2PushItem(wire); if(eventIds.has(validated.eventId))throw new TypeError('Duplicate resolution upload event.'); const bytes=encoder.encode(JSON.stringify(wire)).byteLength; const aggregate=ciphertextBytes+validated.ciphertextBytes; const body=fixedBytes+itemBytes+bytes+(selected.length?1:0)
+  if(aggregate>MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES||body>MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES){if(!selected.length)throw new RangeError('Resolution upload exceeds encrypted transport limits.');break}
+  eventIds.add(validated.eventId); ciphertextBytes=aggregate; itemBytes+=bytes+(selected.length?1:0)
   selected.push(item)
  }
  return selected
@@ -31,6 +31,6 @@ export class NoteSyncResolutionUploader {
  }
  private async run(account:string,context:AuthContextSnapshot,device:string,batch:ResolutionUploadItem[]){
   const fresh=await this.repository.list({account_id:account,device_id:device,canonical_user_id:context.userId,limit:batch.length}); if(!this.auth.isCurrent(context)||fresh.length!==batch.length||batch.some((item,index)=>!identical(item,fresh[index]!)))throw new StaleAuthContextError()
-  try { const pushed=await this.auth.authorized(token=>this.api.push(token,request(device,batch))); if(pushed.context.userId!==context.userId||!this.auth.isCurrent(context))throw new StaleAuthContextError(); const response=parseV2PushResponse(pushed.value,batch.map(item=>item.event_id)); const accepted=await this.repository.commit({account_id:account,device_id:device,canonical_user_id:context.userId,receipts:response.results}); if(!Array.isArray(accepted)||accepted.length!==batch.length||accepted.some(value=>value!=='accepted'&&value!=='already_accepted'))throw new TypeError('Invalid resolution acceptance result.'); return {uploaded:batch.length,deviceId:device} } catch(error){if(error instanceof ApiError&&error.code==='sync_transport_mode_incompatible')throw new NoteSyncResolutionUploadError('mode_incompatible','Server transport mode changed.');throw error}
+  try { const wire=request(device,batch); encodeV2Push(wire); const pushed=await this.auth.authorized(token=>this.api.push(token,wire)); if(pushed.context.userId!==context.userId||!this.auth.isCurrent(context))throw new StaleAuthContextError(); const response=parseV2PushResponse(pushed.value,batch.map(item=>item.event_id)); const accepted=await this.repository.commit({account_id:account,device_id:device,canonical_user_id:context.userId,receipts:response.results}); if(!Array.isArray(accepted)||accepted.length!==batch.length||accepted.some(value=>value!=='accepted'&&value!=='already_accepted'))throw new TypeError('Invalid resolution acceptance result.'); return {uploaded:batch.length,deviceId:device} } catch(error){if(error instanceof ApiError&&error.code==='sync_transport_mode_incompatible')throw new NoteSyncResolutionUploadError('mode_incompatible','Server transport mode changed.');throw error}
  }
 }
