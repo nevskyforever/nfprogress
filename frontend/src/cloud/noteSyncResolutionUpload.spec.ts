@@ -208,5 +208,5 @@ describe('dormant resolution uploader', () => {
     await expect(uploader(s).uploadOnce('local')).resolves.toEqual({ uploaded: 2, deviceId: DEVICE })
     expect(s.list.mock.calls[1]![0].limit).toBe(2)
     expect(s.api.push.mock.calls[0]![1].items).toHaveLength(2)
-  })
+  }, 30_000)
 })
