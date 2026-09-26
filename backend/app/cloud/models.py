@@ -165,10 +165,16 @@ class SyncDevice(Base):
 
 class SyncUserState(Base):
     __tablename__ = 'sync_user_state'
-    __table_args__ = (CheckConstraint('current_sequence >= 0', name='ck_sync_user_state_sequence_nonnegative'),)
+    __table_args__ = (
+        CheckConstraint('current_sequence >= 0', name='ck_sync_user_state_sequence_nonnegative'),
+        CheckConstraint('writer_transport_version IN (1, 2)', name='ck_sync_user_state_writer_transport_version'),
+        CheckConstraint('cutover_epoch >= 0 AND cutover_epoch <= 9007199254740991', name='ck_sync_user_state_cutover_epoch_safe_integer'),
+    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     current_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
+    writer_transport_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default=text('1'))
+    cutover_epoch: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
 
 
 class SyncEvent(Base):
@@ -176,7 +182,7 @@ class SyncEvent(Base):
 
     __tablename__ = 'sync_events'
     __table_args__ = (
-        CheckConstraint("operation IN ('upsert', 'delete', 'event')", name='ck_sync_events_operation'),
+        CheckConstraint("operation IN ('upsert', 'delete', 'event', 'resolution')", name='ck_sync_events_operation'),
         CheckConstraint('revision >= 1', name='ck_sync_events_revision_positive'),
         CheckConstraint('server_sequence > 0', name='ck_sync_events_sequence_positive'),
         CheckConstraint("(operation = 'delete' AND deleted_at IS NOT NULL) OR (operation != 'delete' AND deleted_at IS NULL)", name='ck_sync_events_tombstone'),

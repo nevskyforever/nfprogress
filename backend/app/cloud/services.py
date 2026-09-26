@@ -19,7 +19,8 @@ from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsR
                            normalize_username)
 from .schemas import (ENCRYPTED_SYNC_VERSION, MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES,
                       MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION,
-                      EncryptedSyncPushItem, SyncEventEnvelope, decode_canonical_base64url)
+                      EncryptedSyncPushItem, SyncEventEnvelope, V2EncryptedSyncPushItem,
+                      V2SyncEventEnvelope, decode_canonical_base64url)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -360,20 +361,36 @@ class SyncService:
         return device
 
     @staticmethod
-    def _same_event(row, event: SyncEventEnvelope, device_id: object) -> bool:
+    def _same_event(row, event: SyncEventEnvelope | V2SyncEventEnvelope, device_id: object) -> bool:
         return (row.device_id == device_id and row.project_id == event.project_id
                 and row.entity_id == event.entity_id and row.entity_type == event.entity_type
                 and row.operation == event.operation and row.revision == event.revision
                 and row.updated_at == event.updated_at and row.deleted_at == event.deleted_at)
 
+    @staticmethod
+    def _require_transport_mode(state, expected_version: int) -> None:
+        if state.writer_transport_version != expected_version:
+            raise SyncProtocolError(
+                'sync_transport_mode_incompatible',
+                'The account requires a different encrypted sync transport version.',
+                409,
+            )
+
+    def capabilities(self, session: Session, user_id: object) -> tuple[int, int]:
+        state = self._sync.user_state(session, user_id)
+        if state is None:
+            return 1, 0
+        return state.writer_transport_version, state.cutover_epoch
+
     def push(self, session: Session, user_id: object, device_id: object,
-             events: list[SyncEventEnvelope]) -> tuple[list[SyncPushResult], int]:
+             events: list[SyncEventEnvelope], *, transport_version: int = 1) -> tuple[list[SyncPushResult], int]:
         try:
             session.commit()
             with session.begin():
                 device = self._registered_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
+                self._require_transport_mode(state, transport_version)
                 results: list[SyncPushResult] = []
                 seen: dict[object, SyncEventEnvelope] = {}
                 for event in events:
@@ -416,24 +433,25 @@ class SyncService:
             raise
 
     @staticmethod
-    def _same_encrypted_object(row, item: EncryptedSyncPushItem) -> bool:
+    def _same_encrypted_object(row, item: EncryptedSyncPushItem | V2EncryptedSyncPushItem) -> bool:
         envelope = item.object
         return (row.crypto_version == envelope.crypto_version and row.aad_version == envelope.aad_version
                 and row.nonce == decode_canonical_base64url(envelope.nonce, expected_length=24)
                 and row.ciphertext == decode_canonical_base64url(envelope.ciphertext, minimum_length=16))
 
     @staticmethod
-    def _validate_encrypted_item(item: EncryptedSyncPushItem) -> None:
-        if item.event.entity_type != 'note' or item.event.operation not in ('upsert', 'delete'):
+    def _validate_encrypted_item(item: EncryptedSyncPushItem | V2EncryptedSyncPushItem, *, transport_version: int) -> None:
+        allowed_operations = ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
+        if item.event.entity_type != 'note' or item.event.operation not in allowed_operations:
             raise SyncProtocolError('encrypted_sync_event_unsupported', 'Unsupported encrypted sync event.', 422)
         if item.object.crypto_version != 1 or item.object.aad_version != 1:
             raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted object version.', 422)
 
     @classmethod
-    def _validate_encrypted_batch(cls, items: list[EncryptedSyncPushItem]) -> None:
+    def _validate_encrypted_batch(cls, items: list[EncryptedSyncPushItem] | list[V2EncryptedSyncPushItem], *, transport_version: int = 1) -> None:
         total = 0
         for item in items:
-            cls._validate_encrypted_item(item)
+            cls._validate_encrypted_item(item, transport_version=transport_version)
             total += len(decode_canonical_base64url(
                 item.object.ciphertext, minimum_length=16,
                 maximum_length=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
@@ -444,14 +462,16 @@ class SyncService:
                 )
 
     def push_encrypted(self, session: Session, user_id: object, device_id: object,
-                       items: list[EncryptedSyncPushItem]) -> tuple[list[SyncPushResult], int]:
+                       items: list[EncryptedSyncPushItem] | list[V2EncryptedSyncPushItem], *,
+                       transport_version: int = 1) -> tuple[list[SyncPushResult], int]:
         try:
-            self._validate_encrypted_batch(items)
+            self._validate_encrypted_batch(items, transport_version=transport_version)
             session.commit()
             with session.begin():
                 device = self._registered_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
+                self._require_transport_mode(state, transport_version)
                 results: list[SyncPushResult] = []
                 for item in items:
                     event = item.event
@@ -503,11 +523,12 @@ class SyncService:
             session.rollback()
             raise
 
-    def pull(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
+    def pull(self, session: Session, user_id: object, device_id: object, since: int, limit: int, *, transport_version: int = 1):
         device = self._sync.get_device(session, user_id, device_id)
         if device is None:
             raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
         state = self._sync.ensure_user_state(session, user_id)
+        self._require_transport_mode(state, transport_version)
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
         events = self._sync.pull(session, user_id, since, limit)
@@ -557,11 +578,12 @@ class SyncService:
             if ciphertext_total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
                 raise cls._encrypted_pull_inconsistent()
 
-    def pull_encrypted(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
+    def pull_encrypted(self, session: Session, user_id: object, device_id: object, since: int, limit: int, *, transport_version: int = 1):
         device = self._sync.get_device(session, user_id, device_id)
         if device is None:
             raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
         state = self._sync.ensure_user_state(session, user_id)
+        self._require_transport_mode(state, transport_version)
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
         descriptors = self._sync.pull_encrypted_descriptors(session, user_id, since, limit)
@@ -594,12 +616,29 @@ class SyncService:
         next_cursor = visible[-1][0].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence
 
-    def ack(self, session: Session, user_id: object, device_id: object, cursor: int) -> int:
+    def pull_encrypted_v2(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
+        rows, next_cursor, has_more, high_water = self.pull_encrypted(
+            session, user_id, device_id, since, limit, transport_version=2,
+        )
+        # V2 has no safe representation for legacy metadata-only/future events.
+        # Refuse before emitting a partial page or advancing a client cursor.
+        for event, encrypted in rows:
+            if (encrypted is None or event.entity_type != 'note'
+                    or event.operation not in ('upsert', 'delete', 'resolution')):
+                raise SyncProtocolError(
+                    'encrypted_sync_event_incomplete',
+                    'V2 encrypted pull encountered an event without a supported opaque object.',
+                    409,
+                )
+        return rows, next_cursor, has_more, high_water
+
+    def ack(self, session: Session, user_id: object, device_id: object, cursor: int, *, transport_version: int = 1) -> int:
         try:
             session.commit()
             with session.begin():
                 device = self._registered_device(session, user_id, device_id)
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
+                self._require_transport_mode(state, transport_version)
                 if cursor > state.current_sequence:
                     raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
                 if cursor > device.last_ack_sequence:

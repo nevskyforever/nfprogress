@@ -268,6 +268,8 @@ class ObjectEnvelopeDto(BaseModel):
 
 SYNC_PROTOCOL_VERSION = 1
 ENCRYPTED_SYNC_VERSION = 1
+V2_SYNC_PROTOCOL_VERSION = 2
+V2_ENCRYPTED_SYNC_VERSION = 2
 
 
 class SyncEventEnvelope(BaseModel):
@@ -368,6 +370,85 @@ class EncryptedSyncPullResponse(BaseModel):
     items: list[EncryptedSyncPullItem]
     next_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
     has_more: bool
+
+
+class V2SyncEventEnvelope(BaseModel):
+    """Opaque transport metadata for protocol-v2 encrypted Note events."""
+    model_config = ConfigDict(extra='forbid')
+    event_id: UUID
+    project_id: str = Field(min_length=1, max_length=512)
+    entity_id: str = Field(min_length=1, max_length=512)
+    entity_type: Literal['note']
+    operation: Literal['upsert', 'delete', 'resolution']
+    revision: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    @model_validator(mode='after')
+    def validate_tombstone_and_timestamps(self) -> 'V2SyncEventEnvelope':
+        if self.updated_at.tzinfo is None or self.updated_at.utcoffset() is None:
+            raise ValueError('updated_at must include a timezone.')
+        if self.deleted_at is not None and (self.deleted_at.tzinfo is None or self.deleted_at.utcoffset() is None):
+            raise ValueError('deleted_at must include a timezone.')
+        if (self.operation == 'delete') != (self.deleted_at is not None):
+            raise ValueError('delete requires deleted_at; upsert and resolution forbid it.')
+        if self.operation == 'resolution' and self.revision < 2:
+            raise ValueError('resolution requires revision at least 2.')
+        return self
+
+
+class V2SyncPullEvent(V2SyncEventEnvelope):
+    device_id: UUID
+    server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class V2EncryptedSyncPushItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event: V2SyncEventEnvelope
+    object: ObjectEnvelopeDto
+
+
+class V2EncryptedSyncPushRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: Literal[2]
+    encrypted_sync_version: Literal[2]
+    device_id: UUID
+    items: list[V2EncryptedSyncPushItem] = Field(max_length=100)
+
+
+class V2EncryptedSyncPushResponse(BaseModel):
+    protocol_version: Literal[2] = V2_SYNC_PROTOCOL_VERSION
+    encrypted_sync_version: Literal[2] = V2_ENCRYPTED_SYNC_VERSION
+    results: list[SyncPushResult]
+    current_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class V2EncryptedSyncPullItem(BaseModel):
+    event: V2SyncPullEvent
+    object: ObjectEnvelopeDto | None
+
+
+class V2EncryptedSyncPullResponse(BaseModel):
+    protocol_version: Literal[2] = V2_SYNC_PROTOCOL_VERSION
+    encrypted_sync_version: Literal[2] = V2_ENCRYPTED_SYNC_VERSION
+    items: list[V2EncryptedSyncPullItem]
+    next_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+    has_more: bool
+
+
+class V2EncryptedSyncAckRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: Literal[2]
+    encrypted_sync_version: Literal[2]
+    device_id: UUID
+    cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class V2EncryptedSyncCapabilitiesResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    supported_transport_version: Literal[2] = V2_ENCRYPTED_SYNC_VERSION
+    writer_transport_version: Literal[1, 2]
+    cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
 class AdminUserResponse(BaseModel):
