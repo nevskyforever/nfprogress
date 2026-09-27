@@ -2345,6 +2345,23 @@ fn apply_verified_received_note(
         .map_err(|error| error.to_string())
 }
 
+/// Dormant peer-only resolution-v2 apply boundary. TypeScript supplies
+/// plaintext only after authenticated AMK decryption; native code rechecks the
+/// durable inbox, opaque object and causal proof before any protected write.
+#[tauri::command]
+fn apply_verified_received_resolution_v2(
+    command: note_sync::ApplyVerifiedReceivedResolutionV2IpcCommand,
+) -> Result<note_sync::ApplyVerifiedReceivedResolutionV2Result, String> {
+    let ordinary = open_notes_database(true)?;
+    require_sqlite_notes_owner(&ordinary)?;
+    drop(ordinary);
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    let mut connection = sqlite::open_privileged_remote_apply_database(&database)
+        .map_err(|error| error.to_string())?;
+    note_sync::apply_verified_received_resolution_v2_ipc(&mut connection, command)
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn commit_note_sync_inbound_page(
     command: note_sync::CommitNoteSyncInboundPageCommand,
@@ -5546,6 +5563,7 @@ pub fn run() {
             commit_note_sync_ack,
             list_received_note_sync_inbox,
             apply_verified_received_note,
+            apply_verified_received_resolution_v2,
             commit_note_sync_inbound_page,
             create_note,
             update_note,

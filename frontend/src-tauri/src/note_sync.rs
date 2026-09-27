@@ -736,6 +736,130 @@ mod remote_apply_tests {
         PrepareNoteConflictResolutionCommand{account_id:ACCOUNT.into(),canonical_user_id:CANONICAL_USER.into(),device_id:PULLING_DEVICE.into(),canonical_payload:canonical_json(&value).unwrap().into_bytes()}
     }
 
+    fn accept_local_conflict_parent(
+        connection: &mut PrivilegedRemoteApplyConnection,
+        event_id: &str,
+        server_sequence: i64,
+    ) {
+        let mutation_generation: i64 = connection.connection().query_row(
+            "SELECT mutation_generation FROM cloud_sync_note_intents WHERE event_id=?1",
+            [event_id], |row| row.get(0),
+        ).unwrap();
+        commit_sealed_note_sync_event(
+            connection.connection_mut_for_test(),
+            &CommitSealedNoteSyncEventCommand {
+                event_id: event_id.into(),
+                expected_mutation_generation: mutation_generation,
+                envelope: EncryptedNoteSyncEnvelope {
+                    crypto_version: 1,
+                    aad_version: 1,
+                    nonce: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA".into(),
+                    ciphertext: "AAAAAAAAAAAAAAAAAAAAAA".into(),
+                },
+            },
+        ).unwrap();
+        commit_note_sync_upload_acceptance(
+            connection.connection_mut_for_test(),
+            &CommitNoteSyncUploadAcceptanceCommand {
+                account_id: ACCOUNT.into(),
+                device_id: PULLING_DEVICE.into(),
+                receipts: vec![NoteSyncUploadReceipt {
+                    event_id: event_id.into(), server_sequence, duplicate: false,
+                }],
+            },
+        ).unwrap();
+        let (operation,revision,updated_at,deleted_at):(String,i64,String,Option<String>) =
+            connection.connection().query_row(
+                "SELECT operation,revision,updated_at,deleted_at FROM cloud_sync_outbox
+                 WHERE event_id=?1", [event_id],
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?)),
+            ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,
+                received_at,applied_at
+             ) VALUES(?1,?2,?3,?4,'p','n','note',?5,?6,?7,?8,'applied','now','now')",
+            rusqlite::params![ACCOUNT,event_id,server_sequence,PULLING_DEVICE,
+                operation,revision,updated_at,deleted_at],
+        ).unwrap();
+    }
+
+    fn received_peer_resolution(
+        connection: &PrivilegedRemoteApplyConnection,
+        mut prepared: PrepareNoteConflictResolutionCommand,
+        server_sequence: i64,
+        source_device_id: &str,
+    ) -> VerifiedPeerResolutionCommand {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&prepared.canonical_payload).unwrap();
+        value["resolution"]["conflict_group_id"] = serde_json::Value::String(
+            "123e4567-e89b-42d3-a456-426614174299".into(),
+        );
+        value["resolution"]["conflict_generation"] = serde_json::Value::from(77);
+        prepared.canonical_payload = canonical_json(&value).unwrap().into_bytes();
+        let resolution = decode_canonical_resolution(&prepared).unwrap();
+        let nonce = vec![9_u8; 24];
+        let ciphertext = vec![19_u8; 32];
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at
+             ) VALUES(?1,?2,?3,?4,?5,?6,'note','resolution',?7,?8,NULL,'received','now')",
+            rusqlite::params![ACCOUNT,resolution.header.event_id,server_sequence,source_device_id,
+                resolution.header.project_id,resolution.header.entity_id,
+                resolution.header.revision,resolution.header.updated_at],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_event_objects(
+                account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at
+             ) VALUES(?1,?2,1,1,?3,?4,'now')",
+            rusqlite::params![ACCOUNT,resolution.header.event_id,nonce,ciphertext],
+        ).unwrap();
+        connection.connection().execute(
+            "UPDATE cloud_sync_state SET pull_cursor=?1 WHERE account_id=?2",
+            rusqlite::params![server_sequence,ACCOUNT],
+        ).unwrap();
+        VerifiedPeerResolutionCommand {
+            account_id: ACCOUNT.into(), canonical_user_id: CANONICAL_USER.into(),
+            pulling_device_id: PULLING_DEVICE.into(),
+            event_id: resolution.header.event_id.clone(), server_sequence,
+            source_device_id: source_device_id.into(), crypto_version: 1, aad_version: 1,
+            nonce: vec![9_u8; 24], ciphertext: vec![19_u8; 32],
+            canonical_payload: prepared.canonical_payload, resolution,
+        }
+    }
+
+    fn peer_resolution_fixture(
+        strategy: &str,
+        selected_remote: bool,
+    ) -> (PrivilegedRemoteApplyConnection, VerifiedPeerResolutionCommand, String, String) {
+        let mut connection = database();
+        let (local,remote) = prepare_edit_conflict(&mut connection);
+        accept_local_conflict_parent(&mut connection, &local, 3);
+        let selected = selected_remote.then_some(remote.as_str()).or(Some(local.as_str()));
+        let retained = (strategy == "keep_both").then_some(remote.as_str());
+        let prepared = resolution_command(&connection, strategy, selected, retained);
+        let command = received_peer_resolution(&connection, prepared, 4, REMOTE_DEVICE);
+        (connection, command, local, remote)
+    }
+
+    fn peer_ipc(command: &VerifiedPeerResolutionCommand) -> ApplyVerifiedReceivedResolutionV2IpcCommand {
+        ApplyVerifiedReceivedResolutionV2IpcCommand {
+            account_id: command.account_id.clone(),
+            canonical_user_id: command.canonical_user_id.clone(),
+            pulling_device_id: command.pulling_device_id.clone(),
+            event_id: command.event_id.clone(),
+            server_sequence: command.server_sequence,
+            source_device_id: command.source_device_id.clone(),
+            crypto_version: command.crypto_version,
+            aad_version: command.aad_version,
+            nonce: command.nonce.clone(),
+            ciphertext: command.ciphertext.clone(),
+            plaintext: command.canonical_payload.clone(),
+        }
+    }
+
     fn prepared_count(connection: &PrivilegedRemoteApplyConnection) -> i64 {
         connection.connection().query_row(
             "SELECT count(*) FROM cloud_sync_note_pending_resolutions", [], |row| row.get(0),
@@ -1346,6 +1470,383 @@ mod remote_apply_tests {
             "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",
             [&resolution_event], |row| row.get::<_, String>(0),
         ).unwrap(), "received");
+    }
+
+    #[test]
+    fn peer_resolution_applies_all_strategies_with_heads_ledger_and_ack() {
+        for (strategy,selected_remote,expected_content,note_count) in [
+            ("choose_version",true,Some("remote edit"),1_i64),
+            ("manual_merge",false,Some("manual merge"),1_i64),
+            ("keep_both",false,Some("local edit"),2_i64),
+            ("delete",false,None,0_i64),
+        ] {
+            let (mut connection,command,_,_) = peer_resolution_fixture(strategy,selected_remote);
+            let ack = PrepareNoteSyncAckCommand {
+                account_id: ACCOUNT.into(), device_id: PULLING_DEVICE.into(),
+                canonical_user_id: CANONICAL_USER.into(),
+            };
+            assert_eq!(prepare_note_sync_ack(connection.connection_mut_for_test(),&ack).unwrap().candidate_cursor,3);
+            let outbox_before: i64 = connection.connection().query_row(
+                "SELECT count(*) FROM cloud_sync_outbox",[],|row|row.get(0),
+            ).unwrap();
+            assert_eq!(
+                apply_verified_received_resolution_v2_ipc(&mut connection,peer_ipc(&command)).unwrap(),
+                ApplyVerifiedReceivedResolutionV2Result::Applied,
+            );
+            assert_eq!(connection.connection().query_row(
+                "SELECT count(*) FROM notes",[],|row|row.get::<_,i64>(0),
+            ).unwrap(),note_count);
+            if let Some(content)=expected_content {
+                assert_eq!(connection.connection().query_row(
+                    "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'",[],
+                    |row|row.get::<_,String>(0),
+                ).unwrap(),content);
+            }
+            let (remote_group,local_group,remote_generation,local_generation,lifecycle):
+                (String,String,i64,i64,String)=connection.connection().query_row(
+                    "SELECT remote_conflict_group_id,local_conflict_group_id,
+                            remote_conflict_generation,local_conflict_generation,lifecycle
+                     FROM cloud_sync_note_applied_resolutions",
+                    [],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?)),
+                ).unwrap();
+            assert_ne!(remote_group,local_group);
+            assert_eq!((remote_generation,local_generation,lifecycle),(77,1,"applied".into()));
+            assert_eq!(connection.connection().query_row(
+                "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",[&command.event_id],
+                |row|row.get::<_,String>(0),
+            ).unwrap(),"applied");
+            assert_eq!(connection.connection().query_row(
+                "SELECT lifecycle FROM cloud_sync_note_conflict_groups",[],
+                |row|row.get::<_,String>(0),
+            ).unwrap(),"resolved");
+            assert_eq!(connection.connection().query_row(
+                "SELECT count(*) FROM cloud_sync_outbox",[],|row|row.get::<_,i64>(0),
+            ).unwrap(),outbox_before);
+            assert_eq!(connection.connection().query_row(
+                "SELECT count(*) FROM cloud_sync_note_resolution_outbox",[],|row|row.get::<_,i64>(0),
+            ).unwrap(),0);
+            assert_eq!(connection.connection().query_row(
+                "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities
+                 WHERE entity_id='n'",[],|row|Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?)),
+            ).unwrap(),(command.event_id.clone(),3));
+            let transaction=connection.connection().unchecked_transaction().unwrap();
+            assert_eq!(read_entity_sync_head(&transaction,ACCOUNT,"p","n").unwrap(),Some(
+                EntitySyncHead{event_id:command.event_id.clone(),revision:3},
+            ));
+            if strategy=="keep_both" {
+                assert_eq!(transaction.query_row(
+                    "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities
+                     WHERE entity_id='n-copy'",[],
+                    |row|Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?)),
+                ).unwrap(),(command.event_id.clone(),3));
+                assert_eq!(read_entity_sync_head(&transaction,ACCOUNT,"p","n-copy").unwrap(),Some(
+                    EntitySyncHead{event_id:command.event_id.clone(),revision:3},
+                ));
+            }
+            transaction.rollback().unwrap();
+            assert_eq!(prepare_note_sync_ack(connection.connection_mut_for_test(),&ack).unwrap().candidate_cursor,4);
+        }
+    }
+
+    #[test]
+    fn peer_resolution_accepts_three_historical_tip_generations() {
+        let mut connection=database();
+        apply_create(&mut connection);
+        let local=prepare_local_branch(&connection,NoteSyncOperation::Upsert,"local edit");
+        let first=received(&connection,plaintext(
+            UPDATE_EVENT,Some(CREATE_EVENT),2,"upsert",
+            "2026-01-02T00:00:00.000000Z","remote one",
+        ),2,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection,&first).unwrap(),ApplyVerifiedReceivedNoteResult::Conflict);
+        let third_event="123e4567-e89b-42d3-a456-426614174103";
+        let third=received(&connection,plaintext(
+            third_event,Some(CREATE_EVENT),2,"upsert",
+            "2026-01-02T00:00:01.000000Z","remote two",
+        ),3,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection,&third).unwrap(),ApplyVerifiedReceivedNoteResult::Conflict);
+        accept_local_conflict_parent(&mut connection,&local.event_id,4);
+        let prepared=resolution_command(&connection,"choose_version",Some(UPDATE_EVENT),None);
+        let command=received_peer_resolution(&connection,prepared,5,REMOTE_DEVICE);
+        assert_eq!(connection.connection().prepare(
+            "SELECT generation,count(*) FROM cloud_sync_note_conflict_tips
+             GROUP BY generation ORDER BY generation",
+        ).unwrap().query_map([],|row|Ok((row.get::<_,i64>(0)?,row.get::<_,i64>(1)?)))
+            .unwrap().collect::<Result<Vec<_>,_>>().unwrap(),vec![(1,2),(2,1)]);
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut connection,peer_ipc(&command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Applied);
+        assert_eq!(connection.connection().query_row(
+            "SELECT local_conflict_generation,parent_count,lifecycle
+             FROM cloud_sync_note_applied_resolutions",[],
+            |row|Ok((row.get::<_,i64>(0)?,row.get::<_,i64>(1)?,row.get::<_,String>(2)?)),
+        ).unwrap(),(2,3,"applied".into()));
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_applied_resolution_parents",[],
+            |row|row.get::<_,i64>(0),
+        ).unwrap(),3);
+        let ack=PrepareNoteSyncAckCommand{account_id:ACCOUNT.into(),device_id:PULLING_DEVICE.into(),canonical_user_id:CANONICAL_USER.into()};
+        assert_eq!(prepare_note_sync_ack(connection.connection_mut_for_test(),&ack).unwrap().candidate_cursor,5);
+    }
+
+    #[test]
+    fn peer_resolution_orphans_missing_proof_and_rejects_changed_state() {
+        let (mut missing_group,command,_,_)=peer_resolution_fixture("choose_version",true);
+        missing_group.connection().execute(
+            "UPDATE cloud_sync_note_conflict_groups SET lifecycle='abandoned'",[],
+        ).unwrap();
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut missing_group,peer_ipc(&command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Orphan);
+        assert_eq!(missing_group.connection().query_row(
+            "SELECT state,error_code FROM cloud_sync_inbox WHERE event_id=?1",[&command.event_id],
+            |row|Ok((row.get::<_,String>(0)?,row.get::<_,String>(1)?)),
+        ).unwrap(),("orphan".into(),"missing_conflict_group".into()));
+
+        let mut unpublished=database();
+        let (local,remote)=prepare_edit_conflict(&mut unpublished);
+        let prepared=resolution_command(&unpublished,"choose_version",Some(&remote),None);
+        let unpublished_command=received_peer_resolution(&unpublished,prepared,3,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut unpublished,peer_ipc(&unpublished_command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Orphan);
+        assert_eq!(unpublished.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",[&unpublished_command.event_id],
+            |row|row.get::<_,String>(0),
+        ).unwrap(),"orphan");
+        assert_eq!(unpublished.connection().query_row(
+            "SELECT lifecycle FROM cloud_sync_outbox WHERE event_id=?1",[local],
+            |row|row.get::<_,String>(0),
+        ).unwrap(),"unsealed");
+
+        let mut missing_parent=database();
+        let (local,remote)=prepare_edit_conflict(&mut missing_parent);
+        accept_local_conflict_parent(&mut missing_parent,&local,3);
+        let prepared=resolution_command(&missing_parent,"choose_version",Some(&remote),None);
+        let mut payload:serde_json::Value=serde_json::from_slice(&prepared.canonical_payload).unwrap();
+        let mut ids:Vec<String>=payload["resolution"]["resolved_event_ids"].as_array().unwrap()
+            .iter().map(|value|value.as_str().unwrap().to_string()).collect();
+        ids.push("123e4567-e89b-42d3-a456-426614174105".into()); ids.sort();
+        payload["resolution"]["resolved_event_ids"]=serde_json::json!(ids.clone());
+        payload["header"]["parent_event_id"]=serde_json::Value::String(ids[0].clone());
+        payload["header"]["additional_parent_event_ids"]=serde_json::json!(ids[1..].to_vec());
+        let missing_command=received_peer_resolution(&missing_parent,PrepareNoteConflictResolutionCommand{
+            canonical_payload:canonical_json(&payload).unwrap().into_bytes(),..prepared
+        },4,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_resolution_v2_ipc(
+            &mut missing_parent,peer_ipc(&missing_command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Orphan);
+        assert_eq!(missing_parent.connection().query_row(
+            "SELECT error_code FROM cloud_sync_inbox WHERE event_id=?1",[missing_command.event_id],
+            |row|row.get::<_,String>(0),
+        ).unwrap(),"missing_conflict_parent");
+
+        let (mut changed_object,command,_,_)=peer_resolution_fixture("choose_version",true);
+        let mut ipc=peer_ipc(&command); ipc.ciphertext[0]^=1;
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut changed_object,ipc),
+            Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch)));
+        assert_eq!(changed_object.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",[command.event_id],
+            |row|row.get::<_,String>(0),
+        ).unwrap(),"received");
+
+        let (mut extra_tip,command,_,_)=peer_resolution_fixture("choose_version",true);
+        let fourth=received(&extra_tip,plaintext(
+            "123e4567-e89b-42d3-a456-426614174104",Some(CREATE_EVENT),2,"upsert",
+            "2026-01-02T00:00:02.000000Z","later tip",
+        ),5,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut extra_tip,&fourth).unwrap(),ApplyVerifiedReceivedNoteResult::Conflict);
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut extra_tip,peer_ipc(&command)),
+            Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict)));
+    }
+
+    #[test]
+    fn peer_resolution_rejects_scope_snapshot_local_edit_and_clone_collision() {
+        let (mut wrong_scope,command,_,_)=peer_resolution_fixture("choose_version",true);
+        let mut ipc=peer_ipc(&command); ipc.canonical_user_id=REMOTE_DEVICE.into();
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut wrong_scope,ipc),
+            Err(ApplyVerifiedReceivedResolutionV2Error::ScopeMismatch)));
+        let mut ipc=peer_ipc(&command); ipc.source_device_id=PULLING_DEVICE.into();
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut wrong_scope,ipc),
+            Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch)));
+        let mut ipc=peer_ipc(&command); ipc.server_sequence+=1;
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut wrong_scope,ipc),
+            Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch)));
+
+        let (mut changed_snapshot,command,_,_)=peer_resolution_fixture("choose_version",true);
+        let mut payload:serde_json::Value=serde_json::from_slice(&command.canonical_payload).unwrap();
+        payload["result"]["note"]["content"]=serde_json::Value::String("forged snapshot".into());
+        let changed_payload=canonical_json(&payload).unwrap().into_bytes();
+        let changed_resolution=decode_canonical_resolution_bytes(&changed_payload).unwrap();
+        let changed=VerifiedPeerResolutionCommand{
+            canonical_payload:changed_payload,resolution:changed_resolution,..command
+        };
+        assert!(matches!(apply_verified_received_resolution_v2_inner(
+            &mut changed_snapshot,&changed,false,false),
+            Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)));
+
+        let (mut local_edit,command,_,_)=peer_resolution_fixture("choose_version",true);
+        prepare_local_branch(&local_edit,NoteSyncOperation::Upsert,"newer local edit");
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut local_edit,peer_ipc(&command)),
+            Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict)));
+
+        let (mut collision,command,_,_)=peer_resolution_fixture("keep_both",false);
+        collision.connection().execute(
+            "INSERT INTO cloud_sync_entities(
+                account_id,project_id,entity_id,entity_type,head_event_id,
+                head_sync_revision,updated_at
+             ) VALUES(?1,'p','n-copy','note',?2,1,'now')",
+            rusqlite::params![ACCOUNT,CREATE_EVENT],
+        ).unwrap();
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut collision,peer_ipc(&command)),
+            Err(ApplyVerifiedReceivedResolutionV2Error::CloneCollision)));
+    }
+
+    #[test]
+    fn peer_resolution_rolls_back_and_blocks_v1_causal_continuation() {
+        let (mut after_original,command,_,_)=peer_resolution_fixture("choose_version",true);
+        let before:String=after_original.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get(0),
+        ).unwrap();
+        assert!(matches!(apply_verified_received_resolution_v2_inner(
+            &mut after_original,&command,true,false),Err(ApplyVerifiedReceivedResolutionV2Error::InjectedFailure)));
+        assert_eq!(after_original.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get::<_,String>(0),
+        ).unwrap(),before);
+        assert_eq!(after_original.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_applied_resolutions",[],|row|row.get::<_,i64>(0),
+        ).unwrap(),0);
+
+        let (mut before_completion,command,_,_)=peer_resolution_fixture("keep_both",false);
+        assert!(matches!(apply_verified_received_resolution_v2_inner(
+            &mut before_completion,&command,false,true),Err(ApplyVerifiedReceivedResolutionV2Error::InjectedFailure)));
+        assert_eq!(before_completion.connection().query_row(
+            "SELECT count(*) FROM notes WHERE id='n-copy'",[],|row|row.get::<_,i64>(0),
+        ).unwrap(),0);
+        assert_eq!(before_completion.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_applied_resolutions",[],|row|row.get::<_,i64>(0),
+        ).unwrap(),0);
+        assert_eq!(before_completion.connection().query_row(
+            "SELECT lifecycle FROM cloud_sync_note_conflict_groups",[],|row|row.get::<_,String>(0),
+        ).unwrap(),"open");
+
+        let (mut applied,command,_,_)=peer_resolution_fixture("choose_version",true);
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut applied,peer_ipc(&command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Applied);
+        let snapshot:String=applied.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get(0),
+        ).unwrap();
+        let transaction=applied.connection().unchecked_transaction().unwrap();
+        assert!(matches!(prepare_unsealed_note_intent(&transaction,PrepareNoteIntent{
+            project_id:"p",entity_id:"n",operation:NoteSyncOperation::Upsert,
+            updated_at:"2026-01-04T00:00:00.000000Z",deleted_at:None,
+            snapshot_json:&snapshot,state_updated_at:"now",
+        }),Err(NoteSyncError::InvalidSealState("protocol v2 causal continuation is not implemented"))));
+        let other_snapshot=snapshot.replace("\"id\":\"n\"","\"id\":\"other\"");
+        assert!(prepare_unsealed_note_intent(&transaction,PrepareNoteIntent{
+            project_id:"p",entity_id:"other",operation:NoteSyncOperation::Upsert,
+            updated_at:"2026-01-04T00:00:00.000000Z",deleted_at:None,
+            snapshot_json:&other_snapshot,state_updated_at:"now",
+        }).unwrap().is_some());
+        transaction.rollback().unwrap();
+
+        let (mut applied_clone,clone_command,_,_)=peer_resolution_fixture("keep_both",false);
+        assert_eq!(apply_verified_received_resolution_v2_ipc(
+            &mut applied_clone,peer_ipc(&clone_command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Applied);
+        let clone_snapshot:String=applied_clone.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n-copy'",[],|row|row.get(0),
+        ).unwrap();
+        let transaction=applied_clone.connection().unchecked_transaction().unwrap();
+        assert!(matches!(prepare_unsealed_note_intent(&transaction,PrepareNoteIntent{
+            project_id:"p",entity_id:"n-copy",operation:NoteSyncOperation::Upsert,
+            updated_at:"2026-01-04T00:00:00.000000Z",deleted_at:None,
+            snapshot_json:&clone_snapshot,state_updated_at:"now",
+        }),Err(NoteSyncError::InvalidSealState("protocol v2 causal continuation is not implemented"))));
+        transaction.rollback().unwrap();
+    }
+
+    #[test]
+    fn peer_resolution_replays_after_restart_and_isolates_self_echo() {
+        let (root,path)=conflict_database_path("peer-resolution-restart");
+        let mut connection=configured_database(Connection::open(&path).unwrap());
+        let (local,remote)=prepare_edit_conflict(&mut connection);
+        accept_local_conflict_parent(&mut connection,&local,3);
+        let prepared=resolution_command(&connection,"keep_both",Some(&local),Some(&remote));
+        let command=received_peer_resolution(&connection,prepared,4,REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut connection,peer_ipc(&command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::Applied);
+        drop(connection);
+        let mut reopened=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut reopened,peer_ipc(&command)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::AlreadyApplied);
+        assert_eq!(reopened.connection().query_row(
+            "SELECT count(*) FROM notes WHERE id='n-copy'",[],|row|row.get::<_,i64>(0),
+        ).unwrap(),1);
+        let mut conflicting=peer_ipc(&command);
+        let mut payload:serde_json::Value=serde_json::from_slice(&conflicting.plaintext).unwrap();
+        payload["resolution"]["conflict_generation"]=serde_json::Value::from(78);
+        conflicting.plaintext=canonical_json(&payload).unwrap().into_bytes();
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(&mut reopened,conflicting),
+            Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch)));
+        assert_eq!(reopened.connection().query_row(
+            "SELECT count(*) FROM notes WHERE id='n-copy'",[],|row|row.get::<_,i64>(0),
+        ).unwrap(),1);
+        drop(reopened); std::fs::remove_file(&path).unwrap(); std::fs::remove_dir(&root).unwrap();
+
+        let mut self_echo=database();
+        let (resolution,_,_)=applied_resolution_for_sealing(&mut self_echo);
+        let seal=resolution_seal_command(&resolution);
+        commit_sealed_note_resolution_event(self_echo.connection_mut_for_test(),&seal).unwrap();
+        let decoded=decode_canonical_resolution(&resolution).unwrap();
+        self_echo.connection().execute(
+            "INSERT INTO cloud_sync_inbox(
+                account_id,event_id,server_sequence,device_id,project_id,entity_id,
+                entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at
+             ) VALUES(?1,?2,50,?3,?4,?5,'note','resolution',?6,?7,NULL,'received','now')",
+            rusqlite::params![ACCOUNT,decoded.header.event_id,PULLING_DEVICE,
+                decoded.header.project_id,decoded.header.entity_id,decoded.header.revision,
+                decoded.header.updated_at],
+        ).unwrap();
+        let (nonce,ciphertext):(Vec<u8>,Vec<u8>)=self_echo.connection().query_row(
+            "SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE event_id=?1",
+            [&decoded.header.event_id],|row|Ok((row.get(0)?,row.get(1)?)),
+        ).unwrap();
+        let own=VerifiedPeerResolutionCommand{
+            account_id:ACCOUNT.into(),canonical_user_id:CANONICAL_USER.into(),
+            pulling_device_id:PULLING_DEVICE.into(),event_id:decoded.header.event_id.clone(),
+            server_sequence:50,source_device_id:PULLING_DEVICE.into(),crypto_version:1,aad_version:1,
+            nonce,ciphertext,canonical_payload:resolution.canonical_payload.clone(),resolution:decoded,
+        };
+        let note_before:String=self_echo.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get(0),
+        ).unwrap();
+        assert_eq!(apply_verified_received_resolution_v2_ipc(&mut self_echo,peer_ipc(&own)).unwrap(),
+            ApplyVerifiedReceivedResolutionV2Result::SelfEchoPending);
+        assert_eq!(self_echo.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get::<_,String>(0),
+        ).unwrap(),note_before);
+        assert_eq!(self_echo.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",[own.event_id],
+            |row|row.get::<_,String>(0),
+        ).unwrap(),"received");
+
+        let mut unmatched_self_echo=database();
+        let (local,remote)=prepare_edit_conflict(&mut unmatched_self_echo);
+        accept_local_conflict_parent(&mut unmatched_self_echo,&local,3);
+        let prepared=resolution_command(
+            &unmatched_self_echo,"choose_version",Some(&remote),None);
+        let unmatched=received_peer_resolution(
+            &unmatched_self_echo,prepared,4,PULLING_DEVICE);
+        let note_before:String=unmatched_self_echo.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get(0),
+        ).unwrap();
+        assert!(matches!(apply_verified_received_resolution_v2_ipc(
+            &mut unmatched_self_echo,peer_ipc(&unmatched)),
+            Err(ApplyVerifiedReceivedResolutionV2Error::SelfEchoMismatch)));
+        assert_eq!(unmatched_self_echo.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'",[],|row|row.get::<_,String>(0),
+        ).unwrap(),note_before);
+        assert_eq!(unmatched_self_echo.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1",[unmatched.event_id],
+            |row|row.get::<_,String>(0),
+        ).unwrap(),"received");
     }
 
     #[test]
@@ -2677,6 +3178,83 @@ pub(crate) enum ApplyPreparedNoteConflictResolutionResult {
     AlreadyApplied,
 }
 
+/// Result of the dormant peer-only resolution path. Self echoes remain
+/// ACK-blocking until the separate D2B2 reconciliation command handles them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ApplyVerifiedReceivedResolutionV2Result {
+    Applied,
+    AlreadyApplied,
+    Orphan,
+    SelfEchoPending,
+}
+
+/// IPC input after authenticated decryption in the TypeScript AMK lease.
+/// Every field remains untrusted until it matches the durable inbox/object in
+/// the same native transaction. The plaintext byte copy is zeroed by the IPC
+/// boundary before this command returns.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ApplyVerifiedReceivedResolutionV2IpcCommand {
+    pub account_id: String,
+    pub canonical_user_id: String,
+    pub pulling_device_id: String,
+    pub event_id: String,
+    pub server_sequence: i64,
+    pub source_device_id: String,
+    pub crypto_version: i64,
+    pub aad_version: i64,
+    pub nonce: Vec<u8>,
+    pub ciphertext: Vec<u8>,
+    pub plaintext: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub(crate) enum ApplyVerifiedReceivedResolutionV2Error {
+    Database(rusqlite::Error),
+    InvalidPayload,
+    ScopeMismatch,
+    ImmutableMismatch,
+    StaleConflict,
+    MissingCausalProof,
+    CloneCollision,
+    SelfEchoMismatch,
+    InjectedFailure,
+    ProtectedStorageFailure,
+}
+
+impl std::fmt::Display for ApplyVerifiedReceivedResolutionV2Error {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Database(error) => write!(formatter, "SQLite error: {error}"),
+            Self::InvalidPayload => write!(formatter, "invalid canonical resolution v2 payload"),
+            Self::ScopeMismatch => write!(formatter, "resolution account or device scope mismatch"),
+            Self::ImmutableMismatch => write!(formatter, "resolution inbox or encrypted object mismatch"),
+            Self::StaleConflict => write!(formatter, "resolution no longer matches the local conflict"),
+            Self::MissingCausalProof => write!(formatter, "resolution causal proof is incomplete"),
+            Self::CloneCollision => write!(formatter, "resolution clone identity collides"),
+            Self::SelfEchoMismatch => write!(formatter, "resolution self echo does not match local outbox"),
+            Self::InjectedFailure => write!(formatter, "injected peer resolution failure"),
+            Self::ProtectedStorageFailure => write!(formatter, "protected resolution storage failed"),
+        }
+    }
+}
+
+impl std::error::Error for ApplyVerifiedReceivedResolutionV2Error {}
+
+impl From<rusqlite::Error> for ApplyVerifiedReceivedResolutionV2Error {
+    fn from(error: rusqlite::Error) -> Self { Self::Database(error) }
+}
+
+impl From<StorageError> for ApplyVerifiedReceivedResolutionV2Error {
+    fn from(error: StorageError) -> Self {
+        match error {
+            StorageError::Database(error) => Self::Database(error),
+            _ => Self::ProtectedStorageFailure,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum PrepareNoteConflictResolutionError {
     Database(rusqlite::Error),
@@ -3616,6 +4194,30 @@ pub(crate) fn prepare_unsealed_note_intent(
         return Ok(None);
     };
     validate_snapshot(&input)?;
+
+    // A protocol-v2 resolution is a multi-parent causal head. Until the
+    // dedicated continuation slice teaches v1 sealing/publication and peers
+    // how to preserve that ancestry, fail closed before creating or
+    // coalescing a single-parent v1 intent.
+    let resolution_head: i64 = transaction.query_row(
+        "SELECT EXISTS(
+             SELECT 1
+             FROM cloud_sync_entities AS entity
+             JOIN cloud_sync_note_applied_resolutions AS resolution
+               ON resolution.account_id=entity.account_id
+              AND resolution.resolution_event_id=entity.head_event_id
+              AND resolution.project_id=entity.project_id
+              AND resolution.lifecycle='applied'
+             WHERE entity.account_id=?1 AND entity.project_id=?2
+               AND entity.entity_id=?3 AND entity.entity_type='note')",
+        rusqlite::params![binding.account_id, input.project_id, input.entity_id],
+        |row| row.get(0),
+    )?;
+    if resolution_head != 0 {
+        return Err(NoteSyncError::InvalidSealState(
+            "protocol v2 causal continuation is not implemented",
+        ));
+    }
 
     let existing = transaction
         .query_row(
@@ -5654,12 +6256,18 @@ fn result_parts(result: &NoteSyncResolutionV2Result) -> Result<(&'static str, se
 fn decode_canonical_resolution(
     command: &PrepareNoteConflictResolutionCommand,
 ) -> Result<crate::note_sync_plaintext::NoteSyncResolutionV2, PrepareNoteConflictResolutionError> {
-    let value: serde_json::Value = serde_json::from_slice(&command.canonical_payload)
+    decode_canonical_resolution_bytes(&command.canonical_payload)
+}
+
+fn decode_canonical_resolution_bytes(
+    canonical_payload: &[u8],
+) -> Result<crate::note_sync_plaintext::NoteSyncResolutionV2, PrepareNoteConflictResolutionError> {
+    let value: serde_json::Value = serde_json::from_slice(canonical_payload)
         .map_err(|_| PrepareNoteConflictResolutionError::InvalidPayload)?;
-    if canonical_json(&value)?.as_bytes() != command.canonical_payload.as_slice() {
+    if canonical_json(&value)?.as_bytes() != canonical_payload {
         return Err(PrepareNoteConflictResolutionError::InvalidPayload);
     }
-    decode_note_sync_resolution_v2(&command.canonical_payload)
+    decode_note_sync_resolution_v2(canonical_payload)
         .map_err(|_| PrepareNoteConflictResolutionError::InvalidPayload)
 }
 
@@ -6162,6 +6770,643 @@ fn apply_prepared_note_conflict_resolution_inner(
                     return Err(PrepareNoteConflictResolutionError::StaleConflict);
                 }
                 Ok(ApplyPreparedNoteConflictResolutionResult::Applied)
+            }
+        },
+    )
+}
+
+#[derive(Clone, Debug)]
+struct VerifiedPeerResolutionCommand {
+    account_id: String,
+    canonical_user_id: String,
+    pulling_device_id: String,
+    event_id: String,
+    server_sequence: i64,
+    source_device_id: String,
+    crypto_version: i64,
+    aad_version: i64,
+    nonce: Vec<u8>,
+    ciphertext: Vec<u8>,
+    canonical_payload: Vec<u8>,
+    resolution: crate::note_sync_plaintext::NoteSyncResolutionV2,
+}
+
+#[derive(Debug)]
+struct PeerResolutionTipProof {
+    version_id: String,
+    event_id: String,
+    parent_event_id: String,
+    revision: i64,
+    operation: String,
+    snapshot_json: String,
+    publication_source: String,
+    server_sequence: i64,
+    local_mutation_generation: Option<i64>,
+}
+
+#[derive(Debug)]
+enum PeerResolutionApplyPlan {
+    Replay,
+    SelfEcho,
+    Orphan { error_code: &'static str },
+    Apply {
+        local_group_id: String,
+        local_generation: i64,
+        tips: Vec<PeerResolutionTipProof>,
+        strategy: &'static str,
+        result_operation: &'static str,
+        result_snapshot_json: String,
+        clone_entity_id: Option<String>,
+        clone_snapshot_json: Option<String>,
+        original: ResolutionNoteMutation,
+        clone: ResolutionNoteMutation,
+    },
+}
+
+fn peer_resolution_error(
+    error: PrepareNoteConflictResolutionError,
+) -> ApplyVerifiedReceivedResolutionV2Error {
+    match error {
+        PrepareNoteConflictResolutionError::Database(error) =>
+            ApplyVerifiedReceivedResolutionV2Error::Database(error),
+        PrepareNoteConflictResolutionError::InvalidPayload =>
+            ApplyVerifiedReceivedResolutionV2Error::InvalidPayload,
+        PrepareNoteConflictResolutionError::ScopeMismatch =>
+            ApplyVerifiedReceivedResolutionV2Error::ScopeMismatch,
+        PrepareNoteConflictResolutionError::StaleConflict =>
+            ApplyVerifiedReceivedResolutionV2Error::StaleConflict,
+        PrepareNoteConflictResolutionError::ConflictingResolution =>
+            ApplyVerifiedReceivedResolutionV2Error::CloneCollision,
+        PrepareNoteConflictResolutionError::MissingCausalProof =>
+            ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof,
+        PrepareNoteConflictResolutionError::InjectedFailure =>
+            ApplyVerifiedReceivedResolutionV2Error::InjectedFailure,
+        PrepareNoteConflictResolutionError::ProtectedStorageFailure =>
+            ApplyVerifiedReceivedResolutionV2Error::ProtectedStorageFailure,
+    }
+}
+
+fn peer_result_evidence(
+    resolution: &crate::note_sync_plaintext::NoteSyncResolutionV2,
+    tips: &[PeerResolutionTipProof],
+) -> Result<(&'static str, String, Option<String>, Option<String>), ApplyVerifiedReceivedResolutionV2Error> {
+    let (result_operation, result_value) = result_parts(&resolution.result)
+        .map_err(peer_resolution_error)?;
+    let find_tip = |event_id: &str| tips.iter().find(|tip| tip.event_id == event_id)
+        .ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof);
+    let (clone_entity_id, clone_snapshot_json) = match &resolution.strategy {
+        NoteSyncResolutionV2Strategy::ChooseVersion { selected_event_id } => {
+            let tip = find_tip(selected_event_id)?;
+            if tip.operation != result_operation
+                || wire_snapshot(&tip.snapshot_json, &tip.operation)
+                    .map_err(peer_resolution_error)? != result_value
+            {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof);
+            }
+            (None, None)
+        }
+        NoteSyncResolutionV2Strategy::ManualMerge => {
+            let NoteSyncResolutionV2Result::Upsert(note) = &resolution.result else {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::InvalidPayload);
+            };
+            if eligibility(&note.route) != Eligibility::Eligible {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::InvalidPayload);
+            }
+            (None, None)
+        }
+        NoteSyncResolutionV2Strategy::Delete => {
+            if result_operation != "delete" {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::InvalidPayload);
+            }
+            (None, None)
+        }
+        NoteSyncResolutionV2Strategy::KeepBoth {
+            selected_event_id,
+            retained_event_id,
+            retained_note,
+        } => {
+            if tips.len() != 2 || tips.iter().any(|tip| tip.operation != "upsert") {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof);
+            }
+            let selected = find_tip(selected_event_id)?;
+            if wire_snapshot(&selected.snapshot_json, "upsert")
+                .map_err(peer_resolution_error)? != result_value
+            {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof);
+            }
+            let retained = find_tip(retained_event_id)?;
+            let mut expected = wire_snapshot(&retained.snapshot_json, "upsert")
+                .map_err(peer_resolution_error)?;
+            let retained_value = serde_json::to_value(retained_note)
+                .map_err(|_| ApplyVerifiedReceivedResolutionV2Error::InvalidPayload)?;
+            let object = expected.as_object_mut()
+                .ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?;
+            object.insert("id".into(), serde_json::Value::String(retained_note.route.id.clone()));
+            object.insert("created_at".into(), serde_json::Value::String(retained_note.created_at.clone()));
+            object.insert("updated_at".into(), serde_json::Value::String(retained_note.updated_at.clone()));
+            if expected != retained_value {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof);
+            }
+            (Some(retained_note.route.id.clone()), Some(
+                canonical_json(&retained_value).map_err(peer_resolution_error)?
+            ))
+        }
+    };
+    Ok((
+        result_operation,
+        canonical_json(&result_value).map_err(peer_resolution_error)?,
+        clone_entity_id,
+        clone_snapshot_json,
+    ))
+}
+
+fn peer_resolution_replay_matches(
+    transaction: &Transaction<'_>,
+    command: &VerifiedPeerResolutionCommand,
+) -> Result<bool, ApplyVerifiedReceivedResolutionV2Error> {
+    let parents_json = serde_json::to_string(&command.resolution.resolved_event_ids)
+        .map_err(|_| ApplyVerifiedReceivedResolutionV2Error::InvalidPayload)?;
+    let strategy = match &command.resolution.strategy {
+        NoteSyncResolutionV2Strategy::ChooseVersion { .. } => "choose_version",
+        NoteSyncResolutionV2Strategy::ManualMerge => "manual_merge",
+        NoteSyncResolutionV2Strategy::KeepBoth { .. } => "keep_both",
+        NoteSyncResolutionV2Strategy::Delete => "delete",
+    };
+    let (result_operation, result_value) = result_parts(&command.resolution.result)
+        .map_err(peer_resolution_error)?;
+    let result_snapshot = canonical_json(&result_value).map_err(peer_resolution_error)?;
+    let (clone_entity_id, clone_snapshot) = match &command.resolution.strategy {
+        NoteSyncResolutionV2Strategy::KeepBoth { retained_note, .. } => {
+            let value = serde_json::to_value(retained_note)
+                .map_err(|_| ApplyVerifiedReceivedResolutionV2Error::InvalidPayload)?;
+            (Some(retained_note.route.id.clone()), Some(
+                canonical_json(&value).map_err(peer_resolution_error)?
+            ))
+        }
+        _ => (None, None),
+    };
+    Ok(transaction.query_row(
+        "SELECT source_device_id,server_sequence,project_id,entity_id,revision,event_updated_at,
+                remote_conflict_group_id,remote_conflict_generation,parent_event_ids_json,
+                parent_count,strategy,result_operation,canonical_payload,result_snapshot_json,
+                clone_entity_id,clone_snapshot_json,lifecycle,
+                (SELECT count(*) FROM cloud_sync_note_applied_resolution_parents AS parent
+                 WHERE parent.account_id=resolution.account_id
+                   AND parent.resolution_event_id=resolution.resolution_event_id),
+                COALESCE((SELECT inbox.applied_at IS resolution.applied_at
+                 FROM cloud_sync_inbox AS inbox
+                 WHERE inbox.account_id=resolution.account_id
+                   AND inbox.event_id=resolution.resolution_event_id
+                   AND inbox.state='applied'),0)
+         FROM cloud_sync_note_applied_resolutions AS resolution
+         WHERE account_id=?1 AND resolution_event_id=?2",
+        rusqlite::params![command.account_id, command.event_id],
+        |row| Ok(
+            row.get::<_, String>(0)? == command.source_device_id
+                && row.get::<_, i64>(1)? == command.server_sequence
+                && row.get::<_, String>(2)? == command.resolution.header.project_id
+                && row.get::<_, String>(3)? == command.resolution.header.entity_id
+                && row.get::<_, i64>(4)? == command.resolution.header.revision
+                && row.get::<_, String>(5)? == command.resolution.header.updated_at
+                && row.get::<_, String>(6)? == command.resolution.conflict_group_id
+                && row.get::<_, i64>(7)? == command.resolution.conflict_generation
+                && row.get::<_, String>(8)? == parents_json
+                && row.get::<_, i64>(9)? == command.resolution.resolved_event_ids.len() as i64
+                && row.get::<_, String>(10)? == strategy
+                && row.get::<_, String>(11)? == result_operation
+                && row.get::<_, Vec<u8>>(12)? == command.canonical_payload
+                && row.get::<_, String>(13)? == result_snapshot
+                && row.get::<_, Option<String>>(14)? == clone_entity_id
+                && row.get::<_, Option<String>>(15)? == clone_snapshot
+                && row.get::<_, String>(16)? == "applied"
+                && row.get::<_, i64>(17)? == command.resolution.resolved_event_ids.len() as i64
+                && row.get::<_, i64>(18)? == 1
+        ),
+    ).optional()? == Some(true))
+}
+
+fn peer_resolution_tip_proofs(
+    transaction: &Transaction<'_>,
+    account_id: &str,
+    project_id: &str,
+    entity_id: &str,
+    group_id: &str,
+) -> Result<Vec<PeerResolutionTipProof>, ApplyVerifiedReceivedResolutionV2Error> {
+    let mut statement = transaction.prepare(
+        "SELECT version.version_id,version.event_id,version.parent_event_id,
+                version.revision,version.operation,version.snapshot_json,version.source,
+                version.local_mutation_generation,version.server_sequence
+         FROM cloud_sync_note_conflict_tips AS tip
+         JOIN cloud_sync_note_conflict_versions AS version
+           ON version.version_id=tip.version_id AND version.group_id=tip.group_id
+         WHERE tip.group_id=?1 AND version.account_id=?2 AND version.project_id=?3
+           AND version.entity_id=?4 AND version.entity_type='note'
+         ORDER BY version.event_id",
+    )?;
+    let versions = statement.query_map(
+        rusqlite::params![group_id,account_id,project_id,entity_id], |row| Ok((
+        row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
+        row.get::<_, i64>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?,
+        row.get::<_, String>(6)?, row.get::<_, Option<i64>>(7)?, row.get::<_, Option<i64>>(8)?,
+    )))?.collect::<Result<Vec<_>, _>>()?;
+    drop(statement);
+    let tip_count: i64 = transaction.query_row(
+        "SELECT count(*) FROM cloud_sync_note_conflict_tips WHERE group_id=?1",
+        [group_id], |row| row.get(0),
+    )?;
+    if tip_count != versions.len() as i64 {
+        return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
+    }
+    let mut proofs = Vec::with_capacity(versions.len());
+    for version in versions {
+        let sequence = match version.6.as_str() {
+            "remote" => {
+                let expected = version.8.ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?;
+                transaction.query_row(
+                    "SELECT server_sequence FROM cloud_sync_inbox
+                     WHERE account_id=?1 AND event_id=?2 AND server_sequence=?3
+                       AND project_id=?4 AND entity_id=?5 AND entity_type='note'
+                       AND operation=?6 AND sync_revision=?7
+                       AND state='conflict_preserved' AND conflict_group_id=?8",
+                    rusqlite::params![account_id, version.1, expected, project_id, entity_id,
+                        version.4, version.3, group_id], |row| row.get(0),
+                ).optional()?.ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?
+            }
+            "remote_applied" => {
+                let expected = version.8.ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?;
+                transaction.query_row(
+                    "SELECT server_sequence FROM cloud_sync_note_causal_history
+                     WHERE account_id=?1 AND event_id=?2 AND server_sequence=?3
+                       AND project_id=?4 AND entity_id=?5 AND entity_type='note'
+                       AND revision=?6 AND operation=?7 AND snapshot_json=?8",
+                    rusqlite::params![account_id, version.1, expected, project_id, entity_id,
+                        version.3, version.4, version.5], |row| row.get(0),
+                ).optional()?.ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?
+            }
+            "local_unsealed" => transaction.query_row(
+                "SELECT receipt.server_sequence
+                 FROM cloud_sync_outbox AS outbox
+                 JOIN cloud_sync_upload_receipts AS receipt
+                   ON receipt.account_id=outbox.account_id AND receipt.event_id=outbox.event_id
+                  AND receipt.device_id=outbox.device_id
+                 WHERE outbox.account_id=?1 AND outbox.event_id=?2
+                   AND outbox.project_id=?3 AND outbox.entity_id=?4 AND outbox.entity_type='note'
+                   AND outbox.operation=?5 AND outbox.revision=?6 AND outbox.lifecycle='accepted'",
+                rusqlite::params![account_id, version.1, project_id, entity_id, version.4, version.3],
+                |row| row.get(0),
+            ).optional()?.ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?,
+            _ => return Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof),
+        };
+        proofs.push(PeerResolutionTipProof {
+            version_id: version.0,
+            event_id: version.1,
+            parent_event_id: version.2,
+            revision: version.3,
+            operation: version.4,
+            snapshot_json: version.5,
+            publication_source: match version.6.as_str() {
+                "local_unsealed" => "local_accepted".into(),
+                value => value.into(),
+            },
+            server_sequence: sequence,
+            local_mutation_generation: version.7,
+        });
+    }
+    Ok(proofs)
+}
+
+fn advance_resolution_entity_head(
+    transaction: &Transaction<'_>,
+    command: &VerifiedPeerResolutionCommand,
+    entity_id: &str,
+) -> rusqlite::Result<()> {
+    transaction.execute(
+        "INSERT INTO cloud_sync_entities(
+            account_id,project_id,entity_id,entity_type,head_event_id,
+            head_sync_revision,conflict_event_id,conflict_state,updated_at
+         ) VALUES(?1,?2,?3,'note',?4,?5,NULL,NULL,?6)
+         ON CONFLICT(account_id,project_id,entity_id,entity_type) DO UPDATE SET
+            head_event_id=excluded.head_event_id,
+            head_sync_revision=excluded.head_sync_revision,
+            conflict_event_id=NULL,conflict_state=NULL,updated_at=excluded.updated_at",
+        rusqlite::params![command.account_id, command.resolution.header.project_id, entity_id,
+            command.event_id, command.resolution.header.revision,
+            command.resolution.header.updated_at],
+    )?;
+    Ok(())
+}
+
+pub(crate) fn apply_verified_received_resolution_v2_ipc(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    mut command: ApplyVerifiedReceivedResolutionV2IpcCommand,
+) -> Result<ApplyVerifiedReceivedResolutionV2Result, ApplyVerifiedReceivedResolutionV2Error> {
+    let mut canonical_payload = std::mem::take(&mut command.plaintext);
+    let resolution = match decode_canonical_resolution_bytes(&canonical_payload) {
+        Ok(value) => value,
+        Err(error) => {
+            canonical_payload.fill(0);
+            return Err(peer_resolution_error(error));
+        }
+    };
+    let mut verified = VerifiedPeerResolutionCommand {
+        account_id: command.account_id,
+        canonical_user_id: command.canonical_user_id,
+        pulling_device_id: command.pulling_device_id,
+        event_id: command.event_id,
+        server_sequence: command.server_sequence,
+        source_device_id: command.source_device_id,
+        crypto_version: command.crypto_version,
+        aad_version: command.aad_version,
+        nonce: command.nonce,
+        ciphertext: command.ciphertext,
+        canonical_payload,
+        resolution,
+    };
+    let result = apply_verified_received_resolution_v2_inner(
+        connection,
+        &verified,
+        false,
+        false,
+    );
+    verified.canonical_payload.fill(0);
+    result
+}
+
+fn apply_verified_received_resolution_v2_inner(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    command: &VerifiedPeerResolutionCommand,
+    inject_after_original: bool,
+    inject_before_completion: bool,
+) -> Result<ApplyVerifiedReceivedResolutionV2Result, ApplyVerifiedReceivedResolutionV2Error> {
+    if command.event_id != command.resolution.header.event_id
+        || command.crypto_version != SUPPORTED_CRYPTO_VERSION
+        || command.aad_version != SUPPORTED_AAD_VERSION
+    {
+        return Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch);
+    }
+    connection.execute_planned_many_once(
+        |transaction| {
+            validate_pull_scope(transaction, &command.account_id, &command.pulling_device_id,
+                &command.canonical_user_id)
+                .map_err(|_| ApplyVerifiedReceivedResolutionV2Error::ScopeMismatch)?;
+            let inbox: Option<(i64,String,String,String,String,i64,String,Option<String>,String)> =
+                transaction.query_row(
+                    "SELECT server_sequence,device_id,project_id,entity_id,operation,
+                            sync_revision,updated_at,deleted_at,state
+                     FROM cloud_sync_inbox
+                     WHERE account_id=?1 AND event_id=?2 AND entity_type='note'",
+                    rusqlite::params![command.account_id, command.event_id],
+                    |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,
+                        row.get(5)?,row.get(6)?,row.get(7)?,row.get(8)?)),
+                ).optional()?;
+            let Some((sequence,source,project,entity,operation,revision,updated_at,deleted_at,state)) = inbox else {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch);
+            };
+            if sequence != command.server_sequence || source != command.source_device_id
+                || project != command.resolution.header.project_id
+                || entity != command.resolution.header.entity_id || operation != "resolution"
+                || revision != command.resolution.header.revision
+                || updated_at != command.resolution.header.updated_at || deleted_at.is_some()
+            {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch);
+            }
+            let object: Option<(i64,i64,Vec<u8>,Vec<u8>)> = transaction.query_row(
+                "SELECT crypto_version,aad_version,nonce,ciphertext
+                 FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
+                rusqlite::params![command.account_id, command.event_id],
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?)),
+            ).optional()?;
+            if object != Some((command.crypto_version, command.aad_version,
+                command.nonce.clone(), command.ciphertext.clone()))
+            {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch);
+            }
+            let project_bound: i64 = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM cloud_sync_project_bindings
+                 WHERE project_id=?1 AND account_id=?2)",
+                rusqlite::params![project, command.account_id], |row| row.get(0),
+            )?;
+            if project_bound != 1 {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::ScopeMismatch);
+            }
+            if state == "applied" {
+                if !peer_resolution_replay_matches(transaction, command)? {
+                    return Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch);
+                }
+                return Ok((Vec::new(), PeerResolutionApplyPlan::Replay));
+            }
+            if state != "received" && state != "orphan" {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
+            }
+            if source == command.pulling_device_id {
+                let local: Option<i64> = transaction.query_row(
+                    "SELECT 1 FROM cloud_sync_note_resolution_outbox
+                     WHERE resolution_event_id=?1 AND account_id=?2 AND device_id=?3
+                       AND project_id=?4 AND entity_id=?5 AND revision=?6
+                       AND canonical_payload=?7",
+                    rusqlite::params![command.event_id, command.account_id, source, project,
+                        entity, revision, command.canonical_payload], |_| Ok(1),
+                ).optional()?;
+                if local.is_none() {
+                    return Err(ApplyVerifiedReceivedResolutionV2Error::SelfEchoMismatch);
+                }
+                return Ok((Vec::new(), PeerResolutionApplyPlan::SelfEcho));
+            }
+            let group: Option<(String,i64,String)> = transaction.query_row(
+                "SELECT group_id,generation,common_parent_event_id
+                 FROM cloud_sync_note_conflict_groups
+                 WHERE account_id=?1 AND project_id=?2 AND entity_id=?3
+                   AND entity_type='note' AND lifecycle='open'",
+                rusqlite::params![command.account_id, project, entity],
+                |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+            ).optional()?;
+            let Some((local_group_id,local_generation,common_parent)) = group else {
+                return Ok((Vec::new(), PeerResolutionApplyPlan::Orphan { error_code: "missing_conflict_group" }));
+            };
+            let mut tips = match peer_resolution_tip_proofs(transaction, &command.account_id,
+                &project, &entity, &local_group_id)
+            {
+                Ok(value) => value,
+                Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof) => {
+                    return Ok((Vec::new(), PeerResolutionApplyPlan::Orphan { error_code: "incomplete_parent_publication" }));
+                }
+                Err(error) => return Err(error),
+            };
+            let actual_ids: Vec<String> = tips.iter().map(|tip| tip.event_id.clone()).collect();
+            if actual_ids != command.resolution.resolved_event_ids {
+                let subset = actual_ids.len() < command.resolution.resolved_event_ids.len()
+                    && actual_ids.iter().all(|event_id| command.resolution.resolved_event_ids.contains(event_id));
+                if subset {
+                    return Ok((Vec::new(), PeerResolutionApplyPlan::Orphan { error_code: "missing_conflict_parent" }));
+                }
+                return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
+            }
+            if tips.iter().any(|tip| tip.parent_event_id != common_parent) {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
+            }
+            let maximum = tips.iter().map(|tip| tip.revision).max()
+                .ok_or(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof)?;
+            if maximum.checked_add(1) != Some(revision) {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::MissingCausalProof);
+            }
+            let parent_known: i64 = transaction.query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM cloud_sync_note_causal_history
+                     WHERE account_id=?1 AND project_id=?2 AND entity_id=?3 AND event_id=?4
+                    UNION ALL
+                    SELECT 1 FROM cloud_sync_outbox
+                     WHERE account_id=?1 AND project_id=?2 AND entity_id=?3 AND event_id=?4
+                       AND lifecycle IN ('sealed','accepted'))",
+                rusqlite::params![command.account_id, project, entity, common_parent],
+                |row| row.get(0),
+            )?;
+            if parent_known != 1 {
+                return Ok((Vec::new(), PeerResolutionApplyPlan::Orphan { error_code: "missing_common_parent" }));
+            }
+            let unexpected_unsealed: i64 = transaction.query_row(
+                "SELECT EXISTS(SELECT 1 FROM cloud_sync_outbox
+                 WHERE account_id=?1 AND project_id=?2 AND entity_id=?3 AND entity_type='note'
+                   AND lifecycle='unsealed' AND event_id NOT IN (
+                       SELECT event_id FROM cloud_sync_note_conflict_tips WHERE group_id=?4))",
+                rusqlite::params![command.account_id, project, entity, local_group_id],
+                |row| row.get(0),
+            )?;
+            if unexpected_unsealed != 0 {
+                return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
+            }
+            let (result_operation,result_snapshot_json,clone_entity_id,clone_snapshot_json) =
+                peer_result_evidence(&command.resolution, &tips)?;
+            if let Some(clone_id) = clone_entity_id.as_deref() {
+                let collision: i64 = transaction.query_row(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM notes WHERE id=?1
+                        UNION ALL SELECT 1 FROM cloud_sync_entities
+                         WHERE account_id=?2 AND project_id=?3 AND entity_id=?1
+                        UNION ALL SELECT 1 FROM cloud_sync_outbox
+                         WHERE account_id=?2 AND project_id=?3 AND entity_id=?1
+                        UNION ALL SELECT 1 FROM cloud_sync_note_resolution_outbox
+                         WHERE account_id=?2 AND project_id=?3
+                           AND (entity_id=?1 OR clone_entity_id=?1)
+                        UNION ALL SELECT 1 FROM cloud_sync_note_applied_resolutions
+                         WHERE account_id=?2 AND project_id=?3
+                           AND (entity_id=?1 OR clone_entity_id=?1))",
+                    rusqlite::params![clone_id, command.account_id, project], |row| row.get(0),
+                )?;
+                if collision != 0 {
+                    return Err(ApplyVerifiedReceivedResolutionV2Error::CloneCollision);
+                }
+            }
+            let original = resolution_mutation_for_result(transaction, &command.resolution.result)
+                .map_err(peer_resolution_error)?;
+            let clone = match &command.resolution.strategy {
+                NoteSyncResolutionV2Strategy::KeepBoth { retained_note, .. } =>
+                    resolution_mutation_for_result(transaction,
+                        &NoteSyncResolutionV2Result::Upsert(retained_note.clone()))
+                        .map_err(peer_resolution_error)?,
+                _ => ResolutionNoteMutation::None,
+            };
+            let mut authorizations = Vec::new();
+            if let Some(value) = resolution_authorization(&original, command.event_id.clone(), &command.account_id) {
+                authorizations.push(value);
+            }
+            if let Some(value) = resolution_authorization(&clone, format!("{}:clone", command.event_id), &command.account_id) {
+                authorizations.push(value);
+            }
+            Ok((authorizations, PeerResolutionApplyPlan::Apply {
+                local_group_id, local_generation, tips: std::mem::take(&mut tips),
+                strategy: match &command.resolution.strategy {
+                    NoteSyncResolutionV2Strategy::ChooseVersion { .. } => "choose_version",
+                    NoteSyncResolutionV2Strategy::ManualMerge => "manual_merge",
+                    NoteSyncResolutionV2Strategy::KeepBoth { .. } => "keep_both",
+                    NoteSyncResolutionV2Strategy::Delete => "delete",
+                },
+                result_operation, result_snapshot_json, clone_entity_id, clone_snapshot_json,
+                original, clone,
+            }))
+        },
+        |transaction, plan| match plan {
+            PeerResolutionApplyPlan::Replay => Ok(ApplyVerifiedReceivedResolutionV2Result::AlreadyApplied),
+            PeerResolutionApplyPlan::SelfEcho => Ok(ApplyVerifiedReceivedResolutionV2Result::SelfEchoPending),
+            PeerResolutionApplyPlan::Orphan { error_code } => {
+                transaction.execute(
+                    "UPDATE cloud_sync_inbox SET state='orphan',error_code=?1,applied_at=NULL
+                     WHERE account_id=?2 AND event_id=?3 AND state='received'",
+                    rusqlite::params![error_code, command.account_id, command.event_id],
+                )?;
+                Ok(ApplyVerifiedReceivedResolutionV2Result::Orphan)
+            }
+            PeerResolutionApplyPlan::Apply {
+                local_group_id,local_generation,tips,strategy,result_operation,
+                result_snapshot_json,clone_entity_id,clone_snapshot_json,original,clone,
+            } => {
+                apply_resolution_note_mutation(transaction, &original)?;
+                if inject_after_original {
+                    return Err(ApplyVerifiedReceivedResolutionV2Error::InjectedFailure);
+                }
+                apply_resolution_note_mutation(transaction, &clone)?;
+                let parents_json = serde_json::to_string(&command.resolution.resolved_event_ids)
+                    .map_err(|_| ApplyVerifiedReceivedResolutionV2Error::InvalidPayload)?;
+                let now: String = transaction.query_row(
+                    "SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |row| row.get(0),
+                )?;
+                transaction.execute(
+                    "INSERT INTO cloud_sync_note_applied_resolutions(
+                        account_id,resolution_event_id,source_device_id,server_sequence,
+                        project_id,entity_id,revision,event_updated_at,remote_conflict_group_id,
+                        local_conflict_group_id,remote_conflict_generation,local_conflict_generation,
+                        parent_event_ids_json,parent_count,strategy,result_operation,canonical_payload,
+                        result_snapshot_json,clone_entity_id,clone_snapshot_json,lifecycle,applied_at,created_at
+                     ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,
+                              ?15,?16,?17,?18,?19,?20,'applying',NULL,?21)",
+                    rusqlite::params![command.account_id,command.event_id,command.source_device_id,
+                        command.server_sequence,command.resolution.header.project_id,
+                        command.resolution.header.entity_id,command.resolution.header.revision,
+                        command.resolution.header.updated_at,command.resolution.conflict_group_id,
+                        local_group_id,command.resolution.conflict_generation,local_generation,
+                        parents_json,tips.len() as i64,strategy,result_operation,
+                        command.canonical_payload,result_snapshot_json,clone_entity_id,
+                        clone_snapshot_json,now],
+                )?;
+                for (ordinal, tip) in tips.iter().enumerate() {
+                    transaction.execute(
+                        "INSERT INTO cloud_sync_note_applied_resolution_parents(
+                            account_id,resolution_event_id,parent_ordinal,parent_event_id,
+                            conflict_version_id,parent_revision,parent_operation,parent_snapshot_json,
+                            publication_source,server_sequence,local_mutation_generation,recorded_at
+                         ) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
+                        rusqlite::params![command.account_id,command.event_id,ordinal as i64,
+                            tip.event_id,tip.version_id,tip.revision,tip.operation,tip.snapshot_json,
+                            tip.publication_source,tip.server_sequence,tip.local_mutation_generation,now],
+                    )?;
+                }
+                advance_resolution_entity_head(transaction, command, &command.resolution.header.entity_id)?;
+                if let Some(clone_id) = clone_entity_id.as_deref() {
+                    advance_resolution_entity_head(transaction, command, clone_id)?;
+                }
+                if inject_before_completion {
+                    return Err(ApplyVerifiedReceivedResolutionV2Error::InjectedFailure);
+                }
+                let completed = transaction.execute(
+                    "UPDATE cloud_sync_note_applied_resolutions
+                     SET lifecycle='applied',applied_at=?1
+                     WHERE account_id=?2 AND resolution_event_id=?3 AND lifecycle='applying'",
+                    rusqlite::params![now,command.account_id,command.event_id],
+                )?;
+                let resolved = transaction.execute(
+                    "UPDATE cloud_sync_note_conflict_groups
+                     SET lifecycle='resolved',updated_at=?1
+                     WHERE group_id=?2 AND account_id=?3 AND generation=?4 AND lifecycle='open'",
+                    rusqlite::params![now,local_group_id,command.account_id,local_generation],
+                )?;
+                let applied = transaction.execute(
+                    "UPDATE cloud_sync_inbox SET state='applied',error_code=NULL,applied_at=?1
+                     WHERE account_id=?2 AND event_id=?3 AND state IN ('received','orphan')",
+                    rusqlite::params![now,command.account_id,command.event_id],
+                )?;
+                if completed != 1 || resolved != 1 || applied != 1 {
+                    return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
+                }
+                Ok(ApplyVerifiedReceivedResolutionV2Result::Applied)
             }
         },
     )
