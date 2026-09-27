@@ -19,6 +19,7 @@ export type NoteInboxDecryptErrorCode =
   | 'dependency_not_synced'
   | 'unsupported_content_format'
   | 'resolution_v2_pending'
+  | 'paginated_reader_unavailable'
   | 'runtime_unavailable'
 
 export interface NoteInboxDecryptResult {
@@ -66,14 +67,14 @@ function readErrorCode(error: unknown): NoteInboxDecryptErrorCode {
  * to invoke its single SQLite apply transaction.
  */
 /** @internal Protected callback boundary for sync orchestration only. */
-export async function withDecryptedReceivedNoteInbox<T>(
+async function withDecryptedReceivedNoteInboxReader<T>(
   auth: NormalUserAuthRuntime,
   bindings: AuthoritativeAccountBinding,
   keyContext: RuntimeKeyContext,
-  repository: NoteSyncInboxRepository,
   localAccountId: string,
   deviceId: string,
   limit: number,
+  read: (canonicalUserId: string) => Promise<ReceivedNoteSyncInboxItem[]>,
   visitor: (
     item: ReceivedNoteSyncV1InboxItem,
     plaintext: NoteSyncPlaintext,
@@ -90,7 +91,7 @@ export async function withDecryptedReceivedNoteInbox<T>(
     || lease.authEpoch !== binding.context.authEpoch) throw new NoteInboxDecryptError('invalid_inbox_scope')
   if (!auth.isCurrent(binding.context)) throw new StaleAuthContextError()
   return lease.use(async masterKey => {
-    const items = await repository.listReceived(localAccountId, deviceId, lease.canonicalUserId, limit)
+    const items = await read(lease.canonicalUserId)
     // Once `use()` starts, RuntimeKeyContext's drain contract owns the
     // invalidation boundary.  Rust still checks the immutable account/device
     // scope, so this already-started pass can finish without crossing accounts.
@@ -124,6 +125,75 @@ export async function withDecryptedReceivedNoteInbox<T>(
     }
     return values
   })
+}
+
+export async function withDecryptedReceivedNoteInbox<T>(
+  auth: NormalUserAuthRuntime,
+  bindings: AuthoritativeAccountBinding,
+  keyContext: RuntimeKeyContext,
+  repository: NoteSyncInboxRepository,
+  localAccountId: string,
+  deviceId: string,
+  limit: number,
+  visitor: (
+    item: ReceivedNoteSyncV1InboxItem,
+    plaintext: NoteSyncPlaintext,
+    scope: { readonly accountId: string; readonly canonicalUserId: string; readonly pullingDeviceId: string },
+  ) => Promise<T>,
+): Promise<Array<{ event: ReceivedNoteSyncInboxItem, value?: T, error_code?: NoteInboxDecryptErrorCode }>> {
+  return withDecryptedReceivedNoteInboxReader(
+    auth, bindings, keyContext, localAccountId, deviceId, limit,
+    canonicalUserId => repository.listReceived(localAccountId, deviceId, canonicalUserId, limit),
+    visitor,
+  )
+}
+
+/** @internal Strictly paginated v1-only variant used by dormant mixed orchestration. */
+export async function withDecryptedReceivedNoteInboxPage<T>(
+  auth: NormalUserAuthRuntime,
+  bindings: AuthoritativeAccountBinding,
+  keyContext: RuntimeKeyContext,
+  repository: NoteSyncInboxRepository,
+  localAccountId: string,
+  deviceId: string,
+  limit: number,
+  afterServerSequence: number,
+  visitor: (
+    item: ReceivedNoteSyncV1InboxItem,
+    plaintext: NoteSyncPlaintext,
+    scope: { readonly accountId: string; readonly canonicalUserId: string; readonly pullingDeviceId: string },
+  ) => Promise<T>,
+): Promise<Array<{ event: ReceivedNoteSyncV1InboxItem, value?: T, error_code?: NoteInboxDecryptErrorCode }>> {
+  if (!Number.isSafeInteger(afterServerSequence) || afterServerSequence < 0) {
+    throw new RangeError('Invalid Note inbox decrypt cursor.')
+  }
+  const listReceivedPage = repository.listReceivedPage?.bind(repository)
+  if (listReceivedPage === undefined) throw new NoteInboxDecryptError('paginated_reader_unavailable')
+  const values = await withDecryptedReceivedNoteInboxReader(
+    auth, bindings, keyContext, localAccountId, deviceId, limit,
+    async canonicalUserId => {
+      const items = await listReceivedPage(localAccountId, deviceId, canonicalUserId, 'v1', limit, afterServerSequence)
+      let previous = afterServerSequence
+      for (const item of items) {
+        if (item.server_sequence <= previous) {
+          for (const pending of items) {
+            pending.envelope.nonce.fill(0)
+            pending.envelope.ciphertext.fill(0)
+          }
+          throw new NoteInboxDecryptError('invalid_inbox_scope')
+        }
+        previous = item.server_sequence
+      }
+      return items
+    },
+    visitor,
+  )
+  const pageValues: Array<{ event: ReceivedNoteSyncV1InboxItem, value?: T, error_code?: NoteInboxDecryptErrorCode }> = []
+  for (const value of values) {
+    if (value.event.operation === 'resolution') throw new NoteInboxDecryptError('invalid_inbox_scope')
+    pageValues.push({ ...value, event: value.event })
+  }
+  return pageValues
 }
 
 /** Performs one bounded validation pass and returns metadata only; it never applies or persists plaintext. */

@@ -3,7 +3,12 @@ import { KeyNotProvisionedError } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError } from '@/auth/userAuth'
 import { DurableNoteSyncInbox } from './noteSyncInbox'
 import type { CommitInboundPageResult } from '@/infrastructure/sqlite/noteSyncInboxRepository'
-import { NoteSyncInboxRemoteApplier, type NoteInboxApplyPassResult } from './noteSyncInboxApply'
+import { NoteSyncInboxRemoteApplier, type NoteInboxApplyPageResult, type NoteInboxApplyPassResult } from './noteSyncInboxApply'
+import {
+  NoteSyncResolutionInboxApplier,
+  type NoteResolutionInboxApplyPageResult,
+  type NoteResolutionOrphanRetryPassResult,
+} from './noteSyncResolutionInboxApply'
 import { sealPendingNoteSyncIntents, type NoteSyncIntentRepository, type NoteSyncSealingPassResult } from './noteSyncIntent'
 import { NoteSyncUploader } from './noteSyncUpload'
 import { NoteSyncDeviceAckAdapter, type NoteSyncAckOnceResult } from './noteSyncDeviceAck'
@@ -27,6 +32,20 @@ export interface NoteSyncOrchestratorResult {
   readonly hasRemainingWork: boolean
 }
 
+export interface NoteSyncMixedInboxResult {
+  readonly stages: readonly string[]
+  readonly v1Pages: readonly NoteInboxApplyPageResult[]
+  readonly resolutionPages: readonly NoteResolutionInboxApplyPageResult[]
+  readonly orphanRetry?: NoteResolutionOrphanRetryPassResult
+  readonly blocked: readonly string[]
+  readonly errors: readonly { readonly stage: string, readonly code: string }[]
+  readonly hasRemainingWork: boolean
+}
+
+export class NoteSyncMixedInboxUnavailableError extends Error {
+  readonly name = 'NoteSyncMixedInboxUnavailableError'
+}
+
 const DEFAULTS: Required<NoteSyncOrchestratorOptions> = {
   sealLimit: 8,
   applyLimit: 8,
@@ -40,6 +59,8 @@ const DEFAULTS: Required<NoteSyncOrchestratorOptions> = {
  */
 export class NoteSyncOrchestrator {
   private static readonly flights = new Map<string, Promise<NoteSyncOrchestratorResult>>()
+  private static readonly mixedFlights = new Map<string, Promise<NoteSyncMixedInboxResult>>()
+  private readonly orphanCursors = new Map<string, number>()
 
   constructor(
     private readonly auth: NormalUserAuthRuntime,
@@ -49,6 +70,7 @@ export class NoteSyncOrchestrator {
     private readonly inbox: DurableNoteSyncInbox,
     private readonly applier: NoteSyncInboxRemoteApplier,
     private readonly deviceAck: NoteSyncDeviceAckAdapter,
+    private readonly resolutionApplier?: NoteSyncResolutionInboxApplier,
   ) {}
 
   async runOnce(localAccountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncOrchestratorResult> {
@@ -68,6 +90,121 @@ export class NoteSyncOrchestrator {
       return await flight
     } finally {
       if (NoteSyncOrchestrator.flights.get(flightKey) === flight) NoteSyncOrchestrator.flights.delete(flightKey)
+    }
+  }
+
+  /**
+   * @internal Dormant apply-only composition for D4A2 validation. Production
+   * runtime deliberately keeps using runOnce() until v2 pull/ACK cutover.
+   */
+  async runMixedInboxOnce(
+    localAccountId: string,
+    deviceId: string,
+    options: Pick<NoteSyncOrchestratorOptions, 'applyLimit' | 'maxApplyPasses'> = {},
+  ): Promise<NoteSyncMixedInboxResult> {
+    if (this.resolutionApplier === undefined) throw new NoteSyncMixedInboxUnavailableError('Mixed inbox processing is not composed.')
+    const bounded = this.options(options)
+    const context = this.auth.requireContext()
+    const lease = this.keys.leaseForAccount(localAccountId)
+    if (lease === null) throw new KeyNotProvisionedError()
+    if (!lease.isCurrent() || lease.canonicalUserId !== context.userId || lease.authEpoch !== context.authEpoch) {
+      throw new StaleAuthContextError()
+    }
+    const flightKey = `${localAccountId}\u0000${deviceId}\u0000${context.authEpoch}\u0000${lease.keyContextId}\u0000${lease.keyEpoch}`
+    const existing = NoteSyncOrchestrator.mixedFlights.get(flightKey)
+    if (existing) return existing
+    const flight = this.runMixedInboxBounded(localAccountId, deviceId, lease, bounded, flightKey)
+    NoteSyncOrchestrator.mixedFlights.set(flightKey, flight)
+    try {
+      return await flight
+    } finally {
+      if (NoteSyncOrchestrator.mixedFlights.get(flightKey) === flight) NoteSyncOrchestrator.mixedFlights.delete(flightKey)
+    }
+  }
+
+  private async runMixedInboxBounded(
+    localAccountId: string,
+    deviceId: string,
+    lease: AuthoritativeKeyContextLease,
+    options: Required<NoteSyncOrchestratorOptions>,
+    lifecycleKey: string,
+  ): Promise<NoteSyncMixedInboxResult> {
+    const resolutionApplier = this.resolutionApplier!
+    const stages: string[] = []
+    const v1Pages: NoteInboxApplyPageResult[] = []
+    const resolutionPages: NoteResolutionInboxApplyPageResult[] = []
+    const blocked: string[] = []
+    const errors: Array<{ stage: string, code: string }> = []
+    let v1Cursor = 0
+    let resolutionCursor = 0
+    let v1Active = true
+    let resolutionActive = true
+    let hasRemainingWork = false
+
+    for (let pass = 0; pass < options.maxApplyPasses && (v1Active || resolutionActive); pass += 1) {
+      if (v1Active) {
+        this.assertCurrent(lease)
+        stages.push('apply_v1')
+        try {
+          const page = await this.applier.applyPage(localAccountId, deviceId, options.applyLimit, v1Cursor)
+          v1Pages.push(page)
+          v1Cursor = page.lastServerSequence
+          this.collectBlocked(page.results, blocked)
+          if (page.errorCount > 0) hasRemainingWork = true
+          v1Active = page.listed === options.applyLimit
+        } catch (error) {
+          errors.push(this.error('apply_v1', error))
+          hasRemainingWork = true
+          v1Active = false
+        }
+      }
+
+      if (resolutionActive) {
+        this.assertCurrent(lease)
+        stages.push('apply_resolution')
+        try {
+          const page = await resolutionApplier.applyReceivedPage(
+            localAccountId, deviceId, options.applyLimit, resolutionCursor,
+          )
+          resolutionPages.push(page)
+          resolutionCursor = page.lastServerSequence
+          this.collectBlocked(page.results, blocked)
+          if (page.errorCount > 0) hasRemainingWork = true
+          resolutionActive = page.listed === options.applyLimit
+        } catch (error) {
+          errors.push(this.error('apply_resolution', error))
+          hasRemainingWork = true
+          resolutionActive = false
+        }
+      }
+    }
+    if (v1Active || resolutionActive) hasRemainingWork = true
+
+    let orphanRetry: NoteResolutionOrphanRetryPassResult | undefined
+    this.assertCurrent(lease)
+    stages.push('retry_orphans')
+    try {
+      const initialCursor = this.orphanCursors.get(lifecycleKey) ?? 0
+      orphanRetry = await resolutionApplier.retryOrphansFrom(
+        localAccountId, deviceId, options.applyLimit, initialCursor,
+      )
+      this.collectBlocked(orphanRetry.results, blocked)
+      if (orphanRetry.errorCount > 0 || !orphanRetry.reachedEnd) hasRemainingWork = true
+      this.orphanCursors.set(lifecycleKey, orphanRetry.reachedEnd ? 0 : orphanRetry.lastServerSequence)
+    } catch (error) {
+      errors.push(this.error('retry_orphans', error))
+      hasRemainingWork = true
+    }
+
+    if (blocked.length > 0 || errors.length > 0) hasRemainingWork = true
+    return {
+      stages,
+      v1Pages,
+      resolutionPages,
+      orphanRetry,
+      blocked: [...new Set(blocked)],
+      errors,
+      hasRemainingWork,
     }
   }
 
@@ -163,6 +300,13 @@ export class NoteSyncOrchestrator {
   private assertCurrent(lease: AuthoritativeKeyContextLease): void {
     if (!lease.isCurrent() || !this.auth.isCurrent({ userId: lease.canonicalUserId, username: '', authEpoch: lease.authEpoch })) {
       throw new StaleAuthContextError()
+    }
+  }
+
+  private collectBlocked(results: readonly { readonly status: string }[], blocked: string[]): void {
+    for (const item of results) {
+      if (item.status === 'orphan' || item.status === 'self_echo_pending' || item.status === 'conflict'
+        || item.status === 'rejected' || item.status === 'error') blocked.push(item.status)
     }
   }
 

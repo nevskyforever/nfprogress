@@ -25,6 +25,7 @@ export type NoteResolutionInboxApplyErrorCode =
   | 'key_unavailable'
   | 'stale_auth_context'
   | 'invalid_inbox_scope'
+  | 'received_page_unavailable'
   | 'orphan_retry_unavailable'
   | 'invalid_envelope'
   | 'decrypt_failed'
@@ -39,6 +40,17 @@ export interface NoteResolutionInboxApplyResult {
   readonly server_sequence: number
   readonly status: NoteResolutionInboxApplyStatus | 'error'
   readonly error_code?: NoteResolutionInboxApplyErrorCode
+}
+
+export interface NoteResolutionInboxApplyPageResult {
+  readonly listed: number
+  readonly lastServerSequence: number
+  readonly errorCount: number
+  readonly results: readonly NoteResolutionInboxApplyResult[]
+}
+
+export interface NoteResolutionOrphanRetryPassResult extends NoteResolutionInboxApplyPageResult {
+  readonly reachedEnd: boolean
 }
 
 export class NoteResolutionInboxApplyError extends Error {
@@ -235,23 +247,83 @@ export class NoteSyncResolutionInboxApplier {
     }
   }
 
+  async applyReceivedPage(
+    localAccountId: string,
+    deviceId: string,
+    limit = DEFAULT_RESOLUTION_INBOX_APPLY_LIMIT,
+    afterServerSequence = 0,
+  ): Promise<NoteResolutionInboxApplyPageResult> {
+    this.validateLimit(limit)
+    if (!Number.isSafeInteger(afterServerSequence) || afterServerSequence < 0) {
+      throw new RangeError('Invalid resolution inbox apply cursor.')
+    }
+    const listReceivedPage = this.inbox.listReceivedPage?.bind(this.inbox)
+    if (listReceivedPage === undefined) throw new NoteResolutionInboxApplyError('received_page_unavailable')
+    try {
+      return await this.withAuthoritativeLease(localAccountId, deviceId, async (masterKey, scope) => {
+        const items = await listReceivedPage(
+          localAccountId, deviceId, scope.canonicalUserId, 'resolution', limit, afterServerSequence,
+        )
+        this.validatePage(items, afterServerSequence)
+        const results: NoteResolutionInboxApplyResult[] = []
+        for (const item of items) results.push(await this.applyItem(masterKey, scope, item))
+        return {
+          listed: items.length,
+          lastServerSequence: items.at(-1)?.server_sequence ?? afterServerSequence,
+          errorCount: results.filter(result => result.status === 'error').length,
+          results,
+        }
+      })
+    } catch (error) {
+      throw topLevelError(error)
+    }
+  }
+
+  private validatePage(items: readonly ReceivedNoteResolutionInboxItem[], afterServerSequence: number): void {
+    let previousSequence = afterServerSequence
+    const seen = new Set<string>()
+    for (const item of items) {
+      if (item.server_sequence <= previousSequence || seen.has(item.event_id)) {
+        for (const pending of items) clearEnvelope(pending)
+        throw new NoteResolutionInboxApplyError('invalid_inbox_scope')
+      }
+      previousSequence = item.server_sequence
+      seen.add(item.event_id)
+    }
+  }
+
   async retryOrphansOnce(
     localAccountId: string,
     deviceId: string,
     limit = DEFAULT_RESOLUTION_INBOX_APPLY_LIMIT,
   ): Promise<readonly NoteResolutionInboxApplyResult[]> {
+    return (await this.retryOrphansFrom(localAccountId, deviceId, limit, 0)).results
+  }
+
+  async retryOrphansFrom(
+    localAccountId: string,
+    deviceId: string,
+    limit = DEFAULT_RESOLUTION_INBOX_APPLY_LIMIT,
+    initialAfterServerSequence = 0,
+  ): Promise<NoteResolutionOrphanRetryPassResult> {
     this.validateLimit(limit)
+    if (!Number.isSafeInteger(initialAfterServerSequence) || initialAfterServerSequence < 0) {
+      throw new RangeError('Invalid orphan resolution inbox cursor.')
+    }
     const listOrphans = this.inbox.listOrphanResolutions?.bind(this.inbox)
     if (listOrphans === undefined) throw new NoteResolutionInboxApplyError('orphan_retry_unavailable')
     try {
       return await this.withAuthoritativeLease(localAccountId, deviceId, async (masterKey, scope) => {
         const results: NoteResolutionInboxApplyResult[] = []
         const seen = new Set<string>()
-        let afterServerSequence = 0
+        let afterServerSequence = initialAfterServerSequence
         let pages = 0
+        let listed = 0
+        let reachedEnd = false
         while (pages < MAX_ORPHAN_RETRY_PAGES) {
           const items = await listOrphans(localAccountId, deviceId, scope.canonicalUserId, limit, afterServerSequence)
           pages += 1
+          listed += items.length
           let previousSequence = afterServerSequence
           for (const item of items) {
             if (item.server_sequence <= previousSequence || seen.has(item.event_id)) {
@@ -262,10 +334,20 @@ export class NoteSyncResolutionInboxApplier {
             seen.add(item.event_id)
           }
           for (const item of items) results.push(await this.applyItem(masterKey, scope, item))
-          if (items.length === 0 || items.length < limit) break
+          if (items.length === 0 || items.length < limit) {
+            reachedEnd = true
+            afterServerSequence = previousSequence
+            break
+          }
           afterServerSequence = previousSequence
         }
-        return results
+        return {
+          listed,
+          lastServerSequence: afterServerSequence,
+          errorCount: results.filter(result => result.status === 'error').length,
+          reachedEnd,
+          results,
+        }
       })
     } catch (error) {
       throw topLevelError(error)

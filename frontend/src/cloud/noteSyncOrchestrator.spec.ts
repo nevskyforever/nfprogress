@@ -19,15 +19,25 @@ function harness(authEpoch: number) {
   const intents = { list: vi.fn().mockResolvedValue([]), recordSealFailure: vi.fn(), commitSealedEvent: vi.fn() }
   const uploader = { uploadOnce: vi.fn().mockResolvedValue({ uploaded: 0, deviceId: null }) }
   const inbox = { pullOnce: vi.fn().mockResolvedValue({ committed_cursor: 0, new_events: 0, replayed_events: 0, has_more: false }) }
-  const applier = { applyOnce: vi.fn().mockResolvedValue({ listed: 0, results: [] }) }
+  const applier = {
+    applyOnce: vi.fn().mockResolvedValue({ listed: 0, results: [] }),
+    applyPage: vi.fn().mockResolvedValue({ listed: 0, lastServerSequence: 0, errorCount: 0, results: [] }),
+  }
+  const resolutionApplier = {
+    applyReceivedPage: vi.fn().mockResolvedValue({ listed: 0, lastServerSequence: 0, errorCount: 0, results: [] }),
+    retryOrphansFrom: vi.fn().mockResolvedValue({ listed: 0, lastServerSequence: 0, errorCount: 0, reachedEnd: true, results: [] }),
+  }
   const deviceAck = { registerOnce: vi.fn().mockResolvedValue({ deviceId: DEVICE, serverAckCursor: 0 }), ackOnce: vi.fn().mockResolvedValue({ status: 'no_progress', cursor: 0 }) }
-  return { keys, intents, uploader, inbox, applier, deviceAck, invalidate: () => { current = false } }
+  return { keys, intents, uploader, inbox, applier, resolutionApplier, deviceAck, invalidate: () => { current = false } }
 }
 
-async function orchestrator() {
+async function orchestrator(mixed = false) {
   const runtime = auth(); await runtime.login('u', 'p')
   const h = harness(runtime.requireContext().authEpoch)
-  const value = new NoteSyncOrchestrator(runtime, h.keys as never, h.intents as never, h.uploader as never, h.inbox as never, h.applier as never, h.deviceAck as never)
+  const value = new NoteSyncOrchestrator(
+    runtime, h.keys as never, h.intents as never, h.uploader as never, h.inbox as never, h.applier as never, h.deviceAck as never,
+    ...(mixed ? [h.resolutionApplier as never] : []),
+  )
   return { runtime, h, value }
 }
 
@@ -115,5 +125,84 @@ describe('bounded Notes sync orchestration', () => {
     second.h.deviceAck.registerOnce.mockImplementationOnce(async () => { second.h.invalidate() })
     await expect(second.value.runOnce('local', DEVICE)).rejects.toBeInstanceOf(StaleAuthContextError)
     expect(second.h.uploader.uploadOnce).not.toHaveBeenCalled()
+  })
+
+  it('paginates v1 and resolution independently, advances past blocked rows and never ACKs mixed work', async () => {
+    const { h, value } = await orchestrator(true)
+    h.applier.applyPage
+      .mockResolvedValueOnce({ listed: 2, lastServerSequence: 4, errorCount: 0, results: [{ status: 'conflict' }] })
+      .mockResolvedValueOnce({ listed: 1, lastServerSequence: 8, errorCount: 0, results: [{ status: 'applied' }] })
+    h.resolutionApplier.applyReceivedPage
+      .mockResolvedValueOnce({ listed: 2, lastServerSequence: 7, errorCount: 0, results: [{ status: 'orphan' }] })
+      .mockResolvedValueOnce({ listed: 1, lastServerSequence: 9, errorCount: 1, results: [{ status: 'error' }] })
+    h.resolutionApplier.retryOrphansFrom.mockResolvedValueOnce({
+      listed: 1, lastServerSequence: 7, errorCount: 0, reachedEnd: true, results: [{ status: 'orphan' }],
+    })
+
+    const result = await value.runMixedInboxOnce('local', DEVICE, { applyLimit: 2, maxApplyPasses: 3 })
+    expect(h.applier.applyPage.mock.calls.map(call => call[3])).toEqual([0, 4])
+    expect(h.resolutionApplier.applyReceivedPage.mock.calls.map(call => call[3])).toEqual([0, 7])
+    expect(result.blocked).toEqual(['conflict', 'orphan', 'error'])
+    expect(result.hasRemainingWork).toBe(true)
+    expect(h.deviceAck.ackOnce).not.toHaveBeenCalled()
+    expect(h.applier.applyOnce).not.toHaveBeenCalled()
+  })
+
+  it('lets the independent resolution queue and orphan retry run after a v1 page failure', async () => {
+    const { h, value } = await orchestrator(true)
+    h.applier.applyPage.mockRejectedValueOnce(Object.assign(new Error('missing page reader'), { name: 'NoteInboxDecryptError' }))
+    h.resolutionApplier.applyReceivedPage.mockResolvedValueOnce({
+      listed: 1, lastServerSequence: 3, errorCount: 0, results: [{ status: 'applied' }],
+    })
+    const result = await value.runMixedInboxOnce('local', DEVICE)
+    expect(result.errors).toEqual([{ stage: 'apply_v1', code: 'NoteInboxDecryptError' }])
+    expect(h.resolutionApplier.applyReceivedPage).toHaveBeenCalledTimes(1)
+    expect(h.resolutionApplier.retryOrphansFrom).toHaveBeenCalledTimes(1)
+    expect(h.deviceAck.ackOnce).not.toHaveBeenCalled()
+  })
+
+  it('round-robins a long orphan queue between cycles and resets only after reaching its end', async () => {
+    const { h, value } = await orchestrator(true)
+    h.resolutionApplier.retryOrphansFrom
+      .mockResolvedValueOnce({ listed: 4, lastServerSequence: 4, errorCount: 0, reachedEnd: false, results: [{ status: 'orphan' }] })
+      .mockResolvedValueOnce({ listed: 4, lastServerSequence: 8, errorCount: 0, reachedEnd: false, results: [{ status: 'orphan' }] })
+      .mockResolvedValueOnce({ listed: 1, lastServerSequence: 9, errorCount: 0, reachedEnd: true, results: [{ status: 'applied' }] })
+      .mockResolvedValueOnce({ listed: 0, lastServerSequence: 0, errorCount: 0, reachedEnd: true, results: [] })
+    for (let cycle = 0; cycle < 4; cycle += 1) {
+      await value.runMixedInboxOnce('local', DEVICE, { applyLimit: 2, maxApplyPasses: 1 })
+    }
+    expect(h.resolutionApplier.retryOrphansFrom.mock.calls.map(call => call[3])).toEqual([0, 4, 8, 0])
+  })
+
+  it('keeps mixed processing single-flight and fails closed after key invalidation', async () => {
+    const first = await orchestrator(true)
+    let release!: () => void
+    first.h.applier.applyPage.mockImplementationOnce(() => new Promise(resolve => {
+      release = () => resolve({ listed: 0, lastServerSequence: 0, errorCount: 0, results: [] })
+    }))
+    const one = first.value.runMixedInboxOnce('local', DEVICE)
+    await vi.waitFor(() => expect(first.h.applier.applyPage).toHaveBeenCalledTimes(1))
+    const two = first.value.runMixedInboxOnce('local', DEVICE)
+    release()
+    await expect(Promise.all([one, two])).resolves.toHaveLength(2)
+    expect(first.h.applier.applyPage).toHaveBeenCalledTimes(1)
+
+    const stale = await orchestrator(true)
+    stale.h.applier.applyPage.mockImplementationOnce(async () => {
+      stale.h.invalidate()
+      return { listed: 0, lastServerSequence: 0, errorCount: 0, results: [] }
+    })
+    await expect(stale.value.runMixedInboxOnce('local', DEVICE)).rejects.toBeInstanceOf(StaleAuthContextError)
+    expect(stale.h.resolutionApplier.applyReceivedPage).not.toHaveBeenCalled()
+    expect(stale.h.deviceAck.ackOnce).not.toHaveBeenCalled()
+  })
+
+  it('keeps the production entrypoint v1-only and does not expose mixed processing without composition', async () => {
+    const { h, value } = await orchestrator()
+    await value.runOnce('local', DEVICE)
+    expect(h.resolutionApplier.applyReceivedPage).not.toHaveBeenCalled()
+    expect(h.resolutionApplier.retryOrphansFrom).not.toHaveBeenCalled()
+    expect(h.deviceAck.ackOnce).toHaveBeenCalledTimes(1)
+    await expect(value.runMixedInboxOnce('local', DEVICE)).rejects.toMatchObject({ name: 'NoteSyncMixedInboxUnavailableError' })
   })
 })

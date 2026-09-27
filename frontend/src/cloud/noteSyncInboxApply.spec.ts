@@ -40,8 +40,13 @@ async function received(amk: AccountMasterKey): Promise<ReceivedNoteSyncInboxIte
   return { ...event, server_sequence: 1, source_device_id: DEVICE, envelope: sealed.object }
 }
 
-function inbox(item: ReceivedNoteSyncInboxItem): NoteSyncInboxRepository {
-  return { readPullState: vi.fn(), commitInboundPage: vi.fn(), listReceived: vi.fn(async () => [item]) }
+function inbox(item: ReceivedNoteSyncInboxItem, withPage = false): NoteSyncInboxRepository {
+  return {
+    readPullState: vi.fn(),
+    commitInboundPage: vi.fn(),
+    listReceived: vi.fn(async () => [item]),
+    ...(withPage ? { listReceivedPage: vi.fn(async () => [item]) } : {}),
+  } as NoteSyncInboxRepository
 }
 
 function bindings(auth: NormalUserAuthRuntime): AuthoritativeAccountBinding {
@@ -138,5 +143,27 @@ describe('C15.7B protected decrypt-to-apply adapter', () => {
     ).applyOnce('local', DEVICE)
     expect(result.results).toEqual([{ event_id: EVENT, server_sequence: 1, status: 'error', error_code: 'runtime_unavailable' }])
     expect(captured?.plaintext.every(byte => byte === 0)).toBe(true)
+  })
+
+  it('applies one strict v1 page, reports its cursor and rejects an unavailable paginated reader', async () => {
+    const auth = runtime(); await auth.login('u', 'p')
+    const item = await received(amk); item.server_sequence = 7
+    const store = inbox(item, true)
+    const apply: NoteSyncRemoteApplyRepository = { applyVerified: vi.fn().mockResolvedValue('applied') }
+    const value = new NoteSyncInboxRemoteApplier(
+      auth, bindings(auth), { leaseForAccount: vi.fn(() => lease(amk)) } as unknown as RuntimeKeyContext,
+      store, apply,
+    )
+    await expect(value.applyPage('local', DEVICE, 4, 5)).resolves.toEqual({
+      listed: 1, lastServerSequence: 7, errorCount: 0,
+      results: [{ event_id: EVENT, server_sequence: 7, status: 'applied' }],
+    })
+    expect(store.listReceivedPage).toHaveBeenCalledWith('local', DEVICE, USER, 'v1', 4, 5)
+
+    const unavailable = new NoteSyncInboxRemoteApplier(
+      auth, bindings(auth), { leaseForAccount: vi.fn(() => lease(amk)) } as unknown as RuntimeKeyContext,
+      inbox(await received(amk)), apply,
+    )
+    await expect(unavailable.applyPage('local', DEVICE)).rejects.toMatchObject({ code: 'paginated_reader_unavailable' })
   })
 })

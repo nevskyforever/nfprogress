@@ -38,7 +38,10 @@ function harness() {
     leaseForAccount: vi.fn(() => active ? { ...lease, authEpoch: userAuth.requireContext().authEpoch } : null),
     lock: vi.fn(async () => { active = false }), dispose: vi.fn(async () => { active = false }),
   }
-  const orchestrator = { runOnce: vi.fn().mockResolvedValue(EMPTY_RESULT) }
+  const orchestrator = {
+    runOnce: vi.fn().mockResolvedValue(EMPTY_RESULT),
+    runMixedInboxOnce: vi.fn().mockResolvedValue(EMPTY_RESULT),
+  }
   const bootstrap = {
     reconcile: vi.fn().mockResolvedValue(READY_REGISTRY),
     preflightLocalProject: vi.fn().mockResolvedValue([]),
@@ -98,6 +101,13 @@ describe('headless normal-user Notes sync runtime', () => {
     await vi.waitFor(() => expect(h.bootstrap.runReadyCycle).toHaveBeenCalledTimes(1))
     pending.resolve(EMPTY_RESULT)
     await expect(Promise.all([first, second])).resolves.toHaveLength(2)
+  })
+
+  it('keeps ordinary production retries on the v1-only orchestrator entrypoint', async () => {
+    const h = harness(); await h.runtime.login('user', 'account-password'); await h.runtime.unlock('passphrase')
+    await h.runtime.retry({ applyLimit: 2, maxApplyPasses: 1 })
+    expect(h.orchestrator.runOnce).toHaveBeenCalledWith(IDENTITY.local_account_id, IDENTITY.device_id, { applyLimit: 2, maxApplyPasses: 1 })
+    expect(h.orchestrator.runMixedInboxOnce).not.toHaveBeenCalled()
   })
 
   it('keeps project preflight, bootstrap, import and pause behind current auth and key authority', async () => {

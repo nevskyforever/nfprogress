@@ -48,11 +48,13 @@ function bindings(auth: NormalUserAuthRuntime): AuthoritativeAccountBinding {
 function repository(
   received: ReceivedNoteResolutionInboxItem[] = [],
   listOrphans?: NoteSyncInboxRepository['listOrphanResolutions'],
+  listReceivedPage?: NoteSyncInboxRepository['listReceivedPage'],
 ): NoteSyncInboxRepository {
   return {
     readPullState: vi.fn().mockResolvedValue({ pull_cursor: 10, ack_cursor: 4 }),
     listReceived: vi.fn(async () => received),
     ...(listOrphans ? { listOrphanResolutions: listOrphans } : {}),
+    ...(listReceivedPage ? { listReceivedPage } : {}),
     commitInboundPage: vi.fn(),
   }
 }
@@ -199,6 +201,31 @@ describe('C17 D3B authenticated resolution v2 inbox apply', () => {
     ])
     expect(listOrphans.mock.calls.map(call => call[4])).toEqual([0, 2])
     expect(nativeApply.applyVerifiedResolution).toHaveBeenCalledTimes(3)
+  })
+
+  it('uses the resolution-only page reader and carries orphan progress across bounded passes', async () => {
+    const auth = runtime(); await auth.login('u', 'p')
+    const received = await encryptedFixture(amk, 0, REMOTE_DEVICE, { server_sequence: 6 })
+    const receivedPage = vi.fn(async () => [received])
+    const first = await encryptedFixture(amk, 1, REMOTE_DEVICE, { server_sequence: 11 })
+    const second = await encryptedFixture(amk, 2, REMOTE_DEVICE, { server_sequence: 12 })
+    const listOrphans = vi.fn(async (_account: string, _device: string, _user: string, _limit: number, after: number) => after === 10 ? [first] : [second])
+    const value = applier(
+      auth,
+      amk,
+      repository([], listOrphans, receivedPage as unknown as NonNullable<NoteSyncInboxRepository['listReceivedPage']>),
+      native(),
+    )
+
+    await expect(value.applyReceivedPage('local', DEVICE, 4, 5)).resolves.toMatchObject({
+      listed: 1, lastServerSequence: 6, errorCount: 0,
+      results: [{ server_sequence: 6, status: 'applied' }],
+    })
+    expect(receivedPage).toHaveBeenCalledWith('local', DEVICE, USER, 'resolution', 4, 5)
+
+    const orphan = await value.retryOrphansFrom('local', DEVICE, 2, 10)
+    expect(orphan).toMatchObject({ listed: 1, lastServerSequence: 11, reachedEnd: true, errorCount: 0 })
+    expect(listOrphans).toHaveBeenCalledWith('local', DEVICE, USER, 2, 10)
   })
 
   it('reports an unavailable orphan reader and rejects invalid native statuses without claiming success', async () => {
