@@ -66,6 +66,20 @@ describe('C15.7A authenticated durable inbox decryption', () => {
     })
   })
 
+  it('classifies resolution v2 as pending without sending it through the frozen v1 decoder', async () => {
+    const auth = runtime(); await auth.login('u', 'p')
+    const binding = new AuthoritativeAccountBinding(auth, { ensure: vi.fn(async () => 'validated' as const) })
+    const v1 = await item(amk)
+    const resolution: ReceivedNoteSyncInboxItem = { ...v1, operation: 'resolution', revision: 2 }
+    const repository: NoteSyncInboxRepository = { readPullState: vi.fn(), commitInboundPage: vi.fn(), listReceived: vi.fn(async () => [resolution]) }
+    const keys = { leaseForAccount: vi.fn(() => lease(amk)) } as unknown as RuntimeKeyContext
+    await expect(new NoteSyncInboxDecryptor(auth, binding, keys, repository).decryptOnce('local', DEVICE)).resolves.toEqual({
+      listed: 1,
+      results: [{ event_id: EVENT, server_sequence: 1, status: 'error', error_code: 'resolution_v2_pending' }],
+    })
+    expect(resolution.envelope.ciphertext.every(byte => byte === 0)).toBe(true)
+  })
+
   it('does not start when the AMK is unavailable or auth has gone stale', async () => {
     const auth = runtime(); await auth.login('u', 'p')
     const binding = new AuthoritativeAccountBinding(auth, { ensure: vi.fn(async () => 'validated' as const) })

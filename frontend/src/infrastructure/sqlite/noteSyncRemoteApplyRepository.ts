@@ -29,8 +29,24 @@ export interface NoteSyncRemoteApplyRepository {
   applyVerified(command: VerifiedNoteSyncRemoteApplyCommand): Promise<NoteSyncRemoteApplyStatus>
 }
 
-export class SQLiteNoteSyncRemoteApplyRepository implements NoteSyncRemoteApplyRepository {
+export type NoteSyncResolutionPeerApplyStatus = 'applied' | 'already_applied' | 'orphan' | 'self_echo_pending'
+export type NoteSyncResolutionSelfEchoStatus = 'reconciled' | 'already_reconciled'
+
+export interface NoteSyncResolutionRemoteApplyRepository {
+  applyVerifiedResolution(command: VerifiedNoteSyncRemoteApplyCommand): Promise<NoteSyncResolutionPeerApplyStatus>
+  reconcileVerifiedResolutionSelfEcho(command: VerifiedNoteSyncRemoteApplyCommand): Promise<NoteSyncResolutionSelfEchoStatus>
+}
+
+export class SQLiteNoteSyncRemoteApplyRepository implements NoteSyncRemoteApplyRepository, NoteSyncResolutionRemoteApplyRepository {
   applyVerified(command: VerifiedNoteSyncRemoteApplyCommand): Promise<NoteSyncRemoteApplyStatus> {
     return invoke<NoteSyncRemoteApplyStatus>('apply_verified_received_note', { command })
+  }
+
+  applyVerifiedResolution(command: VerifiedNoteSyncRemoteApplyCommand): Promise<NoteSyncResolutionPeerApplyStatus> {
+    return invoke<NoteSyncResolutionPeerApplyStatus>('apply_verified_received_resolution_v2', { command })
+  }
+
+  reconcileVerifiedResolutionSelfEcho(command: VerifiedNoteSyncRemoteApplyCommand): Promise<NoteSyncResolutionSelfEchoStatus> {
+    return invoke<NoteSyncResolutionSelfEchoStatus>('reconcile_verified_received_resolution_self_echo', { command })
   }
 }

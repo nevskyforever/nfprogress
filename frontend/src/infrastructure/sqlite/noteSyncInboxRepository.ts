@@ -5,29 +5,41 @@ import type { ValidatedEncryptedPullBatch } from '@/cloud/noteSyncPull'
 
 export interface NoteSyncPullState { pull_cursor: number; ack_cursor: number }
 export interface CommitInboundPageResult { committed_cursor: number; new_events: number; replayed_events: number; has_more: boolean }
-export interface ReceivedNoteSyncInboxItem {
+interface ReceivedNoteSyncInboxItemBase {
   event_id: string
   server_sequence: number
   source_device_id: string
   project_id: string
   entity_id: string
   entity_type: 'note'
-  operation: 'upsert' | 'delete'
   revision: number
   updated_at: string
   deleted_at: string | null
   envelope: ObjectCryptoEnvelope
 }
 
-export interface OrphanNoteResolutionInboxItem extends Omit<ReceivedNoteSyncInboxItem, 'operation'> {
+export interface ReceivedNoteSyncV1InboxItem extends ReceivedNoteSyncInboxItemBase {
+  operation: 'upsert' | 'delete'
+}
+
+export interface ReceivedNoteResolutionInboxItem extends ReceivedNoteSyncInboxItemBase {
   operation: 'resolution'
 }
 
-interface ReceivedNoteSyncInboxWireItem extends Omit<ReceivedNoteSyncInboxItem, 'envelope'> {
-  envelope: { crypto_version: number, aad_version: number, nonce: string, ciphertext: string }
-}
+export type ReceivedNoteSyncInboxItem = ReceivedNoteSyncV1InboxItem | ReceivedNoteResolutionInboxItem
+export type OrphanNoteResolutionInboxItem = ReceivedNoteResolutionInboxItem
 
-interface OrphanNoteResolutionInboxWireItem extends Omit<OrphanNoteResolutionInboxItem, 'envelope'> {
+interface NoteSyncInboxWireItem {
+  event_id: string
+  server_sequence: number
+  source_device_id: string
+  project_id: string
+  entity_id: string
+  entity_type: string
+  operation: string
+  revision: number
+  updated_at: string
+  deleted_at: string | null
   envelope: { crypto_version: number, aad_version: number, nonce: string, ciphertext: string }
 }
 
@@ -38,7 +50,7 @@ export interface NoteSyncInboxRepository {
   commitInboundPage(batch: ValidatedEncryptedPullBatch, canonicalUserId: string): Promise<CommitInboundPageResult>
 }
 
-function decodeVerifiedEnvelope(envelope: ReceivedNoteSyncInboxWireItem['envelope']): ObjectCryptoEnvelope {
+function decodeVerifiedEnvelope(envelope: NoteSyncInboxWireItem['envelope']): ObjectCryptoEnvelope {
   if (envelope.crypto_version !== CRYPTO_VERSION || envelope.aad_version !== AAD_VERSION) {
     throw new TypeError('Native inbox reader returned an unsupported envelope version.')
   }
@@ -50,6 +62,25 @@ function decodeVerifiedEnvelope(envelope: ReceivedNoteSyncInboxWireItem['envelop
   }
 }
 
+function decodeReceivedItem(item: NoteSyncInboxWireItem): ReceivedNoteSyncInboxItem {
+  if (item.entity_type !== 'note') throw new TypeError('Native inbox reader returned a non-Note event.')
+  const common = {
+    event_id: item.event_id,
+    server_sequence: item.server_sequence,
+    source_device_id: item.source_device_id,
+    project_id: item.project_id,
+    entity_id: item.entity_id,
+    entity_type: 'note' as const,
+    revision: item.revision,
+    updated_at: item.updated_at,
+    deleted_at: item.deleted_at,
+    envelope: decodeVerifiedEnvelope(item.envelope),
+  }
+  if (item.operation === 'upsert' || item.operation === 'delete') return { ...common, operation: item.operation }
+  if (item.operation === 'resolution') return { ...common, operation: 'resolution' }
+  throw new TypeError('Native inbox reader returned an unsupported Note operation.')
+}
+
 export class SQLiteNoteSyncInboxRepository implements NoteSyncInboxRepository {
   readPullState(accountId: string, deviceId: string, canonicalUserId: string): Promise<NoteSyncPullState> {
     return invoke('read_note_sync_pull_state', { command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId } })
@@ -57,24 +88,23 @@ export class SQLiteNoteSyncInboxRepository implements NoteSyncInboxRepository {
 
   async listReceived(accountId: string, deviceId: string, canonicalUserId: string, limit: number): Promise<ReceivedNoteSyncInboxItem[]> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32) throw new RangeError('Invalid received Note inbox list limit.')
-    const items = await invoke<ReceivedNoteSyncInboxWireItem[]>('list_received_note_sync_inbox', {
+    const items = await invoke<NoteSyncInboxWireItem[]>('list_received_note_sync_inbox', {
       command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId, limit },
     })
-    return items.map(item => ({
-      ...item,
-      envelope: decodeVerifiedEnvelope(item.envelope),
-    }))
+    return items.map(decodeReceivedItem)
   }
 
   async listOrphanResolutions(accountId: string, deviceId: string, canonicalUserId: string, limit: number, afterServerSequence: number): Promise<OrphanNoteResolutionInboxItem[]> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32) throw new RangeError('Invalid orphan resolution inbox list limit.')
     if (!Number.isSafeInteger(afterServerSequence) || afterServerSequence < 0) throw new RangeError('Invalid orphan resolution inbox cursor.')
-    const items = await invoke<OrphanNoteResolutionInboxWireItem[]>('list_orphan_note_resolution_inbox', {
+    const items = await invoke<NoteSyncInboxWireItem[]>('list_orphan_note_resolution_inbox', {
       command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId, limit, after_server_sequence: afterServerSequence },
     })
     return items.map(item => {
       if (item.operation !== 'resolution') throw new TypeError('Native orphan inbox reader returned a non-resolution event.')
-      return { ...item, operation: 'resolution', envelope: decodeVerifiedEnvelope(item.envelope) }
+      const decoded = decodeReceivedItem(item)
+      if (decoded.operation !== 'resolution') throw new TypeError('Native orphan inbox reader returned a non-resolution event.')
+      return decoded
     })
   }
 

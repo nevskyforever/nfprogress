@@ -1,7 +1,7 @@
 import type { RuntimeKeyContext } from '@/auth/keyContext'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { StaleAuthContextError, type NormalUserAuthRuntime } from '@/auth/userAuth'
-import type { ReceivedNoteSyncInboxItem, NoteSyncInboxRepository } from '@/infrastructure/sqlite/noteSyncInboxRepository'
+import type { ReceivedNoteSyncInboxItem, ReceivedNoteSyncV1InboxItem, NoteSyncInboxRepository } from '@/infrastructure/sqlite/noteSyncInboxRepository'
 import { EncryptedSyncProtocolError, openNoteSyncEvent } from './encryptedSyncProtocol'
 import type { NoteSyncPlaintext } from './noteSyncCodec'
 
@@ -18,6 +18,7 @@ export type NoteInboxDecryptErrorCode =
   | 'metadata_mismatch'
   | 'dependency_not_synced'
   | 'unsupported_content_format'
+  | 'resolution_v2_pending'
   | 'runtime_unavailable'
 
 export interface NoteInboxDecryptResult {
@@ -74,7 +75,7 @@ export async function withDecryptedReceivedNoteInbox<T>(
   deviceId: string,
   limit: number,
   visitor: (
-    item: ReceivedNoteSyncInboxItem,
+    item: ReceivedNoteSyncV1InboxItem,
     plaintext: NoteSyncPlaintext,
     scope: { readonly accountId: string; readonly canonicalUserId: string; readonly pullingDeviceId: string },
   ) => Promise<T>,
@@ -96,6 +97,12 @@ export async function withDecryptedReceivedNoteInbox<T>(
     const values: Array<{ event: ReceivedNoteSyncInboxItem, value?: T, error_code?: NoteInboxDecryptErrorCode }> = []
     for (const item of items) {
       if (item.entity_type !== 'note') throw new NoteInboxDecryptError('invalid_inbox_scope')
+      if (item.operation === 'resolution') {
+        values.push({ event: item, error_code: 'resolution_v2_pending' })
+        item.envelope.nonce.fill(0)
+        item.envelope.ciphertext.fill(0)
+        continue
+      }
       try {
         const plaintext = await openNoteSyncEvent(masterKey, lease.canonicalUserId, item, item.envelope)
         values.push({

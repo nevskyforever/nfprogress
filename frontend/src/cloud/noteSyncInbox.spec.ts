@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
@@ -19,6 +19,8 @@ function auth() {
 }
 
 describe('durable encrypted inbox orchestration', () => {
+  beforeEach(() => invoke.mockReset())
+
   it('reads the durable cursor and commits the validated page without applying it', async () => {
     const runtime = auth(); await runtime.login('u', 'p')
     const binding = new AuthoritativeAccountBinding(runtime, { ensure: vi.fn().mockResolvedValue('validated') })
@@ -54,10 +56,24 @@ describe('durable encrypted inbox orchestration', () => {
     })
   })
 
+  it('represents received resolution v2 explicitly in the mixed inbox contract', async () => {
+    invoke.mockResolvedValueOnce([{
+      event_id: '123e4567-e89b-42d3-a456-426614174098', server_sequence: 7,
+      source_device_id: DEVICE, project_id: 'project', entity_id: 'note', entity_type: 'note',
+      operation: 'resolution', revision: 4, updated_at: '2026-09-27T00:00:00Z', deleted_at: null,
+      envelope: { crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: 'AAAAAAAAAAAAAAAAAAAAAA' },
+    }])
+    const items = await new SQLiteNoteSyncInboxRepository().listReceived('local', DEVICE, USER, 8)
+    expect(items[0]).toMatchObject({ operation: 'resolution', revision: 4 })
+    expect(invoke).toHaveBeenLastCalledWith('list_received_note_sync_inbox', {
+      command: { account_id: 'local', device_id: DEVICE, canonical_user_id: USER, limit: 8 },
+    })
+  })
+
   it('rejects invalid orphan reader pagination before IPC', async () => {
     const repository = new SQLiteNoteSyncInboxRepository()
     await expect(repository.listOrphanResolutions('local', DEVICE, USER, 0, 0)).rejects.toThrow(RangeError)
     await expect(repository.listOrphanResolutions('local', DEVICE, USER, 1, -1)).rejects.toThrow(RangeError)
-    expect(invoke).toHaveBeenCalledTimes(1)
+    expect(invoke).not.toHaveBeenCalled()
   })
 })
