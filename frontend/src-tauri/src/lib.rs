@@ -2362,6 +2362,23 @@ fn apply_verified_received_resolution_v2(
         .map_err(|error| error.to_string())
 }
 
+/// Dormant self-echo boundary for a locally-created resolution returned by
+/// pull. It records server acceptance and durable apply evidence without
+/// repeating the already-completed local Note mutation.
+#[tauri::command]
+fn reconcile_verified_received_resolution_self_echo(
+    command: note_sync::ReconcileVerifiedReceivedResolutionSelfEchoIpcCommand,
+) -> Result<note_sync::ReconcileVerifiedReceivedResolutionSelfEchoResult, String> {
+    let ordinary = open_notes_database(true)?;
+    require_sqlite_notes_owner(&ordinary)?;
+    drop(ordinary);
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    let mut connection = sqlite::open_privileged_remote_apply_database(&database)
+        .map_err(|error| error.to_string())?;
+    note_sync::reconcile_verified_received_resolution_self_echo_ipc(&mut connection, command)
+        .map_err(|error| error.to_string())
+}
+
 #[tauri::command]
 fn commit_note_sync_inbound_page(
     command: note_sync::CommitNoteSyncInboundPageCommand,
@@ -5564,6 +5581,7 @@ pub fn run() {
             list_received_note_sync_inbox,
             apply_verified_received_note,
             apply_verified_received_resolution_v2,
+            reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             create_note,
             update_note,
