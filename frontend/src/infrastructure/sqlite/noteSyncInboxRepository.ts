@@ -28,6 +28,7 @@ export interface ReceivedNoteResolutionInboxItem extends ReceivedNoteSyncInboxIt
 
 export type ReceivedNoteSyncInboxItem = ReceivedNoteSyncV1InboxItem | ReceivedNoteResolutionInboxItem
 export type OrphanNoteResolutionInboxItem = ReceivedNoteResolutionInboxItem
+export type ReceivedNoteSyncInboxPageKind = 'v1' | 'resolution'
 
 interface NoteSyncInboxWireItem {
   event_id: string
@@ -46,6 +47,10 @@ interface NoteSyncInboxWireItem {
 export interface NoteSyncInboxRepository {
   readPullState(accountId: string, deviceId: string, canonicalUserId: string): Promise<NoteSyncPullState>
   listReceived(accountId: string, deviceId: string, canonicalUserId: string, limit: number): Promise<ReceivedNoteSyncInboxItem[]>
+  listReceivedPage?: {
+    (accountId: string, deviceId: string, canonicalUserId: string, kind: 'v1', limit: number, afterServerSequence: number): Promise<ReceivedNoteSyncV1InboxItem[]>
+    (accountId: string, deviceId: string, canonicalUserId: string, kind: 'resolution', limit: number, afterServerSequence: number): Promise<ReceivedNoteResolutionInboxItem[]>
+  }
   listOrphanResolutions?(accountId: string, deviceId: string, canonicalUserId: string, limit: number, afterServerSequence: number): Promise<OrphanNoteResolutionInboxItem[]>
   commitInboundPage(batch: ValidatedEncryptedPullBatch, canonicalUserId: string): Promise<CommitInboundPageResult>
 }
@@ -92,6 +97,28 @@ export class SQLiteNoteSyncInboxRepository implements NoteSyncInboxRepository {
       command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId, limit },
     })
     return items.map(decodeReceivedItem)
+  }
+
+  async listReceivedPage(accountId: string, deviceId: string, canonicalUserId: string, kind: 'v1', limit: number, afterServerSequence: number): Promise<ReceivedNoteSyncV1InboxItem[]>
+  async listReceivedPage(accountId: string, deviceId: string, canonicalUserId: string, kind: 'resolution', limit: number, afterServerSequence: number): Promise<ReceivedNoteResolutionInboxItem[]>
+  async listReceivedPage(accountId: string, deviceId: string, canonicalUserId: string, kind: ReceivedNoteSyncInboxPageKind, limit: number, afterServerSequence: number): Promise<ReceivedNoteSyncInboxItem[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32) throw new RangeError('Invalid received Note inbox page limit.')
+    if (!Number.isSafeInteger(afterServerSequence) || afterServerSequence < 0) throw new RangeError('Invalid received Note inbox page cursor.')
+    const items = await invoke<NoteSyncInboxWireItem[]>('list_received_note_sync_inbox_page', {
+      command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId, kind, limit, after_server_sequence: afterServerSequence },
+    })
+    if (kind === 'v1') {
+      return items.map(item => {
+        const decoded = decodeReceivedItem(item)
+        if (decoded.operation === 'resolution') throw new TypeError('Native v1 inbox page returned a resolution.')
+        return decoded
+      })
+    }
+    return items.map(item => {
+      const decoded = decodeReceivedItem(item)
+      if (decoded.operation !== 'resolution') throw new TypeError('Native resolution inbox page returned a v1 event.')
+      return decoded
+    })
   }
 
   async listOrphanResolutions(accountId: string, deviceId: string, canonicalUserId: string, limit: number, afterServerSequence: number): Promise<OrphanNoteResolutionInboxItem[]> {

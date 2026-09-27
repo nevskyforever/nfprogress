@@ -70,6 +70,42 @@ describe('durable encrypted inbox orchestration', () => {
     })
   })
 
+  it('adapts independently paginated, strictly typed v1 and resolution received streams', async () => {
+    const v1 = {
+      event_id: '123e4567-e89b-42d3-a456-426614174097', server_sequence: 4,
+      source_device_id: DEVICE, project_id: 'project', entity_id: 'note', entity_type: 'note',
+      operation: 'delete', revision: 3, updated_at: '2026-09-27T00:00:00Z', deleted_at: '2026-09-27T00:00:00Z',
+      envelope: { crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: 'AAAAAAAAAAAAAAAAAAAAAA' },
+    }
+    const resolution = { ...v1, event_id: '123e4567-e89b-42d3-a456-426614174098', server_sequence: 9, operation: 'resolution', revision: 4, deleted_at: null }
+    invoke.mockResolvedValueOnce([v1]).mockResolvedValueOnce([resolution])
+    const repository = new SQLiteNoteSyncInboxRepository()
+    const v1Items = await repository.listReceivedPage('local', DEVICE, USER, 'v1', 8, 3)
+    const resolutionItems = await repository.listReceivedPage('local', DEVICE, USER, 'resolution', 8, 8)
+    expect(v1Items).toEqual([expect.objectContaining({ operation: 'delete', server_sequence: 4, envelope: expect.objectContaining({ ciphertext: new Uint8Array(16) }) })])
+    expect(resolutionItems).toEqual([expect.objectContaining({ operation: 'resolution', server_sequence: 9 })])
+    expect(invoke).toHaveBeenNthCalledWith(1, 'list_received_note_sync_inbox_page', {
+      command: { account_id: 'local', device_id: DEVICE, canonical_user_id: USER, kind: 'v1', limit: 8, after_server_sequence: 3 },
+    })
+    expect(invoke).toHaveBeenNthCalledWith(2, 'list_received_note_sync_inbox_page', {
+      command: { account_id: 'local', device_id: DEVICE, canonical_user_id: USER, kind: 'resolution', limit: 8, after_server_sequence: 8 },
+    })
+  })
+
+  it('rejects invalid received-page pagination and malformed native envelopes before a typed result escapes', async () => {
+    const repository = new SQLiteNoteSyncInboxRepository()
+    await expect(repository.listReceivedPage('local', DEVICE, USER, 'v1', 0, 0)).rejects.toThrow(RangeError)
+    await expect(repository.listReceivedPage('local', DEVICE, USER, 'resolution', 1, -1)).rejects.toThrow(RangeError)
+    expect(invoke).not.toHaveBeenCalled()
+    invoke.mockResolvedValueOnce([{
+      event_id: '123e4567-e89b-42d3-a456-426614174098', server_sequence: 9,
+      source_device_id: DEVICE, project_id: 'project', entity_id: 'note', entity_type: 'note',
+      operation: 'resolution', revision: 4, updated_at: '2026-09-27T00:00:00Z', deleted_at: null,
+      envelope: { crypto_version: 2, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: 'AAAAAAAAAAAAAAAAAAAAAA' },
+    }])
+    await expect(repository.listReceivedPage('local', DEVICE, USER, 'resolution', 1, 0)).rejects.toThrow(TypeError)
+  })
+
   it('rejects invalid orphan reader pagination before IPC', async () => {
     const repository = new SQLiteNoteSyncInboxRepository()
     await expect(repository.listOrphanResolutions('local', DEVICE, USER, 0, 0)).rejects.toThrow(RangeError)
