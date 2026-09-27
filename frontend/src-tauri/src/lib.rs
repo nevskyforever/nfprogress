@@ -2328,6 +2328,16 @@ fn list_received_note_sync_inbox(
         .map_err(|error| error.to_string())
 }
 
+#[tauri::command]
+fn list_orphan_note_resolution_inbox(
+    command: note_sync::ListOrphanNoteResolutionInboxCommand,
+) -> Result<Vec<note_sync::ReceivedNoteSyncInboxItem>, String> {
+    let connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::list_orphan_note_resolution_inbox(&connection, &command)
+        .map_err(|error| error.to_string())
+}
+
 /// Receives only short-lived, TypeScript-authenticated Note plaintext bytes.
 /// The command has no SQL/capability/path inputs; Rust rechecks durable scope,
 /// encrypted-object identity, plaintext structure and every mutable decision.
@@ -5579,6 +5589,7 @@ pub fn run() {
             prepare_note_sync_ack,
             commit_note_sync_ack,
             list_received_note_sync_inbox,
+            list_orphan_note_resolution_inbox,
             apply_verified_received_note,
             apply_verified_received_resolution_v2,
             reconcile_verified_received_resolution_self_echo,

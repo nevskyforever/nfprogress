@@ -953,4 +953,16 @@ Final local checks: Rust `note_sync` **129 passed, 0 failed, 0 ignored**; Rust `
 
 D2B2 does not implement D3's scoped reader/retry path for durable `orphan` resolution rows, TypeScript v2 pull/decrypt-to-native integration, v2 ACK transport or full multi-parent causal continuation. Subsequent v1 intents over a resolution head remain fail-closed until causal continuation is implemented and tested. Pass 2F-E remains responsible for coordinated runtime cutover and real two-device acceptance. C16 remains CLOSED; C17 remains IN PROGRESS; official progress remains **73,0%**.
 
+## C17 Pass 2F-D2B2 — remote acceptance
+
+**Статус: REMOTELY ACCEPTED.** Commit `457b5ed8fdac11d457c087159090a1354b623e1f`; SQLite CI `36320191546` — **SUCCESS**; Cloud CI `36320191549` — **SUCCESS**. D2B2 is accepted with the same dormant boundary described above.
+
+## C17 Pass 2F-D3A — durable orphan resolution retry reader
+
+**Статус: IMPLEMENTED LOCALLY.** A separate registered Tauri command `list_orphan_note_resolution_inbox` reads only the exact account-scoped durable `note` / `resolution` rows in state `orphan`. It repeats canonical-user and current pulling-device validation, uses a read-only SQLite transaction, returns immutable metadata plus the verified encrypted envelope, and never decrypts plaintext or mutates inbox state, errors, ACK, cursor or causal proof.
+
+The reader accepts `limit` 1–32 and a non-negative safe-integer `after_server_sequence`, orders by ascending server sequence and applies a strict keyset boundary. It validates crypto/AAD versions, canonical nonce/ciphertext, individual object bounds and aggregate ciphertext bounds through the existing envelope validator. The TypeScript `NoteSyncInboxRepository` exposes a typed dormant `listOrphanResolutions(...)` adapter with literal `operation: 'resolution'`, canonical base64url decoding and explicit preservation/verification of native crypto/AAD versions. It is not called by the production runtime, orchestrator or UI, and does not route v2 resolutions through the v1 decryptor.
+
+Focused Rust/SQLite coverage proves orphan-only filtering, exclusion of received/applied/v1 rows, scope failures, 1–32 limits, keyset pagination, missing durable objects, malformed envelopes and no SQLite mutation; existing received-reader coverage remains present. Focused `noteSyncInbox.spec.ts` coverage proves typed metadata/envelope decoding, IPC arguments and pagination validation. D3A remains locally implemented until its local commit and remote CI. The next D3 work is TypeScript v2 authenticated decrypt/dispatch, separate peer/self-echo routing, bounded orphan retry and then orchestrator integration. C17 remains IN PROGRESS; official progress remains **73,0%**.
+
 # КОНЕЦ ЧЕКПОИНТА

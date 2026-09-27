@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { decodeBase64Url, encodeBase64Url } from '@/api/base64url'
-import type { ObjectCryptoEnvelope } from '@/crypto'
+import { AAD_VERSION, CRYPTO_VERSION, type ObjectCryptoEnvelope } from '@/crypto'
 import type { ValidatedEncryptedPullBatch } from '@/cloud/noteSyncPull'
 
 export interface NoteSyncPullState { pull_cursor: number; ack_cursor: number }
@@ -19,14 +19,35 @@ export interface ReceivedNoteSyncInboxItem {
   envelope: ObjectCryptoEnvelope
 }
 
+export interface OrphanNoteResolutionInboxItem extends Omit<ReceivedNoteSyncInboxItem, 'operation'> {
+  operation: 'resolution'
+}
+
 interface ReceivedNoteSyncInboxWireItem extends Omit<ReceivedNoteSyncInboxItem, 'envelope'> {
+  envelope: { crypto_version: number, aad_version: number, nonce: string, ciphertext: string }
+}
+
+interface OrphanNoteResolutionInboxWireItem extends Omit<OrphanNoteResolutionInboxItem, 'envelope'> {
   envelope: { crypto_version: number, aad_version: number, nonce: string, ciphertext: string }
 }
 
 export interface NoteSyncInboxRepository {
   readPullState(accountId: string, deviceId: string, canonicalUserId: string): Promise<NoteSyncPullState>
   listReceived(accountId: string, deviceId: string, canonicalUserId: string, limit: number): Promise<ReceivedNoteSyncInboxItem[]>
+  listOrphanResolutions?(accountId: string, deviceId: string, canonicalUserId: string, limit: number, afterServerSequence: number): Promise<OrphanNoteResolutionInboxItem[]>
   commitInboundPage(batch: ValidatedEncryptedPullBatch, canonicalUserId: string): Promise<CommitInboundPageResult>
+}
+
+function decodeVerifiedEnvelope(envelope: ReceivedNoteSyncInboxWireItem['envelope']): ObjectCryptoEnvelope {
+  if (envelope.crypto_version !== CRYPTO_VERSION || envelope.aad_version !== AAD_VERSION) {
+    throw new TypeError('Native inbox reader returned an unsupported envelope version.')
+  }
+  return {
+    crypto_version: envelope.crypto_version,
+    aad_version: envelope.aad_version,
+    nonce: decodeBase64Url(envelope.nonce, { expectedLength: 24 }),
+    ciphertext: decodeBase64Url(envelope.ciphertext),
+  }
 }
 
 export class SQLiteNoteSyncInboxRepository implements NoteSyncInboxRepository {
@@ -41,13 +62,20 @@ export class SQLiteNoteSyncInboxRepository implements NoteSyncInboxRepository {
     })
     return items.map(item => ({
       ...item,
-      envelope: {
-        crypto_version: 1,
-        aad_version: 1,
-        nonce: decodeBase64Url(item.envelope.nonce, { expectedLength: 24 }),
-        ciphertext: decodeBase64Url(item.envelope.ciphertext),
-      },
+      envelope: decodeVerifiedEnvelope(item.envelope),
     }))
+  }
+
+  async listOrphanResolutions(accountId: string, deviceId: string, canonicalUserId: string, limit: number, afterServerSequence: number): Promise<OrphanNoteResolutionInboxItem[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32) throw new RangeError('Invalid orphan resolution inbox list limit.')
+    if (!Number.isSafeInteger(afterServerSequence) || afterServerSequence < 0) throw new RangeError('Invalid orphan resolution inbox cursor.')
+    const items = await invoke<OrphanNoteResolutionInboxWireItem[]>('list_orphan_note_resolution_inbox', {
+      command: { account_id: accountId, device_id: deviceId, canonical_user_id: canonicalUserId, limit, after_server_sequence: afterServerSequence },
+    })
+    return items.map(item => {
+      if (item.operation !== 'resolution') throw new TypeError('Native orphan inbox reader returned a non-resolution event.')
+      return { ...item, operation: 'resolution', envelope: decodeVerifiedEnvelope(item.envelope) }
+    })
   }
 
   commitInboundPage(batch: ValidatedEncryptedPullBatch, canonicalUserId: string): Promise<CommitInboundPageResult> {

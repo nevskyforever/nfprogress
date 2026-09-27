@@ -3669,6 +3669,19 @@ pub(crate) struct ListReceivedNoteSyncInboxCommand {
     pub limit: u32,
 }
 
+/// Opaque orphaned v2 resolution events for a future TypeScript retry
+/// coordinator. This command deliberately neither decrypts nor changes inbox
+/// state.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ListOrphanNoteResolutionInboxCommand {
+    pub account_id: String,
+    pub device_id: String,
+    pub canonical_user_id: String,
+    pub limit: u32,
+    pub after_server_sequence: i64,
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct ReceivedNoteSyncInboxItem {
     pub event_id: String,
@@ -5862,6 +5875,80 @@ pub(crate) fn list_received_note_sync_inbox(
         }
         if !matches!(operation.as_str(), "upsert" | "delete" | "resolution") {
             return Err(NoteSyncError::InvalidEnvelope("unsupported Note operation"));
+        }
+        items.push(ReceivedNoteSyncInboxItem {
+            event_id, server_sequence, source_device_id, project_id, entity_id, entity_type,
+            operation, revision, updated_at, deleted_at,
+            envelope: StoredEncryptedNoteSyncEnvelope {
+                crypto_version: envelope.crypto_version,
+                aad_version: envelope.aad_version,
+                nonce: encode_canonical_base64url(&envelope.nonce),
+                ciphertext: encode_canonical_base64url(&envelope.ciphertext),
+            },
+        });
+    }
+    drop(statement);
+    transaction.commit()?;
+    Ok(items)
+}
+
+/// Lists one bounded keyset page of durable orphaned v2 Note resolutions.
+/// Scope validation is repeated at this IPC boundary. The read-only
+/// transaction ensures retry discovery cannot acknowledge or alter an orphan.
+pub(crate) fn list_orphan_note_resolution_inbox(
+    connection: &Connection, command: &ListOrphanNoteResolutionInboxCommand,
+) -> Result<Vec<ReceivedNoteSyncInboxItem>, NoteSyncError> {
+    if !(1..=MAX_RECEIVED_INBOX_LIST_LIMIT).contains(&command.limit)
+        || !(0..=MAX_SYNC_INTEGER).contains(&command.after_server_sequence)
+    {
+        return Err(NoteSyncError::InvalidListLimit);
+    }
+    let transaction = connection.unchecked_transaction()?;
+    validate_pull_scope(&transaction, &command.account_id, &command.device_id, &command.canonical_user_id)?;
+    let mut statement = transaction.prepare(
+        "SELECT inbox.event_id,inbox.server_sequence,inbox.device_id,inbox.project_id,
+                inbox.entity_id,inbox.entity_type,inbox.operation,inbox.sync_revision,
+                inbox.updated_at,inbox.deleted_at,object.crypto_version,object.aad_version,
+                object.nonce,object.ciphertext
+         FROM cloud_sync_inbox AS inbox
+         LEFT JOIN cloud_sync_event_objects AS object
+           ON object.account_id=inbox.account_id AND object.event_id=inbox.event_id
+         WHERE inbox.account_id=?1 AND inbox.entity_type='note' AND inbox.operation='resolution'
+           AND inbox.state='orphan' AND inbox.server_sequence>?2
+         ORDER BY inbox.server_sequence ASC LIMIT ?3",
+    )?;
+    let rows = statement.query_map(
+        rusqlite::params![command.account_id, command.after_server_sequence, command.limit],
+        |row| {
+            Ok((
+                row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?,
+                row.get::<_, String>(6)?, row.get::<_, i64>(7)?, row.get::<_, String>(8)?,
+                row.get::<_, Option<String>>(9)?, row.get::<_, Option<i64>>(10)?,
+                row.get::<_, Option<i64>>(11)?, row.get::<_, Option<Vec<u8>>>(12)?,
+                row.get::<_, Option<Vec<u8>>>(13)?,
+            ))
+        },
+    )?;
+    let mut items = Vec::new();
+    let mut aggregate = 0usize;
+    for row in rows {
+        let (event_id, server_sequence, source_device_id, project_id, entity_id, entity_type,
+            operation, revision, updated_at, deleted_at, crypto_version, aad_version, nonce, ciphertext) = row?;
+        let (crypto_version, aad_version, nonce, ciphertext) = match (crypto_version, aad_version, nonce, ciphertext) {
+            (Some(version), Some(aad), Some(nonce), Some(ciphertext)) => (version, aad, nonce, ciphertext),
+            _ => return Err(NoteSyncError::SealedObjectMissing),
+        };
+        let envelope = decode_encrypted_note_sync_envelope(&EncryptedNoteSyncEnvelope {
+            crypto_version,
+            aad_version,
+            nonce: encode_canonical_base64url(&nonce),
+            ciphertext: encode_canonical_base64url(&ciphertext),
+        })?;
+        aggregate = aggregate.checked_add(envelope.ciphertext.len())
+            .ok_or(NoteSyncError::InvalidEnvelope("inbox object overflow"))?;
+        if aggregate > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES {
+            return Err(NoteSyncError::InvalidEnvelope("inbox aggregate too large"));
         }
         items.push(ReceivedNoteSyncInboxItem {
             event_id, server_sequence, source_device_id, project_id, entity_id, entity_type,
@@ -8981,6 +9068,29 @@ mod tests {
         }
     }
 
+    fn orphan_resolution_list_command(limit: u32, after_server_sequence: i64) -> ListOrphanNoteResolutionInboxCommand {
+        ListOrphanNoteResolutionInboxCommand {
+            account_id: "inbox-account".into(), device_id: DEVICE_ID.into(),
+            canonical_user_id: "abcdefab-0000-0000-0000-000000000101".into(),
+            limit, after_server_sequence,
+        }
+    }
+
+    fn insert_orphan_resolution(connection: &mut Connection, sequence: i64) {
+        let mut command = inbound_command();
+        command.next_cursor = sequence;
+        command.expected_cursor = sequence - 1;
+        command.items[0].event_id = format!("123e4567-e89b-42d3-a456-426614174{sequence:03}");
+        command.items[0].server_sequence = sequence;
+        command.items[0].operation = "resolution".into();
+        command.items[0].revision = 2;
+        commit_note_sync_inbound_page(connection, &command).unwrap();
+        connection.execute(
+            "UPDATE cloud_sync_inbox SET state='orphan' WHERE account_id='inbox-account' AND server_sequence=?1",
+            [sequence],
+        ).unwrap();
+    }
+
     fn ack_prepare_command() -> PrepareNoteSyncAckCommand {
         PrepareNoteSyncAckCommand { account_id: "inbox-account".into(), device_id: DEVICE_ID.into(), canonical_user_id: "abcdefab-0000-0000-0000-000000000101".into() }
     }
@@ -9231,6 +9341,60 @@ mod tests {
         let command = inbound_command(); commit_note_sync_inbound_page(&mut connection, &command).unwrap();
         connection.execute("DELETE FROM cloud_sync_event_objects WHERE account_id='inbox-account'", []).unwrap();
         assert!(matches!(list_received_note_sync_inbox(&connection, &received_list_command(8)), Err(NoteSyncError::SealedObjectMissing)));
+    }
+
+    #[test]
+    fn orphan_resolution_reader_is_scoped_keyset_bounded_and_read_only() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        for sequence in 1..=3 { insert_orphan_resolution(&mut connection, sequence); }
+        connection.execute("UPDATE cloud_sync_inbox SET state='received' WHERE account_id='inbox-account' AND server_sequence=1", []).unwrap();
+        connection.execute("UPDATE cloud_sync_inbox SET state='conflict' WHERE account_id='inbox-account' AND server_sequence=2", []).unwrap();
+        connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('other-account',?1,0,0,'now','now')", [DEVICE_ID]).unwrap();
+        connection.execute("INSERT INTO cloud_account_bindings(local_account_id,canonical_user_id,created_at,validated_at) VALUES('other-account','abcdefab-0000-0000-0000-000000000102','now','now')", []).unwrap();
+        let mut foreign = inbound_command();
+        foreign.account_id = "other-account".into(); foreign.canonical_user_id = "abcdefab-0000-0000-0000-000000000102".into();
+        foreign.items[0].event_id = "123e4567-e89b-42d3-a456-426614174097".into(); foreign.items[0].operation = "resolution".into(); foreign.items[0].revision = 2;
+        commit_note_sync_inbound_page(&mut connection, &foreign).unwrap();
+        connection.execute("UPDATE cloud_sync_inbox SET state='orphan' WHERE account_id='other-account'", []).unwrap();
+        let before: (i64, i64, i64) = connection.query_row(
+            "SELECT pull_cursor,ack_cursor,(SELECT count(*) FROM cloud_sync_inbox WHERE account_id='inbox-account' AND state='orphan') FROM cloud_sync_state WHERE account_id='inbox-account'",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        let listed = list_orphan_note_resolution_inbox(&connection, &orphan_resolution_list_command(1, 0)).unwrap();
+        assert_eq!(listed.len(), 1); assert_eq!(listed[0].server_sequence, 3);
+        assert_eq!(listed[0].operation, "resolution");
+        assert!(list_orphan_note_resolution_inbox(&connection, &orphan_resolution_list_command(1, 3)).unwrap().is_empty());
+        let after: (i64, i64, i64) = connection.query_row(
+            "SELECT pull_cursor,ack_cursor,(SELECT count(*) FROM cloud_sync_inbox WHERE account_id='inbox-account' AND state='orphan') FROM cloud_sync_state WHERE account_id='inbox-account'",
+            [], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        ).unwrap();
+        assert_eq!(after, before);
+        assert!(list_orphan_note_resolution_inbox(&connection, &orphan_resolution_list_command(33, 0)).is_err());
+        assert!(list_orphan_note_resolution_inbox(&connection, &orphan_resolution_list_command(1, -1)).is_err());
+        let mut wrong_device = orphan_resolution_list_command(1, 0); wrong_device.device_id = "123e4567-e89b-42d3-a456-426614174111".into();
+        assert!(list_orphan_note_resolution_inbox(&connection, &wrong_device).is_err());
+        let mut wrong_user = orphan_resolution_list_command(1, 0); wrong_user.canonical_user_id = "abcdefab-0000-0000-0000-000000000102".into();
+        assert!(list_orphan_note_resolution_inbox(&connection, &wrong_user).is_err());
+        let mut applied = database(); inbound_scope(&mut applied); seed_applied_resolution_proof(&applied);
+        assert!(list_orphan_note_resolution_inbox(&applied, &orphan_resolution_list_command(32, 0)).unwrap().is_empty());
+    }
+
+    #[test]
+    fn orphan_resolution_reader_excludes_v1_orphans_and_validates_durable_objects() {
+        let mut connection = database(); inbound_scope(&mut connection);
+        insert_orphan_resolution(&mut connection, 1);
+        let mut v1 = inbound_command(); v1.expected_cursor = 1; v1.next_cursor = 2;
+        v1.items[0].event_id = "123e4567-e89b-42d3-a456-426614174002".into(); v1.items[0].server_sequence = 2;
+        commit_note_sync_inbound_page(&mut connection, &v1).unwrap();
+        connection.execute("UPDATE cloud_sync_inbox SET state='orphan' WHERE account_id='inbox-account' AND server_sequence=2", []).unwrap();
+        assert_eq!(list_orphan_note_resolution_inbox(&connection, &orphan_resolution_list_command(32, 0)).unwrap().len(), 1);
+        connection.execute_batch("DROP TRIGGER cloud_sync_resolution_inbox_object_immutable_delete;").unwrap();
+        connection.execute("DELETE FROM cloud_sync_event_objects WHERE account_id='inbox-account' AND event_id=(SELECT event_id FROM cloud_sync_inbox WHERE account_id='inbox-account' AND server_sequence=1)", []).unwrap();
+        assert!(matches!(list_orphan_note_resolution_inbox(&connection, &orphan_resolution_list_command(32, 0)), Err(NoteSyncError::SealedObjectMissing)));
+        let mut malformed = database(); inbound_scope(&mut malformed); insert_orphan_resolution(&mut malformed, 1);
+        malformed.execute_batch("DROP TRIGGER cloud_sync_resolution_inbox_object_immutable_update;").unwrap();
+        malformed.execute("UPDATE cloud_sync_event_objects SET crypto_version=2 WHERE account_id='inbox-account'", []).unwrap();
+        assert!(matches!(list_orphan_note_resolution_inbox(&malformed, &orphan_resolution_list_command(32, 0)), Err(NoteSyncError::InvalidEnvelope(_))));
     }
 
     #[test]

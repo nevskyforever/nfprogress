@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
+
+const invoke = vi.hoisted(() => vi.fn())
+vi.mock('@tauri-apps/api/core', () => ({ invoke }))
+
 import { NormalUserAuthRuntime, StaleAuthContextError } from '@/auth/userAuth'
 import { AuthoritativeAccountBinding } from '@/auth/accountBinding'
+import { SQLiteNoteSyncInboxRepository } from '@/infrastructure/sqlite/noteSyncInboxRepository'
 import { DurableNoteSyncInbox } from './noteSyncInbox'
 
 const USER = '123e4567-e89b-42d3-a456-426614174099'
@@ -33,5 +38,26 @@ describe('durable encrypted inbox orchestration', () => {
     const inbox = new DurableNoteSyncInbox(runtime, binding, { pullOnce } as never, repository)
     await expect(inbox.pullOnce('local', DEVICE)).rejects.toBeInstanceOf(StaleAuthContextError)
     expect(repository.commitInboundPage).not.toHaveBeenCalled()
+  })
+
+  it('adapts a paginated orphan resolution reader without routing it through the v1 decryptor', async () => {
+    invoke.mockResolvedValueOnce([{
+      event_id: '123e4567-e89b-42d3-a456-426614174098', server_sequence: 7,
+      source_device_id: DEVICE, project_id: 'project', entity_id: 'note', entity_type: 'note',
+      operation: 'resolution', revision: 4, updated_at: '2026-09-27T00:00:00Z', deleted_at: null,
+      envelope: { crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', ciphertext: 'AAAAAAAAAAAAAAAAAAAAAA' },
+    }])
+    const items = await new SQLiteNoteSyncInboxRepository().listOrphanResolutions('local', DEVICE, USER, 8, 6)
+    expect(items).toEqual([expect.objectContaining({ operation: 'resolution', server_sequence: 7, envelope: expect.objectContaining({ crypto_version: 1, aad_version: 1, nonce: new Uint8Array(24), ciphertext: new Uint8Array(16) }) })])
+    expect(invoke).toHaveBeenCalledWith('list_orphan_note_resolution_inbox', {
+      command: { account_id: 'local', device_id: DEVICE, canonical_user_id: USER, limit: 8, after_server_sequence: 6 },
+    })
+  })
+
+  it('rejects invalid orphan reader pagination before IPC', async () => {
+    const repository = new SQLiteNoteSyncInboxRepository()
+    await expect(repository.listOrphanResolutions('local', DEVICE, USER, 0, 0)).rejects.toThrow(RangeError)
+    await expect(repository.listOrphanResolutions('local', DEVICE, USER, 1, -1)).rejects.toThrow(RangeError)
+    expect(invoke).toHaveBeenCalledTimes(1)
   })
 })
