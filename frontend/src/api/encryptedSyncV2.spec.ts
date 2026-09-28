@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { encodeV2Push, encryptedSyncV2Api, parseV2Capabilities, parseV2PullResponse, parseV2PushResponse, V2MalformedPullResponseError, V2UnsupportedEventError } from './encryptedSyncV2'
-import { ApiResponseTooLargeError } from './client'
+import { encodeV2Push, encryptedSyncV2Api, parseV2Capabilities, parseV2CutoverResponse, parseV2PullResponse, parseV2PushResponse, V2MalformedPullResponseError, V2UnsupportedEventError } from './encryptedSyncV2'
+import { ApiError, ApiResponseTooLargeError } from './client'
 const id='123e4567-e89b-42d3-a456-426614174001'
 const request=()=>({protocol_version:2 as const,encrypted_sync_version:2 as const,device_id:id,items:[{event:{event_id:id,project_id:'p',entity_id:'n',entity_type:'note' as const,operation:'resolution' as const,revision:2,updated_at:'2026-01-01T00:00:00.000000Z',deleted_at:null},object:{crypto_version:1 as const,aad_version:1 as const,nonce:'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',ciphertext:'AAAAAAAAAAAAAAAAAAAAAA'}}]})
 describe('encrypted sync v2',()=>{
@@ -34,6 +34,47 @@ describe('encrypted sync v2',()=>{
  it('requires one unique receipt per event',()=>{expect(parseV2PushResponse({protocol_version:2,encrypted_sync_version:2,results:[{event_id:id,server_sequence:1,duplicate:true}],current_cursor:1},[id]).results[0]!.duplicate).toBe(true)})
  it('rejects non-canonical identity, duplicate events and invalid backend metadata before HTTP',()=>{const uppercase=request();uppercase.device_id=id.toUpperCase();expect(()=>encodeV2Push(uppercase)).toThrow();const duplicate=request();duplicate.items.push(duplicate.items[0]!);expect(()=>encodeV2Push(duplicate)).toThrow();const invalidTimestamp=request();invalidTimestamp.items[0]!.event.updated_at='not-a-timestamp';expect(()=>encodeV2Push(invalidTimestamp)).toThrow();const oversizedProject=request();oversizedProject.items[0]!.event.project_id='p'.repeat(513);expect(()=>encodeV2Push(oversizedProject)).toThrow()})
  it('rejects foreign or non-canonical receipts and duplicate server sequences',()=>{const other='123e4567-e89b-42d3-a456-426614174002';expect(()=>parseV2PushResponse({protocol_version:2,encrypted_sync_version:2,results:[{event_id:other,server_sequence:1,duplicate:false}],current_cursor:1},[id])).toThrow();expect(()=>parseV2PushResponse({protocol_version:2,encrypted_sync_version:2,results:[{event_id:id.toUpperCase(),server_sequence:1,duplicate:false}],current_cursor:1},[id])).toThrow();expect(()=>parseV2PushResponse({protocol_version:2,encrypted_sync_version:2,results:[{event_id:id,server_sequence:1,duplicate:false},{event_id:other,server_sequence:1,duplicate:false}],current_cursor:1},[id,other])).toThrow()})
+})
+
+describe('explicit transport v2 cutover',()=>{
+ it('sends an authenticated CAS request and parses the authoritative mode',async()=>{
+  const fetchMock=vi.spyOn(globalThis,'fetch')
+  try{
+   const response={supported_transport_version:2,writer_transport_version:2,cutover_epoch:1}
+   fetchMock.mockResolvedValueOnce(new Response(JSON.stringify(response),{status:200}))
+   await expect(encryptedSyncV2Api.cutover('token',0)).resolves.toEqual(response)
+   expect(String(fetchMock.mock.calls[0]![0])).toContain('/api/v2/sync/encrypted/cutover')
+   expect(fetchMock.mock.calls[0]![1]?.method).toBe('POST')
+   expect(new Headers(fetchMock.mock.calls[0]![1]?.headers).get('Authorization')).toBe('Bearer token')
+   expect(JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))).toEqual({expected_cutover_epoch:0})
+   fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({...response,cutover_epoch:Number.MAX_SAFE_INTEGER}),{status:200}))
+   await expect(encryptedSyncV2Api.cutover('token',Number.MAX_SAFE_INTEGER-1)).resolves.toMatchObject({cutover_epoch:Number.MAX_SAFE_INTEGER})
+  }finally{fetchMock.mockRestore()}
+ })
+ it('rejects invalid epochs before HTTP and malformed server authority',async()=>{
+  const fetchMock=vi.spyOn(globalThis,'fetch')
+  try{
+   for(const epoch of [-1,1.5,Number.MAX_SAFE_INTEGER+1,NaN])expect(()=>encryptedSyncV2Api.cutover('token',epoch)).toThrow()
+   expect(fetchMock).not.toHaveBeenCalled()
+   for(const response of [
+    {supported_transport_version:2,writer_transport_version:1,cutover_epoch:1},
+    {supported_transport_version:3,writer_transport_version:2,cutover_epoch:1},
+    {supported_transport_version:2,writer_transport_version:2,cutover_epoch:-1},
+    {supported_transport_version:2,writer_transport_version:2,cutover_epoch:1.5},
+    {supported_transport_version:2,writer_transport_version:2,cutover_epoch:Number.MAX_SAFE_INTEGER+1},
+    {supported_transport_version:2,writer_transport_version:2},
+   ])expect(()=>parseV2CutoverResponse(response)).toThrow()
+  }finally{fetchMock.mockRestore()}
+ })
+ it('preserves structured backend conflicts',async()=>{
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValueOnce(new Response(JSON.stringify({detail:{code:'sync_transport_cutover_stale',message:'stale'}}),{status:409}))
+  try{
+   await encryptedSyncV2Api.cutover('token',0).then(()=>{throw new Error('expected conflict')},error=>{
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({status:409,code:'sync_transport_cutover_stale'})
+   })
+  }finally{fetchMock.mockRestore()}
+ })
 })
 
 const wireObject=()=>({crypto_version:1,aad_version:1,nonce:'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',ciphertext:'AAAAAAAAAAAAAAAAAAAAAA'})

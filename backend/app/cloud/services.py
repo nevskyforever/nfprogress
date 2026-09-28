@@ -382,6 +382,29 @@ class SyncService:
             return 1, 0
         return state.writer_transport_version, state.cutover_epoch
 
+    def cutover_to_v2(self, session: Session, user_id: object, expected_cutover_epoch: int) -> tuple[int, int]:
+        try:
+            session.commit()
+            with session.begin():
+                # Push and bootstrap writers use this same row lock. Nothing can append
+                # an event between the complete-history check and the mode change.
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                if state.writer_transport_version == 2:
+                    return 2, state.cutover_epoch
+                if state.cutover_epoch != expected_cutover_epoch:
+                    raise SyncProtocolError('sync_transport_cutover_stale', 'Transport cutover epoch is stale.', 409)
+                if state.cutover_epoch >= SYNC_MAX_WIRE_INTEGER:
+                    raise SyncProtocolError('sync_transport_cutover_epoch_exhausted', 'Transport cutover epoch limit reached.', 409)
+                if self._sync.has_v2_incompatible_history(session, user_id):
+                    raise SyncProtocolError('sync_transport_cutover_blocked', 'Sync history is incompatible with transport v2.', 409)
+                state.writer_transport_version = 2
+                state.cutover_epoch += 1
+                session.flush()
+                return 2, state.cutover_epoch
+        except Exception:
+            session.rollback()
+            raise
+
     def push(self, session: Session, user_id: object, device_id: object,
              events: list[SyncEventEnvelope], *, transport_version: int = 1) -> tuple[list[SyncPushResult], int]:
         try:

@@ -451,6 +451,18 @@ class V2EncryptedSyncCapabilitiesResponse(BaseModel):
     cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
+class V2EncryptedSyncCutoverRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER, strict=True)
+
+
+class V2EncryptedSyncCutoverResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    supported_transport_version: Literal[2] = V2_ENCRYPTED_SYNC_VERSION
+    writer_transport_version: Literal[2]
+    cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
 class AdminUserResponse(BaseModel):
     id: UUID
     username: str

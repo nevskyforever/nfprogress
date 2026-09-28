@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import base64
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from uuid import uuid4
+from threading import Barrier
+from uuid import UUID, uuid4
 
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.models import EncryptedObject, SyncEvent, SyncUserState
+from backend.app.cloud.models import CloudProject, EncryptedObject, SyncDevice, SyncEvent, SyncUserState
+from backend.app.cloud.schemas import EncryptedSyncPushRequest
+from backend.app.cloud.services import SyncProtocolError, SyncService
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
 
 
@@ -53,7 +58,7 @@ def _v2_request(device_id: str, *items: tuple[dict[str, object], dict[str, objec
 
 
 def _set_mode(engine, user_id, mode: int) -> None:
-    # Isolated PostgreSQL fixture only: production exposes no mode-flip endpoint.
+    # Isolated fixture bypasses readiness to test malformed-history v2 pull.
     with Session(engine) as session:
         state = session.get(SyncUserState, user_id)
         assert state is not None
@@ -208,3 +213,168 @@ def test_c17_v2_rejects_invalid_versions_and_unsafe_metadata_and_blocks_legacy_m
         'device_id': device, 'since': 0, 'limit': 1, 'protocol_version': 2, 'encrypted_sync_version': 2,
     })
     assert response.status_code == 409 and response.json()['detail']['code'] == 'encrypted_sync_event_incomplete'
+
+
+def _cutover(client, token: str, epoch: int = 0):
+    return client.post('/api/v2/sync/encrypted/cutover', headers=_headers(token),
+                       json={'expected_cutover_epoch': epoch})
+
+
+def test_c17_cutover_preserves_history_devices_ack_and_projects(cloud_client):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    first, second = _device(client, token), _device(client, token)
+    _enable(client, token)
+    event, encrypted = _event(), _object()
+    assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token),
+                       json=_v1_request(first, event, encrypted)).status_code == 200
+    assert client.post('/api/v1/sync/encrypted/ack', headers=_headers(token),
+                       json={'protocol_version': 1, 'device_id': first, 'cursor': 1}).status_code == 204
+    with Session(engine) as session:
+        before = (
+            [(row.event_id, row.server_sequence) for row in session.query(SyncEvent).filter_by(user_id=user_id).all()],
+            [(row.event_id, row.ciphertext) for row in session.query(EncryptedObject).filter_by(user_id=user_id).all()],
+            [(str(row.device_id), row.last_ack_sequence) for row in session.query(SyncDevice).filter_by(user_id=user_id).order_by(SyncDevice.device_id).all()],
+            [(row.project_id, row.bootstrap_state) for row in session.query(CloudProject).filter_by(user_id=user_id).all()],
+        )
+    assert _cutover(client, token).json() == {
+        'supported_transport_version': 2, 'writer_transport_version': 2, 'cutover_epoch': 1,
+    }
+    assert _cutover(client, token).json()['cutover_epoch'] == 1
+    assert client.get('/api/v2/sync/encrypted/capabilities', headers=_headers(token)).json()['writer_transport_version'] == 2
+    for method, path, kwargs in (
+        ('post', '/api/v1/sync/encrypted/push', {'json': _v1_request(first, _event(), _object())}),
+        ('get', '/api/v1/sync/encrypted/pull', {'params': {'device_id': first, 'since': 0, 'limit': 10, 'protocol_version': 1, 'encrypted_sync_version': 1}}),
+        ('post', '/api/v1/sync/encrypted/ack', {'json': {'protocol_version': 1, 'device_id': first, 'cursor': 1}}),
+    ):
+        response = getattr(client, method)(path, headers=_headers(token), **kwargs)
+        assert response.status_code == 409 and response.json()['detail']['code'] == 'sync_transport_mode_incompatible'
+    pulled = client.get('/api/v2/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': second, 'since': 0, 'limit': 10, 'protocol_version': 2, 'encrypted_sync_version': 2,
+    })
+    assert pulled.status_code == 200 and pulled.json()['items'][0]['object'] == encrypted
+    with Session(engine) as session:
+        after = (
+            [(row.event_id, row.server_sequence) for row in session.query(SyncEvent).filter_by(user_id=user_id).all()],
+            [(row.event_id, row.ciphertext) for row in session.query(EncryptedObject).filter_by(user_id=user_id).all()],
+            [(str(row.device_id), row.last_ack_sequence) for row in session.query(SyncDevice).filter_by(user_id=user_id).order_by(SyncDevice.device_id).all()],
+            [(row.project_id, row.bootstrap_state) for row in session.query(CloudProject).filter_by(user_id=user_id).all()],
+        )
+    assert after == before
+    new_event = _event(entity_id='new')
+    assert client.post('/api/v2/sync/encrypted/push', headers=_headers(token),
+                       json=_v2_request(first, (new_event, _object()))).status_code == 200
+    assert client.post('/api/v2/sync/encrypted/ack', headers=_headers(token), json={
+        'protocol_version': 2, 'encrypted_sync_version': 2, 'device_id': second, 'cursor': 2,
+    }).status_code == 204
+
+
+def test_c17_cutover_stale_epoch_and_exhaustion_leave_mode_one(cloud_client):
+    client, engine = cloud_client
+    assert client.post('/api/v2/sync/encrypted/cutover', json={'expected_cutover_epoch': 0}).status_code == 401
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    for invalid in (-1, 1.5, 9_007_199_254_740_992, True):
+        assert _cutover(client, token, invalid).status_code == 422
+    assert client.post('/api/v2/sync/encrypted/cutover', headers=_headers(token),
+                       json={'expected_cutover_epoch': 0, 'user_id': str(user_id)}).status_code == 422
+    with Session(engine) as session:
+        state = SyncUserState(user_id=user_id, cutover_epoch=1)
+        session.add(state)
+        session.commit()
+    response = _cutover(client, token, 0)
+    assert response.status_code == 409 and response.json()['detail']['code'] == 'sync_transport_cutover_stale'
+    with Session(engine) as session:
+        state = session.get(SyncUserState, user_id)
+        assert (state.writer_transport_version, state.cutover_epoch) == (1, 1)
+        state.cutover_epoch = 9_007_199_254_740_991
+        session.commit()
+    response = _cutover(client, token, 9_007_199_254_740_991)
+    assert response.status_code == 409 and response.json()['detail']['code'] == 'sync_transport_cutover_epoch_exhausted'
+    assert client.get('/api/v2/sync/encrypted/capabilities', headers=_headers(token)).json()['writer_transport_version'] == 1
+
+
+@pytest.mark.parametrize('entity_type,operation,object_version', [
+    ('note', 'event', None), ('future', 'upsert', 1), ('note', 'upsert', None),
+    ('note', 'upsert', 2), ('note', 'upsert', -1),
+])
+def test_c17_cutover_blocks_incompatible_history_at_any_sequence(cloud_client, entity_type, operation, object_version):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+    assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token),
+                       json=_v1_request(device, _event(), _object())).status_code == 200
+    with Session(engine) as session:
+        event_id = uuid4()
+        session.add(SyncEvent(user_id=user_id, event_id=event_id, device_id=UUID(device),
+            project_id='project-1', entity_id='late', entity_type=entity_type,
+            operation=operation, revision=1, updated_at=datetime.now(timezone.utc),
+            server_sequence=2))
+        session.flush()
+        if object_version is not None:
+            session.add(EncryptedObject(user_id=user_id, event_id=event_id,
+                crypto_version=object_version if object_version > 0 else 1,
+                aad_version=2 if object_version < 0 else 1,
+                nonce=b'n' * 24, ciphertext=b'opaque encrypted object'))
+        session.get(SyncUserState, user_id).current_sequence = 2
+        session.commit()
+    response = _cutover(client, token)
+    assert response.status_code == 409 and response.json()['detail']['code'] == 'sync_transport_cutover_blocked'
+    assert client.get('/api/v2/sync/encrypted/capabilities', headers=_headers(token)).json() == {
+        'supported_transport_version': 2, 'writer_transport_version': 1, 'cutover_epoch': 0,
+    }
+
+
+def test_c17_concurrent_cutover_increments_epoch_once(cloud_client):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+
+    def attempt():
+        with Session(engine) as session:
+            return SyncService().cutover_to_v2(session, user_id, 0)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: attempt(), range(2)))
+    assert results == [(2, 1), (2, 1)]
+    with Session(engine) as session:
+        state = session.get(SyncUserState, user_id)
+        assert (state.writer_transport_version, state.cutover_epoch) == (2, 1)
+
+
+def test_c17_v1_push_and_cutover_serialize_on_user_state(cloud_client):
+    client, engine = cloud_client
+    user_id = create_user(engine)
+    token = login(client).json()['access_token']
+    device = _device(client, token)
+    _enable(client, token)
+    event = _event()
+    item = EncryptedSyncPushRequest.model_validate(_v1_request(device, event, _object())).items[0]
+    start = Barrier(2)
+
+    def push():
+        with Session(engine) as session:
+            start.wait()
+            try:
+                SyncService().push_encrypted(session, user_id, UUID(device), [item])
+                return 'accepted'
+            except SyncProtocolError as error:
+                return error.code
+
+    def cutover():
+        with Session(engine) as session:
+            start.wait()
+            return SyncService().cutover_to_v2(session, user_id, 0)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pushed = pool.submit(push)
+        switched = pool.submit(cutover)
+        assert switched.result() == (2, 1)
+        outcome = pushed.result()
+    assert outcome in ('accepted', 'sync_transport_mode_incompatible')
+    with Session(engine) as session:
+        events = session.query(SyncEvent).filter_by(user_id=user_id).all()
+        assert len(events) == (1 if outcome == 'accepted' else 0)
+        assert session.query(EncryptedObject).filter_by(user_id=user_id).count() == len(events)

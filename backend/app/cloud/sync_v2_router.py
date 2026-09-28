@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
 from .schemas import (MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES, ObjectEnvelopeDto,
                       V2EncryptedSyncAckRequest, V2EncryptedSyncCapabilitiesResponse,
+                      V2EncryptedSyncCutoverRequest, V2EncryptedSyncCutoverResponse,
                       V2EncryptedSyncPullItem, V2EncryptedSyncPullResponse,
                       V2EncryptedSyncPushRequest, V2EncryptedSyncPushResponse,
                       V2SyncPullEvent, V2_SYNC_PROTOCOL_VERSION,
@@ -31,6 +32,21 @@ def capabilities(current: AuthenticatedUser = Depends(get_current_user),
     return V2EncryptedSyncCapabilitiesResponse(
         writer_transport_version=writer_transport_version,
         cutover_epoch=cutover_epoch,
+    )
+
+
+@router.post('/cutover', response_model=V2EncryptedSyncCutoverResponse)
+def cutover(request: V2EncryptedSyncCutoverRequest,
+            current: AuthenticatedUser = Depends(get_current_user),
+            session: Session = Depends(get_cloud_session)) -> V2EncryptedSyncCutoverResponse:
+    try:
+        writer_transport_version, cutover_epoch = SyncService().cutover_to_v2(
+            session, current.user.id, request.expected_cutover_epoch,
+        )
+    except SyncProtocolError as error:
+        raise _error(error) from None
+    return V2EncryptedSyncCutoverResponse(
+        writer_transport_version=writer_transport_version, cutover_epoch=cutover_epoch,
     )
 
 

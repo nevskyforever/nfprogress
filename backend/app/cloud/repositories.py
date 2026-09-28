@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from sqlalchemy import String, and_, delete, func, literal_column, select, text, update
+from sqlalchemy import String, and_, delete, func, literal_column, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, CloudProject, EncryptedBlob, EncryptedObject, GlobalLimits,
                      RegistrationSettings, ReservedUsername, User,
                      UserLimitOverrides, SyncDevice, SyncEvent, SyncUserState)
+from .schemas import MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, SYNC_MAX_WIRE_INTEGER
 
 
 def normalize_username(value: str) -> str:
@@ -159,6 +160,30 @@ class EncryptedBlobRepository:
 
 
 class SyncRepository:
+    def has_v2_incompatible_history(self, session: Session, user_id: object) -> bool:
+        """Check every retained event using only server-visible envelope metadata."""
+        row = session.scalar(select(SyncEvent.event_id).outerjoin(
+            EncryptedObject,
+            and_(EncryptedObject.user_id == SyncEvent.user_id,
+                 EncryptedObject.event_id == SyncEvent.event_id),
+        ).where(
+            SyncEvent.user_id == user_id,
+            or_(
+                SyncEvent.entity_type != 'note',
+                SyncEvent.operation.notin_(('upsert', 'delete', 'resolution')),
+                SyncEvent.revision > SYNC_MAX_WIRE_INTEGER,
+                SyncEvent.server_sequence > SYNC_MAX_WIRE_INTEGER,
+                and_(SyncEvent.operation == 'resolution', SyncEvent.revision < 2),
+                EncryptedObject.event_id.is_(None),
+                EncryptedObject.crypto_version != 1,
+                EncryptedObject.aad_version != 1,
+                func.octet_length(EncryptedObject.nonce) != 24,
+                func.octet_length(EncryptedObject.ciphertext) < 16,
+                func.octet_length(EncryptedObject.ciphertext) > MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
+            ),
+        ).limit(1))
+        return row is not None
+
     def project_event_stats(self, session: Session, user_id: object, project_id: str,
                             *, device_id: object | None = None) -> tuple[int, int]:
         filters = [SyncEvent.user_id == user_id, SyncEvent.project_id == project_id]

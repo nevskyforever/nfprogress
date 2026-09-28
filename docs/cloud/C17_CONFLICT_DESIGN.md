@@ -195,12 +195,16 @@ contracts exist.
 Note plaintext v2 is encrypted under the existing AMK with the existing
 `crypto_version=1` and `aad_version=1`; the server stores and transports only
 opaque encrypted bytes and learns neither plaintext nor the parent DAG.  The
-future encrypted sync protocol v2 is a coordinated pre-public-release hard
+encrypted sync protocol v2 is a coordinated pre-public-release hard
 cutover: client and server must be deployed together, and a protocol-v1 client
 must reject v2 envelopes/events fail-closed.  No mixed v1/v2 apply, downgrade,
-or server-side winner selection is permitted.  Existing v1 events continue to
-be decoded and applied only by the v1 path; v2 resolution events require the
-new v2 path and the local schema-17 conflict evidence.  Until Pass 2F-E
+or server-side winner selection is permitted. Existing v1 encrypted Note
+events remain readable through the v2 path after an explicit account cutover;
+metadata-only and incompatible history block that cutover. V2 resolution
+events require the new v2 path and the local schema-17 conflict evidence.
+The account-local cutover compares the observed epoch under the same state-row
+lock as push, checks all retained events, advances the epoch once, and returns
+the committed mode idempotently on retry. Until Pass 2F-E
 coordinates activation, clients implementing the clarified sender-scoped
 group semantics must not participate as uncoordinated protocol-v2 writers or
 readers; capability version alone is not semantic-cutover authorization.

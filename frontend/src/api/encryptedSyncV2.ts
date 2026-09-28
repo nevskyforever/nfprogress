@@ -8,6 +8,7 @@ export const V2_SYNC_PROTOCOL_VERSION = 2 as const
 const MAX_SAFE = Number.MAX_SAFE_INTEGER
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export interface V2Capabilities { supported_transport_version: 2, writer_transport_version: 1 | 2, cutover_epoch: number }
+export interface V2CutoverResponse { supported_transport_version: 2, writer_transport_version: 2, cutover_epoch: number }
 interface V2PushEventBase { event_id:string, project_id:string, entity_id:string, entity_type:'note', revision:number, updated_at:string }
 type V2PushEvent =
   | (V2PushEventBase & { operation:'upsert' | 'resolution', deleted_at:null })
@@ -40,6 +41,11 @@ export function parseV2Capabilities(value: unknown): V2Capabilities {
   const v=value as V2Capabilities
   if (v.supported_transport_version!==2 || (v.writer_transport_version!==1 && v.writer_transport_version!==2)) fail()
   safe(v.cutover_epoch,0); return v
+}
+export function parseV2CutoverResponse(value: unknown): V2CutoverResponse {
+  const parsed = parseV2Capabilities(value)
+  if (parsed.writer_transport_version !== 2) fail()
+  return parsed as V2CutoverResponse
 }
 export function validateV2PushItem(item: unknown): ValidatedV2PushItem {
   if (!keys(item,['event','object'])) fail()
@@ -107,6 +113,10 @@ export function encodeV2Ack(request:V2AckRequest):V2AckRequest {
 }
 export const encryptedSyncV2Api={
   capabilities:(token:string)=>apiRequest<unknown>('/api/v2/sync/encrypted/capabilities',{headers:headers(token)}).then(parseV2Capabilities),
+  cutover:(token:string,expectedCutoverEpoch:number):Promise<V2CutoverResponse>=>{
+    safe(expectedCutoverEpoch,0)
+    return apiRequest<unknown>('/api/v2/sync/encrypted/cutover',{method:'POST',headers:headers(token),body:{expected_cutover_epoch:expectedCutoverEpoch}}).then(parseV2CutoverResponse)
+  },
   push:(token:string,request:V2PushRequest)=>apiRequest<unknown>('/api/v2/sync/encrypted/push',{method:'POST',headers:headers(token),rawBody:encodeV2Push(request)}).then(value=>parseV2PushResponse(value,request.items.map(i=>i.event.event_id))),
   async pull(token:string,deviceId:string,since:number,limit=200):Promise<V2PullResponse>{
     if(!Number.isSafeInteger(since)||since<0||!Number.isSafeInteger(limit)||limit<1||limit>500)throw new RangeError('Invalid encrypted sync v2 pagination.')
