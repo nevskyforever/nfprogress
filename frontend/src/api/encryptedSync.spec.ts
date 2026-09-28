@@ -43,6 +43,11 @@ async function expectRejectedPull(response: unknown, since = 0): Promise<void> {
 }
 
 describe('encrypted sync transport boundary', () => {
+  it('keeps the v1 HTTP pull parser closed to resolution events', async () => {
+    await expectRejectedPull(pulled({ items: [{ ...pulled().items[0], event: {
+      ...pulled().items[0]!.event, operation: 'resolution', revision: 2,
+    } }] }))
+  })
   it('enforces exact individual and aggregate decoded ciphertext limits', () => {
     expect(() => assertEncryptedSyncBatch([item(new Uint8Array(MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES))])).not.toThrow()
     expect(() => assertEncryptedSyncBatch([item(new Uint8Array(MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES + 1))])).toThrow(TypeError)

@@ -991,4 +991,16 @@ After received processing, one bounded orphan retry pass resumes from an in-memo
 
 The production runtime remains on the established v1-only `runOnce(...)` route and does not compose or call mixed processing. The dormant mixed path performs no HTTP pull, upload, sealing or ACK and cannot emit a legacy v1 ACK for incomplete v2 work. D4B still owns v2 HTTP pull/ACK and coordinated activation. Multi-parent causal continuation and Pass 2F-E controlled two-/three-device acceptance remain deferred. C16 remains CLOSED; C17 remains IN PROGRESS; official progress remains **73,0%**.
 
+## C17 Pass 2F-D4A2 — remote acceptance
+
+Commit `bd22734160472da769dfbcf6139b426a8926bf07` independently verified on `origin/6.0`. Cloud backend tests run `36332040244`: Frontend admin — **SUCCESS**; PostgreSQL cloud backend — **SUCCESS**. SQLite workflow was not triggered because the D4A2 published diff contained only frontend TypeScript and this checkpoint.
+
+## C17 Pass 2F-D4B1 — dormant encrypted transport v2 pull and ACK substrate
+
+**Status: IMPLEMENTED LOCALLY / REMOTE CI PENDING.** The strict authenticated v2 pull API accepts the backend's mixed historical Note upsert/delete and resolution stream, validates exact metadata, ciphertext and pagination limits, and returns opaque envelopes without decryption. Unsupported/future or metadata-only events fail closed. The shared validated pull-batch type now carries resolution events into the existing atomic native inbound commit; the v1 HTTP parser still rejects resolution.
+
+The dormant v2 inbox adapter reads the authoritative SQLite cursor after current-user/device binding, checks transport mode 2, and commits only a validated pull page after renewed auth checks. The dormant v2 ACK adapter uses the existing native contiguous ACK candidate, sends the version-2 ACK first, and then uses the native CAS commit result. Failed/lost responses leave local cursors unchanged; retry remains possible. No production runtime or `runOnce()` wiring was changed, and the existing device registration remains version-neutral.
+
+Local checks: focused v2 API/adapter tests **17 passed, 0 failed, 0 skipped**; affected v1/runtime/mixed apply regression tests **74 passed, 0 failed, 0 skipped**; final v1+v2 transport tests **27 passed, 0 failed, 0 skipped**; TypeScript typecheck and production frontend build — **passed**. The frontend CI curated command includes the new adapter spec. D4B1 remote acceptance is pending the new pushed SHA and CI; C16 remains CLOSED, C17 remains IN PROGRESS, and official progress remains **73,0%**. Coordinated production activation, multi-parent continuation, Pass 2F-E acceptance and C18 remain deferred.
+
 # КОНЕЦ ЧЕКПОИНТА

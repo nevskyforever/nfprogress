@@ -1,4 +1,15 @@
-import { encryptedSyncApi, type EncryptedSyncPullItem } from '@/api/encryptedSync'
+import { encryptedSyncApi } from '@/api/encryptedSync'
+import type { ObjectCryptoEnvelope } from '@/crypto'
+
+export interface ValidatedEncryptedPullItem {
+  readonly event: {
+    readonly event_id: string; readonly device_id: string; readonly server_sequence: number
+    readonly project_id: string; readonly entity_id: string; readonly entity_type: string
+    readonly operation: 'upsert' | 'delete' | 'event' | 'resolution'; readonly revision: number
+    readonly updated_at: string; readonly deleted_at: string | null
+  }
+  readonly object: ObjectCryptoEnvelope | null
+}
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 
@@ -9,7 +20,7 @@ export interface ValidatedEncryptedPullBatch {
   readonly nextCursor: number
   readonly hasMore: boolean
   /** Opaque validated transport data. It is neither persisted nor applied here. */
-  readonly items: readonly EncryptedSyncPullItem[]
+  readonly items: readonly ValidatedEncryptedPullItem[]
 }
 
 /** Fetches one authenticated page only; durable inbox receipt and cursor advancement are deliberately deferred. */

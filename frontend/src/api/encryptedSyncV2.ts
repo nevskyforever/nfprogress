@@ -1,7 +1,8 @@
 import { decodeBase64Url, encodeBase64Url } from './base64url'
-import { apiRequest } from './client'
+import { ApiError, apiRequest } from './client'
 import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from './encryptedSync'
 import { parseSyncTimestamp } from '@/cloud/syncTimestamp'
+import type { ObjectCryptoEnvelope } from '@/crypto'
 
 export const V2_SYNC_PROTOCOL_VERSION = 2 as const
 const MAX_SAFE = Number.MAX_SAFE_INTEGER
@@ -11,7 +12,18 @@ export interface V2ResolutionPushItem { event: { event_id:string, project_id:str
 export interface V2PushRequest { protocol_version:2, encrypted_sync_version:2, device_id:string, items: V2ResolutionPushItem[] }
 export interface V2PushResponse { protocol_version:2, encrypted_sync_version:2, results:Array<{event_id:string,server_sequence:number,duplicate:boolean}>, current_cursor:number }
 export interface ValidatedV2PushItem { eventId:string, ciphertextBytes:number }
+export interface V2PullItem { event: { event_id:string, device_id:string, server_sequence:number, project_id:string, entity_id:string, entity_type:'note', operation:'upsert'|'delete'|'resolution', revision:number, updated_at:string, deleted_at:string|null }, object:ObjectCryptoEnvelope }
+export interface V2PullResponse { protocol_version:2, encrypted_sync_version:2, items:V2PullItem[], next_cursor:number, has_more:boolean }
+export interface V2AckRequest { protocol_version:2, encrypted_sync_version:2, device_id:string, cursor:number }
 const fail = (): never => { throw new TypeError('Invalid encrypted sync v2 payload.') }
+export class V2UnsupportedEventError extends TypeError {
+  readonly code = 'unsupported_event'
+  constructor() { super('Unsupported encrypted sync v2 event.') }
+}
+export class V2MalformedPullResponseError extends TypeError {
+  readonly code = 'malformed_v2_response'
+  constructor() { super('Malformed encrypted sync v2 pull response.') }
+}
 const keys = (v: unknown, k: readonly string[]) => typeof v === 'object' && v !== null && Object.keys(v).length === k.length && k.every(key => Object.prototype.hasOwnProperty.call(v, key))
 function uuid(v: unknown): string { if (typeof v !== 'string') throw new TypeError('Invalid encrypted sync v2 UUID.'); if (!UUID.test(v)) throw new TypeError('Invalid encrypted sync v2 UUID.'); return v.toLowerCase() }
 const safe = (v: unknown, min: number): number => { if (!Number.isSafeInteger(v)) fail(); const number = v as number; if (number < min || number > MAX_SAFE) fail(); return number }
@@ -50,7 +62,58 @@ export function parseV2PushResponse(value: unknown, expected: readonly string[])
   for(const row of r.results){if(!keys(row,['event_id','server_sequence','duplicate']))fail();const id=uuid(row.event_id);const n=safe(row.server_sequence,1);if(id!==row.event_id||!want.delete(id)||seq.has(n)||typeof row.duplicate!=='boolean'||r.current_cursor<n)fail();seq.add(n)}
   if(want.size)fail(); return r
 }
+export function parseV2PullResponse(value: unknown, since:number, limit:number): V2PullResponse {
+  if(!Number.isSafeInteger(since)||since<0||!Number.isSafeInteger(limit)||limit<1||limit>500)throw new RangeError('Invalid encrypted sync v2 pagination.')
+  if(!keys(value,['protocol_version','encrypted_sync_version','items','next_cursor','has_more']))fail()
+  const page=value as V2PullResponse
+  if(page.protocol_version!==2||page.encrypted_sync_version!==2||!Array.isArray(page.items)||page.items.length>limit||typeof page.has_more!=='boolean')fail()
+  safe(page.next_cursor,0)
+  let previous=since, aggregate=0
+  const ids=new Set<string>(), sequences=new Set<number>()
+  const items=page.items.map((item:unknown):V2PullItem=>{
+    if(!keys(item,['event','object']))fail()
+    const row=item as V2PullItem
+    if(!keys(row.event,['event_id','device_id','server_sequence','project_id','entity_id','entity_type','operation','revision','updated_at','deleted_at']))fail()
+    const event=row.event
+    if(uuid(event.event_id)!==event.event_id||uuid(event.device_id)!==event.device_id||!boundedText(event.project_id,512)||!boundedText(event.entity_id,512))fail()
+    if(event.entity_type!=='note'||!(['upsert','delete','resolution'] as string[]).includes(event.operation)||row.object===null)throw new V2UnsupportedEventError()
+    safe(event.revision,event.operation==='resolution'?2:1)
+    const sequence=safe(event.server_sequence,1)
+    if(sequence<=previous||ids.has(event.event_id)||sequences.has(sequence))fail()
+    if(typeof event.updated_at!=='string'||!(event.deleted_at===null||typeof event.deleted_at==='string')||(event.operation==='delete')!==(event.deleted_at!==null))fail()
+    try {parseSyncTimestamp(event.updated_at);if(event.deleted_at!==null)parseSyncTimestamp(event.deleted_at)}catch{fail()}
+    if(!keys(row.object,['crypto_version','aad_version','nonce','ciphertext']))fail()
+    const object=row.object as unknown as {crypto_version:number,aad_version:number,nonce:string,ciphertext:string}
+    if(object.crypto_version!==1||object.aad_version!==1)fail()
+    const nonce=decodeBase64Url(object.nonce,{expectedLength:24})
+    const ciphertext=decodeBase64Url(object.ciphertext,{minimumLength:16,maximumLength:MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES})
+    if(encodeBase64Url(nonce)!==object.nonce||encodeBase64Url(ciphertext)!==object.ciphertext)fail()
+    aggregate+=ciphertext.byteLength;if(aggregate>MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES)fail()
+    ids.add(event.event_id);sequences.add(sequence);previous=sequence
+    return {event,object:{crypto_version:1,aad_version:1,nonce,ciphertext}}
+  })
+  if(page.next_cursor!==previous||(!items.length&&page.has_more))fail()
+  return {protocol_version:2,encrypted_sync_version:2,items,next_cursor:page.next_cursor,has_more:page.has_more}
+}
+export function encodeV2Ack(request:V2AckRequest):V2AckRequest {
+  if(!keys(request,['protocol_version','encrypted_sync_version','device_id','cursor'])||request.protocol_version!==2||request.encrypted_sync_version!==2||uuid(request.device_id)!==request.device_id)fail()
+  safe(request.cursor,0);return request
+}
 export const encryptedSyncV2Api={
   capabilities:(token:string)=>apiRequest<unknown>('/api/v2/sync/encrypted/capabilities',{headers:headers(token)}).then(parseV2Capabilities),
   push:(token:string,request:V2PushRequest)=>apiRequest<unknown>('/api/v2/sync/encrypted/push',{method:'POST',headers:headers(token),rawBody:encodeV2Push(request)}).then(value=>parseV2PushResponse(value,request.items.map(i=>i.event.event_id))),
+  async pull(token:string,deviceId:string,since:number,limit=200):Promise<V2PullResponse>{
+    if(!Number.isSafeInteger(since)||since<0||!Number.isSafeInteger(limit)||limit<1||limit>500)throw new RangeError('Invalid encrypted sync v2 pagination.')
+    if(uuid(deviceId)!==deviceId)fail()
+    const query=new URLSearchParams({device_id:deviceId,since:String(since),limit:String(limit),protocol_version:'2',encrypted_sync_version:'2'})
+    let response:unknown
+    try { response=await apiRequest<unknown>(`/api/v2/sync/encrypted/pull?${query}`,{headers:headers(token),maxResponseBytes:MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES}) }
+    catch(error) { if(error instanceof ApiError&&error.code==='encrypted_sync_event_incomplete')throw new V2UnsupportedEventError();if(error instanceof SyntaxError)throw new V2MalformedPullResponseError();throw error }
+    try { return parseV2PullResponse(response,since,limit) }
+    catch(error) { if(error instanceof V2UnsupportedEventError)throw error;throw new V2MalformedPullResponseError() }
+  },
+  async ack(token:string,request:V2AckRequest):Promise<void>{
+    const response=await apiRequest<unknown>('/api/v2/sync/encrypted/ack',{method:'POST',headers:headers(token),body:encodeV2Ack(request)})
+    if(response!==undefined)fail()
+  },
 }
