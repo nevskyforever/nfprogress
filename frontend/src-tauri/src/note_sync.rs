@@ -1291,6 +1291,113 @@ mod remote_apply_tests {
         ).unwrap(), "applied");
     }
 
+    fn received_accepted_local_branch(
+        connection: &mut PrivilegedRemoteApplyConnection,
+        operation: NoteSyncOperation,
+        stored_updated_at: &str,
+        stored_deleted_at: Option<&str>,
+    ) -> (String, ApplyVerifiedReceivedNoteCommand) {
+        apply_create(connection);
+        let event_id = UPDATE_EVENT.to_string();
+        let opened = plaintext(&event_id, Some(CREATE_EVENT), 2, operation.as_str(),
+            "2026-01-02T00:00:00.000000Z", "local branch");
+        connection.connection().execute(
+            "DELETE FROM cloud_sync_project_bindings WHERE project_id='p'", [],
+        ).unwrap();
+        match &opened {
+            NoteSyncPlaintext::Update { note, .. } => {
+                let snapshot = note_payload_from_record(note).unwrap();
+                connection.connection().execute(
+                    "UPDATE notes SET payload_json=?1 WHERE id='n'", [&snapshot],
+                ).unwrap();
+            }
+            NoteSyncPlaintext::Delete { .. } => {
+                connection.connection().execute("DELETE FROM notes WHERE id='n'", []).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at)
+             VALUES('p',?1,'now','now')", [ACCOUNT],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_outbox(
+                event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+                revision,updated_at,deleted_at,created_at,parent_event_id,local_ordinal,lifecycle
+             ) VALUES(?1,?2,?3,'p','n','note',?4,2,?5,?6,'now',?7,1,'accepted')",
+            rusqlite::params![event_id,ACCOUNT,PULLING_DEVICE,operation.as_str(),
+                stored_updated_at,stored_deleted_at,CREATE_EVENT],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_upload_receipts(
+                account_id,event_id,device_id,server_sequence,duplicate,accepted_at
+             ) VALUES(?1,?2,?3,2,0,'now')",
+            rusqlite::params![ACCOUNT,event_id,PULLING_DEVICE],
+        ).unwrap();
+        let command = received(connection, opened, 2, PULLING_DEVICE);
+        (event_id, command)
+    }
+
+    #[test]
+    fn ordinary_upsert_self_echo_accepts_equivalent_durable_timestamp() {
+        let mut connection = database();
+        let (event_id, command) = received_accepted_local_branch(
+            &mut connection, NoteSyncOperation::Upsert, "2026-01-02T00:00:00Z", None,
+        );
+        let note_before: String = connection.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'", [], |row| row.get(0),
+        ).unwrap();
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(),
+            ApplyVerifiedReceivedNoteResult::SelfEchoApplied);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [&event_id], |row| row.get::<_,String>(0),
+        ).unwrap(), "applied");
+        assert_eq!(connection.connection().query_row(
+            "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities", [],
+            |row| Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?)),
+        ).unwrap(), (event_id,2));
+        assert_eq!(connection.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'", [], |row| row.get::<_,String>(0),
+        ).unwrap(), note_before);
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_groups", [], |row| row.get::<_,i64>(0),
+        ).unwrap(), 0);
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_versions", [], |row| row.get::<_,i64>(0),
+        ).unwrap(), 0);
+    }
+
+    #[test]
+    fn ordinary_self_echo_rejects_a_different_durable_instant() {
+        let mut connection = database();
+        let (event_id, command) = received_accepted_local_branch(
+            &mut connection, NoteSyncOperation::Upsert, "2026-01-02T00:00:01Z", None,
+        );
+        assert_ne!(apply_verified_received_note(&mut connection, &command).unwrap(),
+            ApplyVerifiedReceivedNoteResult::SelfEchoApplied);
+        assert_ne!(connection.connection().query_row(
+            "SELECT head_event_id FROM cloud_sync_entities", [], |row| row.get::<_,String>(0),
+        ).unwrap(), event_id);
+    }
+
+    #[test]
+    fn ordinary_delete_self_echo_proves_both_equivalent_timestamps() {
+        let mut connection = database();
+        let (event_id, command) = received_accepted_local_branch(
+            &mut connection, NoteSyncOperation::Delete,
+            "2026-01-02T00:00:00Z", Some("2026-01-02T00:00:00Z"),
+        );
+        assert_eq!(apply_verified_received_note(&mut connection, &command).unwrap(),
+            ApplyVerifiedReceivedNoteResult::SelfEchoApplied);
+        assert_eq!(connection.connection().query_row(
+            "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities", [],
+            |row| Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?)),
+        ).unwrap(), (event_id,2));
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM notes WHERE id='n'", [], |row| row.get::<_,i64>(0),
+        ).unwrap(), 0);
+    }
+
     #[test]
     fn remote_apply_classifies_conflicting_and_missing_parents() {
         let mut connection = database();
@@ -9350,9 +9457,9 @@ pub(crate) fn apply_verified_received_note(
                     Eligibility::Eligible => {}
                 }
 
-                let self_echo = source_device_id == command.pulling_device_id
-                    && transaction.query_row(
-                        "SELECT 1 FROM cloud_sync_outbox AS outbox
+                let self_echo_timestamps = if source_device_id == command.pulling_device_id {
+                    transaction.query_row(
+                        "SELECT outbox.updated_at,outbox.deleted_at FROM cloud_sync_outbox AS outbox
                          JOIN cloud_sync_upload_receipts AS receipt
                            ON receipt.event_id=outbox.event_id
                          WHERE outbox.event_id=?1 AND outbox.account_id=?2
@@ -9360,16 +9467,25 @@ pub(crate) fn apply_verified_received_note(
                            AND receipt.device_id=?3 AND receipt.server_sequence=?4
                            AND outbox.project_id=?5 AND outbox.entity_id=?6
                            AND outbox.entity_type='note' AND outbox.operation=?7
-                           AND outbox.revision=?8 AND outbox.updated_at=?9
-                           AND outbox.deleted_at IS ?10",
+                           AND outbox.revision=?8",
                         rusqlite::params![
                             command.event_id, command.account_id, command.pulling_device_id,
                             command.server_sequence, incoming.project_id, incoming.entity_id,
-                            incoming.operation, incoming.revision, incoming.updated_at,
-                            incoming.deleted_at,
+                            incoming.operation, incoming.revision,
                         ],
-                        |_| Ok(()),
-                    ).optional()?.is_some();
+                        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+                    ).optional()?
+                } else {
+                    None
+                };
+                let self_echo = self_echo_timestamps.is_some_and(|(updated_at, deleted_at)| {
+                    note_sync_timestamps_equal(&updated_at, &incoming.updated_at)
+                        && match (deleted_at.as_deref(), incoming.deleted_at.as_deref()) {
+                            (None, None) => true,
+                            (Some(stored), Some(opened)) => note_sync_timestamps_equal(stored, opened),
+                            _ => false,
+                        }
+                });
                 if self_echo {
                     let head: Option<(String, i64)> = transaction.query_row(
                         "SELECT head_event_id,head_sync_revision FROM cloud_sync_entities
