@@ -15,6 +15,7 @@ interface SealRequest {
   event: SyncEventEnvelope
   note: NoteSyncRecord
   amk?: number[]
+  parent_event_id?: string | null
 }
 
 interface OpenRequest {
@@ -34,7 +35,9 @@ async function execute(request: BridgeRequest): Promise<Record<string, unknown>>
     const amk = request.amk === undefined
       ? await generateAccountMasterKey()
       : asAccountMasterKey(Uint8Array.from(request.amk))
-    const sealed = await sealNoteSyncEvent(amk, request.canonical_user_id, request.event, null, request.note)
+    const sealed = await sealNoteSyncEvent(
+      amk, request.canonical_user_id, request.event, request.parent_event_id ?? null, request.note,
+    )
     const push = {
       protocol_version: 1 as const,
       encrypted_sync_version: 1 as const,
@@ -104,6 +107,24 @@ function defaultRequest(): SealRequest {
 }
 
 describe('C15 test-only headless crypto bridge', () => {
+  it('seals an ordinary causal update with the supplied parent', async () => {
+    const request = defaultRequest()
+    request.event.event_id = '123e4567-e89b-42d3-a456-426614174011'
+    request.event.revision = 2
+    request.parent_event_id = '123e4567-e89b-42d3-a456-426614174010'
+    const sealed = await execute(request)
+    const opened = await execute({
+      action: 'open', canonical_user_id: request.canonical_user_id,
+      amk: sealed.amk as number[], item: {
+        event: { ...request.event, device_id: request.device_id, server_sequence: 1 },
+        object: (sealed.push as { items: Array<{ object: OpenRequest['item']['object'] }> }).items[0]!.object,
+      },
+    })
+    const decoded = opened.decoded as { mutation: string; header: { parent_event_id: string } }
+    expect(decoded.mutation).toBe('update')
+    expect(decoded.header.parent_event_id).toBe(request.parent_event_id)
+  })
+
   it('uses production sealing/opening code and emits only an explicit temporary response', async () => {
     const requestPath = process.env.NFPROGRESS_C15_CRYPTO_BRIDGE_REQUEST
     const responsePath = process.env.NFPROGRESS_C15_CRYPTO_BRIDGE_RESPONSE
