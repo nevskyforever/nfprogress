@@ -8,8 +8,13 @@ export const V2_SYNC_PROTOCOL_VERSION = 2 as const
 const MAX_SAFE = Number.MAX_SAFE_INTEGER
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 export interface V2Capabilities { supported_transport_version: 2, writer_transport_version: 1 | 2, cutover_epoch: number }
-export interface V2ResolutionPushItem { event: { event_id:string, project_id:string, entity_id:string, entity_type:'note', operation:'resolution', revision:number, updated_at:string, deleted_at:null }, object: { crypto_version:1, aad_version:1, nonce:string, ciphertext:string } }
-export interface V2PushRequest { protocol_version:2, encrypted_sync_version:2, device_id:string, items: V2ResolutionPushItem[] }
+interface V2PushEventBase { event_id:string, project_id:string, entity_id:string, entity_type:'note', revision:number, updated_at:string }
+type V2PushEvent =
+  | (V2PushEventBase & { operation:'upsert' | 'resolution', deleted_at:null })
+  | (V2PushEventBase & { operation:'delete', deleted_at:string })
+export interface V2PushItem { event: V2PushEvent, object: { crypto_version:1, aad_version:1, nonce:string, ciphertext:string } }
+export interface V2ResolutionPushItem extends V2PushItem { event: V2PushEventBase & { operation:'resolution', deleted_at:null } }
+export interface V2PushRequest { protocol_version:2, encrypted_sync_version:2, device_id:string, items: V2PushItem[] }
 export interface V2PushResponse { protocol_version:2, encrypted_sync_version:2, results:Array<{event_id:string,server_sequence:number,duplicate:boolean}>, current_cursor:number }
 export interface ValidatedV2PushItem { eventId:string, ciphertextBytes:number }
 export interface V2PullItem { event: { event_id:string, device_id:string, server_sequence:number, project_id:string, entity_id:string, entity_type:'note', operation:'upsert'|'delete'|'resolution', revision:number, updated_at:string, deleted_at:string|null }, object:ObjectCryptoEnvelope }
@@ -38,17 +43,18 @@ export function parseV2Capabilities(value: unknown): V2Capabilities {
 }
 export function validateV2PushItem(item: unknown): ValidatedV2PushItem {
   if (!keys(item,['event','object'])) fail()
-  const value=item as V2ResolutionPushItem
+  const value=item as V2PushItem
   if (!keys(value.event,['event_id','project_id','entity_id','entity_type','operation','revision','updated_at','deleted_at']) || !keys(value.object,['crypto_version','aad_version','nonce','ciphertext'])) fail()
-  const e=value.event; const eventId=uuid(e.event_id); if (eventId!==e.event_id || !boundedText(e.project_id,512) || !boundedText(e.entity_id,512) || e.entity_type!=='note' || e.operation!=='resolution' || !Number.isSafeInteger(e.revision) || e.revision<2 || typeof e.updated_at!=='string' || e.deleted_at!==null) fail()
-  try { parseSyncTimestamp(e.updated_at) } catch { fail() }
+  const e=value.event; const eventId=uuid(e.event_id); if (eventId!==e.event_id || !boundedText(e.project_id,512) || !boundedText(e.entity_id,512) || e.entity_type!=='note' || !['upsert','delete','resolution'].includes(e.operation) || !Number.isSafeInteger(e.revision) || e.revision<(e.operation==='resolution'?2:1) || typeof e.updated_at!=='string' || (e.operation==='delete')!==(e.deleted_at!==null)) fail()
+  if (e.deleted_at!==null && typeof e.deleted_at!=='string') fail()
+  try { parseSyncTimestamp(e.updated_at); if(e.deleted_at!==null)parseSyncTimestamp(e.deleted_at) } catch { fail() }
   const o=value.object; if (o.crypto_version!==1 || o.aad_version!==1) fail()
   const nonce=decodeBase64Url(o.nonce,{expectedLength:24}); const ciphertext=decodeBase64Url(o.ciphertext,{minimumLength:16,maximumLength:MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES})
   if (encodeBase64Url(nonce)!==o.nonce || encodeBase64Url(ciphertext)!==o.ciphertext) fail()
   return { eventId, ciphertextBytes:ciphertext.byteLength }
 }
 export function encodeV2Push(request: V2PushRequest): string {
-  if (request.protocol_version!==2 || request.encrypted_sync_version!==2 || !Array.isArray(request.items) || request.items.length<1 || request.items.length>100) fail()
+  if (!keys(request,['protocol_version','encrypted_sync_version','device_id','items']) || request.protocol_version!==2 || request.encrypted_sync_version!==2 || !Array.isArray(request.items) || request.items.length<1 || request.items.length>100) fail()
   if(uuid(request.device_id)!==request.device_id)fail(); let total=0; const eventIds=new Set<string>()
   for (const item of request.items) {
     const validated=validateV2PushItem(item); if(eventIds.has(validated.eventId))fail(); eventIds.add(validated.eventId); total+=validated.ciphertextBytes; if(total>MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) fail()

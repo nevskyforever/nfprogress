@@ -4,6 +4,31 @@ import { ApiResponseTooLargeError } from './client'
 const id='123e4567-e89b-42d3-a456-426614174001'
 const request=()=>({protocol_version:2 as const,encrypted_sync_version:2 as const,device_id:id,items:[{event:{event_id:id,project_id:'p',entity_id:'n',entity_type:'note' as const,operation:'resolution' as const,revision:2,updated_at:'2026-01-01T00:00:00.000000Z',deleted_at:null},object:{crypto_version:1 as const,aad_version:1 as const,nonce:'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',ciphertext:'AAAAAAAAAAAAAAAAAAAAAA'}}]})
 describe('encrypted sync v2',()=>{
+ it('accepts ordinary upsert, delete, resolution and a mixed Note batch',()=>{
+  const mixed=request()
+  mixed.items=[
+   {...request().items[0]!,event:{...request().items[0]!.event,event_id:'123e4567-e89b-42d3-a456-426614174002',operation:'upsert',revision:1}},
+   {...request().items[0]!,event:{...request().items[0]!.event,event_id:'123e4567-e89b-42d3-a456-426614174003',operation:'delete',revision:1,deleted_at:'2026-01-02T00:00:00Z'}},
+   request().items[0]!,
+  ] as typeof mixed.items
+  expect(JSON.parse(encodeV2Push(mixed)).items.map((row:{event:{operation:string}})=>row.event.operation)).toEqual(['upsert','delete','resolution'])
+ })
+ it('rejects operation-specific invalid events and malformed opaque objects',()=>{
+  const base=request()
+  const changes: Array<(value:Record<string,unknown>)=>void> = [
+   e=>{e.operation='upsert';e.deleted_at='2026-01-02T00:00:00Z'},
+   e=>{e.operation='delete';e.deleted_at=null},
+   e=>{e.operation='delete';e.deleted_at='invalid'},
+   e=>{e.deleted_at='2026-01-02T00:00:00Z'},
+   e=>{e.operation='event'},e=>{e.entity_type='future'},e=>{e.revision=1},
+   e=>{e.revision=Number.MAX_SAFE_INTEGER+1},e=>{e.updated_at='invalid'},
+   e=>{e.event_id=id.toUpperCase()},
+  ]
+  for(const change of changes){const value=structuredClone(base) as unknown as {items:Array<{event:Record<string,unknown>}>};change(value.items[0]!.event);expect(()=>encodeV2Push(value as unknown as typeof base)).toThrow()}
+  for(const object of [{...base.items[0]!.object,crypto_version:2},{...base.items[0]!.object,aad_version:2},{...base.items[0]!.object,ciphertext:'AA'},{...base.items[0]!.object,ciphertext:'='}]){
+   const value=structuredClone(base);value.items[0]!.object=object as typeof value.items[0]['object'];expect(()=>encodeV2Push(value)).toThrow()
+  }
+ })
  it('validates dormant capability and exact opaque resolution wire data',()=>{expect(parseV2Capabilities({supported_transport_version:2,writer_transport_version:2,cutover_epoch:0})).toMatchObject({writer_transport_version:2});expect(JSON.parse(encodeV2Push(request())).items[0].event.operation).toBe('resolution')})
  it('rejects malformed capability, envelope and receipt sets',()=>{expect(()=>parseV2Capabilities({supported_transport_version:2,writer_transport_version:3,cutover_epoch:0})).toThrow();const bad=request();bad.items[0]!.object.nonce='=';expect(()=>encodeV2Push(bad)).toThrow();expect(()=>parseV2PushResponse({protocol_version:2,encrypted_sync_version:2,results:[],current_cursor:0},[id])).toThrow()})
  it('requires one unique receipt per event',()=>{expect(parseV2PushResponse({protocol_version:2,encrypted_sync_version:2,results:[{event_id:id,server_sequence:1,duplicate:true}],current_cursor:1},[id]).results[0]!.duplicate).toBe(true)})
