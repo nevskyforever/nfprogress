@@ -14,6 +14,10 @@
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## Permanent Codex CI handling rule
+
+После успешного локального commit и разрешённого `git push origin 6.0` Codex не ждёт завершения GitHub Actions и не проверяет статус workflow после push. Не выполнять polling через `gh`, GitHub API, браузер или другой способ и не расходовать лимиты на ожидание или контроль remote CI. В отчёте перечислить только ожидаемые workflow/jobs, считать опубликованный этап `REMOTE CI PENDING` до независимого подтверждения CI в GPT-чате, сразу сформировать `=== CODEX TASK RESULT ===` и завершить задачу. Независимую проверку remote CI выполняет GPT-чат отдельно. Сохранять это правило во всех следующих checkpoint.
+
 ---
 
 ## 1. Репозиторий, ветка и проверенный baseline
@@ -1037,7 +1041,9 @@ C16 remains **CLOSED**. C17 remains **IN PROGRESS**. Official WORTA ROADMAP SCOR
 
 ## C17 Pass 2F-D4D2 — explicit one-way transport-v2 account cutover
 
-**Status: IMPLEMENTED LOCALLY / REMOTE CI PENDING.** The authenticated account-local `POST /api/v2/sync/encrypted/cutover` accepts the observed `expected_cutover_epoch` and permits only a one-way writer transition from 1 to 2. Its PostgreSQL transaction locks the same per-account sync state row as push, compares the epoch under that lock, checks the entire retained event history for v2-readable encrypted Note metadata, then advances the epoch by exactly one with safe-integer overflow protection. Incompatible history blocks the transition without rewriting events. A retry after a committed transition returns mode 2 and the current epoch without another increment, including after a lost HTTP response. The server does not require device ACKs or modify devices, cursors, projects, events, or ciphertext.
+**Status: IMPLEMENTED LOCALLY / REMOTE CI PENDING.** Published commit `0bbdd2aa66a749a2bbafa660e46915ed83cfcc63`; Cloud backend tests run `36463255581` — **FAILURE**. `Frontend admin` — **SUCCESS**; `PostgreSQL cloud backend` — **193 passed, 1 failed**. The failed test `tests/test_cloud_encrypted_sync_v2.py::test_c17_cutover_preserves_history_devices_ack_and_projects` called the nonexistent `/api/v1/sync/encrypted/ack` route and received 404. The established v1 ACK route is `/api/v1/sync/ack`; the follow-up test fix uses that route. This is a test URL correction; it does not change production ACK or cutover behavior. Remote acceptance remains pending until GPT independently verifies the next CI run.
+
+The authenticated account-local `POST /api/v2/sync/encrypted/cutover` accepts the observed `expected_cutover_epoch` and permits only a one-way writer transition from 1 to 2. Its PostgreSQL transaction locks the same per-account sync state row as push, compares the epoch under that lock, checks the entire retained event history for v2-readable encrypted Note metadata, then advances the epoch by exactly one with safe-integer overflow protection. Incompatible history blocks the transition without rewriting events. A retry after a committed transition returns mode 2 and the current epoch without another increment, including after a lost HTTP response. The server does not require device ACKs or modify devices, cursors, projects, events, or ciphertext.
 
 The frontend provides a strictly validated explicit cutover API method. Login, unlock, runtime retry, project bootstrap, scheduler, and UI do not call it. The D4D1 production router reads the resulting server mode on its next top-level operation. No downgrade path or migration was added. Pass 2F-E remains required for coordinated two- and three-device acceptance and any acceptance-driven hardening. C16 remains **CLOSED**; C17 remains **IN PROGRESS**; official progress remains exactly **73,0%**.
 

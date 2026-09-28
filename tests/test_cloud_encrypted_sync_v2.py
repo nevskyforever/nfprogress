@@ -229,7 +229,7 @@ def test_c17_cutover_preserves_history_devices_ack_and_projects(cloud_client):
     event, encrypted = _event(), _object()
     assert client.post('/api/v1/sync/encrypted/push', headers=_headers(token),
                        json=_v1_request(first, event, encrypted)).status_code == 200
-    assert client.post('/api/v1/sync/encrypted/ack', headers=_headers(token),
+    assert client.post('/api/v1/sync/ack', headers=_headers(token),
                        json={'protocol_version': 1, 'device_id': first, 'cursor': 1}).status_code == 204
     with Session(engine) as session:
         before = (
@@ -246,7 +246,7 @@ def test_c17_cutover_preserves_history_devices_ack_and_projects(cloud_client):
     for method, path, kwargs in (
         ('post', '/api/v1/sync/encrypted/push', {'json': _v1_request(first, _event(), _object())}),
         ('get', '/api/v1/sync/encrypted/pull', {'params': {'device_id': first, 'since': 0, 'limit': 10, 'protocol_version': 1, 'encrypted_sync_version': 1}}),
-        ('post', '/api/v1/sync/encrypted/ack', {'json': {'protocol_version': 1, 'device_id': first, 'cursor': 1}}),
+        ('post', '/api/v1/sync/ack', {'json': {'protocol_version': 1, 'device_id': first, 'cursor': 1}}),
     ):
         response = getattr(client, method)(path, headers=_headers(token), **kwargs)
         assert response.status_code == 409 and response.json()['detail']['code'] == 'sync_transport_mode_incompatible'
