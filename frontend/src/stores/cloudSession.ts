@@ -18,7 +18,7 @@ import {
   type CloudRegistryReconciliation,
 } from '@/cloud/projectBootstrap'
 import { NoteSyncRuntime, type NoteSyncRuntimeUnlockResult } from '@/cloud/noteSyncRuntime'
-import type { NoteSyncOrchestratorResult } from '@/cloud/noteSyncOrchestrator'
+import type { NoteSyncProductionResult } from '@/cloud/noteSyncTransportRouter'
 import { canEnableCloudProjectSync } from '@/cloud/capabilities'
 import type { CloudProjectBootstrapRecord } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
 import { currentPlatform } from '@/platform/runtime'
@@ -76,7 +76,7 @@ export interface CloudSessionRuntime {
   bootstrapLocalProject(projectId: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   importRemoteProject(projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   setProjectPaused(projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
-  retry(): Promise<NoteSyncOrchestratorResult>
+  retry(): Promise<NoteSyncProductionResult>
   lock(): Promise<void>
   logout(): Promise<void>
   dispose(): Promise<void>
@@ -325,7 +325,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     if (username.value !== null) status.value = hasProvisionedKey.value ? 'key_locked' : 'provisioning'
   }
 
-  function applyCycle(result: NoteSyncOrchestratorResult, epoch: number): void {
+  function applyCycle(result: NoteSyncProductionResult, epoch: number): void {
     if (!current(epoch)) return
     blockedEvents.value = result.blocked.map(() => 'Есть зашифрованное событие, требующее отдельного безопасного решения.')
     hasRemainingWork.value = result.hasRemainingWork
@@ -336,7 +336,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     else status.value = 'completed'
   }
 
-  async function runCycle(operation: () => Promise<NoteSyncOrchestratorResult>): Promise<void> {
+  async function runCycle(operation: () => Promise<NoteSyncProductionResult>): Promise<void> {
     const epoch = lifecycleEpoch
     if (syncFlight?.epoch === epoch) return syncFlight.promise
     status.value = 'syncing'

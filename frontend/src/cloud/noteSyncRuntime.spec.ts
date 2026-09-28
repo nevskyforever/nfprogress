@@ -4,10 +4,16 @@ import { ApiError } from '@/api/client'
 import { KeyNotProvisionedError } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError } from '@/auth/userAuth'
 import { CloudIdentityUnavailableError, NoteSyncRuntime, NoteSyncRuntimeDisposedError } from './noteSyncRuntime'
+import { NoteSyncTransportRouter } from './noteSyncTransportRouter'
 
 const USER = '123e4567-e89b-42d3-a456-426614174099'
 const IDENTITY = { local_account_id: 'local-account', device_id: '123e4567-e89b-42d3-a456-426614174001' }
 const EMPTY_RESULT = { stages: [], sealed: [], uploaded: 0, pulled: [], applied: [], blocked: [], errors: [], hasRemainingWork: false }
+const ROUTED_RESULT = { transport_version: 1 as const, cutover_epoch: 0, cycle: EMPTY_RESULT,
+  blocked: [], errors: [], hasRemainingWork: false }
+const V2_RESULT = { stages: ['mixed_apply'], sealed: [], ordinaryUploaded: 1, resolutionUploaded: 2,
+  pulled: [], mixedApply: { stages: [], v1Pages: [], resolutionPages: [], blocked: [], errors: [], hasRemainingWork: false },
+  blocked: [], errors: [], hasRemainingWork: false }
 const READY_REGISTRY = { readyForCycle: true, readyForNormalCycle: true, reasons: [], remote: [], local: [], currentCursor: 0 }
 
 function auth(): NormalUserAuthRuntime {
@@ -27,9 +33,10 @@ function deferred<T>() {
 function harness() {
   const userAuth = auth()
   let active = false
+  let stale = false
   const lease = {
     localAccountId: IDENTITY.local_account_id, canonicalUserId: USER, authEpoch: 1,
-    keyContextId: 'key-context', keyEpoch: 1, isCurrent: vi.fn(() => active), use: vi.fn(),
+    keyContextId: 'key-context', keyEpoch: 1, isCurrent: vi.fn(() => active && !stale), use: vi.fn(),
   }
   const identity = { provision: vi.fn().mockResolvedValue(IDENTITY), read: vi.fn().mockResolvedValue(IDENTITY) }
   const bindings = { ensureForCurrentUser: vi.fn(async () => ({ context: userAuth.requireContext(), result: 'validated' as const })) }
@@ -42,18 +49,26 @@ function harness() {
     runOnce: vi.fn().mockResolvedValue(EMPTY_RESULT),
     runMixedInboxOnce: vi.fn().mockResolvedValue(EMPTY_RESULT),
   }
+  const v2Cycle = { runOnce: vi.fn().mockResolvedValue(V2_RESULT) }
+  let mode: 1 | 2 = 1
+  const capabilities = { capabilities: vi.fn(async () => ({ supported_transport_version: 2 as const,
+    writer_transport_version: mode, cutover_epoch: mode === 1 ? 0 : 1 })) }
+  const router = new NoteSyncTransportRouter(userAuth, orchestrator, v2Cycle,
+    { uploadOnce: vi.fn() }, { uploadOnce: vi.fn() }, capabilities)
   const bootstrap = {
     reconcile: vi.fn().mockResolvedValue(READY_REGISTRY),
     preflightLocalProject: vi.fn().mockResolvedValue([]),
-    runReadyCycle: vi.fn().mockResolvedValue(EMPTY_RESULT),
+    runReadyCycle: vi.fn().mockResolvedValue(ROUTED_RESULT),
     bootstrapLocalProject: vi.fn(), importRemoteProject: vi.fn(),
     setPaused: vi.fn().mockResolvedValue(READY_REGISTRY),
   }
   const runtime = new NoteSyncRuntime({
     auth: userAuth, identityRepository: identity, bindings: bindings as never, keys: keys as never,
     orchestrator: orchestrator as never, bootstrap: bootstrap as never,
+    router,
   })
-  return { runtime, userAuth, identity, bindings, keys, orchestrator, bootstrap, activate: () => { active = true } }
+  return { runtime, router, userAuth, identity, bindings, keys, orchestrator, v2Cycle, capabilities, bootstrap,
+    setMode: (value: 1 | 2) => { mode = value }, activate: () => { active = true }, staleKey: () => { stale = true } }
 }
 
 describe('headless normal-user Notes sync runtime', () => {
@@ -95,19 +110,52 @@ describe('headless normal-user Notes sync runtime', () => {
   it('joins concurrent explicit retries for one authenticated key context', async () => {
     const h = harness(); await h.runtime.login('user', 'account-password'); await h.runtime.unlock('passphrase')
     h.bootstrap.runReadyCycle.mockClear()
-    const pending = deferred<typeof EMPTY_RESULT>()
+    const pending = deferred<typeof ROUTED_RESULT>()
     h.bootstrap.runReadyCycle.mockReturnValueOnce(pending.promise)
     const first = h.runtime.retry(); const second = h.runtime.retry()
     await vi.waitFor(() => expect(h.bootstrap.runReadyCycle).toHaveBeenCalledTimes(1))
-    pending.resolve(EMPTY_RESULT)
+    pending.resolve(ROUTED_RESULT)
     await expect(Promise.all([first, second])).resolves.toHaveLength(2)
   })
 
-  it('keeps ordinary production retries on the v1-only orchestrator entrypoint', async () => {
+  it('routes mode-one production retry to v1 and preserves its diagnostics', async () => {
     const h = harness(); await h.runtime.login('user', 'account-password'); await h.runtime.unlock('passphrase')
-    await h.runtime.retry({ applyLimit: 2, maxApplyPasses: 1 })
+    const result = await h.runtime.retry({ applyLimit: 2, maxApplyPasses: 1 })
     expect(h.orchestrator.runOnce).toHaveBeenCalledWith(IDENTITY.local_account_id, IDENTITY.device_id, { applyLimit: 2, maxApplyPasses: 1 })
     expect(h.orchestrator.runMixedInboxOnce).not.toHaveBeenCalled()
+    expect(h.v2Cycle.runOnce).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ transport_version: 1, cutover_epoch: 0, cycle: EMPTY_RESULT })
+  })
+
+  it('routes mode-two production retry to the full v2 cycle and preserves mixed diagnostics', async () => {
+    const h = harness(); await h.runtime.login('user', 'account-password'); await h.runtime.unlock('passphrase')
+    h.setMode(2)
+    const result = await h.runtime.retry({ applyLimit: 2 })
+    expect(h.v2Cycle.runOnce).toHaveBeenCalledWith(IDENTITY.local_account_id, IDENTITY.device_id, { applyLimit: 2 })
+    expect(h.orchestrator.runOnce).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ transport_version: 2, cutover_epoch: 1,
+      cycle: { ordinaryUploaded: 1, resolutionUploaded: 2, mixedApply: V2_RESULT.mixedApply } })
+  })
+
+  it('routes ready default retries by current mode while retaining the runtime gate', async () => {
+    const h = harness(); await h.runtime.login('user', 'account-password'); await h.runtime.unlock('passphrase')
+    h.bootstrap.runReadyCycle.mockImplementation(identity => h.router.runOnce(identity.localAccountId, identity.deviceId))
+    await expect(h.runtime.retry()).resolves.toMatchObject({ transport_version: 1, cutover_epoch: 0 })
+    h.setMode(2)
+    await expect(h.runtime.retry()).resolves.toMatchObject({ transport_version: 2, cutover_epoch: 1 })
+    expect(h.bootstrap.runReadyCycle).toHaveBeenCalledTimes(2)
+    expect(h.capabilities.capabilities).toHaveBeenCalledTimes(2)
+    expect(h.orchestrator.runOnce).toHaveBeenCalledOnce()
+    expect(h.v2Cycle.runOnce).toHaveBeenCalledOnce()
+  })
+
+  it('does not read capabilities or run either cycle with a stale key lease', async () => {
+    const h = harness(); await h.runtime.login('user', 'account-password'); await h.runtime.unlock('passphrase')
+    h.staleKey()
+    await expect(h.runtime.retry({ applyLimit: 2 })).rejects.toBeInstanceOf(StaleAuthContextError)
+    expect(h.capabilities.capabilities).not.toHaveBeenCalled()
+    expect(h.orchestrator.runOnce).not.toHaveBeenCalled()
+    expect(h.v2Cycle.runOnce).not.toHaveBeenCalled()
   })
 
   it('keeps project preflight, bootstrap, import and pause behind current auth and key authority', async () => {

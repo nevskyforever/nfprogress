@@ -7,13 +7,18 @@ import type {
   CloudProjectBootstrapRepository,
 } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
 import { CloudProjectBootstrapBlockedError, CloudProjectBootstrapCoordinator } from './projectBootstrap'
+import { NoteSyncTransportRouter } from './noteSyncTransportRouter'
 
 const USER = '123e4567-e89b-42d3-a456-426614174099'
 const PROJECT = '123e4567-e89b-42d3-a456-426614174010'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174001'
 const TOKEN = '123e4567-e89b-42d3-a456-426614174020'
 const IDENTITY = { localAccountId: 'local-account', deviceId: DEVICE }
-const EMPTY_CYCLE = { stages: [], sealed: [], uploaded: 0, pulled: [], applied: [], blocked: [], errors: [], hasRemainingWork: false }
+const V1_CYCLE = { stages: [], sealed: [], uploaded: 0, pulled: [], applied: [], blocked: [], errors: [], hasRemainingWork: false }
+const EMPTY_CYCLE = { transport_version: 1 as const, cutover_epoch: 0, cycle: V1_CYCLE,
+  blocked: [], errors: [], hasRemainingWork: false }
+const V2_CYCLE = { stages: [], sealed: [], ordinaryUploaded: 0, resolutionUploaded: 0, pulled: [],
+  blocked: [], errors: [], hasRemainingWork: false }
 
 function auth(): NormalUserAuthRuntime {
   return new NormalUserAuthRuntime({
@@ -86,6 +91,25 @@ function workers() {
     registerDevice: vi.fn().mockResolvedValue(undefined),
     sealOnce: vi.fn().mockResolvedValue(undefined), uploadOnce: vi.fn().mockResolvedValue(undefined),
     runOnce: vi.fn().mockResolvedValue(EMPTY_CYCLE),
+  }
+}
+
+function routedWorkers(session: NormalUserAuthRuntime) {
+  let mode: 1 | 2 = 1
+  const v1 = { runOnce: vi.fn().mockResolvedValue(V1_CYCLE) }
+  const v2 = { runOnce: vi.fn().mockResolvedValue(V2_CYCLE) }
+  const v1Upload = { uploadOnce: vi.fn().mockResolvedValue(undefined) }
+  const v2Upload = { uploadOnce: vi.fn().mockResolvedValue(undefined) }
+  const capabilities = { capabilities: vi.fn(async () => ({ supported_transport_version: 2 as const,
+    writer_transport_version: mode, cutover_epoch: mode === 1 ? 0 : 1 })) }
+  const router = new NoteSyncTransportRouter(session, v1, v2, v1Upload, v2Upload, capabilities)
+  return {
+    registerDevice: vi.fn().mockResolvedValue(undefined),
+    sealOnce: vi.fn().mockResolvedValue(undefined),
+    uploadOnce: (accountId: string) => router.uploadOnce(accountId),
+    runOnce: (accountId: string, deviceId: string) => router.runOnce(accountId, deviceId),
+    v1, v2, v1Upload, v2Upload, capabilities,
+    setMode: (value: 1 | 2) => { mode = value },
   }
 }
 
@@ -226,5 +250,51 @@ describe('safe cloud project bootstrap coordinator', () => {
     expect(paused.reasons).toContain(`paused:${PROJECT}`)
     await coordinator.setPaused(IDENTITY, PROJECT, false)
     expect(work.runOnce).not.toHaveBeenCalled()
+  })
+
+  it.each([1, 2] as const)('routes initial bootstrap upload and ready cycle through mode %i', async mode => {
+    const session = auth(); await session.login('user', 'password')
+    let serverState: 'initializing' | 'active' = 'initializing'
+    vi.spyOn(cloudProjectsApi, 'registerBootstrap').mockImplementation(async () => ({ project: descriptor(serverState), current_cursor: 0 }))
+    vi.spyOn(cloudProjectsApi, 'completeBootstrap').mockImplementation(async () => {
+      serverState = 'active'; return { project: descriptor('active'), current_cursor: 2 }
+    })
+    vi.spyOn(cloudProjectsApi, 'listBootstraps').mockImplementation(async () => ({
+      projects: [descriptor(serverState)], current_cursor: serverState === 'active' ? 2 : 0,
+    }))
+    const { repo } = repository()
+    vi.mocked(repo.cohort)
+      .mockResolvedValueOnce({ event_count: 2, accepted_count: 1, max_server_sequence: 1, complete: false })
+      .mockResolvedValue({ event_count: 2, accepted_count: 2, max_server_sequence: 2, complete: true })
+    const work = routedWorkers(session)
+    // Sealing does not select transport. The upload reads the current server mode.
+    work.sealOnce.mockImplementation(async () => { work.setMode(mode) })
+    const coordinator = new CloudProjectBootstrapCoordinator(session, repo, work)
+    const result = await coordinator.bootstrapLocalProject(IDENTITY, PROJECT)
+    expect(work.registerDevice).toHaveBeenCalledWith(IDENTITY.localAccountId, DEVICE)
+    expect(work.sealOnce).toHaveBeenCalledOnce()
+    expect(work.capabilities.capabilities).toHaveBeenCalledTimes(2)
+    expect(result.cycle).toMatchObject({ transport_version: mode, cutover_epoch: mode === 1 ? 0 : 1 })
+    expect(work.v1Upload.uploadOnce).toHaveBeenCalledTimes(mode === 1 ? 1 : 0)
+    expect(work.v2Upload.uploadOnce).toHaveBeenCalledTimes(mode === 2 ? 1 : 0)
+    expect(work.v1.runOnce).toHaveBeenCalledTimes(mode === 1 ? 1 : 0)
+    expect(work.v2.runOnce).toHaveBeenCalledTimes(mode === 2 ? 1 : 0)
+    await coordinator.runReadyCycle(IDENTITY)
+    expect(work.capabilities.capabilities).toHaveBeenCalledTimes(3)
+  })
+
+  it.each([1, 2] as const)('routes remote-project import cycle through mode %i', async mode => {
+    const session = auth(); await session.login('user', 'password')
+    vi.spyOn(cloudProjectsApi, 'listBootstraps').mockResolvedValue({ projects: [descriptor('active')], current_cursor: 2 })
+    const { repo } = repository([record('ready')])
+    vi.mocked(repo.importRemote).mockResolvedValue(record('ready'))
+    const work = routedWorkers(session); work.setMode(mode)
+    const coordinator = new CloudProjectBootstrapCoordinator(session, repo, work)
+    const result = await coordinator.importRemoteProject(IDENTITY, PROJECT, 'Remote')
+    expect(result.cycle?.transport_version).toBe(mode)
+    expect(work.v1.runOnce).toHaveBeenCalledTimes(mode === 1 ? 1 : 0)
+    expect(work.v2.runOnce).toHaveBeenCalledTimes(mode === 2 ? 1 : 0)
+    expect(work.v1Upload.uploadOnce).not.toHaveBeenCalled()
+    expect(work.v2Upload.uploadOnce).not.toHaveBeenCalled()
   })
 })

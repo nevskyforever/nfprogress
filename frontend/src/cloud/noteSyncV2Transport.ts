@@ -17,7 +17,7 @@ interface V2Api {
   ack: typeof encryptedSyncV2Api.ack
 }
 
-/** Explicitly invoked dormant transport. Neither adapter is composed by the production runtime. */
+/** Mode-2 transport adapters with server-mode checks at each HTTP boundary. */
 class V2Scope {
   constructor(
     protected readonly auth: NormalUserAuthRuntime,

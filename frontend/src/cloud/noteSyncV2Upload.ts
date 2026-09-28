@@ -74,7 +74,7 @@ function failureCode(error: unknown): NoteSyncUploadFailureCode | null {
   return 'network_unavailable'
 }
 
-/** Dormant ordinary Note upload; it uses the existing sealed outbox and native receipt transaction. */
+/** Ordinary mode-2 Note upload using the existing sealed outbox and native receipt transaction. */
 export class NoteSyncV2Uploader {
   private static readonly flights = new Map<string, Promise<{ uploaded: number, deviceId: string | null }>>()
   constructor(private readonly auth: NormalUserAuthRuntime, private readonly bindings: AuthoritativeAccountBinding,

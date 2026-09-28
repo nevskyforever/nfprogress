@@ -8,7 +8,7 @@ import { ApiError } from '@/api/client'
 import { currentPlatform } from '@/platform/runtime'
 import type { PendingAccountCryptoProvisioning } from '@/cloud/accountCryptoProvisioning'
 import { AccountCryptoProvisioningConflictError } from '@/cloud/accountCryptoProvisioning'
-import type { NoteSyncOrchestratorResult } from '@/cloud/noteSyncOrchestrator'
+import type { NoteSyncProductionResult } from '@/cloud/noteSyncTransportRouter'
 import type { CloudProjectBootstrapProgress, CloudRegistryReconciliation } from '@/cloud/projectBootstrap'
 import type { CloudProjectBootstrapRecord } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
 import {
@@ -28,8 +28,12 @@ const PROVISIONED: CurrentUserCryptoRecord = {
   recovery: { crypto_version: 1, wrapping_version: 1, nonce: 'recovery-nonce', ciphertext: 'recovery-ciphertext' },
 }
 const UNPROVISIONED: CurrentUserCryptoRecord = { provisioned: false, password: null, recovery: null }
-const EMPTY_CYCLE: NoteSyncOrchestratorResult = {
+const V1_CYCLE = {
   stages: [], sealed: [], uploaded: 0, pulled: [], applied: [], blocked: [], errors: [], hasRemainingWork: false,
+}
+const EMPTY_CYCLE: NoteSyncProductionResult = {
+  transport_version: 1, cutover_epoch: 0, cycle: V1_CYCLE,
+  hasRemainingWork: false, blocked: [], errors: [],
 }
 const READY_REGISTRY = { readyForCycle: true, readyForNormalCycle: true, reasons: [], remote: [], local: [], currentCursor: 0 }
 const PROJECT = '123e4567-e89b-42d3-a456-426614174010'
@@ -203,7 +207,7 @@ describe('desktop cloud session owner', () => {
 
   it('uses a single flight and reports bounded-cycle status without claiming global sync', async () => {
     const instance = runtime()
-    let resolve!: (value: NoteSyncOrchestratorResult) => void
+    let resolve!: (value: NoteSyncProductionResult) => void
     ;(instance.retry as ReturnType<typeof vi.fn>).mockImplementation(() => new Promise(done => { resolve = done }))
     configureCloudSessionRuntimeFactoryForTests(() => instance)
     const store = useCloudSessionStore(); store.initialize()

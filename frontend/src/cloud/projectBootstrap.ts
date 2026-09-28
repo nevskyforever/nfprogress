@@ -1,7 +1,7 @@
 import { cloudProjectsApi, type CloudProjectBootstrapDescriptor } from '@/api/cloudProjects'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import type { CloudProjectBootstrapRecord, CloudProjectBootstrapRepository, CloudProjectBootstrapScope } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
-import type { NoteSyncOrchestratorResult } from './noteSyncOrchestrator'
+import type { NoteSyncProductionResult } from './noteSyncTransportRouter'
 
 export class CloudProjectBootstrapBlockedError extends Error {
   readonly name = 'CloudProjectBootstrapBlockedError'
@@ -20,7 +20,7 @@ export interface CloudRegistryReconciliation {
 export interface CloudProjectBootstrapProgress {
   readonly project: CloudProjectBootstrapRecord
   readonly registry: CloudRegistryReconciliation
-  readonly cycle?: NoteSyncOrchestratorResult
+  readonly cycle?: NoteSyncProductionResult
   readonly hasRemainingWork: boolean
 }
 
@@ -44,7 +44,7 @@ interface BootstrapWorkers {
   registerDevice(localAccountId: string, deviceId: string): Promise<unknown>
   sealOnce(): Promise<unknown>
   uploadOnce(localAccountId: string): Promise<unknown>
-  runOnce(localAccountId: string, deviceId: string): Promise<NoteSyncOrchestratorResult>
+  runOnce(localAccountId: string, deviceId: string): Promise<NoteSyncProductionResult>
 }
 
 const MAX_BOOTSTRAP_UPLOAD_PASSES = 8
@@ -148,7 +148,7 @@ export class CloudProjectBootstrapCoordinator {
     return this.reconcile(identity)
   }
 
-  async runReadyCycle(identity: BootstrapIdentity): Promise<NoteSyncOrchestratorResult> {
+  async runReadyCycle(identity: BootstrapIdentity): Promise<NoteSyncProductionResult> {
     const registry = await this.reconcile(identity)
     if (!registry.readyForNormalCycle) throw new CloudProjectBootstrapBlockedError(registry.reasons[0] ?? 'cloud_projects_not_connected')
     return this.workers.runOnce(identity.localAccountId, identity.deviceId)

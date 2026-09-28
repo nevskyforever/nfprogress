@@ -27,7 +27,7 @@ export interface NoteSyncV2CycleResult {
 
 const DEFAULTS: Required<NoteSyncOrchestratorOptions> = { sealLimit: 8, applyLimit: 8, maxPullPages: 4, maxApplyPasses: 4 }
 
-/** Dormant mode-2 composition. No production runtime or bootstrap constructs this class. */
+/** Bounded mode-2 Notes cycle, selected by the production transport router. */
 export class NoteSyncV2Cycle {
   private static readonly flights = new Map<string, Promise<NoteSyncV2CycleResult>>()
 

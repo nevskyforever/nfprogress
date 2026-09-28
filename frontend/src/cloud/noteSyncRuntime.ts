@@ -9,6 +9,7 @@ import { SQLiteNoteSyncInboxRepository } from '@/infrastructure/sqlite/noteSyncI
 import { SQLiteNoteSyncIntentRepository } from '@/infrastructure/sqlite/noteSyncIntentRepository'
 import { SQLiteNoteSyncOutboxRepository } from '@/infrastructure/sqlite/noteSyncOutboxRepository'
 import { SQLiteNoteSyncRemoteApplyRepository } from '@/infrastructure/sqlite/noteSyncRemoteApplyRepository'
+import { SQLiteNoteSyncResolutionUploadRepository } from '@/infrastructure/sqlite/noteSyncResolutionUploadRepository'
 import { NoteSyncDeviceAckAdapter } from './noteSyncDeviceAck'
 import { accountCryptoApi, type CurrentUserCryptoRecord } from '@/api/accountCrypto'
 import { PendingAccountCryptoProvisioning } from './accountCryptoProvisioning'
@@ -17,6 +18,12 @@ import { DurableNoteSyncInbox } from './noteSyncInbox'
 import { NoteSyncOrchestrator, type NoteSyncOrchestratorOptions, type NoteSyncOrchestratorResult } from './noteSyncOrchestrator'
 import { NoteSyncPuller } from './noteSyncPull'
 import { NoteSyncUploader } from './noteSyncUpload'
+import { NoteSyncV2Uploader } from './noteSyncV2Upload'
+import { NoteSyncResolutionUploader } from './noteSyncResolutionUpload'
+import { NoteSyncResolutionInboxApplier } from './noteSyncResolutionInboxApply'
+import { DurableNoteSyncV2Inbox, NoteSyncV2AckAdapter } from './noteSyncV2Transport'
+import { NoteSyncV2Cycle, type NoteSyncV2CycleResult } from './noteSyncV2Cycle'
+import { NoteSyncTransportRouter, type NoteSyncProductionResult } from './noteSyncTransportRouter'
 import { sealPendingNoteSyncIntents } from './noteSyncIntent'
 import {
   CloudProjectBootstrapCoordinator,
@@ -31,6 +38,15 @@ interface NoteSyncRunner {
   runOnce(localAccountId: string, deviceId: string, options?: NoteSyncOrchestratorOptions): Promise<NoteSyncOrchestratorResult>
 }
 
+interface NoteSyncV2Runner {
+  runOnce(localAccountId: string, deviceId: string, options?: NoteSyncOrchestratorOptions): Promise<NoteSyncV2CycleResult>
+}
+
+interface ProductionRunner {
+  runOnce(localAccountId: string, deviceId: string, options?: NoteSyncOrchestratorOptions): Promise<NoteSyncProductionResult>
+  uploadOnce(localAccountId: string): Promise<void>
+}
+
 interface RuntimeKeyManager {
   unlockWithPassphrase(localAccountId: string, passphrase: string): Promise<AuthoritativeKeyContextLease>
   leaseForAccount(localAccountId: string): AuthoritativeKeyContextLease | null
@@ -41,7 +57,7 @@ interface RuntimeKeyManager {
 interface ProjectBootstrapGate {
   reconcile(identity: { localAccountId: string, deviceId: string }): Promise<CloudRegistryReconciliation>
   preflightLocalProject(projectId: string): Promise<Array<{ note_id: string, code: string }>>
-  runReadyCycle(identity: { localAccountId: string, deviceId: string }): Promise<NoteSyncOrchestratorResult>
+  runReadyCycle(identity: { localAccountId: string, deviceId: string }): Promise<NoteSyncProductionResult>
   bootstrapLocalProject(identity: { localAccountId: string, deviceId: string }, projectId: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   importRemoteProject(identity: { localAccountId: string, deviceId: string }, projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   setPaused(identity: { localAccountId: string, deviceId: string }, projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
@@ -54,6 +70,8 @@ export interface NoteSyncRuntimeDependencies {
   readonly bindings?: AuthoritativeAccountBinding
   readonly keys?: RuntimeKeyManager
   readonly orchestrator?: NoteSyncRunner
+  readonly v2Cycle?: NoteSyncV2Runner
+  readonly router?: ProductionRunner
   readonly bootstrap?: ProjectBootstrapGate
 }
 
@@ -84,9 +102,9 @@ export class NoteSyncRuntime {
   private readonly identityRepository: CloudIdentityRepository
   private readonly bindings: AuthoritativeAccountBinding
   private readonly keys: RuntimeKeyManager
-  private readonly orchestrator: NoteSyncRunner
+  private readonly router: ProductionRunner
   private readonly bootstrap: ProjectBootstrapGate
-  private flight: { readonly key: string, readonly promise: Promise<NoteSyncOrchestratorResult> } | null = null
+  private flight: { readonly key: string, readonly promise: Promise<NoteSyncProductionResult> } | null = null
   private disposed = false
 
   constructor(dependencies: NoteSyncRuntimeDependencies = {}) {
@@ -95,8 +113,8 @@ export class NoteSyncRuntime {
     const bindingRepository = dependencies.bindingRepository ?? new SQLiteCloudAccountBindingRepository()
     this.bindings = dependencies.bindings ?? new AuthoritativeAccountBinding(this.auth, bindingRepository)
     this.keys = dependencies.keys ?? new RuntimeKeyContext(this.auth, this.bindings)
-    const composition = this.composeSync(dependencies.orchestrator)
-    this.orchestrator = composition.orchestrator
+    const composition = this.composeSync(dependencies)
+    this.router = composition.router
     this.bootstrap = dependencies.bootstrap ?? composition.bootstrap
   }
 
@@ -139,7 +157,7 @@ export class NoteSyncRuntime {
     return { identity, registry: await this.bootstrap.reconcile(this.bootstrapIdentity(identity)) }
   }
 
-  async retry(options?: NoteSyncOrchestratorOptions): Promise<NoteSyncOrchestratorResult> {
+  async retry(options?: NoteSyncOrchestratorOptions): Promise<NoteSyncProductionResult> {
     this.assertNotDisposed()
     const context = this.auth.requireContext()
     const identity = await this.readFor(context)
@@ -205,31 +223,46 @@ export class NoteSyncRuntime {
     await this.keys.dispose()
   }
 
-  private composeSync(injected?: NoteSyncRunner): { orchestrator: NoteSyncRunner, bootstrap: ProjectBootstrapGate } {
+  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate } {
     const intents = new SQLiteNoteSyncIntentRepository()
     const outbox = new SQLiteNoteSyncOutboxRepository()
     const inboxRepository = new SQLiteNoteSyncInboxRepository()
     const puller = new NoteSyncPuller(this.auth, this.bindings)
     const inbox = new DurableNoteSyncInbox(this.auth, this.bindings, puller, inboxRepository)
+    const remoteApply = new SQLiteNoteSyncRemoteApplyRepository()
     const applier = new NoteSyncInboxRemoteApplier(
-      this.auth, this.bindings, this.keys as RuntimeKeyContext, inboxRepository, new SQLiteNoteSyncRemoteApplyRepository(),
+      this.auth, this.bindings, this.keys as RuntimeKeyContext, inboxRepository, remoteApply,
     )
     const uploader = new NoteSyncUploader(this.auth, this.bindings, outbox)
     const deviceAck = new NoteSyncDeviceAckAdapter(this.auth, this.bindings, new SQLiteNoteSyncAckRepository())
-    const orchestrator = injected ?? new NoteSyncOrchestrator(
-      this.auth, this.keys as RuntimeKeyContext, intents, uploader, inbox, applier, deviceAck,
+    const resolutionApplier = new NoteSyncResolutionInboxApplier(
+      this.auth, this.bindings, this.keys as RuntimeKeyContext, inboxRepository, remoteApply,
     )
+    const productionOrchestrator = new NoteSyncOrchestrator(
+      this.auth, this.keys as RuntimeKeyContext, intents, uploader, inbox, applier, deviceAck, resolutionApplier,
+    )
+    const orchestrator = dependencies.orchestrator ?? productionOrchestrator
+    const v2Uploader = new NoteSyncV2Uploader(this.auth, this.bindings, this.identityRepository, outbox)
+    const v2Cycle = dependencies.v2Cycle ?? new NoteSyncV2Cycle(
+      this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext, deviceAck,
+      intents, v2Uploader,
+      new NoteSyncResolutionUploader(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncResolutionUploadRepository()),
+      new DurableNoteSyncV2Inbox(this.auth, this.bindings, this.identityRepository, inboxRepository),
+      productionOrchestrator,
+      new NoteSyncV2AckAdapter(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncAckRepository()),
+    )
+    const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,
       new SQLiteCloudProjectBootstrapRepository(),
       {
         registerDevice: (localAccountId, deviceId) => deviceAck.registerOnce(localAccountId, deviceId),
         sealOnce: () => sealPendingNoteSyncIntents(intents, this.keys as RuntimeKeyContext),
-        uploadOnce: localAccountId => uploader.uploadOnce(localAccountId),
-        runOnce: (localAccountId, deviceId) => orchestrator.runOnce(localAccountId, deviceId),
+        uploadOnce: localAccountId => router.uploadOnce(localAccountId),
+        runOnce: (localAccountId, deviceId) => router.runOnce(localAccountId, deviceId),
       },
     )
-    return { orchestrator, bootstrap }
+    return { router, bootstrap }
   }
 
   private async provisionFor(context: AuthContextSnapshot): Promise<CloudIdentity> {
@@ -253,7 +286,7 @@ export class NoteSyncRuntime {
     return identity
   }
 
-  private async runFor(context: AuthContextSnapshot, identity: CloudIdentity, options?: NoteSyncOrchestratorOptions): Promise<NoteSyncOrchestratorResult> {
+  private async runFor(context: AuthContextSnapshot, identity: CloudIdentity, options?: NoteSyncOrchestratorOptions): Promise<NoteSyncProductionResult> {
     const lease = this.keys.leaseForAccount(identity.local_account_id)
     if (lease === null) throw new KeyNotProvisionedError()
     this.assertLease(context, identity, lease)
@@ -270,11 +303,11 @@ export class NoteSyncRuntime {
     }
   }
 
-  private async runGatedWithOptions(identity: CloudIdentity, options: NoteSyncOrchestratorOptions): Promise<NoteSyncOrchestratorResult> {
+  private async runGatedWithOptions(identity: CloudIdentity, options: NoteSyncOrchestratorOptions): Promise<NoteSyncProductionResult> {
     const bootstrapIdentity = this.bootstrapIdentity(identity)
     const registry = await this.bootstrap.reconcile(bootstrapIdentity)
     if (!registry.readyForNormalCycle) return this.bootstrap.runReadyCycle(bootstrapIdentity)
-    return this.orchestrator.runOnce(identity.local_account_id, identity.device_id, options)
+    return this.router.runOnce(identity.local_account_id, identity.device_id, options)
   }
 
   private assertUnlocked(context: AuthContextSnapshot, identity: CloudIdentity): void {
