@@ -59,6 +59,23 @@ describe('dormant ordinary v2 Note uploader', () => {
     ])
   })
 
+  it('uploads a resolution descendant through the ordinary Note queue', async () => {
+    const resolutionEventId = id(200)
+    const child = { ...item(301, 'upsert', resolutionEventId), revision: 4 }
+    const s = await setup([child])
+
+    await expect(s.uploader().uploadOnce('local')).resolves.toEqual({ uploaded: 1, deviceId: DEVICE })
+    expect(s.api.push.mock.calls[0]![1].items[0].event).toMatchObject({
+      event_id: child.event_id,
+      revision: 4,
+      operation: 'upsert',
+    })
+    expect(s.api.push.mock.calls[0]![1].items[0].event).not.toHaveProperty('parent_event_id')
+    expect(s.commitAccepted).toHaveBeenCalledWith('local', DEVICE, [
+      { event_id: child.event_id, server_sequence: 1, duplicate: false },
+    ])
+  })
+
   it('requires durable account/device scope for every listed row before HTTP', async () => {
     const wrongIdentity = await setup()
     wrongIdentity.identity.read = vi.fn().mockResolvedValue({ local_account_id: 'other', device_id: DEVICE })

@@ -163,6 +163,31 @@ describe('durable Note sealing orchestration', () => {
     expect(opened.note).not.toHaveProperty('revision')
   })
 
+  it('seals an ordinary child of an applied resolution with the unchanged v1 shape', async () => {
+    const resolutionEventId = '123e4567-e89b-42d3-a456-426614174200'
+    const source = intent({
+      event_id: '123e4567-e89b-42d3-a456-426614174301',
+      parent_event_id: resolutionEventId,
+      revision: 4,
+    })
+    let envelope: ObjectCryptoEnvelope | undefined
+    const store = repository([source], {
+      commitSealedEvent: commitMock(async input => { envelope = input.envelope; return 'sealed' }),
+    })
+
+    await expect(sealPendingNoteSyncIntents(store, provider())).resolves.toMatchObject({
+      results: [{ status: 'sealed' }],
+    })
+    const opened = await openNoteSyncEvent(
+      testKey, 'canonical-user-id', eventFrom(source), envelope!,
+    )
+    expect(opened.version).toBe(1)
+    expect(opened.mutation).toBe('update')
+    expect(opened.header.parent_event_id).toBe(resolutionEventId)
+    expect(opened.header.revision).toBe(4)
+    expect(opened.note).not.toHaveProperty('revision')
+  })
+
   it('seals a delete tombstone after local project state is gone', async () => {
     const source = intent({
       operation: 'delete',
