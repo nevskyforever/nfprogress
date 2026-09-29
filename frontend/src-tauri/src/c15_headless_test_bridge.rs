@@ -19,6 +19,16 @@ use crate::note_sync::{
     ConfirmCloudProjectRegistrationCommand, CloudProjectBootstrapScopeCommand,
     ImportRemoteCloudProjectCommand, CommitSealedNoteSyncEventCommand,
     CommitNoteSyncUploadAcceptanceCommand, NoteSyncUploadReceipt,
+    prepare_note_conflict_resolution, apply_prepared_note_conflict_resolution,
+    list_unsealed_note_resolution_intents, commit_sealed_note_resolution_event,
+    read_note_resolution_readiness, list_sealed_note_resolution_uploads,
+    commit_note_resolution_upload_acceptance,
+    apply_verified_received_resolution_v2_ipc,
+    reconcile_verified_received_resolution_self_echo_ipc,
+    PrepareNoteConflictResolutionCommand, CommitSealedNoteResolutionCommand,
+    ListSealedNoteResolutionUploadsCommand, CommitNoteResolutionUploadAcceptanceCommand,
+    ApplyVerifiedReceivedResolutionV2IpcCommand,
+    ReconcileVerifiedReceivedResolutionSelfEchoIpcCommand,
 };
 use crate::sqlite::{open_database, open_privileged_remote_apply_database};
 
@@ -358,6 +368,211 @@ fn commit_ack(request: &Value) -> Value {
     })
 }
 
+fn local_note_edit(request: &Value) -> Value {
+    let mut connection = open_database(&database_path(request)).expect("open local Note database");
+    crate::update_note_in_connection(
+        &mut connection, required_string(request, "project_id"),
+        required_string(request, "entity_id"),
+        request.get("patch").expect("local Note patch"), None,
+    ).expect("update Note through production local mutation path");
+    let (event_id, project_id, entity_id, operation, revision, updated_at, deleted_at,
+         parent_event_id, generation, snapshot):
+        (String,String,String,String,i64,String,Option<String>,Option<String>,i64,String) =
+        connection.query_row(
+            "SELECT event.event_id,event.project_id,event.entity_id,event.operation,
+                    event.revision,event.updated_at,event.deleted_at,event.parent_event_id,
+                    intent.mutation_generation,intent.snapshot_json
+             FROM cloud_sync_outbox AS event JOIN cloud_sync_note_intents AS intent USING(event_id)
+             WHERE event.account_id=?1 AND event.project_id=?2 AND event.entity_id=?3
+               AND event.lifecycle='unsealed'",
+            rusqlite::params![required_string(request, "local_account_id"),
+                required_string(request, "project_id"), required_string(request, "entity_id")],
+            |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,
+                row.get(5)?,row.get(6)?,row.get(7)?,row.get(8)?,row.get(9)?)),
+        ).expect("read production Note intent");
+    json!({"event":{"event_id":event_id,"project_id":project_id,"entity_id":entity_id,
+        "entity_type":"note","operation":operation,"revision":revision,
+        "updated_at":updated_at,"deleted_at":deleted_at},
+        "parent_event_id":parent_event_id,"mutation_generation":generation,
+        "snapshot_json":snapshot,
+        "note":serde_json::from_str::<Value>(&snapshot).expect("read Note snapshot")})
+}
+
+fn seal_local_note(request: &Value) -> Value {
+    let object = request.get("object").expect("sealed local Note object");
+    let mut connection = open_database(&database_path(request)).expect("open local Note sealing database");
+    json!(commit_sealed_note_sync_event(&mut connection, &CommitSealedNoteSyncEventCommand {
+        event_id: required_string(request, "event_id").into(),
+        expected_mutation_generation: required_i64(request, "mutation_generation"),
+        envelope: EncryptedNoteSyncEnvelope {
+            crypto_version: required_i64(object, "crypto_version"),
+            aad_version: required_i64(object, "aad_version"),
+            nonce: required_string(object, "nonce").into(),
+            ciphertext: required_string(object, "ciphertext").into(),
+        },
+    }).expect("commit production sealed Note event"))
+}
+
+fn ordinary_receipt(request: &Value) -> Value {
+    let mut connection = open_database(&database_path(request)).expect("open local Note receipt database");
+    json!(commit_note_sync_upload_acceptance(&mut connection, &CommitNoteSyncUploadAcceptanceCommand {
+        account_id: required_string(request, "local_account_id").into(),
+        device_id: required_string(request, "device_id").into(),
+        receipts: vec![NoteSyncUploadReceipt {
+            event_id: required_string(request, "event_id").into(),
+            server_sequence: required_i64(request, "server_sequence"),
+            duplicate: request.get("duplicate").and_then(Value::as_bool).unwrap_or(false),
+        }],
+    }).expect("commit production Note upload acceptance"))
+}
+
+fn prepare_apply_resolution(request: &Value) -> Value {
+    let path = database_path(request);
+    let command = PrepareNoteConflictResolutionCommand {
+        account_id: required_string(request, "local_account_id").into(),
+        canonical_user_id: required_string(request, "canonical_user_id").into(),
+        device_id: required_string(request, "device_id").into(),
+        canonical_payload: bytes(request, "canonical_payload"),
+    };
+    let mut connection = open_database(&path).expect("open resolution preparation database");
+    let prepared = prepare_note_conflict_resolution(&mut connection, &command)
+        .expect("prepare real Note conflict resolution");
+    drop(connection);
+    let mut privileged = open_privileged_remote_apply_database(&path)
+        .expect("open protected resolution application database");
+    let applied = apply_prepared_note_conflict_resolution(&mut privileged, &command)
+        .expect("apply prepared Note conflict resolution");
+    json!({"prepared":format!("{prepared:?}"),"applied":format!("{applied:?}")})
+}
+
+fn list_resolution_intents(request: &Value) -> Value {
+    let mut connection = open_database(&database_path(request)).expect("open resolution intent database");
+    json!(list_unsealed_note_resolution_intents(
+        &mut connection, required_string(request, "local_account_id"), 8,
+    ).expect("list durable resolution intents"))
+}
+
+fn seal_resolution(request: &Value) -> Value {
+    let object = request.get("object").expect("sealed resolution object");
+    let mut connection = open_database(&database_path(request)).expect("open resolution seal database");
+    let result = commit_sealed_note_resolution_event(&mut connection, &CommitSealedNoteResolutionCommand {
+        event_id: required_string(request, "event_id").into(),
+        account_id: required_string(request, "local_account_id").into(),
+        canonical_user_id: required_string(request, "canonical_user_id").into(),
+        device_id: required_string(request, "device_id").into(),
+        project_id: required_string(request, "project_id").into(),
+        entity_id: required_string(request, "entity_id").into(),
+        expected_canonical_payload: required_string(request, "canonical_payload").into(),
+        envelope: EncryptedNoteSyncEnvelope {
+            crypto_version: required_i64(object, "crypto_version"),
+            aad_version: required_i64(object, "aad_version"),
+            nonce: required_string(object, "nonce").into(),
+            ciphertext: required_string(object, "ciphertext").into(),
+        },
+    }).expect("commit sealed resolution object");
+    json!(result)
+}
+
+fn resolution_uploads(request: &Value) -> Value {
+    let mut connection = open_database(&database_path(request)).expect("open resolution upload database");
+    let ready = read_note_resolution_readiness(
+        &mut connection, required_string(request, "local_account_id"), required_string(request, "event_id"),
+    ).expect("read fresh resolution dependencies");
+    let uploads = list_sealed_note_resolution_uploads(&mut connection, &ListSealedNoteResolutionUploadsCommand {
+        account_id: required_string(request, "local_account_id").into(),
+        device_id: required_string(request, "device_id").into(),
+        canonical_user_id: required_string(request, "canonical_user_id").into(),
+        limit: 8,
+    }).expect("list freshly ready resolution uploads");
+    json!({"readiness":ready,"uploads":uploads})
+}
+
+fn resolution_receipt(request: &Value) -> Value {
+    let mut connection = open_database(&database_path(request)).expect("open resolution receipt database");
+    json!(commit_note_resolution_upload_acceptance(&mut connection, &CommitNoteResolutionUploadAcceptanceCommand {
+        account_id: required_string(request, "local_account_id").into(),
+        device_id: required_string(request, "device_id").into(),
+        canonical_user_id: required_string(request, "canonical_user_id").into(),
+        receipts: vec![NoteSyncUploadReceipt {
+            event_id: required_string(request, "event_id").into(),
+            server_sequence: required_i64(request, "server_sequence"),
+            duplicate: request.get("duplicate").and_then(Value::as_bool).unwrap_or(false),
+        }],
+    }).expect("commit exact resolution upload acceptance"))
+}
+
+fn receive_resolution(request: &Value) -> Value {
+    let path = database_path(request);
+    let account_id = required_string(request, "local_account_id").to_string();
+    let device_id = required_string(request, "device_id").to_string();
+    let canonical_user_id = required_string(request, "canonical_user_id").to_string();
+    let item = request.get("item").expect("pulled resolution item");
+    let event = item.get("event").expect("pulled resolution event");
+    let object = item.get("object").expect("pulled resolution object");
+    let event_id = required_string(event, "event_id").to_string();
+    let server_sequence = required_i64(event, "server_sequence");
+    let source_device_id = required_string(event, "device_id").to_string();
+    let mut connection = open_database(&path).expect("open resolution inbox database");
+    commit_note_sync_inbound_page(&mut connection, &CommitNoteSyncInboundPageCommand {
+        account_id: account_id.clone(), device_id: device_id.clone(),
+        canonical_user_id: canonical_user_id.clone(),
+        expected_cursor: required_i64(request, "expected_cursor"),
+        next_cursor: required_i64(request, "next_cursor"), has_more: false,
+        items: vec![InboundNoteSyncItem {
+            event_id: event_id.clone(), server_sequence,
+            source_device_id: source_device_id.clone(),
+            project_id: required_string(event, "project_id").into(),
+            entity_id: required_string(event, "entity_id").into(),
+            entity_type: required_string(event, "entity_type").into(),
+            operation: required_string(event, "operation").into(),
+            revision: required_i64(event, "revision"),
+            updated_at: required_string(event, "updated_at").into(),
+            deleted_at: event.get("deleted_at").and_then(Value::as_str).map(str::to_string),
+            envelope: Some(EncryptedNoteSyncEnvelope {
+                crypto_version: required_i64(object, "crypto_version"),
+                aad_version: required_i64(object, "aad_version"),
+                nonce: required_string(object, "nonce").into(),
+                ciphertext: required_string(object, "ciphertext").into(),
+            }),
+        }],
+    }).expect("commit resolution inbox page");
+    drop(connection);
+    let opened = request.get("opened").expect("authenticated opened resolution");
+    let mut privileged = open_privileged_remote_apply_database(&path)
+        .expect("open protected resolution apply database");
+    let result = if source_device_id == device_id {
+        serde_json::to_value(reconcile_verified_received_resolution_self_echo_ipc(
+            &mut privileged, ReconcileVerifiedReceivedResolutionSelfEchoIpcCommand {
+                account_id: account_id.clone(), canonical_user_id: canonical_user_id.clone(),
+                pulling_device_id: device_id.clone(), event_id: event_id.clone(),
+                server_sequence, source_device_id: source_device_id.clone(),
+                crypto_version: required_i64(opened, "crypto_version"),
+                aad_version: required_i64(opened, "aad_version"),
+                nonce: bytes(opened, "nonce"), ciphertext: bytes(opened, "ciphertext"),
+                plaintext: bytes(opened, "plaintext"),
+            },
+        ).expect("reconcile resolution self echo")).unwrap()
+    } else {
+        serde_json::to_value(apply_verified_received_resolution_v2_ipc(
+            &mut privileged, ApplyVerifiedReceivedResolutionV2IpcCommand {
+                account_id: account_id.clone(), canonical_user_id: canonical_user_id.clone(),
+                pulling_device_id: device_id.clone(), event_id: event_id.clone(),
+                server_sequence, source_device_id: source_device_id.clone(),
+                crypto_version: required_i64(opened, "crypto_version"),
+                aad_version: required_i64(opened, "aad_version"),
+                nonce: bytes(opened, "nonce"), ciphertext: bytes(opened, "ciphertext"),
+                plaintext: bytes(opened, "plaintext"),
+            },
+        ).expect("apply verified peer resolution")).unwrap()
+    };
+    drop(privileged);
+    let mut connection = open_database(&path).expect("reopen resolution ACK database");
+    let ack = prepare_note_sync_ack(&mut connection, &PrepareNoteSyncAckCommand {
+        account_id, device_id, canonical_user_id,
+    }).expect("prepare resolution ACK candidate");
+    json!({"result":result,"ack":ack})
+}
+
 #[test]
 #[ignore = "invoked only by tests/test_c15_headless_cross_runtime.py"]
 fn c15_headless_native_bridge() {
@@ -375,6 +590,15 @@ fn c15_headless_native_bridge() {
         "bootstrap_import" => bootstrap_import(&request),
         "bootstrap_mark_ready" => bootstrap_mark_ready(&request),
         "receive_apply_prepare" => receive_apply_prepare(&request),
+        "local_note_edit" => local_note_edit(&request),
+        "seal_local_note" => seal_local_note(&request),
+        "ordinary_receipt" => ordinary_receipt(&request),
+        "prepare_apply_resolution" => prepare_apply_resolution(&request),
+        "list_resolution_intents" => list_resolution_intents(&request),
+        "seal_resolution" => seal_resolution(&request),
+        "resolution_uploads" => resolution_uploads(&request),
+        "resolution_receipt" => resolution_receipt(&request),
+        "receive_resolution" => receive_resolution(&request),
         "commit_ack" => commit_ack(&request),
         action => panic!("unsupported native bridge action {action}"),
     };
