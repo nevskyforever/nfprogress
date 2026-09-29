@@ -5,7 +5,7 @@
 **Официальный зачтённый прогресс:** **77,0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Следующий этап:** C18 Complete Project Sync — **NOT STARTED**.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.1 CONTRACT FROZEN LOCALLY**, не `CLOSED`.\
 **Последнее закрытие:** C17 независимо принято для remote HEAD `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`; Cloud backend tests `36524589994` и SQLite sync substrate tests `36524590005` — **SUCCESS**.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
@@ -22,9 +22,8 @@
 
 - GitHub: `nevskyforever/nfprogress`.
 - Основная ветка разработки WORTA 6.0: `6.0`.
-- Последний независимо проверенный remote HEAD: `cb44169adf60858b1ed312990cca312ba960fe06`.
-- Commit: `docs(roadmap): close C15 after remote acceptance`.
-- В момент последней независимой проверки remote HEAD **совпадал с этим SHA**.
+- Проверенный пользователем baseline для C18.1: remote `6.0` HEAD `5c90ad02a61f5f764851c9b097b42507c6d237d3` (docs/checkpoint-only commit после принятого C17 implementation `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`).
+- Исторический C15 closure commit: `cb44169adf60858b1ed312990cca312ba960fe06` (`docs(roadmap): close C15 after remote acceptance`).
 - C15 implementation commit `5b379d32e84da99f13e7f4aee0e56d0267fac78d` и его Windows correction `25476c611b91e26e5b94798dcf33a55924a45e08` independently accepted по двум required workflow; детали сохранены в разделе 60. Локальный `git status` перед следующими изменениями всё равно проверяется в самом Codex worktree.
 - Точная локальная ветка/путь и `git status` должны проверяться в самом Codex worktree перед изменениями, а не предполагаться по старому отчёту.
 
@@ -154,6 +153,7 @@ Remote results относятся к correction SHA и подтверждают 
 - При проблеме редактирования читать **реальные текущие строки**, править небольшими отдельными операциями и удостоверяться, что запись действительно сохранилась. Не откатывать всю локальную работу из-за частной ошибки.
 - **Без расширения scope:** не чинить unrelated warnings, не запускать преждевременные тяжёлые матрицы, не переписывать frozen contracts и не объявлять готовой следующую архитектурную стадию по успешному unit test предыдущей.
 - При обсуждении статуса сохранять границы достоверности: подтверждено ранее по remote, сообщено Codex локально, ещё не запускалось, уже отправлено Codex и выполняется.
+- ChatGPT сообщает рекомендуемые модель/thinking и необходимость нового Codex-чата **вне копируемого Codex prompt**. Не включать эти организационные рекомендации внутрь будущих заданий Codex.
 
 ## 11. Обязательный формат заданий Codex
 
@@ -467,7 +467,7 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 ## 45. Правило ответа на вопрос «сколько процентов?»
 
-Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт, следующий незавершённый этап и условие следующего прибавления. Текущий ответ: **77,0%; последний закрытый этап — C17; следующий C18 Complete Project Sync ещё не начат и после закрытия добавит 7,0 пункта.** Не менять процент из-за объёма локальной работы или неподтверждённого результата.
+Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт, следующий незавершённый этап и условие следующего прибавления. Текущий ответ: **77,0%; последний закрытый этап — C17; C18 Complete Project Sync начат как design/contract work, не закрыт и после полного закрытия добавит 7,0 пункта.** Не менять процент из-за объёма локальной работы или неподтверждённого результата.
 
 ## 46. Точка продолжения в новом чате — ТЕКУЩЕЕ СОСТОЯНИЕ
 
@@ -478,7 +478,7 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 **Official progress:** **77,0%**, WORTA ROADMAP SCORING v1.0.
 **Last CLOSED:** C17 Shared Conflict Handling / Conflict Resolution.
 **Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**.
-**Next:** C18 Complete Project Sync — **NOT STARTED**. Следующее начисление возможно после полного закрытия C18 (+7,0 пункта).
+**Current:** C18 Complete Project Sync — **IN PROGRESS / C18.1 CONTRACT FROZEN LOCALLY**. Следующее начисление возможно после полного закрытия C18 (+7,0 пункта).
 **Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; no autonomous commit/push; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
@@ -487,7 +487,7 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 **Практический чек-лист перед КАЖДЫМ новым prompt или оценкой отчёта:**
 
-1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. На дату этого checkpoint C16 и C17 закрыты после independently verified remote acceptance; следующий этап C18 не начат.
+1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C16 и C17 закрыты после independently verified remote acceptance; C18.1 — только локально замороженный design-контракт, C18 не закрыт.
 2. Всегда разделять: **independently verified remote** / **Codex-reported local** / **not run or unknown**.
 3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **77,0%**. C16 (+3,0) и C17 (+4,0) закрыты; Web First меняет порядок исполнения, но не номера, веса или формулу.
 4. Выбирать минимальный достаточный следующий slice. Не повторять уже закрытый локальный scope без изменения, которое могло его сломать.
@@ -1072,5 +1072,15 @@ All agreed C17 scope is complete: durable conflict preservation; frozen resoluti
 The server does not choose a conflict winner and stores only opaque E2EE content. Conflict resolution has no silent LWW. Ordinary descendants after RES use RES as their immediate parent; the complete multi-parent ancestry remains in the immutable applied-resolution ledger.
 
 **Official WORTA progress: 77,0%.** Last closed stage: **C17**. Next: **C18 Complete Project Sync — NOT STARTED**.
+
+## C18.1 — Complete Project Sync contract freeze (локально)
+
+**Статус: IN PROGRESS — C18.1 CONTRACT FROZEN LOCALLY.** Это design/docs-only slice после initial read-only audit; production sync C18 не реализован, remote CI этого slice не проверялся, официальный прогресс остаётся **77,0%**. Последний закрытый этап — C17; C18 как целый этап не `CLOSED`.
+
+Основной контракт: `docs/cloud/C18_PROJECT_SYNC_DESIGN.md`. Он классифицирует текущие проектные и связанные аккаунтные данные: E2EE metadata/rename, stages/order, progress facts, все поддерживаемые Note-маршруты, карты и производные map Notes, документы, обложки, папки/membership/order, project/account game facts; локальные внешние привязки и provenance остаются на устройстве, расчётные поля восстанавливаются. Неизвестные extensions сохраняются локально и блокируют ложный статус «complete sync», пока не определён versioned codec. У каждого типа обозначены владелец, причинная история, зависимости, конфликт, tombstone и условия ACK.
+
+Для уже подключённых C16 проектов зафиксирован отдельный durable metadata-genesis процесс. Разные локальные имена на двух устройствах — независимые кандидаты без общего аутентифицированного предка. Одновременные genesis events образуют особый migration-genesis conflict; C17 principles используются для сохранения версий и явного разрешения, но фиктивный общий parent и автоматический winner запрещены. Новые C18 entity codecs получают аутентифицированный content frame **внутри** AEAD-объекта соответствующей версии; для account entities зафиксирован отдельный domain-separated crypto/AAD namespace, а исторические Note-v1/resolution-v2 objects и frozen C11 crypto/AAD/protocol-v1 не переопределяются. Алгоритм сжатия и пакет не выбран: **EXTERNAL LICENSE VERIFICATION REQUIRED** перед добавлением зависимости. Новые account entities и frame writers требуют отдельного явного capability/writer-format gate после необратимого transport-v2 cutover; автоматического upgrade сейчас нет.
+
+**Open implementation-blocking design blockers:** нет на уровне C18.1 контракта. Точное байтовое кодирование новых formats, численные ресурсные пределы, platform benchmark и проверка лицензий являются обязательными gates соответствующих implementation slices до активации writers. Файлы этого slice: `docs/cloud/C18_PROJECT_SYNC_DESIGN.md`, `docs/WORTA_CHECKPOINT.md`. Tests/builds: **NOT RUN — docs-only slice**. Следующий ограниченный slice: **C18.2 metadata durable substrate**, без активации UI/runtime и без самостоятельного изменения официального процента. Ожидаемые workflow после будущих production изменений: Cloud backend tests и SQLite sync substrate tests с явным расширением curated test lists/path filters. Docs-only commit этого slice не требует Actions.
 
 # КОНЕЦ ЧЕКПОИНТА
