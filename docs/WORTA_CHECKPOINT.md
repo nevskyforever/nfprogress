@@ -1,14 +1,12 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 25 сентября 2026 года.\
-**Методика:** WORTA ROADMAP SCORING v1.0.\
-**Официальный зачтённый прогресс:** **73,0%**.\
-**Последний полностью закрытый этап:** **C16 Desktop Sync** (3,0).\
-**Текущий этап:** **C17 Conflict Resolution** — `IN PROGRESS`; C16 Desktop Sync (вес 3,0) официально **CLOSED**.\
-**Официальный зачтённый прогресс:** **73,0%**; пять ручных GUI-проверок C16 — **PASS**, оба обязательных C16 CI workflow прошли.\
-**Последний подтверждённый C16 remote HEAD:** `6c7edbfa24289fcfca39fc754eaff9a28e419dbc`.\
-**C17 published history:** `3361f9c4` (durable conflict preservation), `698836f5` (resolution v2 contract), `9f6fd493` (TS/Rust v2 codecs), `47b2a6c1` (atomic preparation), `6712dd29` (atomic application и isolated durable v2 outbox).\
-**Текущая задача Codex:** после финализации PR C17→`6.0` дальнейшая работа C17 продолжается уже в основной ветке `6.0`: durable v2 E2EE sealing/upload с prerequisites публикации родителей, затем согласованный backend/protocol-v2 cutover и лишь потом coordinator/UI. Не начинать эти следующие implementation passes автоматически; C18 также не начинать автоматически.
+**Дата:** 29 сентября 2026 года.\
+**Методика:** WORTA ROADMAP SCORING v1.0.\
+**Официальный зачтённый прогресс:** **77,0%**.\
+**Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
+**Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
+**Следующий этап:** C18 Complete Project Sync — **NOT STARTED**.\
+**Последнее закрытие:** C17 независимо принято для remote HEAD `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`; Cloud backend tests `36524589994` и SQLite sync substrate tests `36524590005` — **SUCCESS**.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
@@ -121,18 +119,12 @@ Remote results относятся к correction SHA и подтверждают 
 
 ## 6. Текущий расчёт прогресса
 
-- Исторический задел: 18,0 / 18,0.
-- C7–C14: 32,0 / 32,0.
-- C15 до C15.5B включительно: 10,0.
-- C15.5C: +1,5 → 61,5% общего прогресса.
-- C15.6A: +2,0 → 63,5%.
-- C15.6B: +2,0 → 65,5%.
-- C15.7A: +1,0 → **66,5%**.
-- C15.7B: +1,0 → **67,5%**.
-- Full Orchestration, ACK, Two-Device Acceptance: +2,5 → **70,0%**.
-- C16–RC пока 0 / 30,0.
+- C15: 20,0 / 20,0 → 70,0%.
+- C16 Desktop Sync: +3,0 → 73,0% (**CLOSED**).
+- C17 Shared Conflict Handling: +4,0 → **77,0%** (**CLOSED** после независимой remote-приёмки).
+- C18–RC: осталось 23,0 процентных пункта; следующий этап — C18 Complete Project Sync.
 
-**Официально сейчас 70,0%; осталось 30,0 процентных пунктов.** C15 увеличил показатель до 70,0% только после implementation commit, Windows correction commit, пользовательских push и независимой проверки remote SHA и всех required jobs.
+**Официальный прогресс сейчас 77,0%; осталось 23,0 процентных пункта.** Веса и WORTA ROADMAP SCORING v1.0 не менялись.
 
 ## 7. История прежних оценок
 
@@ -475,18 +467,18 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 ## 45. Правило ответа на вопрос «сколько процентов?»
 
-Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт в процентных пунктах, текущий незавершённый этап и условие следующего прибавления. Прямо сейчас ответ: **70,0%; последний закрытый этап — C15; C16 IN PROGRESS имеет вес 3,0 и только после полного commit/push/independent remote acceptance даст 73,0%.** Не менять процент из-за большого объёма локальной работы, убедительного отчёта или одноразового зелёного теста.
+Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт, следующий незавершённый этап и условие следующего прибавления. Текущий ответ: **77,0%; последний закрытый этап — C17; следующий C18 Complete Project Sync ещё не начат и после закрытия добавит 7,0 пункта.** Не менять процент из-за объёма локальной работы или неподтверждённого результата.
 
 ## 46. Точка продолжения в новом чате — ТЕКУЩЕЕ СОСТОЯНИЕ
 
-**C15 закрыт после независимой remote-приёмки; C16 Pass 1/2/3B/3C реализованы локально и не приняты remote.** Следующий prompt — только отдельно утверждённая финальная C16 integration/live desktop/remote acceptance; автоматически её не начинать.
+**C16 Desktop Sync и C17 Shared Conflict Handling закрыты после независимой remote-приёмки.** C17 включал durable conflict preservation, frozen resolution v2, transport-v2 cutover, causal continuation и coordinated two-/three-device acceptance.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний independently verified remote HEAD:** `cb44169adf60858b1ed312990cca312ba960fe06`.
-**Official progress:** **70,0%**, WORTA ROADMAP SCORING v1.0.
-**Last CLOSED:** C15 Full Orchestration, ACK, Two-Device Acceptance.
-**Now:** C16 Desktop Sync — **IN PROGRESS**, Pass 1/2/3B/3C local, remote CI pending. Migration 016, backend bootstrap control plane, native durable capture/import, account-wide registry gate и explicit desktop project UI добавлены локально; `encryptedInitialUpload=true` относится только к этому durable explicit flow.
-**Next:** отдельная финальная C16 integration acceptance: live desktop renderer→Tauri smoke, полный согласованный local CI-equivalent pass, затем commit/push только по решению пользователя и независимая проверка remote CI. Не начинать final acceptance, C17 либо scheduler автоматически.
+**Последний независимо подтверждённый remote HEAD:** `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`.
+**Official progress:** **77,0%**, WORTA ROADMAP SCORING v1.0.
+**Last CLOSED:** C17 Shared Conflict Handling / Conflict Resolution.
+**Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**.
+**Next:** C18 Complete Project Sync — **NOT STARTED**. Следующее начисление возможно после полного закрытия C18 (+7,0 пункта).
 **Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; no autonomous commit/push; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
@@ -495,9 +487,9 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 **Практический чек-лист перед КАЖДЫМ новым prompt или оценкой отчёта:**
 
-1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C15 закрыт после independently verified remote acceptance; C16 `IN PROGRESS`, Pass 1/2/3B реализованы локально.
+1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. На дату этого checkpoint C16 и C17 закрыты после independently verified remote acceptance; следующий этап C18 не начат.
 2. Всегда разделять: **independently verified remote** / **Codex-reported local** / **not run or unknown**.
-3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **70,0%**. C16 весит 3,0 и требует полного independent remote acceptance; Web First меняет порядок исполнения, но не номера, веса или формулу.
+3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **77,0%**. C16 (+3,0) и C17 (+4,0) закрыты; Web First меняет порядок исполнения, но не номера, веса или формулу.
 4. Выбирать минимальный достаточный следующий slice. Не повторять уже закрытый локальный scope без изменения, которое могло его сломать.
 5. **Terra Medium first.** Sol Medium/High только по конкретной доказанной необходимости или на отдельный финальный security audit.
 6. TEST BUDGET: focused tests → минимальный fix → repeat только затронутого → один full CI-equivalent pass перед общим commit.
@@ -551,11 +543,11 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 Это предотвращает ситуацию, когда Codex сам становится одновременно исполнителем и единственным приёмщиком собственной работы.
 
-## 49. Ближайшее действие
+## 49. Ближайшее действие (историческая запись до закрытия C15)
 
-Текущий roadmap package — **Full Orchestration, ACK, Two-Device Acceptance** (2,5 пункта). Он `IN PROGRESS` локально, не `CLOSED`.
+На момент этой исторической записи roadmap package **Full Orchestration, ACK, Two-Device Acceptance** (2,5 пункта) был `IN PROGRESS` локально, не `CLOSED`. Этот план был завершён и затем принят remote; текущая точка продолжения указана в разделе 46.
 
-Slices 1–3 durable ACK substrate/transport и bounded Notes orchestrator, Slices 4B1–4B2 durable identity/headless normal-user session runtime, а также Slice 5A file-backed SQLite lifecycle preparation локально завершены. Runtime deliberately remains unconnected to `main.ts`, `platform/runtime.ts`, UI, scheduler and legacy document sync. Ближайший минимальный технический шаг — отдельная bounded PostgreSQL two-device integration acceptance; она не должна неявно добавлять C16 UI или C17.
+Тогда уже были локально завершены Slices 1–3 durable ACK substrate/transport и bounded Notes orchestrator, Slices 4B1–4B2 durable identity/headless normal-user session runtime, а также Slice 5A file-backed SQLite lifecycle preparation. Следующим планировался отдельный bounded PostgreSQL two-device integration acceptance.
 
 Далее:
 
@@ -1069,6 +1061,16 @@ Local checks: E1 PostgreSQL acceptance **1 passed**, C15 headless and D4D2 cutov
 
 ## C17 Pass 2F-E2 — three-device conflict and resolution acceptance
 
-**Status: IMPLEMENTED LOCALLY / REMOTE CI PENDING.** The mandatory PostgreSQL acceptance uses three distinct file-backed SQLite devices and the production TypeScript crypto and native protected apply paths. R1 converges at revision 1. Independently edited B2 and C2 are accepted as revision-2 siblings with parent R1. A, B and C each preserve the exact `{B2,C2}` generation-1 conflict without last-writer-wins. A prepares and locally applies a `manual_merge` RES with exact multi-parent set `{B2,C2}`; the production resolution-v2 codec and sealing create an opaque object, transport v2 uploads it, and an exact receipt is recorded. A reconciles its self echo, B/C apply the peer resolution, and each device durably records the applied ledger and ordered parent edges, resolves its conflict group, then becomes ACK-eligible. B4 uses ordinary Note plaintext v1 over transport v2 at revision 4 with immediate parent RES; the B2/C2 ancestry remains in the immutable resolution ledger. All three reopened devices converge on B4 with applied inbox and ACK through sequence 5. PostgreSQL retains monotonic opaque R1/B2/C2/RES/B4 history, encrypted objects, device ACKs and mode 2/epoch 1. E2 PostgreSQL acceptance **1 passed, 0 failed, 0 skipped** locally. E1 and E2 are both included in the mandatory no-skip Cloud backend PostgreSQL invocation. Independent remote verification remains pending under the permanent no-CI-polling rule. C16 remains **CLOSED**; C17 remains **IN PROGRESS**; official progress remains **73,0%**. After both remote workflows independently pass, only a docs-only C17 closure remains; C18 has not begun.
+**Status: REMOTELY ACCEPTED.** Final E2 commit `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`; Cloud backend tests run `36524589994` — **SUCCESS**; SQLite sync substrate tests run `36524590005` — **SUCCESS**. The mandatory three-device PostgreSQL acceptance uses three distinct file-backed SQLite devices and real mode-2 transport after cutover. R1 converges at revision 1. Independent B2/C2 edits are accepted as revision-2 siblings with parent R1; A, B and C preserve the exact `{B2,C2}` generation-1 conflict without silent LWW. A prepares and applies manual-merge RES with exact multi-parent set `{B2,C2}`, seals it through the production resolution-v2 path, uploads over v2, and records the exact receipt. A reconciles its self echo; B/C apply RES as peers. Each device records the durable applied-resolution ledger and ordered parent edges, resolves the conflict lifecycle and becomes ACK-eligible only after durable apply. B4 is ordinary Note plaintext v1 at revision 4 with immediate parent RES. Reopened A/B/C stores converge on B4; PostgreSQL retains the opaque five-event R1/B2/C2/RES/B4 history.
+
+## C17 — final closure
+
+**Status: CLOSED.** Independent acceptance verified remote HEAD `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`; Cloud backend tests `36524589994` — **SUCCESS**; SQLite sync substrate tests `36524590005` — **SUCCESS**. These workflows include the mandatory no-skip E1 and E2 PostgreSQL acceptance.
+
+All agreed C17 scope is complete: durable conflict preservation; frozen resolution-v2 model and focused coverage for every strategy; encrypted resolution sealing/upload; peer apply; self-echo reconciliation; orphan retry; fair mixed inbox handling; v2 pull/PUSH/ACK; production mode-aware runtime; explicit irreversible account cutover; safe causal continuation after resolution; real two-device cutover and three-device conflict/resolution acceptance; and acceptance-driven H1/H2/H3 hardening. H1 `dc532e5a4c5d4b1449acf7974cdd16d15b326ba3`, H2 `925679fbc4e4661a9003d014ba2b2e17981601b9`, and H3 `58e009bacee5ae52fcb68813f9348bebf2da0779` are in the accepted branch history and covered by the successful workflows.
+
+The server does not choose a conflict winner and stores only opaque E2EE content. Conflict resolution has no silent LWW. Ordinary descendants after RES use RES as their immediate parent; the complete multi-parent ancestry remains in the immutable applied-resolution ledger.
+
+**Official WORTA progress: 77,0%.** Last closed stage: **C17**. Next: **C18 Complete Project Sync — NOT STARTED**.
 
 # КОНЕЦ ЧЕКПОИНТА
