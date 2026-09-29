@@ -1398,6 +1398,125 @@ mod remote_apply_tests {
         ).unwrap(), 0);
     }
 
+    fn change_visible_note_for_conflict(
+        connection: &PrivilegedRemoteApplyConnection,
+        change: impl FnOnce(&mut serde_json::Value),
+    ) {
+        connection.connection().execute(
+            "DELETE FROM cloud_sync_project_bindings WHERE project_id='p'", [],
+        ).unwrap();
+        let payload: String = connection.connection().query_row(
+            "SELECT payload_json FROM notes WHERE id='n'", [], |row| row.get(0),
+        ).unwrap();
+        let mut value: serde_json::Value = serde_json::from_str(&payload).unwrap();
+        change(&mut value);
+        connection.connection().execute(
+            "UPDATE notes SET payload_json=?1 WHERE id='n'", [value.to_string()],
+        ).unwrap();
+        connection.connection().execute(
+            "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at)
+             VALUES('p',?1,'now','now')", [ACCOUNT],
+        ).unwrap();
+    }
+
+    #[test]
+    fn accepted_self_echo_with_local_revision_preserves_remote_sibling() {
+        let mut connection = database();
+        let (local_id, own_echo) = received_accepted_local_branch(
+            &mut connection, NoteSyncOperation::Upsert, "2026-01-02T00:00:00Z", None,
+        );
+        change_visible_note_for_conflict(&connection, |note| {
+            note["revision"] = serde_json::Value::from(1);
+            note["created_at"] = serde_json::Value::from("2026-01-01T00:00:00Z");
+            note["updated_at"] = serde_json::Value::from("2026-01-02T00:00:00Z");
+        });
+        assert_eq!(apply_verified_received_note(&mut connection, &own_echo).unwrap(),
+            ApplyVerifiedReceivedNoteResult::SelfEchoApplied);
+        let sibling = received(&connection, plaintext(DELETE_EVENT, Some(CREATE_EVENT), 2,
+            "upsert", "2026-01-02T00:00:01.000000Z", "other branch"), 3, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &sibling).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [DELETE_EVENT],
+            |row| row.get::<_,String>(0),
+        ).unwrap(), "conflict_preserved");
+        assert_eq!(connection.connection().query_row(
+            "SELECT common_parent_event_id,tip_revision,generation,lifecycle
+             FROM cloud_sync_note_conflict_groups", [],
+            |row| Ok((row.get::<_,String>(0)?,row.get::<_,i64>(1)?,
+                row.get::<_,i64>(2)?,row.get::<_,String>(3)?)),
+        ).unwrap(), (CREATE_EVENT.into(),2,1,"open".into()));
+        let tips: Vec<(String,String)> = connection.connection().prepare(
+            "SELECT event_id,source FROM cloud_sync_note_conflict_versions ORDER BY event_id",
+        ).unwrap().query_map([], |row| Ok((row.get(0)?,row.get(1)?)))
+            .unwrap().collect::<Result<_,_>>().unwrap();
+        assert_eq!(tips, vec![(local_id,"remote_applied".into()),
+            (DELETE_EVENT.into(),"remote".into())].into_iter().collect::<Vec<_>>());
+        assert_eq!(connection.connection().query_row(
+            "SELECT json_extract(payload_json,'$.content') FROM notes WHERE id='n'", [],
+            |row| row.get::<_,String>(0),
+        ).unwrap(), "local branch");
+    }
+
+    #[test]
+    fn unrelated_visible_note_cannot_be_promoted_to_conflict_tip() {
+        let mut connection = database();
+        let (_, own_echo) = received_accepted_local_branch(
+            &mut connection, NoteSyncOperation::Upsert, "2026-01-02T00:00:00Z", None,
+        );
+        assert_eq!(apply_verified_received_note(&mut connection, &own_echo).unwrap(),
+            ApplyVerifiedReceivedNoteResult::SelfEchoApplied);
+        change_visible_note_for_conflict(&connection, |note| {
+            note["content"] = serde_json::Value::from("unrelated local content");
+        });
+        let sibling = received(&connection, plaintext(DELETE_EVENT, Some(CREATE_EVENT), 2,
+            "upsert", "2026-01-02T00:00:01.000000Z", "other branch"), 3, REMOTE_DEVICE);
+        assert_eq!(apply_verified_received_note(&mut connection, &sibling).unwrap(),
+            ApplyVerifiedReceivedNoteResult::Conflict);
+        assert_eq!(connection.connection().query_row(
+            "SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [DELETE_EVENT],
+            |row| row.get::<_,String>(0),
+        ).unwrap(), "conflict");
+        assert_eq!(connection.connection().query_row(
+            "SELECT count(*) FROM cloud_sync_note_conflict_groups", [],
+            |row| row.get::<_,i64>(0),
+        ).unwrap(), 0);
+    }
+
+    #[test]
+    fn semantic_visible_snapshot_requires_route_content_and_valid_instants() {
+        let source = plaintext(UPDATE_EVENT, Some(CREATE_EVENT), 2, "upsert",
+            "2026-01-02T00:00:00.000000Z", "local branch");
+        let NoteSyncPlaintext::Update { note, .. } = source else { unreachable!() };
+        let history = note_payload_from_record(&note).unwrap();
+        let mut visible: serde_json::Value = serde_json::from_str(&history).unwrap();
+        visible["revision"] = serde_json::Value::from(42);
+        visible["created_at"] = serde_json::Value::from("2025-12-31T19:00:00-05:00");
+        visible["updated_at"] = serde_json::Value::from("2026-01-02T00:00:00Z");
+        assert!(note_snapshot_semantically_matches_visible(&history,&visible.to_string(),"remote_applied"));
+        let mut local_intent=visible.clone();
+        local_intent["created_at"]=serde_json::Value::from("2026-01-01T00:00:00.000000Z");
+        local_intent["updated_at"]=serde_json::Value::from("2026-01-02T00:00:00.000000Z");
+        assert!(note_snapshot_semantically_matches_visible(
+            &local_intent.to_string(),&visible.to_string(),"local_unsealed"));
+        for (field,value) in [
+            ("content",serde_json::Value::from("different")),
+            ("project_id",serde_json::Value::from("other-project")),
+            ("source_type",serde_json::Value::from("mindmap")),
+            ("updated_at",serde_json::Value::from("2026-01-02T00:00:01Z")),
+            ("created_at",serde_json::Value::from("not-a-timestamp")),
+            ("revision",serde_json::Value::from(-1)),
+        ] {
+            let mut changed=visible.clone(); changed[field]=value;
+            assert!(!note_snapshot_semantically_matches_visible(&history,&changed.to_string(),"remote_applied"),
+                "unexpected match after changing {field}");
+        }
+        let mut extra=visible.clone(); extra["unexpected"]=serde_json::Value::Null;
+        assert!(!note_snapshot_semantically_matches_visible(&history,&extra.to_string(),"remote_applied"));
+        let mut missing=visible; missing.as_object_mut().unwrap().remove("title");
+        assert!(!note_snapshot_semantically_matches_visible(&history,&missing.to_string(),"remote_applied"));
+    }
+
     #[test]
     fn remote_apply_classifies_conflicting_and_missing_parents() {
         let mut connection = database();
@@ -4714,6 +4833,49 @@ fn note_sync_timestamps_equal(left: &str, right: &str) -> bool {
     })
 }
 
+fn note_snapshot_semantically_matches_visible(snapshot: &str, visible: &str, source: &str) -> bool {
+    const FIELDS: [&str; 19] = [
+        "id", "project_id", "stage_id", "source_type", "source_map_id",
+        "source_node_id", "content_format", "title", "content", "checklist",
+        "color", "pinned", "archived", "sort_order", "tags", "created_at",
+        "updated_at", "revision", "metadata",
+    ];
+    let (Ok(serde_json::Value::Object(mut snapshot)),
+         Ok(serde_json::Value::Object(mut visible))) =
+        (serde_json::from_str::<serde_json::Value>(snapshot),
+         serde_json::from_str::<serde_json::Value>(visible)) else { return false; };
+    if snapshot.len() != FIELDS.len() || visible.len() != FIELDS.len()
+        || FIELDS.iter().any(|field| !snapshot.contains_key(*field) || !visible.contains_key(*field))
+    {
+        return false;
+    }
+    let Some(snapshot_revision) = snapshot.remove("revision").and_then(|value| value.as_i64()) else { return false; };
+    let Some(visible_revision) = visible.remove("revision").and_then(|value| value.as_i64()) else { return false; };
+    if !(0..=MAX_SYNC_INTEGER).contains(&snapshot_revision)
+        || !(0..=MAX_SYNC_INTEGER).contains(&visible_revision)
+        || match source {
+            "remote_applied" => snapshot_revision != 0,
+            "local_unsealed" => snapshot_revision != visible_revision,
+            _ => true,
+        }
+    { return false; }
+    let Ok(record) = serde_json::from_value::<crate::note_sync_plaintext::NoteSyncRecord>(
+        serde_json::Value::Object(snapshot.clone()),
+    ) else { return false; };
+    if record.route.id.is_empty() || record.route.project_id.is_empty()
+        || !matches!(record.route.source_type.as_str(), "project" | "mindmap")
+        || !matches!(record.route.content_format.as_str(), "html" | "plain")
+        || record.checklist.iter().any(|item| item.id.is_empty())
+    { return false; }
+    for field in ["created_at", "updated_at"] {
+        let (Some(stored), Some(current)) =
+            (snapshot.remove(field), visible.remove(field)) else { return false; };
+        let (Some(stored), Some(current)) = (stored.as_str(), current.as_str()) else { return false; };
+        if !note_sync_timestamps_equal(stored, current) { return false; }
+    }
+    snapshot == visible
+}
+
 pub(crate) fn preflight_note_sync_project(
     connection: &Connection,
     project_id: &str,
@@ -7397,7 +7559,8 @@ fn preserve_causal_note_conflict(
             rusqlite::params![incoming.entity_id, incoming.project_id],
             |row| row.get(0),
         ).optional()?;
-        if (local_operation == "upsert" && visible.as_deref() != Some(local_snapshot.as_str()))
+        if (local_operation == "upsert" && !visible.as_deref().is_some_and(|current|
+            note_snapshot_semantically_matches_visible(&local_snapshot, current, local_source)))
             || (local_operation == "delete" && visible.is_some())
         {
             return Ok(None);
