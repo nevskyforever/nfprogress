@@ -20,6 +20,8 @@ mod mindmap;
 #[allow(dead_code)]
 mod note_sync;
 mod note_sync_plaintext;
+#[allow(dead_code)]
+mod project_metadata_sync;
 mod profile_transfer;
 #[allow(dead_code)]
 mod project_repository;

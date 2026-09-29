@@ -391,6 +391,11 @@ class SyncService:
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
                 if state.writer_transport_version == 2:
                     return 2, state.cutover_epoch
+                if state.writer_transport_version != 1:
+                    raise SyncProtocolError(
+                        'sync_transport_mode_incompatible',
+                        'The account requires a different encrypted sync transport version.', 409,
+                    )
                 if state.cutover_epoch != expected_cutover_epoch:
                     raise SyncProtocolError('sync_transport_cutover_stale', 'Transport cutover epoch is stale.', 409)
                 if state.cutover_epoch >= SYNC_MAX_WIRE_INTEGER:
@@ -465,7 +470,10 @@ class SyncService:
     @staticmethod
     def _validate_encrypted_item(item: EncryptedSyncPushItem | V2EncryptedSyncPushItem, *, transport_version: int) -> None:
         allowed_operations = ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
-        if item.event.entity_type != 'note' or item.event.operation not in allowed_operations:
+        allowed_types = ('note', 'project_metadata') if transport_version == 3 else ('note',)
+        if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
+                or (item.event.entity_type == 'project_metadata'
+                    and item.event.entity_id != item.event.project_id)):
             raise SyncProtocolError('encrypted_sync_event_unsupported', 'Unsupported encrypted sync event.', 422)
         if item.object.crypto_version != 1 or item.object.aad_version != 1:
             raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted object version.', 422)
@@ -652,6 +660,20 @@ class SyncService:
                     'encrypted_sync_event_incomplete',
                     'V2 encrypted pull encountered an event without a supported opaque object.',
                     409,
+                )
+        return rows, next_cursor, has_more, high_water
+
+    def pull_encrypted_v3(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
+        rows, next_cursor, has_more, high_water = self.pull_encrypted(
+            session, user_id, device_id, since, limit, transport_version=3,
+        )
+        for event, encrypted in rows:
+            if (encrypted is None or event.entity_type not in ('note', 'project_metadata')
+                    or event.operation not in ('upsert', 'delete', 'resolution')
+                    or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)):
+                raise SyncProtocolError(
+                    'encrypted_sync_event_incomplete',
+                    'V3 encrypted pull encountered an event without a supported opaque object.', 409,
                 )
         return rows, next_cursor, has_more, high_water
 

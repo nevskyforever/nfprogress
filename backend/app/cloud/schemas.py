@@ -447,7 +447,7 @@ class V2EncryptedSyncAckRequest(BaseModel):
 class V2EncryptedSyncCapabilitiesResponse(BaseModel):
     model_config = ConfigDict(extra='forbid')
     supported_transport_version: Literal[2] = V2_ENCRYPTED_SYNC_VERSION
-    writer_transport_version: Literal[1, 2]
+    writer_transport_version: Literal[1, 2, 3]
     cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
@@ -461,6 +461,56 @@ class V2EncryptedSyncCutoverResponse(BaseModel):
     supported_transport_version: Literal[2] = V2_ENCRYPTED_SYNC_VERSION
     writer_transport_version: Literal[2]
     cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+# C18.2 dormant format. No public cutover endpoint permits entering mode 3.
+class V3SyncEventEnvelope(V2SyncEventEnvelope):
+    entity_type: Literal['note', 'project_metadata']
+
+    @model_validator(mode='after')
+    def validate_metadata_scope(self) -> 'V3SyncEventEnvelope':
+        if self.entity_type == 'project_metadata' and self.entity_id != self.project_id:
+            raise ValueError('Project metadata entity ID must equal project ID.')
+        return self
+
+
+class V3EncryptedSyncPushItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event: V3SyncEventEnvelope
+    object: ObjectEnvelopeDto
+
+
+class V3EncryptedSyncPushRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: Literal[3]
+    encrypted_sync_version: Literal[3]
+    device_id: UUID
+    items: list[V3EncryptedSyncPushItem] = Field(max_length=100)
+
+
+class V3EncryptedSyncPushResponse(BaseModel):
+    protocol_version: Literal[3] = 3
+    encrypted_sync_version: Literal[3] = 3
+    results: list[SyncPushResult]
+    current_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class V3SyncPullEvent(V3SyncEventEnvelope):
+    device_id: UUID
+    server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class V3EncryptedSyncPullItem(BaseModel):
+    event: V3SyncPullEvent
+    object: ObjectEnvelopeDto
+
+
+class V3EncryptedSyncPullResponse(BaseModel):
+    protocol_version: Literal[3] = 3
+    encrypted_sync_version: Literal[3] = 3
+    items: list[V3EncryptedSyncPullItem]
+    next_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+    has_more: bool
 
 
 class AdminUserResponse(BaseModel):

@@ -167,7 +167,7 @@ class SyncUserState(Base):
     __tablename__ = 'sync_user_state'
     __table_args__ = (
         CheckConstraint('current_sequence >= 0', name='ck_sync_user_state_sequence_nonnegative'),
-        CheckConstraint('writer_transport_version IN (1, 2)', name='ck_sync_user_state_writer_transport_version'),
+        CheckConstraint('writer_transport_version IN (1, 2, 3)', name='ck_sync_user_state_writer_transport_version'),
         CheckConstraint('cutover_epoch >= 0 AND cutover_epoch <= 9007199254740991', name='ck_sync_user_state_cutover_epoch_safe_integer'),
     )
 
