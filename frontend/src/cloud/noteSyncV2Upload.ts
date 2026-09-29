@@ -104,7 +104,7 @@ export class NoteSyncV2Uploader {
     if (!batch.length) return { uploaded: 0, deviceId: null }
     const capabilities = await this.auth.authorized(token => this.api.capabilities(token))
     this.assertCurrent(context, capabilities.context)
-    if (parseV2Capabilities(capabilities.value).writer_transport_version !== 2) throw new NoteSyncV2UploadError('mode_incompatible', 'Writer transport mode is not 2.')
+    if (![2, 3].includes(parseV2Capabilities(capabilities.value).writer_transport_version)) throw new NoteSyncV2UploadError('mode_incompatible', 'Writer transport mode does not permit Note-v2 upload.')
     const fresh = await this.outbox.listSealed(accountId, READ_LIMIT)
     this.assertCurrent(context)
     this.assertScope(fresh, accountId, deviceId)

@@ -1,0 +1,37 @@
+import { describe, expect, it } from 'vitest'
+import { encodeV3MetadataPush, parseV3Pull } from './encryptedSyncV3'
+
+const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
+const EVENT = '123e4567-e89b-42d3-a456-426614174010'
+const NOW = '2026-09-21T00:00:00.000000Z'
+const object = { crypto_version: 1 as const, aad_version: 1 as const,
+  nonce: new Uint8Array(24), ciphertext: new Uint8Array(32) }
+const descriptor = { event_id: EVENT, device_id: DEVICE, server_sequence: 1, project_id: 'project', entity_id: 'project',
+  entity_type: 'project_metadata' as const, operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }
+
+describe('mode-3 metadata transport boundary', () => {
+  it('permits only metadata in the publication primitive and exact project scope', () => {
+    const event = { event_id: EVENT, project_id: 'project', entity_id: 'project', entity_type: 'project_metadata' as const,
+      operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }
+    const valid = { event, object }
+    const encoded = JSON.parse(encodeV3MetadataPush(DEVICE, [valid]))
+    expect(encoded.items[0].event.entity_type).toBe('project_metadata')
+    expect(() => encodeV3MetadataPush(DEVICE, [{ ...valid, event: { ...event, entity_type: 'note' } }] as never)).toThrow()
+    expect(() => encodeV3MetadataPush(DEVICE, [{ ...valid, event: { ...event, entity_id: 'wrong' } }])).toThrow()
+    expect(() => encodeV3MetadataPush(DEVICE, [{ ...valid, event: { ...event, operation: 'delete', deleted_at: null } }] as never)).toThrow()
+  })
+
+  it('reads a bounded mixed Note/metadata page and rejects unsupported or mismatched descriptors', () => {
+    const wireObject = { crypto_version: 1, aad_version: 1, nonce: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+      ciphertext: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' }
+    const note = { ...descriptor, event_id: '123e4567-e89b-42d3-a456-426614174011', server_sequence: 2,
+      entity_type: 'note', entity_id: 'note-1' }
+    const page = { protocol_version: 3, encrypted_sync_version: 3, items: [
+      { event: descriptor, object: wireObject }, { event: note, object: wireObject },
+    ], next_cursor: 2, has_more: false }
+    expect(parseV3Pull(page, 0, 200).items.map(item => item.event.entity_type)).toEqual(['project_metadata', 'note'])
+    expect(() => parseV3Pull({ ...page, items: [{ event: { ...descriptor, entity_id: 'wrong' }, object: wireObject }], next_cursor: 1 }, 0, 200)).toThrow()
+    expect(() => parseV3Pull({ ...page, items: [{ event: { ...descriptor, entity_type: 'future' }, object: wireObject }], next_cursor: 1 }, 0, 200)).toThrow()
+    expect(() => parseV3Pull({ ...page, items: [{ event: { ...descriptor, server_sequence: 3 }, object: wireObject }], next_cursor: 3 }, 3, 200)).toThrow()
+  })
+})

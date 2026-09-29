@@ -1,8 +1,8 @@
-"""Dormant C18 opaque project-metadata transport; no mode-3 cutover yet."""
+"""Explicit C18 mode-3 transport for opaque project metadata and legacy Notes."""
 from __future__ import annotations
 
 from uuid import UUID
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
@@ -11,13 +11,35 @@ from sqlalchemy.orm import Session
 from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
 from .schemas import (ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
-                      V3EncryptedSyncPullResponse, V3SyncPullEvent,
+                      V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
+                      V3ReaderReadyRequest, V3CutoverRequest, V3CutoverResponse, V3SyncPullEvent,
                       encode_canonical_base64url)
 from .services import SyncProtocolError, SyncService
 from .sync_router import _error, _inline_json_schema, _read_encrypted_push_body
 
-router = APIRouter(prefix='/api/v3/sync/encrypted', tags=['cloud sync v3 dormant'])
+router = APIRouter(prefix='/api/v3/sync/encrypted', tags=['cloud sync v3'])
 _PUSH_SCHEMA = _inline_json_schema(V3EncryptedSyncPushRequest)
+
+
+@router.post('/reader-ready', status_code=status.HTTP_204_NO_CONTENT)
+def reader_ready(request: V3ReaderReadyRequest,
+                 current: AuthenticatedUser = Depends(get_current_user),
+                 session: Session = Depends(get_cloud_session)) -> None:
+    try:
+        SyncService().declare_v3_reader_ready(session, current.user.id, request.device_id)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+
+
+@router.post('/cutover', response_model=V3CutoverResponse)
+def cutover(request: V3CutoverRequest,
+            current: AuthenticatedUser = Depends(get_current_user),
+            session: Session = Depends(get_cloud_session)) -> V3CutoverResponse:
+    try:
+        mode, epoch = SyncService().cutover_to_v3(session, current.user.id, request.expected_cutover_epoch)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+    return V3CutoverResponse(writer_transport_version=mode, cutover_epoch=epoch)
 
 
 @router.post('/push', response_model=V3EncryptedSyncPushResponse, openapi_extra={
@@ -71,3 +93,13 @@ def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_74
             nonce=encode_canonical_base64url(encrypted.nonce), ciphertext=encode_canonical_base64url(encrypted.ciphertext),
         ),
     ) for event, encrypted in rows], next_cursor=next_cursor, has_more=has_more)
+
+
+@router.post('/ack', status_code=status.HTTP_204_NO_CONTENT)
+def ack(request: V3EncryptedSyncAckRequest,
+        current: AuthenticatedUser = Depends(get_current_user),
+        session: Session = Depends(get_cloud_session)) -> None:
+    try:
+        SyncService().ack(session, current.user.id, request.device_id, request.cursor, transport_version=3)
+    except SyncProtocolError as error:
+        raise _error(error) from None

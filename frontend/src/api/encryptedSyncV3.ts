@@ -1,0 +1,128 @@
+import { decodeBase64Url, encodeBase64Url } from './base64url'
+import { apiRequest } from './client'
+import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from './encryptedSync'
+import { parseSyncTimestamp } from '@/cloud/syncTimestamp'
+import type { ObjectCryptoEnvelope } from '@/crypto'
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const fail = (): never => { throw new TypeError('invalid_encrypted_sync_v3') }
+const exact = (value: unknown, names: readonly string[]): boolean => typeof value === 'object' && value !== null
+  && !Array.isArray(value) && Object.keys(value).length === names.length && names.every(name => Object.prototype.hasOwnProperty.call(value, name))
+const safe = (value: unknown, minimum: number): value is number => Number.isSafeInteger(value) && (value as number) >= minimum
+const headers = (token: string) => new Headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' })
+
+export interface V3Descriptor {
+  event_id: string; device_id: string; server_sequence: number; project_id: string; entity_id: string
+  entity_type: 'note' | 'project_metadata'; operation: 'upsert' | 'delete' | 'resolution'
+  revision: number; updated_at: string; deleted_at: string | null
+}
+export interface V3PullItem { event: V3Descriptor; object: ObjectCryptoEnvelope }
+export interface V3PullResponse { protocol_version: 3; encrypted_sync_version: 3; items: V3PullItem[]; next_cursor: number; has_more: boolean }
+export interface V3MetadataPushItem {
+  event: Pick<V3Descriptor, 'event_id' | 'project_id' | 'entity_id' | 'entity_type' | 'operation' | 'revision' | 'updated_at' | 'deleted_at'>
+  object: ObjectCryptoEnvelope
+}
+export interface V3PushResponse { protocol_version: 3; encrypted_sync_version: 3; results: Array<{ event_id: string; server_sequence: number; duplicate: boolean }>; current_cursor: number }
+
+export function parseV3Pull(value: unknown, since: number, limit: number): V3PullResponse {
+  if (!safe(since, 0) || !safe(limit, 1) || limit > 500 || !exact(value, ['protocol_version', 'encrypted_sync_version', 'items', 'next_cursor', 'has_more'])) fail()
+  const page = value as V3PullResponse
+  if (page.protocol_version !== 3 || page.encrypted_sync_version !== 3 || !Array.isArray(page.items)
+    || page.items.length > limit || !safe(page.next_cursor, since) || typeof page.has_more !== 'boolean') fail()
+  let previous = since, total = 0
+  const ids = new Set<string>()
+  const items = page.items.map((item: unknown): V3PullItem => {
+    if (!exact(item, ['event', 'object'])) fail()
+    const row = item as V3PullItem
+    if (!exact(row.event, ['event_id', 'device_id', 'server_sequence', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at'])
+      || !exact(row.object, ['crypto_version', 'aad_version', 'nonce', 'ciphertext'])) fail()
+    const e = row.event
+    if (!UUID.test(e.event_id) || !UUID.test(e.device_id) || ids.has(e.event_id)
+      || typeof e.project_id !== 'string' || !e.project_id || e.project_id.length > 512
+      || typeof e.entity_id !== 'string' || !e.entity_id || e.entity_id.length > 512
+      || !['note', 'project_metadata'].includes(e.entity_type) || !['upsert', 'delete', 'resolution'].includes(e.operation)
+      || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
+      || !safe(e.server_sequence, previous + 1) || !safe(e.revision, e.operation === 'resolution' ? 2 : 1)
+      || typeof e.updated_at !== 'string' || (e.operation === 'delete' ? typeof e.deleted_at !== 'string' : e.deleted_at !== null)) fail()
+    try { parseSyncTimestamp(e.updated_at); if (e.deleted_at !== null) parseSyncTimestamp(e.deleted_at) } catch { fail() }
+    const object = row.object as unknown as { crypto_version: number; aad_version: number; nonce: string; ciphertext: string }
+    if (object.crypto_version !== 1 || object.aad_version !== 1 || typeof object.nonce !== 'string' || typeof object.ciphertext !== 'string') fail()
+    const nonce = decodeBase64Url(object.nonce, { expectedLength: 24 })
+    const ciphertext = decodeBase64Url(object.ciphertext, { minimumLength: 16, maximumLength: MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES })
+    if (encodeBase64Url(nonce) !== object.nonce || encodeBase64Url(ciphertext) !== object.ciphertext) fail()
+    total += ciphertext.length
+    if (total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) fail()
+    ids.add(e.event_id); previous = e.server_sequence
+    return { event: e, object: { crypto_version: 1, aad_version: 1, nonce, ciphertext } }
+  })
+  if (page.next_cursor !== previous || (!items.length && page.has_more)) fail()
+  return { ...page, items }
+}
+
+export function encodeV3MetadataPush(deviceId: string, items: readonly V3MetadataPushItem[]): string {
+  if (!UUID.test(deviceId) || !items.length || items.length > 100) fail()
+  let total = 0
+  const ids = new Set<string>()
+  const wire = items.map(item => {
+    const e = item.event
+    if (!exact(e, ['event_id', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at'])
+      || !UUID.test(e.event_id) || ids.has(e.event_id) || e.entity_type !== 'project_metadata'
+      || e.entity_id !== e.project_id || !e.project_id || e.project_id.length > 512
+      || !['upsert', 'delete', 'resolution'].includes(e.operation) || !safe(e.revision, e.operation === 'resolution' ? 2 : 1)
+      || typeof e.updated_at !== 'string' || (e.operation === 'delete' ? typeof e.deleted_at !== 'string' : e.deleted_at !== null)
+      || item.object.crypto_version !== 1 || item.object.aad_version !== 1
+      || item.object.nonce.length !== 24 || item.object.ciphertext.length < 16) fail()
+    try { parseSyncTimestamp(e.updated_at); if (e.deleted_at !== null) parseSyncTimestamp(e.deleted_at) } catch { fail() }
+    total += item.object.ciphertext.length
+    if (total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) fail()
+    ids.add(e.event_id)
+    return { event: e, object: { crypto_version: 1, aad_version: 1,
+      nonce: encodeBase64Url(item.object.nonce), ciphertext: encodeBase64Url(item.object.ciphertext) } }
+  })
+  const body = JSON.stringify({ protocol_version: 3, encrypted_sync_version: 3, device_id: deviceId, items: wire })
+  if (new TextEncoder().encode(body).length > MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES) fail()
+  return body
+}
+
+function parsePush(value: unknown, expected: readonly string[]): V3PushResponse {
+  if (!exact(value, ['protocol_version', 'encrypted_sync_version', 'results', 'current_cursor'])) fail()
+  const result = value as V3PushResponse
+  if (result.protocol_version !== 3 || result.encrypted_sync_version !== 3 || !safe(result.current_cursor, 0)
+    || !Array.isArray(result.results) || result.results.length !== expected.length) fail()
+  const remaining = new Set(expected)
+  for (const receipt of result.results) {
+    if (!exact(receipt, ['event_id', 'server_sequence', 'duplicate']) || !remaining.delete(receipt.event_id)
+      || !safe(receipt.server_sequence, 1) || receipt.server_sequence > result.current_cursor
+      || typeof receipt.duplicate !== 'boolean') fail()
+  }
+  return result
+}
+
+export const encryptedSyncV3Api = {
+  readerReady: (token: string, deviceId: string): Promise<void> => {
+    if (!UUID.test(deviceId)) fail()
+    return apiRequest<void>('/api/v3/sync/encrypted/reader-ready', { method: 'POST', headers: headers(token), body: { device_id: deviceId, reader_transport_version: 3 } })
+  },
+  cutover: (token: string, epoch: number): Promise<{ writer_transport_version: 3; cutover_epoch: number }> => {
+    if (!safe(epoch, 0)) fail()
+    return apiRequest<unknown>('/api/v3/sync/encrypted/cutover', { method: 'POST', headers: headers(token), body: { expected_cutover_epoch: epoch } }).then(value => {
+      if (!exact(value, ['writer_transport_version', 'cutover_epoch'])) fail()
+      const result = value as { writer_transport_version: 3; cutover_epoch: number }
+      if (result.writer_transport_version !== 3 || !safe(result.cutover_epoch, epoch + 1)) fail()
+      return result
+    })
+  },
+  pushMetadata: (token: string, deviceId: string, items: readonly V3MetadataPushItem[]): Promise<V3PushResponse> =>
+    apiRequest<unknown>('/api/v3/sync/encrypted/push', { method: 'POST', headers: headers(token), rawBody: encodeV3MetadataPush(deviceId, items) })
+      .then(value => parsePush(value, items.map(item => item.event.event_id))),
+  async pull(token: string, deviceId: string, since: number, limit = 200): Promise<V3PullResponse> {
+    if (!UUID.test(deviceId) || !safe(since, 0) || !safe(limit, 1) || limit > 500) fail()
+    const query = new URLSearchParams({ device_id: deviceId, since: String(since), limit: String(limit), protocol_version: '3', encrypted_sync_version: '3' })
+    const value = await apiRequest<unknown>(`/api/v3/sync/encrypted/pull?${query}`, { headers: headers(token), maxResponseBytes: MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES })
+    return parseV3Pull(value, since, limit)
+  },
+  ack: (token: string, deviceId: string, cursor: number): Promise<void> => {
+    if (!UUID.test(deviceId) || !safe(cursor, 0)) fail()
+    return apiRequest<void>('/api/v3/sync/encrypted/ack', { method: 'POST', headers: headers(token), body: { protocol_version: 3, encrypted_sync_version: 3, device_id: deviceId, cursor } })
+  },
+}

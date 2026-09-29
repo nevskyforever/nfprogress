@@ -7,7 +7,7 @@ import type { ObjectCryptoEnvelope } from '@/crypto'
 export const V2_SYNC_PROTOCOL_VERSION = 2 as const
 const MAX_SAFE = Number.MAX_SAFE_INTEGER
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-export interface V2Capabilities { supported_transport_version: 2, writer_transport_version: 1 | 2, cutover_epoch: number }
+export interface V2Capabilities { supported_transport_version: 2, writer_transport_version: 1 | 2 | 3, cutover_epoch: number }
 export interface V2CutoverResponse { supported_transport_version: 2, writer_transport_version: 2, cutover_epoch: number }
 interface V2PushEventBase { event_id:string, project_id:string, entity_id:string, entity_type:'note', revision:number, updated_at:string }
 type V2PushEvent =
@@ -39,7 +39,7 @@ const headers = (token:string) => new Headers({ Authorization:`Bearer ${token}`,
 export function parseV2Capabilities(value: unknown): V2Capabilities {
   if (!keys(value,['supported_transport_version','writer_transport_version','cutover_epoch'])) fail()
   const v=value as V2Capabilities
-  if (v.supported_transport_version!==2 || (v.writer_transport_version!==1 && v.writer_transport_version!==2)) fail()
+  if (v.supported_transport_version!==2 || ![1,2,3].includes(v.writer_transport_version)) fail()
   safe(v.cutover_epoch,0); return v
 }
 export function parseV2CutoverResponse(value: unknown): V2CutoverResponse {

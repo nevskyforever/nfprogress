@@ -11,10 +11,12 @@ const V1 = { stages: ['v1'], sealed: [], uploaded: 3, pulled: [], applied: [],
 const V2 = { stages: ['v2'], sealed: [], ordinaryUploaded: 2, resolutionUploaded: 1,
   pulled: [], mixedApply: { stages: ['mixed'], v1Pages: [], resolutionPages: [], blocked: [], errors: [], hasRemainingWork: true },
   blocked: [], errors: [{ stage: 'ack_v2', code: 'retry' }], hasRemainingWork: true }
+const V3 = { stages: ['v3'], noteUploaded: 2, resolutionUploaded: 1, metadataUploaded: 1,
+  pulled: [], blocked: [], errors: [], hasRemainingWork: false }
 
 async function harness() {
   let userId = USER_A
-  let mode: 1 | 2 = 1
+  let mode: 1 | 2 | 3 = 1
   let epoch = 0
   const auth = new NormalUserAuthRuntime({
     login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
@@ -25,13 +27,14 @@ async function harness() {
   await auth.login('user', 'password')
   const v1 = { runOnce: vi.fn().mockResolvedValue(V1) }
   const v2 = { runOnce: vi.fn().mockResolvedValue(V2) }
+  const v3 = { runOnce: vi.fn().mockResolvedValue(V3) }
   const v1Upload = { uploadOnce: vi.fn().mockResolvedValue(undefined) }
   const v2Upload = { uploadOnce: vi.fn().mockResolvedValue(undefined) }
   const api = { capabilities: vi.fn(async () => ({ supported_transport_version: 2 as const,
     writer_transport_version: mode, cutover_epoch: epoch })) }
-  const router = new NoteSyncTransportRouter(auth, v1, v2, v1Upload, v2Upload, api)
-  return { auth, v1, v2, v1Upload, v2Upload, api, router,
-    setMode: (value: 1 | 2, generation: number) => { mode = value; epoch = generation },
+  const router = new NoteSyncTransportRouter(auth, v1, v2, v1Upload, v2Upload, api, v3)
+  return { auth, v1, v2, v3, v1Upload, v2Upload, api, router,
+    setMode: (value: 1 | 2 | 3, generation: number) => { mode = value; epoch = generation },
     setUser: (value: string) => { userId = value } }
 }
 
@@ -54,11 +57,21 @@ describe('production Notes transport router', () => {
     expect(h.v1.runOnce).not.toHaveBeenCalled()
   })
 
+  it('selects the v3 cycle and preserves the Note-v2 bootstrap uploader', async () => {
+    const h = await harness(); h.setMode(3, 8)
+    expect(await h.router.runOnce('account-a', 'device')).toEqual({ transport_version: 3, cutover_epoch: 8,
+      cycle: V3, hasRemainingWork: false, blocked: [], errors: [] })
+    await h.router.uploadOnce('account-a')
+    expect(h.v3.runOnce).toHaveBeenCalledOnce()
+    expect(h.v2.runOnce).not.toHaveBeenCalled()
+    expect(h.v2Upload.uploadOnce).toHaveBeenCalledOnce()
+  })
+
   it('fails closed before either cycle on malformed or unsupported capabilities', async () => {
     const h = await harness()
     for (const response of [
       { supported_transport_version: 3, writer_transport_version: 1, cutover_epoch: 0 },
-      { supported_transport_version: 2, writer_transport_version: 3, cutover_epoch: 0 },
+      { supported_transport_version: 2, writer_transport_version: 4, cutover_epoch: 0 },
       { supported_transport_version: 2, writer_transport_version: 1, cutover_epoch: -1 },
       { supported_transport_version: 2, writer_transport_version: 1 },
     ]) {

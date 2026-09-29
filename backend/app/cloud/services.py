@@ -7,7 +7,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .models import (AuthRefreshToken, AuthSession, CloudProject, EmailVerificationToken,
+from .models import (AuthRefreshToken, AuthSession, CloudProject, EmailVerificationToken, SyncDevice,
                      GlobalLimits, PasswordResetToken, RegistrationSettings,
                      ReservedUsername, User, UserLimitOverrides)
 from .passwords import PasswordService
@@ -410,6 +410,48 @@ class SyncService:
             session.rollback()
             raise
 
+    def declare_v3_reader_ready(self, session: Session, user_id: object, device_id: object) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                if state.writer_transport_version not in (2, 3):
+                    raise SyncProtocolError('sync_transport_mode_incompatible', 'Mode 2 is required before reader readiness.', 409)
+                device = self._registered_device(session, user_id, device_id)
+                device.reader_transport_version = 3
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
+    def cutover_to_v3(self, session: Session, user_id: object, expected_cutover_epoch: int) -> tuple[int, int]:
+        try:
+            session.commit()
+            with session.begin():
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                if state.writer_transport_version == 3:
+                    return 3, state.cutover_epoch
+                self._require_transport_mode(state, 2)
+                if state.cutover_epoch != expected_cutover_epoch:
+                    raise SyncProtocolError('sync_transport_cutover_stale', 'Transport cutover epoch is stale.', 409)
+                if state.cutover_epoch >= SYNC_MAX_WIRE_INTEGER:
+                    raise SyncProtocolError('sync_transport_cutover_epoch_exhausted', 'Transport cutover epoch limit reached.', 409)
+                not_ready = session.scalar(select(func.count()).select_from(SyncDevice).where(
+                    SyncDevice.user_id == user_id, SyncDevice.reader_transport_version != 3,
+                ))
+                devices = session.scalar(select(func.count()).select_from(SyncDevice).where(SyncDevice.user_id == user_id))
+                if not devices or not_ready:
+                    raise SyncProtocolError('sync_transport_readers_not_ready', 'Registered devices must declare mode-3 reader support.', 409)
+                if self._sync.has_v2_incompatible_history(session, user_id):
+                    raise SyncProtocolError('sync_transport_cutover_blocked', 'Sync history is incompatible with mode 3.', 409)
+                state.writer_transport_version = 3
+                state.cutover_epoch += 1
+                session.flush()
+                return 3, state.cutover_epoch
+        except Exception:
+            session.rollback()
+            raise
+
     def push(self, session: Session, user_id: object, device_id: object,
              events: list[SyncEventEnvelope], *, transport_version: int = 1) -> tuple[list[SyncPushResult], int]:
         try:
@@ -502,7 +544,10 @@ class SyncService:
                 device = self._registered_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
-                self._require_transport_mode(state, transport_version)
+                # A mode-3 reader keeps the frozen Note-v2 writer endpoint.
+                # Its request schema admits Notes only; metadata uses v3.
+                if not (transport_version == 2 and state.writer_transport_version == 3):
+                    self._require_transport_mode(state, transport_version)
                 results: list[SyncPushResult] = []
                 for item in items:
                     event = item.event

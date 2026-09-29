@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.models import EncryptedObject, SyncEvent, SyncUserState
+from backend.app.cloud.models import EncryptedObject, SyncEvent
 from backend.app.cloud.schemas import V3EncryptedSyncPushRequest
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
 
@@ -44,7 +44,7 @@ def test_metadata_v3_schema_rejects_scope_and_unknown_plaintext_fields():
         V3EncryptedSyncPushRequest.model_validate(_request(device, _event(name='server-visible')))
 
 
-def test_metadata_v3_dormant_mode_and_opaque_replay(cloud_client):
+def test_metadata_v3_explicit_cutover_and_opaque_replay(cloud_client):
     client, engine = cloud_client
     user_id = create_user(engine)
     token = login(client).json()['access_token']
@@ -54,21 +54,26 @@ def test_metadata_v3_dormant_mode_and_opaque_replay(cloud_client):
     event, obj = _event(), _object()
     request = _request(device, event, obj)
     path = '/api/v3/sync/encrypted/push'
+    assert client.post(path, json=request).status_code == 401
+    assert client.post(path, headers=_headers(token), json={**request, 'protocol_version': 2}).status_code == 422
     blocked = client.post(path, headers=_headers(token), json=request)
     assert blocked.status_code == 409
     assert blocked.json()['detail']['code'] == 'sync_transport_mode_incompatible'
-    with Session(engine) as session:
-        state = session.get(SyncUserState, user_id)
-        assert state is not None
-        state.writer_transport_version = 2
-        state.cutover_epoch += 1
-        session.commit()
-    with Session(engine) as session:
-        state = session.get(SyncUserState, user_id)
-        assert state is not None
-        state.writer_transport_version = 3  # test-only fixture, no public cutover
-        state.cutover_epoch += 1
-        session.commit()
+    assert client.post('/api/v2/sync/encrypted/cutover', headers=_headers(token), json={
+        'expected_cutover_epoch': 0,
+    }).status_code == 200
+    assert client.post('/api/v3/sync/encrypted/cutover', headers=_headers(token), json={
+        'expected_cutover_epoch': 1,
+    }).json()['detail']['code'] == 'sync_transport_readers_not_ready'
+    assert client.post('/api/v3/sync/encrypted/reader-ready', headers=_headers(token), json={
+        'device_id': device, 'reader_transport_version': 3,
+    }).status_code == 204
+    assert client.post('/api/v3/sync/encrypted/reader-ready', headers=_headers(token), json={
+        'device_id': str(uuid4()), 'reader_transport_version': 3,
+    }).status_code == 409
+    assert client.post('/api/v3/sync/encrypted/cutover', headers=_headers(token), json={
+        'expected_cutover_epoch': 1,
+    }).json() == {'writer_transport_version': 3, 'cutover_epoch': 2}
     first = client.post(path, headers=_headers(token), json=request)
     assert first.status_code == 200, first.text
     assert first.json()['results'][0]['duplicate'] is False
@@ -90,8 +95,51 @@ def test_metadata_v3_dormant_mode_and_opaque_replay(cloud_client):
     assert pull.status_code == 200, pull.text
     assert pull.json()['items'][0]['event']['entity_type'] == 'project_metadata'
     assert pull.json()['items'][0]['object'] == obj
+    assert client.post('/api/v3/sync/encrypted/ack', headers=_headers(token), json={
+        'protocol_version': 3, 'encrypted_sync_version': 3, 'device_id': device, 'cursor': 1,
+    }).status_code == 204
     with Session(engine) as session:
         row = session.query(SyncEvent).filter_by(user_id=user_id, event_id=event['event_id']).one()
         assert row.entity_id == 'project-1'
         encrypted = session.query(EncryptedObject).filter_by(user_id=user_id, event_id=event['event_id']).one()
         assert encrypted.ciphertext == b'opaque project metadata ciphertext'
+
+
+def test_metadata_v3_all_registered_readers_and_strict_note_pairing(cloud_client):
+    client, engine = cloud_client
+    create_user(engine)
+    token = login(client).json()['access_token']
+    first, second = str(uuid4()), str(uuid4())
+    for device in (first, second):
+        assert client.put(f'/api/v1/sync/devices/{device}', headers=_headers(token)).status_code == 200
+    assert client.post('/api/v1/cloud/projects/project-1', headers=_headers(token)).status_code == 200
+    assert client.post('/api/v2/sync/encrypted/cutover', headers=_headers(token), json={'expected_cutover_epoch': 0}).status_code == 200
+    ready = '/api/v3/sync/encrypted/reader-ready'
+    assert client.post(ready, headers=_headers(token), json={'device_id': first, 'reader_transport_version': 3}).status_code == 204
+    blocked = client.post('/api/v3/sync/encrypted/cutover', headers=_headers(token), json={'expected_cutover_epoch': 1})
+    assert blocked.status_code == 409 and blocked.json()['detail']['code'] == 'sync_transport_readers_not_ready'
+    assert client.post(ready, headers=_headers(token), json={'device_id': second, 'reader_transport_version': 3}).status_code == 204
+    assert client.post('/api/v3/sync/encrypted/cutover', headers=_headers(token), json={'expected_cutover_epoch': 1}).status_code == 200
+    events = [_event(), _event()]
+    for device, event in zip((first, second), events, strict=True):
+        assert client.post('/api/v3/sync/encrypted/push', headers=_headers(token), json=_request(device, event)).status_code == 200
+    page = client.get('/api/v3/sync/encrypted/pull', headers=_headers(token), params={
+        'device_id': second, 'since': 0, 'protocol_version': 3, 'encrypted_sync_version': 3,
+    })
+    assert page.status_code == 200 and len(page.json()['items']) == 2
+    assert {item['event']['event_id'] for item in page.json()['items']} == {event['event_id'] for event in events}
+    invalid = _request(first, _event(entity_type='future_entity'))
+    assert client.post('/api/v3/sync/encrypted/push', headers=_headers(token), json=invalid).status_code == 422
+    invalid = _request(first, _event(entity_id='wrong'))
+    assert client.post('/api/v3/sync/encrypted/push', headers=_headers(token), json=invalid).status_code == 422
+    note = _event(entity_id='note-1', entity_type='note')
+    assert client.post('/api/v3/sync/encrypted/push', headers=_headers(token), json=_request(first, note)).status_code == 200
+    note_v2 = _event(entity_id='note-2', entity_type='note')
+    assert client.post('/api/v2/sync/encrypted/push', headers=_headers(token), json={
+        'protocol_version': 2, 'encrypted_sync_version': 2, 'device_id': first,
+        'items': [{'event': note_v2, 'object': _object()}],
+    }).status_code == 200
+    assert client.post('/api/v2/sync/encrypted/push', headers=_headers(token), json={
+        'protocol_version': 2, 'encrypted_sync_version': 2, 'device_id': first,
+        'items': [{'event': _event(entity_type='project_metadata'), 'object': _object()}],
+    }).status_code == 422

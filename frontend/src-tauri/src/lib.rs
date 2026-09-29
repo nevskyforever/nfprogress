@@ -2412,6 +2412,78 @@ fn commit_note_sync_inbound_page(
 }
 
 #[tauri::command]
+fn commit_v3_sync_inbound_page(command: note_sync::CommitNoteSyncInboundPageCommand)
+    -> Result<note_sync::CommitNoteSyncInboundPageResult, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    note_sync::commit_v3_sync_inbound_page(&mut connection, &command).map_err(|e|e.to_string())
+}
+
+fn metadata_connection(scope:&project_metadata_sync::MetadataScope)->Result<rusqlite::Connection,String>{
+    let connection=open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    project_metadata_sync::assert_runtime_scope(&connection,&scope.account_id,&scope.canonical_user_id,&scope.device_id)
+        .map_err(|e|e.to_string())?;
+    Ok(connection)
+}
+
+#[tauri::command]
+fn capture_project_metadata_candidate(scope:project_metadata_sync::MetadataScope,project_id:String,now:String)->Result<String,String>{
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::capture_legacy_candidate(&mut connection,&scope.account_id,&project_id,&now).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn read_project_metadata_migration_status(scope:project_metadata_sync::MetadataScope,project_id:String)
+    ->Result<project_metadata_sync::MetadataMigrationStatus,String>{
+    let connection=metadata_connection(&scope)?;
+    project_metadata_sync::migration_status(&connection,&scope.account_id,&project_id).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn prepare_project_metadata_genesis(scope:project_metadata_sync::MetadataScope,candidate_id:String,now:String)->Result<String,String>{
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::prepare_metadata_genesis(&mut connection,&scope.account_id,&candidate_id,&now).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn list_unsealed_project_metadata_genesis(scope:project_metadata_sync::MetadataScope)->Result<Vec<serde_json::Value>,String>{
+    let connection=metadata_connection(&scope)?;
+    project_metadata_sync::unsealed_genesis(&connection,&scope.account_id,&scope.device_id).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn commit_sealed_project_metadata_genesis(scope:project_metadata_sync::MetadataScope,event_id:String,nonce:Vec<u8>,ciphertext:Vec<u8>)->Result<(),String>{
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::commit_sealed_genesis(&mut connection,&scope.account_id,&scope.device_id,&event_id,&nonce,&ciphertext).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn list_sealed_project_metadata_genesis(scope:project_metadata_sync::MetadataScope)->Result<Vec<project_metadata_sync::MetadataUploadItem>,String>{
+    let connection=metadata_connection(&scope)?;
+    project_metadata_sync::sealed_genesis(&connection,&scope.account_id,&scope.device_id).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn commit_project_metadata_upload_receipt(scope:project_metadata_sync::MetadataScope,event_id:String,server_sequence:i64,duplicate:bool,now:String)->Result<(),String>{
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::commit_upload_receipt(&mut connection,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn list_received_project_metadata(scope:project_metadata_sync::MetadataScope,limit:i64,after_server_sequence:i64)->Result<Vec<project_metadata_sync::MetadataInboxItem>,String>{
+    let connection=metadata_connection(&scope)?;
+    project_metadata_sync::received_metadata(&connection,&scope.account_id,limit,after_server_sequence).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn apply_authenticated_project_metadata(scope:project_metadata_sync::MetadataScope,project_id:String,plaintext:Vec<u8>,nonce:Vec<u8>,ciphertext:Vec<u8>,now:String)->Result<String,String>{
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::preserve_authenticated_event_checked(&mut connection,&scope.account_id,&project_id,&plaintext,&now,Some((&nonce,&ciphertext)))
+        .map(str::to_string).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
 fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
@@ -5607,6 +5679,16 @@ pub fn run() {
             apply_verified_received_resolution_v2,
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
+            commit_v3_sync_inbound_page,
+            capture_project_metadata_candidate,
+            read_project_metadata_migration_status,
+            prepare_project_metadata_genesis,
+            list_unsealed_project_metadata_genesis,
+            commit_sealed_project_metadata_genesis,
+            list_sealed_project_metadata_genesis,
+            commit_project_metadata_upload_receipt,
+            list_received_project_metadata,
+            apply_authenticated_project_metadata,
             create_note,
             update_note,
             delete_note,

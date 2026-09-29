@@ -1,7 +1,7 @@
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 import { decryptObjectBytes, encryptObjectBytes, type AccountMasterKey, type ObjectCryptoEnvelope } from '@/crypto'
 
-// C18.2 isolated codec. Runtime writers must remain behind a future capability gate.
+// C18.2 strict codec; C18.3.01 runtime writers require explicit mode-3 authority.
 export const METADATA_CODEC_VERSION = 1 as const
 export const MAX_METADATA_BYTES = 1024 * 1024
 const MAGIC = new Uint8Array([0x57, 0x4f, 0x52, 0x54, 0x41, 0x2d, 0x43, 0x31]) // WORTA-C1

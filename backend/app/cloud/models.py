@@ -153,6 +153,7 @@ class SyncDevice(Base):
     """A non-secret, account-scoped C9 transport identity."""
 
     __tablename__ = 'sync_devices'
+    __table_args__ = (CheckConstraint('reader_transport_version IN (2, 3)', name='ck_sync_devices_reader_transport_version'),)
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey('users.id', ondelete='CASCADE'), primary_key=True,
@@ -161,6 +162,7 @@ class SyncDevice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     last_ack_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
+    reader_transport_version: Mapped[int] = mapped_column(Integer, nullable=False, default=2, server_default=text('2'))
 
 
 class SyncUserState(Base):

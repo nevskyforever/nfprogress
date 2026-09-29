@@ -1,7 +1,8 @@
-//! Dormant C18.2 project-metadata storage boundary. No Tauri command invokes it.
+//! C18 project-metadata storage boundary, activated only by explicit migration.
 //! The caller must authenticate and unframe the C18 object before passing its
 //! canonical payload here; this module repeats scope and causal checks in SQLite.
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 const MAX_BYTES: usize = 1024 * 1024;
@@ -278,8 +279,8 @@ pub(crate) fn capture_legacy_candidate(
     Ok(id)
 }
 
-/// Explicit, dormant preparation. C18.3 owns sealing/upload and must reuse
-/// this exact event ID; neither capture nor this method contacts the server.
+/// Explicit preparation. C18.3.01 sealing/upload reuses this exact event ID;
+/// neither capture nor this method contacts the server.
 pub(crate) fn prepare_metadata_genesis(
     connection: &mut Connection,
     account: &str,
@@ -314,6 +315,10 @@ pub(crate) fn prepare_metadata_genesis(
     if state != "candidate" {
         return Err(MetadataError::Conflict);
     }
+    let known_history: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM cloud_sync_metadata_tips WHERE account_id=?1 AND project_id=?2)",
+        params![account,project],|r|r.get(0))?;
+    if known_history { return Err(MetadataError::Conflict); }
     let active: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM cloud_sync_metadata_candidates WHERE account_id=?1 AND project_id=?2 AND state='publishing')",
         params![account,project], |r|r.get(0))?;
@@ -347,6 +352,17 @@ pub(crate) fn preserve_authenticated_event(
     project: &str,
     bytes: &[u8],
     now: &str,
+) -> Result<&'static str, MetadataError> {
+    preserve_authenticated_event_checked(connection, account, project, bytes, now, None)
+}
+
+pub(crate) fn preserve_authenticated_event_checked(
+    connection: &mut Connection,
+    account: &str,
+    project: &str,
+    bytes: &[u8],
+    now: &str,
+    expected_object: Option<(&[u8], &[u8])>,
 ) -> Result<&'static str, MetadataError> {
     if bytes.is_empty() || bytes.len() > MAX_BYTES {
         return Err(MetadataError::Invalid);
@@ -435,6 +451,10 @@ pub(crate) fn preserve_authenticated_event(
         "SELECT canonical_payload,outcome FROM cloud_sync_metadata_apply_ledger WHERE account_id=?1 AND event_id=?2",
         params![account,event_id], |r| Ok((r.get::<_,Vec<u8>>(0)?, r.get::<_,String>(1)?))
     ).optional()? {
+        if let Some((expected_nonce,expected_ciphertext))=expected_object {
+            let object:Option<(Vec<u8>,Vec<u8>)>=tx.query_row("SELECT nonce,ciphertext FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2 AND crypto_version=1 AND aad_version=1",params![account,event_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+            if object.as_ref().is_none_or(|(nonce,ciphertext)|nonce!=expected_nonce||ciphertext!=expected_ciphertext){return Err(MetadataError::Scope);}
+        }
         if stored == bytes { return Ok(if outcome == "applied" { "applied" } else { "conflict_preserved" }); }
         return Err(MetadataError::Conflict);
     }
@@ -472,12 +492,15 @@ pub(crate) fn preserve_authenticated_event(
     {
         return Err(MetadataError::Scope);
     }
-    let object_exists: bool = tx.query_row(
-        "SELECT EXISTS(SELECT 1 FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2)",
+    let object: Option<(i64, i64, Vec<u8>, Vec<u8>)> = tx.query_row(
+        "SELECT crypto_version,aad_version,nonce,ciphertext FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2",
         params![account, event_id],
-        |r| r.get(0),
-    )?;
-    if !object_exists {
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+    ).optional()?;
+    let Some((crypto_version, aad_version, nonce, ciphertext)) = object else {
+        return Err(MetadataError::Scope);
+    };
+    if crypto_version != 1 || aad_version != 1 || expected_object.is_some_and(|(n, c)| n != nonce || c != ciphertext) {
         return Err(MetadataError::Scope);
     }
     let local_event: Option<(Option<String>,String,String)> = tx.query_row(
@@ -510,7 +533,15 @@ pub(crate) fn preserve_authenticated_event(
             "SELECT EXISTS(SELECT 1 FROM cloud_sync_upload_receipts receipt JOIN cloud_sync_outbox outbox ON outbox.event_id=receipt.event_id WHERE receipt.account_id=?1 AND receipt.event_id=?2 AND receipt.device_id=?3 AND receipt.server_sequence=?4 AND outbox.account_id=?1 AND outbox.project_id=?5 AND outbox.entity_type='project_metadata' AND outbox.revision=1 AND outbox.lifecycle IN ('sealed','accepted'))",
             params![account,event_id,device,server_sequence,project],|r|r.get(0))?;
             if !receipt {
-                return Err(MetadataError::Scope);
+                let sealed: bool = tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM cloud_sync_outbox WHERE account_id=?1 AND event_id=?2 AND device_id=?3 AND project_id=?4 AND entity_type='project_metadata' AND lifecycle='sealed')",
+                    params![account,event_id,device,project], |r|r.get(0))?;
+                if !sealed { return Err(MetadataError::Scope); }
+                // The authenticated server echo is the lost upload response.
+                tx.execute("INSERT INTO cloud_sync_upload_receipts(account_id,event_id,device_id,server_sequence,duplicate,accepted_at) VALUES(?1,?2,?3,?4,0,?5)",
+                    params![account,event_id,device,server_sequence,now])?;
+                tx.execute("UPDATE cloud_sync_outbox SET lifecycle='accepted' WHERE account_id=?1 AND event_id=?2 AND lifecycle='sealed'",
+                    params![account,event_id])?;
             }
             true
         }
@@ -632,14 +663,122 @@ pub(crate) fn preserve_authenticated_event(
         )?;
     }
     tx.execute("INSERT INTO cloud_sync_metadata_apply_ledger(account_id,event_id,project_id,outcome,canonical_payload,applied_at) VALUES(?1,?2,?3,?4,?5,?6)",params![account,event_id,project,outcome,bytes,now])?;
+    tx.execute("UPDATE cloud_sync_inbox SET state=?1,applied_at=CASE WHEN ?1='applied' THEN ?2 ELSE applied_at END WHERE account_id=?3 AND event_id=?4 AND state IN ('received','orphan')",
+        params![if outcome=="applied" {"applied"} else {"conflict"},now,account,event_id])?;
     tx.commit()?;
     Ok(outcome)
+}
+
+pub(crate) fn assert_runtime_scope(connection: &Connection, account: &str, user: &str, device: &str) -> Result<(), MetadataError> {
+    let stored: Option<(String,String)> = connection.query_row(
+        "SELECT binding.canonical_user_id,state.device_id FROM cloud_account_bindings binding JOIN cloud_sync_state state ON state.account_id=binding.local_account_id WHERE binding.local_account_id=?1",
+        [account], |r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+    if stored.as_ref().is_none_or(|(u,d)| u != user || d != device) || !uuid(user) || !uuid(device) {
+        return Err(MetadataError::Scope);
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct MetadataScope {
+    pub account_id:String,
+    pub canonical_user_id:String,
+    pub device_id:String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct MetadataMigrationStatus {
+    pub state: String,
+    pub candidate_id: Option<String>,
+    pub event_id: Option<String>,
+    pub blockers: Value,
+    pub genesis_tips: i64,
+}
+
+pub(crate) fn migration_status(connection: &Connection, account: &str, project: &str) -> Result<MetadataMigrationStatus, MetadataError> {
+    let candidate: Option<(String,String,String)> = connection.query_row(
+        "SELECT candidate_id,state,unsupported_json FROM cloud_sync_metadata_candidates WHERE account_id=?1 AND project_id=?2 ORDER BY generation DESC LIMIT 1",
+        params![account,project], |r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional()?;
+    let tips: i64 = connection.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_tips WHERE account_id=?1 AND project_id=?2",params![account,project],|r|r.get(0))?;
+    let event: Option<(String,String)> = if let Some((candidate_id,_,_))=&candidate {
+        connection.query_row("SELECT event_id,state FROM cloud_sync_metadata_events WHERE account_id=?1 AND candidate_id=?2",params![account,candidate_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?
+    } else { None };
+    let blockers: Value = candidate.as_ref().map(|(_,_,raw)|serde_json::from_str(raw)).transpose().map_err(|_|MetadataError::Invalid)?.unwrap_or_else(||json!([]));
+    let pending_inbox:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_inbox WHERE account_id=?1 AND project_id=?2 AND entity_type='project_metadata' AND state IN ('received','orphan'))",params![account,project],|r|r.get(0))?;
+    let state = if tips > 1 || tips > 0 && candidate.as_ref().is_some_and(|(_,state,_)|state=="candidate")
+        || candidate.as_ref().is_some_and(|(_,state,_)|state=="conflict") { "genesis_conflict" }
+        else if tips == 1 && candidate.is_none() || event.as_ref().is_some_and(|(_,state)|state=="applied") { "authenticated_metadata_active" }
+        else if blockers.as_array().is_some_and(|a|a.iter().any(|v|v=="bootstrap_lineage_missing")) { "blocked_missing_bootstrap" }
+        else if blockers.as_array().is_some_and(|a|!a.is_empty()) { "blocked_unsupported" }
+        else if pending_inbox { "apply_blocked" }
+        else if event.as_ref().is_some_and(|(_,state)|state=="accepted") { "awaiting_remote_confirmation" }
+        else if event.as_ref().is_some_and(|(_,state)|matches!(state.as_str(),"unsealed"|"sealed")) { "genesis_pending" }
+        else if candidate.is_some() { "legacy_candidate_present" }
+        else { "legacy_local" };
+    Ok(MetadataMigrationStatus { state:state.into(), candidate_id:candidate.as_ref().map(|(id,_,_)|id.clone()),event_id:event.map(|(id,_)|id),blockers,genesis_tips:tips })
+}
+
+pub(crate) fn unsealed_genesis(connection: &Connection, account: &str, device: &str) -> Result<Vec<Value>, MetadataError> {
+    let mut statement=connection.prepare("SELECT e.event_id,e.project_id,e.bootstrap_id,e.payload_json,o.updated_at FROM cloud_sync_metadata_events e JOIN cloud_sync_outbox o ON o.event_id=e.event_id WHERE e.account_id=?1 AND e.device_id=?2 AND e.state='unsealed' AND o.lifecycle='unsealed' ORDER BY o.local_ordinal LIMIT 8")?;
+    let events: Result<Vec<Value>, MetadataError> = statement.query_map(params![account,device],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,String>(4)?)))?
+        .map(|row| { let (event,project,bootstrap,payload,updated)=row?;
+            let user:String=connection.query_row("SELECT canonical_user_id FROM cloud_account_bindings WHERE local_account_id=?1",[account],|r|r.get(0))?;
+            let metadata:Value=serde_json::from_str(&payload).map_err(|_|MetadataError::Invalid)?;
+            Ok(json!({"version":1,"header":{"account_id":user,"bootstrap_id":bootstrap,"device_id":device,"entity_id":project,"event_id":event,"generation":1,"operation":"create","parent_event_ids":[],"project_id":project,"revision":1,"updated_at":updated},"metadata":metadata,"deleted_at":null}))
+        }).collect();
+    events
+}
+
+pub(crate) fn commit_sealed_genesis(connection:&mut Connection, account:&str, device:&str, event:&str, nonce:&[u8], ciphertext:&[u8]) -> Result<(),MetadataError> {
+    if nonce.len()!=24 || !(16..=MAX_BYTES+64).contains(&ciphertext.len()) {return Err(MetadataError::Invalid);}
+    let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let state:Option<(String,String)>=tx.query_row("SELECT e.state,o.lifecycle FROM cloud_sync_metadata_events e JOIN cloud_sync_outbox o ON o.event_id=e.event_id WHERE e.account_id=?1 AND e.device_id=?2 AND e.event_id=?3 AND e.operation='create' AND o.entity_type='project_metadata'",params![account,device,event],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
+    if state.as_ref().is_none_or(|(e,o)|e!="unsealed"||o!="unsealed") {return Err(MetadataError::Scope);}
+    tx.execute("INSERT INTO cloud_sync_event_objects(account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at) VALUES(?1,?2,1,1,?3,?4,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",params![account,event,nonce,ciphertext])?;
+    tx.execute("UPDATE cloud_sync_metadata_events SET state='sealed' WHERE account_id=?1 AND event_id=?2",params![account,event])?;
+    tx.execute("UPDATE cloud_sync_outbox SET lifecycle='sealed' WHERE account_id=?1 AND event_id=?2",params![account,event])?;
+    tx.commit()?;Ok(())
+}
+
+#[derive(Serialize)]
+pub(crate) struct MetadataUploadItem {
+    pub event_id:String,pub project_id:String,pub revision:i64,pub updated_at:String,pub nonce:Vec<u8>,pub ciphertext:Vec<u8>,
+}
+pub(crate) fn sealed_genesis(connection:&Connection, account:&str, device:&str)->Result<Vec<MetadataUploadItem>,MetadataError>{
+    let mut statement=connection.prepare("SELECT e.event_id,e.project_id,e.revision,o.updated_at,obj.nonce,obj.ciphertext FROM cloud_sync_metadata_events e JOIN cloud_sync_outbox o ON o.event_id=e.event_id JOIN cloud_sync_event_objects obj ON obj.account_id=e.account_id AND obj.event_id=e.event_id WHERE e.account_id=?1 AND e.device_id=?2 AND e.state='sealed' AND o.lifecycle='sealed' ORDER BY o.local_ordinal LIMIT 8")?;
+    let items=statement.query_map(params![account,device],|r|Ok(MetadataUploadItem{event_id:r.get(0)?,project_id:r.get(1)?,revision:r.get(2)?,updated_at:r.get(3)?,nonce:r.get(4)?,ciphertext:r.get(5)?}))?.collect::<Result<Vec<_>,_>>()?;
+    Ok(items)
+}
+
+pub(crate) fn commit_upload_receipt(connection:&mut Connection,account:&str,device:&str,event:&str,sequence:i64,duplicate:bool,now:&str)->Result<(),MetadataError>{
+    if !(1..=MAX_REVISION).contains(&sequence) || !timestamp(now){return Err(MetadataError::Invalid);}
+    let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let state:Option<String>=tx.query_row("SELECT lifecycle FROM cloud_sync_outbox WHERE account_id=?1 AND device_id=?2 AND event_id=?3 AND entity_type='project_metadata'",params![account,device,event],|r|r.get(0)).optional()?;
+    if !matches!(state.as_deref(),Some("sealed"|"accepted")){return Err(MetadataError::Scope);}
+    let existing:Option<i64>=tx.query_row("SELECT server_sequence FROM cloud_sync_upload_receipts WHERE account_id=?1 AND event_id=?2",params![account,event],|r|r.get(0)).optional()?;
+    if let Some(old)=existing {if old!=sequence{return Err(MetadataError::Conflict);}}
+    else {tx.execute("INSERT INTO cloud_sync_upload_receipts(account_id,event_id,device_id,server_sequence,duplicate,accepted_at) VALUES(?1,?2,?3,?4,?5,?6)",params![account,event,device,sequence,i64::from(duplicate),now])?;}
+    tx.execute("UPDATE cloud_sync_outbox SET lifecycle='accepted' WHERE account_id=?1 AND event_id=?2 AND lifecycle='sealed'",params![account,event])?;
+    tx.execute("UPDATE cloud_sync_metadata_events SET state='accepted',server_sequence=?1 WHERE account_id=?2 AND event_id=?3 AND state='sealed'",params![sequence,account,event])?;
+    tx.commit()?;Ok(())
+}
+
+#[derive(Serialize)]
+pub(crate) struct MetadataInboxItem {
+    pub event_id:String,pub server_sequence:i64,pub source_device_id:String,pub project_id:String,pub entity_id:String,pub revision:i64,pub updated_at:String,pub deleted_at:Option<String>,pub operation:String,pub crypto_version:i64,pub aad_version:i64,pub nonce:Vec<u8>,pub ciphertext:Vec<u8>,
+}
+pub(crate) fn received_metadata(connection:&Connection,account:&str,limit:i64,after:i64)->Result<Vec<MetadataInboxItem>,MetadataError>{
+    if !(1..=32).contains(&limit)||!(0..=MAX_REVISION).contains(&after){return Err(MetadataError::Invalid);}
+    let mut statement=connection.prepare("SELECT inbox.event_id,inbox.server_sequence,inbox.device_id,inbox.project_id,inbox.entity_id,inbox.sync_revision,inbox.updated_at,inbox.deleted_at,inbox.operation,obj.crypto_version,obj.aad_version,obj.nonce,obj.ciphertext FROM cloud_sync_inbox inbox JOIN cloud_sync_event_objects obj ON obj.account_id=inbox.account_id AND obj.event_id=inbox.event_id WHERE inbox.account_id=?1 AND inbox.entity_type='project_metadata' AND inbox.state IN ('received','orphan') AND inbox.server_sequence>?3 ORDER BY inbox.server_sequence LIMIT ?2")?;
+    let items=statement.query_map(params![account,limit,after],|r|Ok(MetadataInboxItem{event_id:r.get(0)?,server_sequence:r.get(1)?,source_device_id:r.get(2)?,project_id:r.get(3)?,entity_id:r.get(4)?,revision:r.get(5)?,updated_at:r.get(6)?,deleted_at:r.get(7)?,operation:r.get(8)?,crypto_version:r.get(9)?,aad_version:r.get(10)?,nonce:r.get(11)?,ciphertext:r.get(12)?}))?.collect::<Result<Vec<_>,_>>()?;
+    Ok(items)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sqlite;
+    use crate::{note_sync,sqlite};
     const ACCOUNT: &str = "local-account";
     const USER: &str = "123e4567-e89b-42d3-a456-426614174099";
     const DEVICE: &str = "123e4567-e89b-42d3-a456-426614174003";
@@ -671,6 +810,83 @@ mod tests {
     fn inbound(db: &Connection, id: &str, device: &str, sequence: i64) {
         db.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,state,received_at) VALUES(?1,?2,?3,?4,'project','project','project_metadata','upsert',1,?5,'received',?5)",params![ACCOUNT,id,sequence,device,NOW]).unwrap();
         db.execute("INSERT INTO cloud_sync_event_objects(account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at) VALUES(?1,?2,1,1,zeroblob(24),zeroblob(16),?3)",params![ACCOUNT,id,NOW]).unwrap();
+    }
+    fn inbox_for_sealed(db:&Connection,id:&str,device:&str,sequence:i64){
+        db.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,state,received_at) VALUES(?1,?2,?3,?4,'project','project','project_metadata','upsert',1,?5,'received',?5)",params![ACCOUNT,id,sequence,device,NOW]).unwrap();
+        let exists:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_event_objects WHERE account_id=?1 AND event_id=?2)",params![ACCOUNT,id],|r|r.get(0)).unwrap();
+        if !exists {
+            let nonce=if device==DEVICE {[1_u8;24]} else {[2_u8;24]};
+            let ciphertext=if device==DEVICE {[1_u8;32]} else {[2_u8;32]};
+            db.execute("INSERT INTO cloud_sync_event_objects(account_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at) VALUES(?1,?2,1,1,?3,?4,?5)",params![ACCOUNT,id,nonce.as_slice(),ciphertext.as_slice(),NOW]).unwrap();
+        }
+    }
+    fn ack_candidate(db:&mut Connection)->i64{
+        let device=db.query_row("SELECT device_id FROM cloud_sync_state WHERE account_id=?1",[ACCOUNT],|r|r.get(0)).unwrap();
+        note_sync::prepare_note_sync_ack(db,&note_sync::PrepareNoteSyncAckCommand{account_id:ACCOUNT.into(),device_id:device,canonical_user_id:USER.into()}).unwrap().candidate_cursor
+    }
+    #[test]
+    fn project_metadata_lost_upload_response_self_echo_is_durable_and_ack_safe(){
+        let (mut db,path)=database();
+        let candidate=capture_legacy_candidate(&mut db,ACCOUNT,"project",NOW).unwrap();
+        let id=prepare_metadata_genesis(&mut db,ACCOUNT,&candidate,NOW).unwrap();
+        assert_eq!(unsealed_genesis(&db,ACCOUNT,DEVICE).unwrap().len(),1);
+        commit_sealed_genesis(&mut db,ACCOUNT,DEVICE,&id,&[0;24],&[1;32]).unwrap();
+        assert_eq!(sealed_genesis(&db,ACCOUNT,DEVICE).unwrap().len(),1);
+        inbox_for_sealed(&db,&id,DEVICE,1);
+        db.execute("UPDATE cloud_sync_state SET pull_cursor=1 WHERE account_id=?1",[ACCOUNT]).unwrap();
+        let bytes=event(&id,DEVICE,"Local name");
+        assert_eq!(preserve_authenticated_event_checked(&mut db,ACCOUNT,"project",&bytes,NOW,Some((&[0;24],&[1;32]))).unwrap(),"applied");
+        assert_eq!(ack_candidate(&mut db),1);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_upload_receipts WHERE event_id=?1",[&id],|r|r.get::<_,i64>(0)).unwrap(),1);
+        drop(db);
+        let mut reopened=sqlite::open_database(&path).unwrap();
+        assert_eq!(preserve_authenticated_event_checked(&mut reopened,ACCOUNT,"project",&bytes,NOW,Some((&[0;24],&[1;32]))).unwrap(),"applied");
+        assert!(matches!(preserve_authenticated_event_checked(&mut reopened,ACCOUNT,"project",&bytes,NOW,Some((&[9;24],&[1;32]))),Err(MetadataError::Scope)));
+        assert_eq!(ack_candidate(&mut reopened),1);
+        assert!(received_metadata(&reopened,ACCOUNT,8,0).unwrap().is_empty());
+        drop(reopened);std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn project_metadata_two_device_genesis_survives_restart_without_winner(){
+        let (mut a,path_a)=database();
+        let (mut b,path_b)=database();
+        let b_device="123e4567-e89b-42d3-a456-426614174004";
+        b.execute("UPDATE cloud_sync_state SET device_id=?1 WHERE account_id=?2",params![b_device,ACCOUNT]).unwrap();
+        b.execute("UPDATE projects SET name='Other name' WHERE id='project'",[]).unwrap();
+        let a_candidate=capture_legacy_candidate(&mut a,ACCOUNT,"project",NOW).unwrap();
+        let b_candidate=capture_legacy_candidate(&mut b,ACCOUNT,"project",NOW).unwrap();
+        let a_id=prepare_metadata_genesis(&mut a,ACCOUNT,&a_candidate,NOW).unwrap();
+        let b_id=prepare_metadata_genesis(&mut b,ACCOUNT,&b_candidate,NOW).unwrap();
+        assert_ne!(a_id,b_id);
+        commit_sealed_genesis(&mut a,ACCOUNT,DEVICE,&a_id,&[1;24],&[1;32]).unwrap();
+        commit_sealed_genesis(&mut b,ACCOUNT,b_device,&b_id,&[2;24],&[2;32]).unwrap();
+        for db in [&a,&b] {
+            inbox_for_sealed(db,&a_id,DEVICE,1);
+            inbox_for_sealed(db,&b_id,b_device,2);
+            db.execute("UPDATE cloud_sync_state SET pull_cursor=2 WHERE account_id=?1",[ACCOUNT]).unwrap();
+        }
+        // Each device applies its own self echo and preserves the independent peer genesis.
+        for (db,own_id,own_device,own_name,peer_id,peer_device,peer_name) in [
+            (&mut a,&a_id,DEVICE,"Local name",&b_id,b_device,"Other name"),
+            (&mut b,&b_id,b_device,"Other name",&a_id,DEVICE,"Local name")
+        ] {
+            let own=event(own_id,own_device,own_name);
+            let peer=event(peer_id,peer_device,peer_name);
+            assert_eq!(preserve_authenticated_event(db,ACCOUNT,"project",&own,NOW).unwrap(),"applied");
+            assert_eq!(preserve_authenticated_event(db,ACCOUNT,"project",&peer,NOW).unwrap(),"conflict_preserved");
+            assert_eq!(ack_candidate(db),2);
+            assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_tips",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+            assert_eq!(db.query_row("SELECT name FROM projects WHERE id='project'",[],|r|r.get::<_,String>(0)).unwrap(),own_name);
+        }
+        drop(a);drop(b);
+        for (path,device) in [(&path_a,DEVICE),(&path_b,b_device)] {
+            let mut db=sqlite::open_database(path).unwrap();
+            assert_eq!(migration_status(&db,ACCOUNT,"project").unwrap().state,"genesis_conflict");
+            assert_eq!(ack_candidate(&mut db),2);
+            assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_tips",[],|r|r.get::<_,i64>(0)).unwrap(),2);
+            assert_runtime_scope(&db,ACCOUNT,USER,device).unwrap();
+            drop(db);std::fs::remove_file(path).unwrap();
+        }
     }
     #[test]
     fn project_metadata_candidate_is_durable_and_reused() {

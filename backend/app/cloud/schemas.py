@@ -463,7 +463,32 @@ class V2EncryptedSyncCutoverResponse(BaseModel):
     cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
-# C18.2 dormant format. No public cutover endpoint permits entering mode 3.
+# C18 metadata mode 3 retains the frozen Note envelope alongside opaque metadata.
+class V3ReaderReadyRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    reader_transport_version: Literal[3]
+
+
+class V3CutoverRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    expected_cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER, strict=True)
+
+
+class V3CutoverResponse(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    writer_transport_version: Literal[3]
+    cutover_epoch: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class V3EncryptedSyncAckRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: Literal[3]
+    encrypted_sync_version: Literal[3]
+    device_id: UUID
+    cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER, strict=True)
+
+
 class V3SyncEventEnvelope(V2SyncEventEnvelope):
     entity_type: Literal['note', 'project_metadata']
 

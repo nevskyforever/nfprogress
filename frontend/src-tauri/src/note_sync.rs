@@ -6645,6 +6645,20 @@ fn contiguous_applied_ack_prefix(
         let next = candidate.checked_add(1).ok_or(NoteSyncError::InvalidEnvelope("ACK cursor overflow"))?;
         let durable: Option<i64> = transaction.query_row(
             "SELECT CASE
+                WHEN inbox.entity_type='project_metadata'
+                 AND inbox.state IN ('applied','conflict')
+                 AND EXISTS(
+                    SELECT 1 FROM cloud_sync_metadata_apply_ledger AS ledger
+                    JOIN cloud_sync_metadata_events AS event
+                      ON event.account_id=ledger.account_id AND event.event_id=ledger.event_id
+                    WHERE ledger.account_id=inbox.account_id AND ledger.event_id=inbox.event_id
+                      AND ledger.project_id=inbox.project_id
+                      AND ledger.outcome=CASE WHEN inbox.state='conflict' THEN 'conflict_preserved' ELSE 'applied' END
+                      AND event.project_id=inbox.project_id
+                      AND event.server_sequence=inbox.server_sequence
+                      AND event.state=ledger.outcome
+                 ) THEN 1
+                WHEN inbox.entity_type='project_metadata' THEN 0
                 WHEN inbox.state='applied' THEN 1
                 WHEN inbox.state='conflict_preserved'
                  AND inbox.conflict_preserved_at IS NOT NULL
@@ -6857,6 +6871,19 @@ pub(crate) fn list_orphan_note_resolution_inbox(
 pub(crate) fn commit_note_sync_inbound_page(
     connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
 ) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
+    commit_encrypted_sync_inbound_page(connection, command, false)
+}
+
+pub(crate) fn commit_v3_sync_inbound_page(
+    connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
+) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
+    commit_encrypted_sync_inbound_page(connection, command, true)
+}
+
+fn commit_encrypted_sync_inbound_page(
+    connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
+    allow_metadata: bool,
+) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
     if command.items.len() > 200 || !(0..=MAX_SYNC_INTEGER).contains(&command.expected_cursor)
         || !(0..=MAX_SYNC_INTEGER).contains(&command.next_cursor) {
         return Err(NoteSyncError::InvalidEnvelope("invalid inbox cursor or page size"));
@@ -6905,7 +6932,16 @@ pub(crate) fn commit_note_sync_inbound_page(
         if item.operation == "resolution" && (item.entity_type != "note" || item.revision < 2) {
             return Err(NoteSyncError::InvalidEnvelope("invalid inbound resolution"));
         }
-        if item.entity_type == "note" && item.envelope.is_none() {
+        if allow_metadata {
+            if !matches!(item.entity_type.as_str(), "note" | "project_metadata")
+                || item.entity_type == "project_metadata" && (
+                    item.entity_id != item.project_id || item.operation == "event") {
+                return Err(NoteSyncError::InvalidEnvelope("unsupported mode-3 entity"));
+            }
+        } else if item.entity_type == "project_metadata" {
+            return Err(NoteSyncError::InvalidEnvelope("metadata requires mode-3 inbox"));
+        }
+        if matches!(item.entity_type.as_str(), "note" | "project_metadata") && item.envelope.is_none() {
             return Err(NoteSyncError::InvalidEnvelope("note object missing"));
         }
         let decoded = item.envelope.as_ref().map(decode_encrypted_note_sync_envelope).transpose()?;
@@ -6927,7 +6963,7 @@ pub(crate) fn commit_note_sync_inbound_page(
             if exact_replay {
                 return Err(NoteSyncError::InvalidEnvelope("incomplete inbox replay"));
             }
-            let state = if item.entity_type == "note" { "received" } else { "unknown_entity" };
+            let state = if matches!(item.entity_type.as_str(), "note" | "project_metadata") { "received" } else { "unknown_entity" };
             transaction.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
                 rusqlite::params![command.account_id,item.event_id,item.server_sequence,item.source_device_id,item.project_id,item.entity_id,item.entity_type,item.operation,item.revision,item.updated_at,item.deleted_at,state])?;
             new_events += 1;

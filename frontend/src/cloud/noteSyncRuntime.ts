@@ -23,6 +23,10 @@ import { NoteSyncResolutionUploader } from './noteSyncResolutionUpload'
 import { NoteSyncResolutionInboxApplier } from './noteSyncResolutionInboxApply'
 import { DurableNoteSyncV2Inbox, NoteSyncV2AckAdapter } from './noteSyncV2Transport'
 import { NoteSyncV2Cycle, type NoteSyncV2CycleResult } from './noteSyncV2Cycle'
+import { NoteSyncV3Cycle } from './noteSyncV3Cycle'
+import { ProjectMetadataMigrationRuntime } from './projectMetadataMigrationRuntime'
+import type { MetadataMigrationStatus } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
+import { encryptedSyncV2Api } from '@/api/encryptedSyncV2'
 import { NoteSyncTransportRouter, type NoteSyncProductionResult } from './noteSyncTransportRouter'
 import { sealPendingNoteSyncIntents } from './noteSyncIntent'
 import {
@@ -104,6 +108,7 @@ export class NoteSyncRuntime {
   private readonly keys: RuntimeKeyManager
   private readonly router: ProductionRunner
   private readonly bootstrap: ProjectBootstrapGate
+  private readonly metadata: ProjectMetadataMigrationRuntime
   private flight: { readonly key: string, readonly promise: Promise<NoteSyncProductionResult> } | null = null
   private disposed = false
 
@@ -116,6 +121,7 @@ export class NoteSyncRuntime {
     const composition = this.composeSync(dependencies)
     this.router = composition.router
     this.bootstrap = dependencies.bootstrap ?? composition.bootstrap
+    this.metadata = composition.metadata
   }
 
   async login(username: string, password: string): Promise<NoteSyncRuntimeLoginResult> {
@@ -206,6 +212,37 @@ export class NoteSyncRuntime {
     return this.bootstrap.setPaused(this.bootstrapIdentity(identity), projectId, paused)
   }
 
+  /** Explicit internal reader declaration. Every registered device must do this before mode-3 cutover. */
+  async declareMetadataReaderReady(): Promise<void> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    await this.metadata.declareReaderReady(identity.local_account_id, identity.device_id)
+  }
+
+  /** Explicit irreversible account transition; no login/unlock/retry path invokes it. */
+  async cutoverMetadataTransport(): Promise<void> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    await this.metadata.cutover(identity.local_account_id, identity.device_id)
+  }
+
+  /** Explicit per-project candidate and genesis decision; no automatic publication. */
+  async beginProjectMetadataMigration(projectId: string): Promise<MetadataMigrationStatus> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.metadata.begin(identity.local_account_id, identity.device_id, projectId)
+  }
+
+  async projectMetadataMigrationStatus(projectId: string): Promise<MetadataMigrationStatus> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.metadata.status(identity.local_account_id, identity.device_id, projectId)
+  }
+
   async lock(): Promise<void> {
     this.assertNotDisposed()
     await this.keys.lock()
@@ -223,7 +260,7 @@ export class NoteSyncRuntime {
     await this.keys.dispose()
   }
 
-  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate } {
+  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime } {
     const intents = new SQLiteNoteSyncIntentRepository()
     const outbox = new SQLiteNoteSyncOutboxRepository()
     const inboxRepository = new SQLiteNoteSyncInboxRepository()
@@ -243,15 +280,19 @@ export class NoteSyncRuntime {
     )
     const orchestrator = dependencies.orchestrator ?? productionOrchestrator
     const v2Uploader = new NoteSyncV2Uploader(this.auth, this.bindings, this.identityRepository, outbox)
+    const metadata = new ProjectMetadataMigrationRuntime(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext)
+    const resolutionUploader = new NoteSyncResolutionUploader(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncResolutionUploadRepository())
     const v2Cycle = dependencies.v2Cycle ?? new NoteSyncV2Cycle(
       this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext, deviceAck,
       intents, v2Uploader,
-      new NoteSyncResolutionUploader(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncResolutionUploadRepository()),
+      resolutionUploader,
       new DurableNoteSyncV2Inbox(this.auth, this.bindings, this.identityRepository, inboxRepository),
       productionOrchestrator,
       new NoteSyncV2AckAdapter(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncAckRepository()),
     )
-    const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader)
+    const v3Cycle = new NoteSyncV3Cycle(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext,
+      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata)
+    const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader, encryptedSyncV2Api, v3Cycle)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,
       new SQLiteCloudProjectBootstrapRepository(),
@@ -262,7 +303,7 @@ export class NoteSyncRuntime {
         runOnce: (localAccountId, deviceId) => router.runOnce(localAccountId, deviceId),
       },
     )
-    return { router, bootstrap }
+    return { router, bootstrap, metadata }
   }
 
   private async provisionFor(context: AuthContextSnapshot): Promise<CloudIdentity> {
