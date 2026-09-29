@@ -14,7 +14,7 @@
 
 ## Permanent Codex CI handling rule
 
-После успешного локального commit и разрешённого `git push origin 6.0` Codex не ждёт завершения GitHub Actions и не проверяет статус workflow после push. Не выполнять polling через `gh`, GitHub API, браузер или другой способ и не расходовать лимиты на ожидание или контроль remote CI. В отчёте перечислить только ожидаемые workflow/jobs, считать опубликованный этап `REMOTE CI PENDING` до независимого подтверждения CI в GPT-чате, сразу сформировать `=== CODEX TASK RESULT ===` и завершить задачу. Независимую проверку remote CI выполняет GPT-чат отдельно. Сохранять это правило во всех следующих checkpoint.
+После успешно завершённого и разрешённого локального commit Codex самостоятельно выполняет `git push origin 6.0`; обычный push больше не требует ручного действия пользователя. После push Codex не ждёт GitHub Actions и не проверяет workflow через `gh`, GitHub API, браузер или другой polling. Codex сообщает published SHA и ожидаемые workflow/jobs, считает опубликованный slice `REMOTE CI PENDING` и завершает задачу. Независимую проверку remote SHA и GitHub Actions выполняет GPT-чат. Собственный commit/push Codex не даёт права объявить roadmap stage `CLOSED` или изменить официальный процент. ChatGPT сообщает пользователю рекомендуемые модель/thinking и необходимость нового Codex-чата вне копируемого task prompt; эти инструкции не включаются в task prompts. Сохранять это правило во всех следующих checkpoint.
 
 ---
 
@@ -145,7 +145,7 @@ Remote results относятся к correction SHA и подтверждают 
 
 - **ChatGPT:** план, ограниченные по scope и стоимости задачи, проверка каждого отчёта по выполненному/невыполненному, следующий bounded prompt, checkpoint, независимая GitHub-проверка после push. Нельзя выдавать собственное предположение за проверенное состояние локальных файлов.
 - **Codex:** читает фактический локальный worktree и целевые файлы, реализует только поставленный scope, запускает минимальные необходимые targeted tests, сообщает точные результаты и отдельно незапущенные проверки.
-- **Пользователь:** управляет рабочей сессией, выбирает модель и самостоятельно делает push, если не дал иного конкретного указания. Не менять модель, не запускать второй параллельный Codex и не прерывать уже работающую задачу без необходимости/поручения.
+- **Пользователь:** управляет рабочей сессией и выбирает модель. После разрешённого завершённого commit обычный push в `origin/6.0` выполняет Codex самостоятельно. Не менять модель, не запускать второй параллельный Codex и не прерывать уже работающую задачу без необходимости/поручения.
 - Для промежуточных локальных slices C15.7B **никаких самовольных commit/push**. Один общий commit только после завершения и проверки согласованного scope; push — отдельное решение пользователя.
 - **Сначала анализ текущего отчёта.** Если prompt уже запущен, дождаться результата в ходе пользовательского взаимодействия; не отправлять заново то же задание и не выдумывать результат. Не переходить к другой самостоятельной стадии без отдельного запроса пользователя.
 - **Экономить лимиты и ресурсы.** Terra Medium по умолчанию; выбирать Sol Medium/High лишь по реальной сложности. Нельзя автоматически рекомендовать Sol High просто потому, что в задании присутствует слово security. Текущее задание **уже работает на Sol High**; задним числом смена модели не окупит повторный запуск.
@@ -157,9 +157,9 @@ Remote results относятся к correction SHA и подтверждают 
 
 ## 11. Обязательный формат заданий Codex
 
-Перед большим заданием кратко изложить цель, ожидаемый практический результат, **экономный рекомендованный вариант модели/thinking** и необходимость нового Codex-чата, только если она действительно есть. По умолчанию **Terra Medium**. Сам prompt давать **одним цельным копируемым блоком** (в интерфейсе удобнее отдельный WritingBlock, не дробить на несколько разрозненных сообщений).
+Перед большим заданием кратко изложить цель и ожидаемый практический результат. **Рекомендуемый вариант модели/thinking и необходимость нового Codex-чата сообщать пользователю вне копируемого task prompt**, только если это действительно нужно. По умолчанию **Terra Medium**. Сам prompt давать **одним цельным копируемым блоком** (в интерфейсе удобнее отдельный WritingBlock, не дробить на несколько разрозненных сообщений).
 
-В prompt всегда включать: последний проверенный remote baseline SHA (не подменяет локальный HEAD); требование проверить реальный `git status`/working directory; файлы и ограниченный scope; frozen contracts; короткий read-only осмотр только если нужен; конкретные действия; security invariants; критерии готовности; targeted tests и удалённую CI coverage; **TEST BUDGET**; явный запрет на самовольный `reset/clean/checkout`, `commit/push` и изменение пользовательских `.pyc`; формат `=== CODEX TASK RESULT === ... === END CODEX TASK RESULT ===` с указанием `passed/failed/not run/skipped`.
+В prompt всегда включать: последний проверенный remote baseline SHA (не подменяет локальный HEAD); требование проверить реальный `git status`/working directory; файлы и ограниченный scope; frozen contracts; короткий read-only осмотр только если нужен; конкретные действия; security invariants; критерии готовности; targeted tests и удалённую CI coverage; **TEST BUDGET**; явный запрет на `reset/clean/checkout`, неразрешённый commit/push и изменение пользовательских `.pyc`; формат `=== CODEX TASK RESULT === ... === END CODEX TASK RESULT ===` с указанием `passed/failed/not run/skipped`. После разрешённого завершённого commit Codex публикует его самостоятельно и сообщает `REMOTE CI PENDING` без polling.
 
 Короткие исправления команды, patch или одного теста не превращать в новый многопроходный архитектурный аудит. Если задание реально выполнено только частично, давать follow-up только на незакрытый scope; не заставлять Codex заново делать уже завершённую часть. **Если Codex уже работает, новый prompt не выдавать, пока не получен его ответ.**
 
@@ -479,7 +479,7 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 **Last CLOSED:** C17 Shared Conflict Handling / Conflict Resolution.
 **Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**.
 **Current:** C18 Complete Project Sync — **IN PROGRESS / C18.1 CONTRACT FROZEN LOCALLY**. Следующее начисление возможно после полного закрытия C18 (+7,0 пункта).
-**Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; no autonomous commit/push; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
+**Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; commit только после разрешённых gates, затем самостоятельный push без CI polling; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
 
@@ -494,8 +494,8 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 5. **Terra Medium first.** Sol Medium/High только по конкретной доказанной необходимости или на отдельный финальный security audit.
 6. TEST BUDGET: focused tests → минимальный fix → repeat только затронутого → один full CI-equivalent pass перед общим commit.
 7. Не ломать E2EE, draining lease, frozen codec, fail-closed SQL guards, one-shot capability, durable inbox/receipts, no-silent-LWW и no-echo.
-8. Во всех prompts явно писать: `no reset/clean/checkout`, `no unrelated changes`, `no autonomous commit/push`, два `.pyc` не трогать.
-9. После локальной реализации требовать точные test counts, `git status`, `git diff --check`, CI coverage. После push — проверить **новый SHA** и все relevant jobs обоих workflow.
+8. Во всех prompts явно писать: `no reset/clean/checkout`, `no unrelated changes`, commit только после разрешённых local gates, затем Codex самостоятельно публикует завершённый slice; два `.pyc` не трогать.
+9. После локальной реализации требовать точные test counts, `git status`, `git diff --check`, CI coverage. После push Codex сообщает опубликованный SHA и ожидаемые workflow без polling; GPT-чат независимо проверяет **новый SHA** и все relevant jobs обоих workflow.
 10. При отсутствии доказательства писать `unknown/not run`, а не достраивать результат предположением.
 
 ## 48. ПРАВИЛО РЕПОЗИТОРНОГО CHECKPOINT — НОВЫЙ РАБОЧИЙ ПРОЦЕСС
@@ -533,7 +533,7 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 1. Codex завершает локальный scope и обновляет checkpoint как **LOCAL COMPLETE / CI PENDING**, если это соответствует фактам.
 2. Выполняется один финальный CI-equivalent local pass.
 3. Делается единый commit без пользовательских `.pyc`.
-4. **Пользователь** выполняет push, если не поручено иначе.
+4. **Codex** самостоятельно выполняет `git push origin 6.0` после разрешённого успешного commit, сообщает published SHA и завершает задачу со статусом `REMOTE CI PENDING`, не ожидая Actions и не выполняя polling.
 5. **ChatGPT независимо проверяет** новый remote HEAD, оба GitHub Actions workflow, relevant jobs, curated tests/path filters.
 6. Только после этой проверки пользователь/ChatGPT дают Codex отдельное указание обновить `docs/WORTA_CHECKPOINT.md`: поставить `CLOSED`, новый SHA/CI и официальный процент.
 
