@@ -1078,6 +1078,7 @@ mod tests {
         let mut later = event(199);
         later.header.entity_id = "S1".into();
         assert!(prepare(&mut db, ACCOUNT, &later, &[]).is_err());
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1130,6 +1131,7 @@ mod tests {
             .unwrap(),
             "tombstone_blocked"
         );
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1165,6 +1167,7 @@ mod tests {
             .unwrap(),
             3
         );
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1208,6 +1211,7 @@ mod tests {
         bad = order(110, &[foreign]);
         assert_eq!(apply_event(&mut db, &bad, 9), "orphan");
         assert_eq!(ack(&mut db), 7);
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1240,6 +1244,7 @@ mod tests {
             &[0; 16]
         )
         .is_err());
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1287,6 +1292,7 @@ mod tests {
                 .unwrap(),
             1
         );
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1356,6 +1362,7 @@ mod tests {
                 .unwrap(),
             5
         );
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
     #[test]
@@ -1416,6 +1423,7 @@ mod tests {
             .unwrap(),
             "project_metadata_authority_unresolved"
         );
+        drop(db);
         std::fs::remove_file(path).unwrap();
     }
 }
