@@ -15,7 +15,7 @@ export interface StructuralHeader {
   parent_event_ids: string[]; updated_at: string; metadata_event_id: string
 }
 export type StructuralEvent = {
-  version: 1; header: StructuralHeader; stage: StagePortable | null
+  version: 1 | 2; header: StructuralHeader; stage: StagePortable | null
   stage_ids: string[] | null; stage_heads: Record<string, string[]> | null; deleted_at: string | null
 }
 const encoder = new TextEncoder(), decoder = new TextDecoder('utf-8', { fatal: true })
@@ -28,13 +28,16 @@ const text = (v: unknown): v is string => typeof v === 'string' && !/[\uD800-\uD
 const positive = (v: unknown) => Number.isSafeInteger(v) && (v as number) > 0
 const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= Number.MAX_SAFE_INTEGER
 export function validateStructuralEvent(value: unknown): asserts value is StructuralEvent {
-  if (!obj(value) || !exact(value, ['version', 'header', 'stage', 'stage_ids', 'stage_heads', 'deleted_at']) || value.version !== 1 || !obj(value.header)) fail()
+  if (!obj(value) || !exact(value, ['version', 'header', 'stage', 'stage_ids', 'stage_heads', 'deleted_at']) || (value.version !== 1 && value.version !== 2) || !obj(value.header)) fail()
   const h = value.header
   if (!exact(h, ['account_id', 'project_id', 'bootstrap_id', 'device_id', 'entity_id', 'entity_type', 'event_id', 'operation', 'revision', 'generation', 'parent_event_ids', 'updated_at', 'metadata_event_id'])
     || !['account_id', 'bootstrap_id', 'device_id', 'event_id', 'metadata_event_id'].every(k => typeof h[k] === 'string' && UUID.test(h[k] as string))
     || !text(h.project_id) || !text(h.entity_id) || !['stage', 'stage_order'].includes(String(h.entity_type))
     || !['create', 'update', 'delete'].includes(String(h.operation)) || !positive(h.revision) || !positive(h.generation) || !timestamp(h.updated_at)
-    || !Array.isArray(h.parent_event_ids) || h.parent_event_ids.length !== (h.operation === 'create' ? 0 : 1)
+    || !Array.isArray(h.parent_event_ids)
+    || (value.version === 1 ? h.parent_event_ids.length !== (h.operation === 'create' ? 0 : 1)
+      : h.operation === 'create' || h.parent_event_ids.length < 1 || h.parent_event_ids.length > 64
+        || h.parent_event_ids.some((id, i, ids) => i > 0 && id <= ids[i - 1]))
     || !h.parent_event_ids.every(p => typeof p === 'string' && UUID.test(p) && p !== h.event_id)
     || (h.operation === 'create' ? h.revision !== 1 || h.generation !== 1 : (h.revision as number) < 2 || (h.generation as number) < 2)) fail()
   if (h.entity_type === 'stage_order') {
@@ -64,20 +67,20 @@ export function encodeStructuralEvent(value: StructuralEvent): Uint8Array {
 }
 export function frameStructuralEvent(value: StructuralEvent): Uint8Array {
   const bytes = encodeStructuralEvent(value), frame = new Uint8Array(20 + bytes.length)
-  frame.set(MAGIC); frame.set([1, value.header.entity_type === 'stage' ? 2 : 3, 1, 0], 8)
+  frame.set(MAGIC); frame.set([1, value.header.entity_type === 'stage' ? 2 : 3, value.version, 0], 8)
   const sizes = new DataView(frame.buffer)
   sizes.setUint32(12, bytes.length); sizes.setUint32(16, bytes.length); frame.set(bytes, 20)
   return frame
 }
 export function unframeStructuralEvent(frame: Uint8Array): StructuralEvent {
   if (frame.length < 20 || frame.length > MAX_STAGE_BYTES + 20 || !MAGIC.every((b, i) => frame[i] === b)
-    || frame[8] !== 1 || ![2, 3].includes(frame[9]!) || frame[10] !== 1 || frame[11] !== 0) fail()
+    || frame[8] !== 1 || ![2, 3].includes(frame[9]!) || ![1, 2].includes(frame[10]!) || frame[11] !== 0) fail()
   const sizes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength)
   if (sizes.getUint32(12) !== frame.length - 20 || sizes.getUint32(16) !== frame.length - 20) fail()
   let parsed: unknown
   try { parsed = JSON.parse(decoder.decode(frame.subarray(20))) } catch { fail() }
   validateStructuralEvent(parsed)
-  if (canonical(parsed) !== decoder.decode(frame.subarray(20)) || frame[9] !== (parsed.header.entity_type === 'stage' ? 2 : 3)) fail()
+  if (frame[10] !== parsed.version || canonical(parsed) !== decoder.decode(frame.subarray(20)) || frame[9] !== (parsed.header.entity_type === 'stage' ? 2 : 3)) fail()
   return parsed
 }
 export async function sealStructuralEvent(amk: AccountMasterKey, event: StructuralEvent): Promise<ObjectCryptoEnvelope> {

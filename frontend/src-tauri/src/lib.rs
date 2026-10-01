@@ -2429,6 +2429,58 @@ fn metadata_connection(scope:&project_metadata_sync::MetadataScope)->Result<rusq
 }
 
 #[tauri::command]
+fn read_stage_structural_authority(scope:project_metadata_sync::MetadataScope,project_id:String)->Result<stage_sync::StructuralView,String>{
+    let db=metadata_connection(&scope)?;stage_sync::authority(&db,&scope.account_id,&project_id).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn begin_stage_structural_migration(scope:project_metadata_sync::MetadataScope,project_id:String,now:String)->Result<stage_sync::StructuralView,String>{
+    let mut db=metadata_connection(&scope)?;stage_sync::begin(&mut db,&scope.account_id,&project_id,&now).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn prepare_stage_structural_decision(scope:project_metadata_sync::MetadataScope,project_id:String,decision:stage_sync::Decision,now:String)->Result<String,String>{
+    let mut db=metadata_connection(&scope)?;stage_sync::decide(&mut db,&scope.account_id,&project_id,&decision,&now).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn list_pending_stage_structural(scope:project_metadata_sync::MetadataScope,sealed:bool)->Result<Vec<serde_json::Value>,String>{
+    let db=metadata_connection(&scope)?;stage_sync::pending_events(&db,&scope.account_id,&scope.device_id,sealed).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn commit_sealed_stage_structural(scope:project_metadata_sync::MetadataScope,event_id:String,frame:Vec<u8>,nonce:Vec<u8>,ciphertext:Vec<u8>)->Result<(),String>{
+    let mut db=metadata_connection(&scope)?;
+    let e=stage_sync::unframe(&frame).map_err(|e|e.to_string())?;
+    if e.header.device_id!=scope.device_id || e.header.account_id!=scope.canonical_user_id || e.header.event_id!=event_id{return Err("structural_scope_mismatch".into());}
+    stage_sync::seal(&mut db,&scope.account_id,&event_id,&frame,&nonce,&ciphertext).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn commit_stage_structural_receipt(scope:project_metadata_sync::MetadataScope,event_id:String,server_sequence:i64,duplicate:bool,now:String)->Result<(),String>{
+    let mut db=metadata_connection(&scope)?;
+    let owned:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_outbox WHERE account_id=?1 AND device_id=?2 AND event_id=?3 AND entity_type IN ('stage','stage_order'))",rusqlite::params![scope.account_id,scope.device_id,event_id],|r|r.get(0)).map_err(|e|e.to_string())?;
+    if !owned{return Err("structural_scope_mismatch".into());}
+    stage_sync::commit_receipt(&mut db,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn list_received_stage_structural(scope:project_metadata_sync::MetadataScope,limit:i64,after_server_sequence:i64)->Result<Vec<serde_json::Value>,String>{
+    let db=metadata_connection(&scope)?;stage_sync::received(&db,&scope.account_id,limit,after_server_sequence).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn apply_authenticated_stage_structural(scope:project_metadata_sync::MetadataScope,event_id:String,frame:Vec<u8>,nonce:Vec<u8>,ciphertext:Vec<u8>)->Result<String,String>{
+    let mut db=metadata_connection(&scope)?;
+    stage_sync::apply_received(&mut db,&scope.account_id,&event_id,&frame,&nonce,&ciphertext).map(str::to_string).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn record_stage_structural_blocker(scope:project_metadata_sync::MetadataScope,event_id:String,reason:String)->Result<(),String>{
+    let db=metadata_connection(&scope)?;stage_sync::reader_blocker(&db,&scope.account_id,&event_id,&reason).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn retry_stage_structural(scope:project_metadata_sync::MetadataScope)->Result<(),String>{
+    let mut db=metadata_connection(&scope)?;
+    stage_sync::retry(&mut db,&scope.account_id,8).map_err(|e|e.to_string())?;
+    let projects={let mut q=db.prepare("SELECT project_id FROM cloud_sync_structural_migrations WHERE account_id=?1 UNION SELECT project_id FROM cloud_sync_structural_order_intents WHERE account_id=?1 LIMIT 32").map_err(|e|e.to_string())?;let rows=q.query_map([&scope.account_id],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;rows};
+    for p in projects{stage_sync::advance(&mut db,&scope.account_id,&p).map_err(|e|e.to_string())?;}
+    Ok(())
+}
+
+#[tauri::command]
 fn capture_project_metadata_candidate(scope:project_metadata_sync::MetadataScope,project_id:String,now:String)->Result<String,String>{
     let mut connection=metadata_connection(&scope)?;
     project_metadata_sync::capture_legacy_candidate(&mut connection,&scope.account_id,&project_id,&now).map_err(|e|e.to_string())
@@ -4019,6 +4071,15 @@ fn create_stage(
         updated_at: Some(now),
         payload,
     };
+    drop(repository);
+    let portable=stage.payload.clone();
+    let now=stage_sync::event_now(&connection).map_err(|e|e.to_string())?;
+    if stage_sync::normal_edit(&mut connection,&project_id,&stage_id,portable,&now).map_err(|e|e.to_string())? {
+        documents::move_project_document_to_stage(&project_id, &stage_id)?;
+        refresh_project_totals(&mut connection, &project_id)?;
+        return project_payload(&mut connection,&project_id);
+    }
+    let mut repository=ProjectsRepository::new(&mut connection);
     repository
         .insert_stage(&stage)
         .map_err(|error| error.to_string())?;
@@ -4123,6 +4184,13 @@ fn update_stage(
         status: current.status.clone(),
         payload,
     };
+    drop(repository);
+    let portable = update.payload.clone();
+    let now=stage_sync::event_now(&connection).map_err(|e|e.to_string())?;
+    if stage_sync::normal_edit(&mut connection,&project_id,&stage_id,portable,&now).map_err(|e|e.to_string())? {
+        return project_payload(&mut connection,&project_id);
+    }
+    let mut repository=ProjectsRepository::new(&mut connection);
     repository
         .update_stage(&stage_id, &update)
         .map_err(|error| error.to_string())?;
@@ -4135,6 +4203,7 @@ fn update_stage(
 fn delete_stage(command: StageIdCommand) -> Result<(), String> {
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+    stage_sync::guard_delete(&connection,&command.project_id).map_err(|e|e.to_string())?;
     let mut repository = ProjectsRepository::new(&mut connection);
     let stage = repository
         .get_stage(&command.stage_id)
@@ -4154,6 +4223,10 @@ fn delete_stage(command: StageIdCommand) -> Result<(), String> {
 fn reorder_stages(command: ReorderStagesCommand) -> Result<serde_json::Value, String> {
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+    let now=stage_sync::event_now(&connection).map_err(|e|e.to_string())?;
+    if stage_sync::normal_order(&mut connection,&command.project_id,&command.stage_ids,&now).map_err(|e|e.to_string())? {
+        return project_payload(&mut connection,&command.project_id);
+    }
     let mut repository = ProjectsRepository::new(&mut connection);
     repository
         .update_stage_order(&command.project_id, &command.stage_ids)
@@ -4297,9 +4370,16 @@ fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> 
         status: "завершен".to_string(),
         payload,
     };
-    repository
-        .update_stage(&command.stage_id, &update)
-        .map_err(|error| error.to_string())?;
+    drop(repository);
+    let portable=update.payload.clone();
+    let now=stage_sync::event_now(&connection).map_err(|e|e.to_string())?;
+    let captured=stage_sync::normal_edit(&mut connection,&command.project_id,&command.stage_id,portable,&now).map_err(|e|e.to_string())?;
+    let mut repository=ProjectsRepository::new(&mut connection);
+    if !captured {
+        repository
+            .update_stage(&command.stage_id, &update)
+            .map_err(|error| error.to_string())?;
+    }
     append_event_with_context(
         &mut repository,
         &format!("stage-completed:{}", command.stage_id),
@@ -5807,6 +5887,16 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
+            read_stage_structural_authority,
+            begin_stage_structural_migration,
+            prepare_stage_structural_decision,
+            list_pending_stage_structural,
+            commit_sealed_stage_structural,
+            commit_stage_structural_receipt,
+            list_received_stage_structural,
+            apply_authenticated_stage_structural,
+            record_stage_structural_blocker,
+            retry_stage_structural,
             capture_project_metadata_candidate,
             read_project_metadata_migration_status,
             prepare_project_metadata_genesis,

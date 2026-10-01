@@ -1,3 +1,4 @@
+import type { StructuralDecision, StructuralView } from '@/infrastructure/sqlite/stageStructuralRepository'
 import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import { announceDataChange } from '@/services/dataChanges'
 import { defineStore } from 'pinia'
@@ -81,6 +82,9 @@ export interface CloudSessionRuntime {
   importRemoteProject(projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   setProjectPaused(projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
   retry(): Promise<NoteSyncProductionResult>
+  projectStructuralAuthority(projectId: string): Promise<StructuralView>
+  beginStageMigration(projectId: string): Promise<StructuralView>
+  decideStructure(projectId: string, decision: StructuralDecision): Promise<string>
   metadataTransportMode(): Promise<1 | 2 | 3>
   prepareMetadataTransport(): Promise<void>
   declareMetadataReaderReady(): Promise<void>
@@ -188,6 +192,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   const busy = ref(false)
   const projects = ref<CloudProjectView[]>([])
   const metadataTransportMode = ref<1 | 2 | 3 | null>(null)
+  const structuralAuthority = ref<Record<string, StructuralView>>({})
   const metadataAuthority = ref<Record<string, MetadataAuthorityView>>({})
   const canRunCycle = ref(false)
   const projectBootstrapEnabled = canEnableCloudProjectSync()
@@ -203,6 +208,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     projects.value = []
     metadataTransportMode.value = null
     metadataAuthority.value = {}
+    structuralAuthority.value = {}
     canRunCycle.value = false
   }
 
@@ -363,7 +369,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
       try {
         const result = await operation()
         if (current(epoch)) await refreshProjects()
-        if (current(epoch) && result.transport_version === 3 && (result.cycle.metadataApply?.applied ?? 0) > 0) announceDataChange('projects')
+        if (current(epoch) && result.transport_version === 3 && ((result.cycle.metadataApply?.applied ?? 0) + (result.cycle.structuralApply?.applied ?? 0)) > 0) announceDataChange('projects')
         applyCycle(result, epoch)
       } catch (error) {
         setFailure(error, epoch)
@@ -567,6 +573,30 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     await runCycle(() => requireRuntime().retry())
   }
 
+  async function inspectStructure(projectId: string): Promise<void> {
+    const epoch = lifecycleEpoch
+    const view = await requireRuntime().projectStructuralAuthority(projectId)
+    if (current(epoch)) structuralAuthority.value = { ...structuralAuthority.value, [projectId]: view }
+  }
+  async function beginStructure(projectId: string): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().beginStageMigration(projectId)
+    if (!current(epoch)) return
+    await retry()
+    if (!current(epoch)) return
+    await inspectStructure(projectId)
+    announceDataChange('projects')
+  }
+  async function decideStructure(projectId: string, decision: StructuralDecision): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().decideStructure(projectId, decision)
+    if (!current(epoch)) return
+    await retry()
+    if (!current(epoch)) return
+    await inspectStructure(projectId)
+    announceDataChange('projects')
+  }
+
   async function inspectProjectMetadata(projectId: string): Promise<void> {
     const epoch = lifecycleEpoch
     const activeRuntime = requireRuntime()
@@ -672,7 +702,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   return {
     supported, status, username, hasProvisionedKey, errorMessage, blockedEvents,
     hasRemainingWork, lastCycleAt, busy, authenticated, projects, canRunCycle,
-    metadataTransportMode, metadataAuthority,
+    metadataTransportMode, metadataAuthority, structuralAuthority, inspectStructure, beginStructure, decideStructure,
     projectBootstrapEnabled,
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,

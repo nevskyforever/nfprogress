@@ -15,6 +15,7 @@ describe('C18 structural codec v1', () => {
   it('rejects unknown fields, versions, numbers and noncausal headers', () => {
     for (const mutate of [
       (e: any) => { e.stage.path = '/private/file' }, (e: any) => { e.path = 'x' },
+      (e: any) => { e.version = '1' }, (e: any) => { e.version = true },
       (e: any) => { e.header.extra = true }, (e: any) => { e.version = 2 },
       (e: any) => { delete e.stage.created_at }, (e: any) => { e.stage.goal = Infinity },
       (e: any) => { e.stage.personal_goal = -1 }, (e: any) => { e.header.operation = 'update' },
@@ -41,5 +42,26 @@ describe('C18 structural codec v1', () => {
     }
     const tampered={...sealed,ciphertext:sealed.ciphertext.slice()};tampered.ciphertext[0] = tampered.ciphertext[0]! ^ 1
     await expect(openStructuralEvent(key,context(e),tampered)).rejects.toThrow()
+  })
+})
+
+describe('C18 structural full-tip codec v2', () => {
+  it('keeps v1 readable and gives decisions a distinct strict codec version', () => {
+    const e = event(); e.version = 2; e.header.operation = 'update'; e.header.revision = 3; e.header.generation = 3
+    e.header.parent_event_ids = [e.header.metadata_event_id, e.header.device_id].sort()
+    const frame = frameStructuralEvent(e); expect(frame[10]).toBe(2); expect(unframeStructuralEvent(frame)).toEqual(e)
+    e.header.parent_event_ids.reverse(); expect(() => frameStructuralEvent(e)).toThrow()
+    e.header.parent_event_ids = [e.header.device_id, e.header.device_id]; expect(() => frameStructuralEvent(e)).toThrow()
+    expect(unframeStructuralEvent(frameStructuralEvent(event())).version).toBe(1)
+  })
+  it('never reinterprets Stage frames as metadata or Note payloads', async () => {
+    const { unframeProjectMetadata } = await import('./projectMetadataCodec')
+    const { decodeNoteSyncPlaintext } = await import('./noteSyncCodec')
+    const frame = frameStructuralEvent(event())
+    expect(() => unframeProjectMetadata(frame)).toThrow()
+    expect(() => decodeNoteSyncPlaintext(frame)).toThrow()
+    expect(() => decodeNoteSyncPlaintext(encodeStructuralEvent(event()))).toThrow()
+    const forgedMetadataFrame = frame.slice(); forgedMetadataFrame[9] = 1
+    expect(() => unframeStructuralEvent(forgedMetadataFrame)).toThrow()
   })
 })

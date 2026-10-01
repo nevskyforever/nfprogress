@@ -156,6 +156,8 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         for table in ("cloud_sync_metadata_invalidated_decisions", "cloud_sync_metadata_import_pages",
                       "cloud_sync_metadata_import_tips", "cloud_sync_metadata_import_events", "cloud_sync_metadata_imports"):
             database.execute(f"DROP TABLE {table}")
+        for table in ("cloud_sync_structural_decisions", "cloud_sync_structural_order_intents", "cloud_sync_structural_local_orders", "cloud_sync_structural_migrations"):
+            database.execute(f"DROP TABLE {table}")
         # Migration 028 must be absent from the reconstructed historical fixture.
         for table in ("cloud_sync_structural_apply_ledger", "cloud_sync_structural_projection",
                       "cloud_sync_structural_tips", "cloud_sync_structural_events", "cloud_sync_stage_candidates"):

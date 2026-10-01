@@ -581,6 +581,16 @@ fn structural_bridge(request:&Value)->Value {
     let project=required_string(request,"project_id");
     crate::project_metadata_sync::assert_runtime_scope(&db,account,required_string(request,"canonical_user_id"),required_string(request,"device_id")).unwrap();
     match required_string(request,"step") {
+        "persist"=>{let cmd:CommitNoteSyncInboundPageCommand=serde_json::from_value(request["command"].clone()).unwrap();json!(crate::note_sync::commit_v3_sync_inbound_page(&mut db,&cmd).unwrap())},
+        "apply"=>{let opened=&request["opened"];json!(stages::apply_received(&mut db,account,required_string(request,"event_id"),&bytes(opened,"frame"),&bytes(opened,"nonce"),&bytes(opened,"ciphertext")).unwrap())},
+        "begin"=>json!(stages::begin(&mut db,account,project,"2026-10-01T00:00:00.000000Z").unwrap()),
+        "authority"=>json!(stages::authority(&db,account,project).unwrap()),
+        "advance"=>{stages::advance(&mut db,account,project).unwrap();json!(true)},
+        "pending"=>json!(stages::pending_events(&db,account,required_string(request,"device_id"),request["sealed"].as_bool().unwrap_or(false)).unwrap()),
+        "decide"=>{let d:stages::Decision=serde_json::from_value(request["decision"].clone()).unwrap();json!(stages::decide(&mut db,account,project,&d,"2026-10-01T00:00:00.000000Z").unwrap())},
+        "edit"=>json!(stages::normal_edit(&mut db,project,required_string(request,"stage_id"),request["proposed"].clone(),"2026-10-01T00:00:00.000000Z").unwrap()),
+        "order"=>{let ids:Vec<String>=serde_json::from_value(request["stage_ids"].clone()).unwrap();json!(stages::normal_order(&mut db,project,&ids,"2026-10-01T00:00:00.000000Z").unwrap())},
+        "receipt"=>{stages::commit_receipt(&mut db,account,required_string(request,"device_id"),required_string(request,"event_id"),request["server_sequence"].as_i64().unwrap(),request["duplicate"].as_bool().unwrap(),"2026-10-01T00:00:00.000000Z").unwrap();json!(true)},
         "capture"=>json!(stages::capture_candidate(&mut db,account,project,required_string(request,"stage_id"),"2026-10-01T00:00:00.000000Z").unwrap()),
         "prepare"=>{let e:stages::Event=serde_json::from_value(request["event"].clone()).unwrap();let expected:Vec<String>=serde_json::from_value(request["expected_tips"].clone()).unwrap();stages::prepare(&mut db,account,&e,&expected).unwrap();json!(stages::frame(&e).unwrap())},
         "seal"=>{stages::seal(&mut db,account,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)},

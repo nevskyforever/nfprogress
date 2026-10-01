@@ -20,10 +20,10 @@ const now = (): string => canonicalizeSyncTimestamp(new Date().toISOString())
 /** Internal migration boundary. Capture and publication require explicit calls. */
 export class ProjectMetadataMigrationRuntime {
   constructor(
-    private readonly auth: NormalUserAuthRuntime,
-    private readonly bindings: AuthoritativeAccountBinding,
-    private readonly identity: CloudIdentityRepository,
-    private readonly keys: RuntimeKeyContext,
+    protected readonly auth: NormalUserAuthRuntime,
+    protected readonly bindings: AuthoritativeAccountBinding,
+    protected readonly identity: CloudIdentityRepository,
+    protected readonly keys: RuntimeKeyContext,
     private readonly native: ProjectMetadataMigrationRepository = new SQLiteProjectMetadataMigrationRepository(),
     private readonly inbox: NoteSyncInboxRepository = new SQLiteNoteSyncInboxRepository(),
     private readonly ack: NoteSyncAckRepository = new SQLiteNoteSyncAckRepository(),
@@ -31,7 +31,7 @@ export class ProjectMetadataMigrationRuntime {
     private readonly importPageSize = 200,
   ) {}
 
-  private async scope(accountId: string, deviceId: string): Promise<{ scope: MetadataScope; context: AuthContextSnapshot }> {
+  protected async scope(accountId: string, deviceId: string): Promise<{ scope: MetadataScope; context: AuthContextSnapshot }> {
     const binding = await this.bindings.ensureForCurrentUser(accountId)
     const identity = await this.identity.read(binding.context.userId)
     if (!identity || identity.local_account_id !== accountId || identity.device_id !== deviceId || !this.auth.isCurrent(binding.context)) throw new StaleAuthContextError()
@@ -41,7 +41,7 @@ export class ProjectMetadataMigrationRuntime {
     return { scope: { account_id: accountId, canonical_user_id: binding.context.userId, device_id: deviceId }, context: binding.context }
   }
 
-  private assertCurrent(context: AuthContextSnapshot): void {
+  protected assertCurrent(context: AuthContextSnapshot): void {
     if (!this.auth.isCurrent(context)) throw new StaleAuthContextError()
   }
 
@@ -53,7 +53,7 @@ export class ProjectMetadataMigrationRuntime {
     return parseV2Capabilities(response.value).writer_transport_version
   }
 
-  private async requireMode3(accountId: string, deviceId: string): Promise<void> {
+  protected async requireMode3(accountId: string, deviceId: string): Promise<void> {
     if (await this.mode(accountId, deviceId) !== 3) throw new TypeError('metadata_mode_3_required')
   }
 

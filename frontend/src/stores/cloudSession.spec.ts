@@ -88,6 +88,7 @@ function runtime(record: CurrentUserCryptoRecord = PROVISIONED): CloudSessionRun
     bootstrapLocalProject: vi.fn(),
     importRemoteProject: vi.fn(),
     setProjectPaused: vi.fn().mockResolvedValue(READY_REGISTRY),
+    projectStructuralAuthority: vi.fn(), beginStageMigration: vi.fn(), decideStructure: vi.fn(),
     metadataTransportMode: vi.fn().mockResolvedValue(3),
     prepareMetadataTransport: vi.fn(), declareMetadataReaderReady: vi.fn(), cutoverMetadataTransport: vi.fn(),
     projectMetadataAuthority: vi.fn(), beginProjectMetadataMigration: vi.fn(),

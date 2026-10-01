@@ -7,7 +7,7 @@ const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const PAGE = { committed_cursor: 1, new_events: 1, replayed_events: 0, has_more: false }
 
-async function setup() {
+async function setup(structuralEnabled = false) {
   const auth = new NormalUserAuthRuntime({
     login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
     refresh: vi.fn(), logout: vi.fn(), me: vi.fn().mockResolvedValue({ id: USER, username: 'u',
@@ -40,9 +40,14 @@ async function setup() {
       orphans: 0, blocked: [], listed: 1 } }),
     ackOnce: vi.fn(async () => { calls.push('ack'); return { status: 'advanced', cursor: 1 } }),
   }
+  const structural = {
+    sealOnce: vi.fn(async () => { calls.push('seal_structure'); return 0 }),
+    uploadOnce: vi.fn(async () => { calls.push('upload_structure'); return 0 }),
+    applyOnce: vi.fn(async () => { calls.push('apply_structure'); return { applied: 0, conflicts: 0, orphans: 0, blocked: [], listed: 0 } }),
+  }
   const cycle = new NoteSyncV3Cycle(auth, bindings as never, identity as never, keys as never,
-    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never)
-  return { cycle, calls, capabilities, intents, note, resolution, metadata,
+    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined)
+  return { structural, cycle, calls, capabilities, intents, note, resolution, metadata,
     mode: (value: number) => { writerMode = value } }
 }
 
@@ -80,4 +85,22 @@ describe('mode-3 Note and metadata cycle', () => {
     expect(h.resolution.uploadOnce).not.toHaveBeenCalled()
     expect(h.metadata.uploadOnce).not.toHaveBeenCalled()
   })
+})
+
+it('mode-3 production dispatch applies structural arrivals before contiguous ACK and pulls after a lost structural upload', async () => {
+  const h = await setup(true)
+  h.structural.uploadOnce.mockRejectedValueOnce(new Error('lost response'))
+  const result = await h.cycle.runOnce('local', DEVICE)
+  expect(h.calls.indexOf('apply_structure')).toBeGreaterThan(h.calls.indexOf('apply_metadata'))
+  expect(h.calls.indexOf('ack')).toBeGreaterThan(h.calls.indexOf('apply_structure'))
+  expect(h.metadata.pullOnce).toHaveBeenCalledOnce(); expect(h.structural.applyOnce).toHaveBeenCalledOnce()
+  expect(result.errors).toEqual([{ stage: 'upload_structure', code: 'Error' }])
+})
+
+it('seals structural intents even when another bounded writer has remaining work', async () => {
+  const h = await setup(true)
+  h.metadata.sealOnce.mockResolvedValueOnce(8)
+  const result = await h.cycle.runOnce('local', DEVICE)
+  expect(result.hasRemainingWork).toBe(true)
+  expect(h.structural.sealOnce).toHaveBeenCalledOnce()
 })

@@ -10,6 +10,7 @@ import { NoteSyncOrchestrator } from './noteSyncOrchestrator'
 import { NoteSyncResolutionUploader } from './noteSyncResolutionUpload'
 import { NoteSyncV2Uploader } from './noteSyncV2Upload'
 import { ProjectMetadataMigrationRuntime, type MetadataApplyResult, type MetadataAckResult } from './projectMetadataMigrationRuntime'
+import type { StageStructuralRuntime } from './stageStructuralRuntime'
 import type { CommitInboundPageResult } from '@/infrastructure/sqlite/noteSyncInboxRepository'
 
 export interface NoteSyncV3CycleResult {
@@ -17,6 +18,7 @@ export interface NoteSyncV3CycleResult {
   readonly noteUploaded: number
   readonly resolutionUploaded: number
   readonly metadataUploaded: number
+  readonly structuralApply?: MetadataApplyResult
   readonly pulled: readonly CommitInboundPageResult[]
   readonly noteApply?: NoteSyncMixedInboxResult
   readonly metadataApply?: MetadataApplyResult
@@ -39,6 +41,7 @@ export class NoteSyncV3Cycle {
     private readonly resolutionUploader: NoteSyncResolutionUploader,
     private readonly noteApplier: NoteSyncOrchestrator,
     private readonly metadata: ProjectMetadataMigrationRuntime,
+    private readonly structural?: StageStructuralRuntime,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -54,10 +57,11 @@ export class NoteSyncV3Cycle {
     const stages: string[] = [], pulled: CommitInboundPageResult[] = [], blocked: string[] = []
     const errors: Array<{ stage: string; code: string }> = []
     let noteUploaded = 0, resolutionUploaded = 0, metadataUploaded = 0, hasRemainingWork = false
+    let structuralApply: MetadataApplyResult | undefined
     let abort = false
     let noteApply: NoteSyncMixedInboxResult | undefined, metadataApply: MetadataApplyResult | undefined, ack: MetadataAckResult | undefined
     const result = (): NoteSyncV3CycleResult => ({ stages, noteUploaded, resolutionUploaded, metadataUploaded,
-      pulled, noteApply, metadataApply, ack, blocked, errors, hasRemainingWork })
+      pulled, noteApply, metadataApply, structuralApply, ack, blocked, errors, hasRemainingWork })
     const stage = async (name: string, action: () => Promise<void>): Promise<boolean> => {
       stages.push(name)
       try { await action(); return true }
@@ -89,6 +93,7 @@ export class NoteSyncV3Cycle {
       hasRemainingWork ||= pass.listed === limits.sealLimit || pass.results.some(item => item.status.includes('failure') || item.status === 'blocked_skipped')
     })) return result()
     await stage('seal_metadata', async () => { await mode(); hasRemainingWork ||= (await this.metadata.sealOnce(accountId, deviceId)) === 8 })
+    if (this.structural) await stage('seal_structure', async () => { await mode(); const count = await this.structural!.sealOnce(accountId, deviceId); hasRemainingWork ||= count === 8 })
     if (abort) return result()
     // A lost upload response must not prevent the self echo from being pulled.
     await stage('upload_notes', async () => { await mode(); noteUploaded = (await this.noteUploader.uploadOnce(accountId)).uploaded })
@@ -96,6 +101,8 @@ export class NoteSyncV3Cycle {
     await stage('upload_resolutions', async () => { await mode(); resolutionUploaded = (await this.resolutionUploader.uploadOnce(accountId)).uploaded })
     if (abort) return result()
     await stage('upload_metadata', async () => { await mode(); metadataUploaded = await this.metadata.uploadOnce(accountId, deviceId) })
+    if (abort) return result()
+    if (this.structural) await stage('upload_structure', async () => { await mode(); await this.structural!.uploadOnce(accountId, deviceId) })
     if (abort) return result()
     for (let page = 0; page < limits.maxPullPages; page += 1) {
       if (!await stage('pull_v3', async () => { await mode(); pulled.push(await this.metadata.pullOnce(accountId, deviceId)) })) return result()
@@ -114,6 +121,13 @@ export class NoteSyncV3Cycle {
       metadataApply = await this.metadata.applyOnce(accountId, deviceId, limits.maxApplyPasses)
       blocked.push(...metadataApply.blocked)
       hasRemainingWork ||= metadataApply.blocked.length > 0 || metadataApply.orphans > 0 || metadataApply.listed === 8 * limits.maxApplyPasses
+    })) return result()
+    if (this.structural && !await stage('apply_structure', async () => {
+      await mode(); structuralApply = await this.structural!.applyOnce(accountId, deviceId, limits.maxApplyPasses)
+      blocked.push(...structuralApply.blocked)
+      hasRemainingWork ||= structuralApply.blocked.length > 0 || structuralApply.orphans > 0 || structuralApply.listed === 8 * limits.maxApplyPasses
+      // Frozen migration order can become ready during apply; leave a visible continuation.
+      hasRemainingWork ||= structuralApply.applied > 0
     })) return result()
     await stage('ack_v3', async () => { await mode(); ack = await this.metadata.ackOnce(accountId, deviceId); hasRemainingWork ||= ack.status === 'stale' })
     return result()

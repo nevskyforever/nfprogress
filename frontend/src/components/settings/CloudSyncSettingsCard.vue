@@ -4,6 +4,7 @@ import { IonIcon, IonSpinner } from '@ionic/vue'
 import { cloudOutline, lockClosedOutline, syncOutline, warningOutline } from 'ionicons/icons'
 
 import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
+import StageStructuralAuthorityPanel from './StageStructuralAuthorityPanel.vue'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
 import { encodeBase64Url } from '@/api/base64url'
@@ -386,6 +387,7 @@ onBeforeUnmount(() => {
           <div v-else-if="project.status === 'paused'" class="cloud-sync-card__actions">
             <button class="nf-button" type="button" :disabled="cloud.busy" @click="resumeProject(project.projectId)">{{ t('Возобновить') }}</button>
           </div>
+          <StageStructuralAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
           <ProjectMetadataAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
         </article>
       </section>

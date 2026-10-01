@@ -1019,7 +1019,7 @@ pub(crate) fn prepare_authoritative_change(
     Ok(event_id)
 }
 
-fn prepare_change_in_transaction(
+pub(crate) fn prepare_change_in_transaction(
     tx: &rusqlite::Transaction<'_>,
     account: &str,
     project: &str,
