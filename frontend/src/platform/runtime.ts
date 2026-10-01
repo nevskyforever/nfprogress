@@ -1,3 +1,5 @@
+import { diagnostics } from '@/diagnostics/service'
+import { safeError } from '@/diagnostics/events'
 import { Capacitor } from '@capacitor/core'
 
 interface DesktopRuntimeInfo {
@@ -62,11 +64,12 @@ async function initializeTauriRuntime(): Promise<void> {
         error instanceof Error ? error.message : String(error || 'Не удалось запустить приложение.'),
     }
   }
+  diagnostics.record('migrations', 'runtime_start', window.__NFPROGRESS_RUNTIME__?.startupError ? 'failed' : 'succeeded', undefined, {}, window.__NFPROGRESS_RUNTIME__?.startupError ? 'error' : 'info')
   // Native document synchronization is deliberately independent of the
   // legacy localhost service.  The command is idempotent and hashes/coalesces
   // unchanged sources on the Rust side.
   window.setInterval(() => {
-    void invoke('run_all_document_sync').catch(() => undefined)
+    void invoke('run_all_document_sync').catch(error => { diagnostics.record('documents', 'documents_sync', 'failed', undefined, safeError(error), 'error') })
   }, 60_000)
 }
 

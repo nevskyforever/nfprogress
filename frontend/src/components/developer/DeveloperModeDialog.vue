@@ -3,6 +3,9 @@ import { computed, reactive, ref, watch } from 'vue'
 import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue'
 import { closeOutline } from 'ionicons/icons'
 
+import FriendlyStatus from '@/components/settings/FriendlyStatus.vue'
+import { diagnostics } from '@/diagnostics/service'
+import { safeError } from '@/diagnostics/events'
 import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
 import { currentPlatform } from '@/platform/runtime'
@@ -25,6 +28,10 @@ const success = ref<string | null>(null)
 const developerState = ref<DeveloperModeState | null>(null)
 const streakState = ref<DeveloperStreakState | null>(null)
 const streakBusy = ref(false)
+const streakError = ref<string | null>(null)
+const streakCorrelation = ref<string>()
+const streakOperation = ref<'restore_streak' | 'create_streak'>('restore_streak')
+const streakTechnicalCode = ref('unknown_error')
 const form = reactive({
   level: 1,
   health: 0,
@@ -128,26 +135,40 @@ function targetRequest() {
 
 async function changeStreak(operation: 'restore' | 'create'): Promise<void> {
   if (streakBusy.value) return
+  const diagnosticOperation = operation === 'restore' ? 'restore_streak' : 'create_streak'
+  const correlation = diagnostics.record('developer', diagnosticOperation, 'requested')
+  streakCorrelation.value = correlation
+  streakOperation.value = diagnosticOperation
+  streakError.value = null
+  streakTechnicalCode.value = 'unknown_error'
   const target = selectedStreakTarget.value
   const request = targetRequest()
-  if (!target || !request || !streakState.value) return
+  if (!target || !request || !streakState.value) { diagnostics.record('developer', diagnosticOperation, 'failed', correlation, { error_code: 'NotFound' }, 'error'); streakTechnicalCode.value = 'NotFound'; streakError.value = operation === 'restore' ? 'streak_restore_failed' : 'unknown_error'; return }
   const length = Math.max(1, Math.min(10_000, Math.trunc(normalizeNumber(streak.length, 1))))
   streak.length = length
   const newLength = operation === 'restore' ? target.length : length
   const action = operation === 'restore' ? t('восстановить') : t('создать')
-  if (!window.confirm(t(`Подтвердите: ${action} стрик «${target.name}». Текущая длина: ${target.length}; новая длина: ${newLength}; писательский день: ${streakState.value.logical_day}.`))) return
+  if (!window.confirm(t(`Подтвердите: ${action} стрик «${target.name}». Текущая длина: ${target.length}; новая длина: ${newLength}; писательский день: ${streakState.value.logical_day}.`))) { diagnostics.record('developer', diagnosticOperation, 'cancelled', correlation); return }
+  diagnostics.record('developer', diagnosticOperation, 'started', correlation, { target_type: target.type })
   streakBusy.value = true
   error.value = null
   success.value = null
   try {
+    // Persist the requested/start events before native events for this rare developer action.
+    await diagnostics.flush()
     const result = operation === 'restore'
-      ? await gameApi.developerRestoreStreak(request)
+      ? await gameApi.developerRestoreStreak(request, correlation)
       : await gameApi.developerCreateStreakSeries({ ...request, length })
     success.value = t(result.message ?? 'Стрик изменён.')
     emit('updated', result.state)
+    diagnostics.record('developer', diagnosticOperation, 'succeeded', correlation)
     await load()
   } catch (reason) {
-    error.value = t(apiErrorMessage(reason))
+    const info = safeError(reason)
+    diagnostics.record('developer', diagnosticOperation, 'failed', correlation, info, 'error')
+    streakError.value = operation === 'restore' ? 'streak_restore_failed' : 'unknown_error'
+    streakTechnicalCode.value = String(info.error_code ?? 'unknown_error')
+    error.value = null
   } finally {
     streakBusy.value = false
   }
@@ -263,7 +284,7 @@ watch(() => props.open, (open) => {
         </section>
         <section class="developer-inventory" :aria-label="t('Управление стриками')">
           <h3>{{ t('Управление стриками') }}</h3>
-          <p>{{ t('Операции используют текущий писательский день и изменяют только canonical игровое состояние.') }}</p>
+          <p>{{ t('Операции используют текущий писательский день и изменяют только игровое состояние.') }}</p>
           <label>{{ t('Тип стрика') }}
             <select v-model="streak.type" @change="selectStreakType">
               <option value="global">{{ t('Глобальный') }}</option>
@@ -280,7 +301,7 @@ watch(() => props.open, (open) => {
             <span>{{ t('Статус') }}: {{ selectedStreakTarget.status }}</span>
             <span>{{ t('Длина') }}: {{ selectedStreakTarget.length }}</span>
             <span>{{ t('Максимум') }}: {{ selectedStreakTarget.max_length }}</span>
-            <span>{{ t('Последний effective day') }}: {{ selectedStreakTarget.last_effective_day ?? '—' }}</span>
+            <span>{{ t('Последний день серии') }}: {{ selectedStreakTarget.last_effective_day ?? '—' }}</span>
             <span>{{ t('Писательский день') }}: {{ streakState?.logical_day }}</span>
           </div>
           <button class="nf-button" :disabled="streakBusy || !selectedStreakTarget" type="button" @click="changeStreak('restore')">
@@ -302,6 +323,7 @@ watch(() => props.open, (open) => {
           </button>
         </section>
         <p v-if="success" class="developer-success" role="status">{{ success }}</p>
+        <FriendlyStatus v-if="streakError" :code="streakError" subsystem="developer" :operation="streakOperation" :correlation="streakCorrelation" :detail-code="streakTechnicalCode" role="alert" />
         <p v-if="error" class="developer-error" role="alert">{{ error }}</p>
       </form>
     </IonContent>

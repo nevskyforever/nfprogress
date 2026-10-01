@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 vi.mock('@/platform/runtime', () => ({ currentPlatform: vi.fn(() => 'tauri') }))
 
 import type { CurrentUserCryptoRecord } from '@/api/accountCrypto'
+import { diagnostics } from '@/diagnostics/service'
 import { ApiError } from '@/api/client'
 import { currentPlatform } from '@/platform/runtime'
 import type { PendingAccountCryptoProvisioning } from '@/cloud/accountCryptoProvisioning'
@@ -264,7 +265,7 @@ describe('desktop cloud session owner', () => {
 
     expect(instance.retry).not.toHaveBeenCalled()
     expect(store.status).toBe('blocked')
-    expect(store.blockedEvents).toEqual(['Удалённый проект ещё не импортирован на это устройство.'])
+    expect(store.blockedEvents).toEqual(['Некоторые данные проекта ещё не получены. Синхронизация продолжится после их получения.'])
     expect(store.lastCycleAt).toBeNull()
   })
 
@@ -341,7 +342,7 @@ describe('desktop cloud session owner', () => {
     await collision.login('normal-user', 'account-password')
     await collision.unlock('e2ee-password')
     expect(collision.projects[0]).toMatchObject({ status: 'blocked', connectionAvailable: false })
-    expect(collision.projects[0]!.reason).toContain('общая история')
+    expect(collision.projects[0]!.reason).toContain('связь с облачной версией')
     expect(collisionInstance.importRemoteProject).not.toHaveBeenCalled()
   })
 
@@ -443,4 +444,23 @@ describe('desktop cloud session owner', () => {
     expect(instance.setProjectPaused).toHaveBeenCalledWith(PROJECT, false)
     expect(store.projects[0]?.status).toBe('initial_sync_completed')
   })
+  it('records a bounded safe V3 cycle including apply, blocker and ACK using one correlation', async () => {
+    const instance=runtime();configureCloudSessionRuntimeFactoryForTests(()=>instance)
+    const cycle: NoteSyncProductionResult={transport_version:3,cutover_epoch:1,hasRemainingWork:true,blocked:['stage_dependency_missing:SECRET_ENTITY_ID'],errors:[],cycle:{
+      stages:[],noteUploaded:2,resolutionUploaded:0,metadataUploaded:1,
+      pulled:[{committed_cursor:7,new_events:3,replayed_events:0,has_more:false}],
+      metadataApply:{applied:1,conflicts:0,orphans:0,blocked:[],listed:1},structuralApply:{applied:0,conflicts:1,orphans:1,blocked:['SECRET_ENTITY_ID'],listed:2},
+      ack:{status:'no_progress',cursor:4},blocked:[],errors:[],hasRemainingWork:true,
+    }}
+    vi.mocked(instance.retry).mockResolvedValue(cycle)
+    const store=useCloudSessionStore();store.initialize();await store.login('private-user','SECRET_PASSWORD');await store.unlock('SECRET_AMK')
+    const record=vi.spyOn(diagnostics,'record');await store.retry()
+    const calls=record.mock.calls;const cycleCalls=calls.filter(c=>c[1]==='sync_cycle')
+    expect(cycleCalls.map(c=>c[2])).toEqual(['requested','started','sync_result','pull_result','upload_result','apply_result','apply_result','ack_result','blocker','succeeded'])
+    const id=cycleCalls[1]![3];expect(cycleCalls.slice(1).every(c=>c[3]===id)).toBe(true)
+    expect(cycleCalls.find(c=>c[2]==='ack_result')?.[4]).toEqual({status:'no_progress'})
+    expect(cycleCalls.find(c=>c[2]==='blocker')?.[4]).toEqual({status:'blocked',error_code:'stage_dependency_missing'})
+    expect(JSON.stringify(calls)).not.toContain('SECRET');expect(JSON.stringify(calls)).not.toContain('private-user');expect(store.status).toBe('blocked');record.mockRestore()
+  })
+
 })

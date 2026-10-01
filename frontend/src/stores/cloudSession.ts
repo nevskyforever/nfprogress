@@ -1,3 +1,6 @@
+import { diagnostics } from '@/diagnostics/service'
+import { safeError } from '@/diagnostics/events'
+import { presentStatus, technicalCode } from '@/diagnostics/presentation'
 import type { StructuralDecision, StructuralView } from '@/infrastructure/sqlite/stageStructuralRepository'
 import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import { announceDataChange } from '@/services/dataChanges'
@@ -61,6 +64,7 @@ export interface CloudProjectView {
   readonly status: CloudProjectUiStatus
   readonly connectionAvailable: boolean
   readonly mode: 'upload_existing' | 'import_remote' | null
+  readonly reasonCode?: string
   readonly reason: string | null
 }
 
@@ -128,35 +132,8 @@ function safeErrorMessage(error: unknown): string {
   return 'Операция облачной синхронизации не завершена. Повторите её после проверки подключения.'
 }
 
-function safeBootstrapReason(code: string): string {
-  if (code === 'dependency_not_synced' || code === 'unsupported_content_format') {
-    return 'Проект содержит заметки, которые C16 пока не поддерживает. Подключение целого проекта остановлено.'
-  }
-  if (code === 'missing_created_at' || code === 'invalid_created_at'
-    || code === 'missing_updated_at' || code === 'invalid_updated_at' || code === 'invalid_note_payload') {
-    return 'Некоторые заметки проекта имеют несовместимые данные. Подключение остановлено без отправки на сервер.'
-  }
-  if (code === 'remote_project_not_active') return 'Удалённый проект ещё не готов для безопасного импорта.'
-  if (code === 'bootstrap_operation_in_progress') return 'Другая операция подключения уже выполняется. Дождитесь её завершения.'
-  if (code === 'local_project_lineage_not_found') return 'Локальное подтверждение происхождения проекта не найдено.'
-  return 'Проект заблокирован проверкой безопасности. Данные не изменены; повторите после устранения причины.'
-}
-
-function safeRegistryReason(reason: string): string {
-  const kind = reason.split(':', 1)[0] ?? ''
-  const messages: Record<string, string> = {
-    legacy: 'В аккаунте есть облачный проект с устаревшим или неизвестным состоянием.',
-    missing_local_binding: 'Удалённый проект ещё не импортирован на это устройство.',
-    lineage_conflict: 'Происхождение локального и удалённого проекта не совпадает.',
-    local_device_conflict: 'Локальная привязка проекта принадлежит другому устройству.',
-    paused: 'Один из облачных проектов приостановлен.',
-    blocked: 'Один из облачных проектов заблокирован.',
-    initializing: 'Первоначальное подключение одного из проектов ещё не завершено.',
-    binding_not_ready: 'Локальная привязка облачного проекта ещё не готова.',
-    missing_remote_registration: 'Для локальной привязки не найдена подтверждённая серверная регистрация.',
-  }
-  return messages[kind] ?? 'Проверка реестра облачных проектов не завершена.'
-}
+function safeBootstrapReason(code: string): string { return presentStatus('error', code).description }
+function safeRegistryReason(code: string): string { return presentStatus('error', code).description }
 
 function isAuthenticationFailure(error: unknown): boolean {
   return (error instanceof ApiError && error.status === 401) || error instanceof StaleAuthContextError
@@ -186,6 +163,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   const username = ref<string | null>(null)
   const hasProvisionedKey = ref(false)
   const errorMessage = ref<string | null>(null)
+  const errorCode = ref('unknown_error')
+  const blockedEventCodes = ref<readonly string[]>([])
   const blockedEvents = ref<readonly string[]>([])
   const hasRemainingWork = ref(false)
   const lastCycleAt = ref<string | null>(null)
@@ -203,6 +182,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     hasProvisionedKey.value = false
     errorMessage.value = null
     blockedEvents.value = []
+    blockedEventCodes.value = []
     hasRemainingWork.value = false
     lastCycleAt.value = null
     projects.value = []
@@ -229,6 +209,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   function setFailure(error: unknown, epoch = lifecycleEpoch): void {
     if (!current(epoch)) return
     errorMessage.value = safeErrorMessage(error)
+    errorCode.value = technicalCode(error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'unknown_error')
     hasRemainingWork.value = false
     if (isAuthenticationFailure(error)) {
       lifecycleEpoch += 1
@@ -350,6 +331,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   function applyCycle(result: NoteSyncProductionResult, epoch: number): void {
     if (!current(epoch)) return
+    blockedEventCodes.value = result.blocked.map(code => technicalCode(code) === 'unknown_error' ? 'blocked' : technicalCode(code))
     blockedEvents.value = result.blocked.map(() => 'Есть зашифрованное событие, требующее отдельного безопасного решения.')
     hasRemainingWork.value = result.hasRemainingWork
     lastCycleAt.value = new Date().toISOString()
@@ -359,7 +341,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     else status.value = 'completed'
   }
 
-  async function runCycle(operation: () => Promise<NoteSyncProductionResult>): Promise<void> {
+  async function runCycle(operation: () => Promise<NoteSyncProductionResult>, correlation?: string): Promise<void> {
     const epoch = lifecycleEpoch
     if (syncFlight?.epoch === epoch) return syncFlight.promise
     status.value = 'syncing'
@@ -367,7 +349,23 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     let promise!: Promise<void>
     promise = (async () => {
       try {
-        const result = await operation()
+        const result = await diagnostics.run('sync', 'sync_cycle', async correlation => {
+          const result = await operation()
+          diagnostics.record('sync', 'sync_cycle', 'sync_result', correlation, { count: result.blocked.length, pending: result.errors.length, retry: result.hasRemainingWork }, result.blocked.length || result.errors.length ? 'warning' : 'info')
+          if (result.transport_version === 3) {
+            diagnostics.record('sync', 'sync_cycle', 'pull_result', correlation, { count: result.cycle.pulled.reduce((sum, page) => sum + page.new_events, 0) })
+            diagnostics.record('sync', 'sync_cycle', 'upload_result', correlation, { count: result.cycle.noteUploaded + result.cycle.resolutionUploaded + result.cycle.metadataUploaded })
+            for (const apply of [result.cycle.metadataApply, result.cycle.structuralApply]) {
+              if (apply) diagnostics.record('sync', 'sync_cycle', 'apply_result', correlation, { applied: apply.applied, conflicts: apply.conflicts, orphans: apply.orphans, pending: apply.blocked.length }, apply.blocked.length || apply.conflicts ? 'warning' : 'info')
+            }
+            if (result.cycle.ack) diagnostics.record('sync', 'sync_cycle', 'ack_result', correlation, { status: result.cycle.ack.status })
+          }
+          for (const blocker of result.blocked.slice(0, 8)) {
+            diagnostics.record('sync', 'sync_cycle', 'blocker', correlation, { status: 'blocked', error_code: technicalCode(blocker) }, 'warning')
+          }
+          for (const error of result.errors.slice(0, 8)) diagnostics.record('sync', 'sync_cycle', 'failed', correlation, safeError(error), 'error')
+          return result
+        }, correlation)
         if (current(epoch)) await refreshProjects()
         if (current(epoch) && result.transport_version === 3 && ((result.cycle.metadataApply?.applied ?? 0) + (result.cycle.structuralApply?.applied ?? 0)) > 0) announceDataChange('projects')
         applyCycle(result, epoch)
@@ -387,7 +385,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     busy.value = true
     errorMessage.value = null
     try {
-      const result = await requireRuntime().unlock(encryptionPassword)
+      const result = await diagnostics.run('encryption', 'unlock', () => requireRuntime().unlock(encryptionPassword))
       if (!current(epoch)) return
       await applyRegistry(result.registry, epoch)
       status.value = result.registry.readyForNormalCycle ? 'ready' : 'blocked'
@@ -414,7 +412,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         next.push({
           projectId: project.id, name: project.name, origin: 'local',
           status: statusForRecord(record), connectionAvailable: false,
-          mode: record.mode, reason: record.blocked_reason === null ? null : safeBootstrapReason(record.blocked_reason),
+          mode: record.mode, reasonCode: record.blocked_reason ? technicalCode(record.blocked_reason) : undefined, reason: record.blocked_reason === null ? null : safeBootstrapReason(record.blocked_reason),
         })
         continue
       }
@@ -422,7 +420,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         next.push({
           projectId: project.id, name: project.name, origin: 'local', status: 'blocked',
           connectionAvailable: false, mode: null,
-          reason: 'На устройстве уже есть проект с таким ID, но его общая история с облаком не подтверждена. Импорт и объединение запрещены.',
+          reason: 'На устройстве есть похожий проект, но связь с облачной версией не подтверждена. Импорт и объединение пока недоступны.',
         })
         continue
       }
@@ -438,6 +436,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         projectId: project.id, name: project.name, origin: 'local',
         status: issues.length ? 'unsupported' : 'local_only',
         connectionAvailable: issues.length === 0, mode: null,
+        reasonCode: issues.length ? technicalCode(issues[0]!.code) : undefined,
         reason: issues.length ? safeBootstrapReason(issues[0]!.code) : null,
       })
     }
@@ -457,6 +456,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
     projects.value = next.sort((left, right) => (left.name ?? left.projectId).localeCompare(right.name ?? right.projectId))
     blockedEvents.value = [...new Set(registry.reasons.map(safeRegistryReason))]
+    blockedEventCodes.value = [...new Set(registry.reasons.map(technicalCode))]
     canRunCycle.value = registry.readyForNormalCycle
     hasRemainingWork.value = !registry.readyForNormalCycle
   }
@@ -538,12 +538,12 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function bootstrapProject(projectId: string): Promise<void> {
     if (!projectBootstrapEnabled) throw new CloudProjectBootstrapBlockedError('project_bootstrap_disabled')
-    await runProjectOperation(projectId, report => requireRuntime().bootstrapLocalProject(projectId, report))
+    await diagnostics.run('projects', 'project_connect', () => runProjectOperation(projectId, report => requireRuntime().bootstrapLocalProject(projectId, report)))
   }
 
   async function importProject(projectId: string, displayName: string): Promise<void> {
     if (!projectBootstrapEnabled) throw new CloudProjectBootstrapBlockedError('project_bootstrap_disabled')
-    await runProjectOperation(projectId, report => requireRuntime().importRemoteProject(projectId, displayName.trim(), report))
+    await diagnostics.run('projects', 'project_import', () => runProjectOperation(projectId, report => requireRuntime().importRemoteProject(projectId, displayName.trim(), report)))
   }
 
   async function resumeProject(projectId: string): Promise<void> {
@@ -568,9 +568,9 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     if (current(epoch)) await applyRegistry(registry, epoch)
   }
 
-  async function retry(): Promise<void> {
+  async function retry(correlation?: string): Promise<void> {
     if (!hasProvisionedKey.value) throw new Error('Encryption provisioning is required before sync.')
-    await runCycle(() => requireRuntime().retry())
+    await diagnostics.run('sync', 'retry', () => runCycle(() => requireRuntime().retry(), correlation), correlation)
   }
 
   async function inspectStructure(projectId: string): Promise<void> {
@@ -579,22 +579,26 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     if (current(epoch)) structuralAuthority.value = { ...structuralAuthority.value, [projectId]: view }
   }
   async function beginStructure(projectId: string): Promise<void> {
-    const epoch = lifecycleEpoch
-    await requireRuntime().beginStageMigration(projectId)
-    if (!current(epoch)) return
-    await retry()
-    if (!current(epoch)) return
-    await inspectStructure(projectId)
-    announceDataChange('projects')
+    await diagnostics.run('migrations', 'stage_migration', async correlation => {
+      const epoch = lifecycleEpoch
+      await requireRuntime().beginStageMigration(projectId)
+      if (!current(epoch)) return
+      await retry(correlation)
+      if (!current(epoch)) return
+      await inspectStructure(projectId)
+      announceDataChange('projects')
+    })
   }
   async function decideStructure(projectId: string, decision: StructuralDecision): Promise<void> {
-    const epoch = lifecycleEpoch
-    await requireRuntime().decideStructure(projectId, decision)
-    if (!current(epoch)) return
-    await retry()
-    if (!current(epoch)) return
-    await inspectStructure(projectId)
-    announceDataChange('projects')
+    await diagnostics.run('stages', 'conflict_resolution', async correlation => {
+      const epoch = lifecycleEpoch
+      await requireRuntime().decideStructure(projectId, decision)
+      if (!current(epoch)) return
+      await retry(correlation)
+      if (!current(epoch)) return
+      await inspectStructure(projectId)
+      announceDataChange('projects')
+    })
   }
 
   async function inspectProjectMetadata(projectId: string): Promise<void> {
@@ -626,12 +630,14 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   }
 
   async function beginMetadataMigration(projectId: string): Promise<void> {
-    const epoch = lifecycleEpoch
-    await requireRuntime().beginProjectMetadataMigration(projectId)
-    if (!current(epoch)) return
-    await inspectProjectMetadata(projectId)
-    await retry()
-    await inspectProjectMetadata(projectId)
+    await diagnostics.run('migrations', 'metadata_migration', async correlation => {
+      const epoch = lifecycleEpoch
+      await requireRuntime().beginProjectMetadataMigration(projectId)
+      if (!current(epoch)) return
+      await inspectProjectMetadata(projectId)
+      await retry(correlation)
+      await inspectProjectMetadata(projectId)
+    })
   }
 
   async function adoptMetadata(projectId: string, expectedHead: string, expectedLocal: ProjectMetadata): Promise<void> {
@@ -645,13 +651,15 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function decideMetadata(projectId: string, kind: MetadataDecisionKind, selectedEventId: string | null,
     proposed: ProjectMetadata | null, expectedLocal: ProjectMetadata, expectedTips: string[]): Promise<void> {
-    const epoch = lifecycleEpoch
-    await requireRuntime().decideProjectMetadata(projectId, kind, selectedEventId, proposed, expectedLocal, expectedTips)
-    if (!current(epoch)) return
-    announceDataChange('projects')
-    await inspectProjectMetadata(projectId)
-    await retry()
-    await inspectProjectMetadata(projectId)
+    await diagnostics.run('projects', 'conflict_resolution', async correlation => {
+      const epoch = lifecycleEpoch
+      await requireRuntime().decideProjectMetadata(projectId, kind, selectedEventId, proposed, expectedLocal, expectedTips)
+      if (!current(epoch)) return
+      announceDataChange('projects')
+      await inspectProjectMetadata(projectId)
+      await retry(correlation)
+      await inspectProjectMetadata(projectId)
+    })
   }
 
   async function lock(): Promise<void> {
@@ -662,6 +670,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     } finally {
       if (current(epoch)) {
         blockedEvents.value = []
+        blockedEventCodes.value = []
         hasRemainingWork.value = false
         errorMessage.value = null
         projects.value = []
@@ -700,7 +709,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   }
 
   return {
-    supported, status, username, hasProvisionedKey, errorMessage, blockedEvents,
+    supported, status, username, hasProvisionedKey, errorMessage, errorCode, blockedEvents, blockedEventCodes,
     hasRemainingWork, lastCycleAt, busy, authenticated, projects, canRunCycle,
     metadataTransportMode, metadataAuthority, structuralAuthority, inspectStructure, beginStructure, decideStructure,
     projectBootstrapEnabled,

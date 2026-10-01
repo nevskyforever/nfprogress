@@ -15,6 +15,7 @@ import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
 import DeveloperModeDialog from '@/components/developer/DeveloperModeDialog.vue'
 import CloudSyncSettingsCard from '@/components/settings/CloudSyncSettingsCard.vue'
+import DiagnosticsCard from '@/components/settings/DiagnosticsCard.vue'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { SUPPORTED_LANGUAGES, useLocaleStore } from '@/stores/locale'
@@ -257,6 +258,7 @@ onBeforeUnmount(() => controller.abort())
 
           <div class="settings-groups">
             <CloudSyncSettingsCard v-if="isDesktop" />
+            <DiagnosticsCard v-if="isDesktop" />
 
             <section class="settings-card" aria-labelledby="appearance-settings-title">
               <div class="settings-card__heading">

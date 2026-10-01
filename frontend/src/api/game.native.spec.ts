@@ -34,3 +34,16 @@ describe('native Game repository adapter', () => {
     fetchSpy.mockRestore()
   })
 })
+
+describe('developer streak native argument regression', () => {
+  it.each([
+    {type:'global' as const}, {type:'project' as const, project_id:'p'}, {type:'stage' as const, project_id:'p', stage_id:'s'},
+  ])('wraps $type target in the required payload argument', async target => {
+    const id = '123e4567-e89b-42d3-a456-426614174000'
+    await gameApi.developerRestoreStreak(target,id)
+    const nativeTarget = {type:target.type,...('project_id' in target ? {projectId:target.project_id}:{}),...('stage_id' in target ? {stageId:target.stage_id}:{})}
+    expect(invoke).toHaveBeenLastCalledWith('game_developer_restore_streak',{payload:nativeTarget,correlationId:id})
+    await gameApi.developerCreateStreakSeries({...target,length:5})
+    expect(invoke).toHaveBeenLastCalledWith('game_developer_create_streak_series',{payload:{...nativeTarget,length:5}})
+  })
+})

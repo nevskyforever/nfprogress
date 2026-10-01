@@ -99,13 +99,13 @@ export const gameApi = {
     return apiRequest<DeveloperStreakState>(`${GAME_PATH}/developer/streaks`)
   },
 
-  developerRestoreStreak(payload: DeveloperStreakRequest): Promise<GameCommandResponse> {
-    if (isDesktopGame()) return nativeCommand('game_developer_restore_streak', nativeDeveloperStreakPayload(payload))
+  developerRestoreStreak(payload: DeveloperStreakRequest, correlationId?: string): Promise<GameCommandResponse> {
+    if (isDesktopGame()) return nativeCommand('game_developer_restore_streak', { payload: nativeDeveloperStreakPayload(payload), ...(correlationId ? { correlationId } : {}) })
     return command('/developer/streaks/restore', payload)
   },
 
   developerCreateStreakSeries(payload: DeveloperStreakRequest): Promise<GameCommandResponse> {
-    if (isDesktopGame()) return nativeCommand('game_developer_create_streak_series', nativeDeveloperStreakPayload(payload))
+    if (isDesktopGame()) return nativeCommand('game_developer_create_streak_series', { payload: nativeDeveloperStreakPayload(payload) })
     return command('/developer/streaks/series', payload)
   },
 

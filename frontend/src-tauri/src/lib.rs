@@ -14,6 +14,7 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 mod account_binding;
 #[cfg(test)]
 mod c15_headless_test_bridge;
+mod diagnostics;
 mod documents;
 mod game;
 mod mindmap;
@@ -393,6 +394,38 @@ fn mark_all_game_notifications_read() -> Result<serde_json::Value, game::GameErr
     game::GameApplicationService::mark_notification(String::new(), true)
 }
 
+fn diagnostic_path() -> Result<PathBuf, String> {
+    Ok(sqlite_data_root()?.join("diagnostics").join("support.db"))
+}
+async fn diagnostic_task<T: Send + 'static>(
+    action: impl FnOnce(PathBuf) -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let path = diagnostic_path()?;
+    tauri::async_runtime::spawn_blocking(move || action(path))
+        .await
+        .map_err(|_| "diagnostic_storage_unavailable".to_string())?
+}
+#[tauri::command]
+async fn append_diagnostics(events: Vec<serde_json::Value>) -> Result<(), String> {
+    diagnostic_task(move |path| diagnostics::append(&path, &events)).await
+}
+#[tauri::command]
+async fn diagnostic_stats() -> Result<serde_json::Value, String> {
+    diagnostic_task(|path| diagnostics::stats(&path)).await
+}
+#[tauri::command]
+async fn diagnostic_text(copy: bool) -> Result<String, String> {
+    diagnostic_task(move |path| diagnostics::text(&path, copy)).await
+}
+#[tauri::command]
+async fn clear_diagnostics() -> Result<(), String> {
+    diagnostic_task(|path| diagnostics::clear(&path)).await
+}
+#[tauri::command]
+async fn export_diagnostics(path: String) -> Result<(), String> {
+    diagnostic_task(move |source| diagnostics::export(&source, Path::new(&path))).await
+}
+
 #[tauri::command]
 fn game_catalog() -> Result<serde_json::Value, game::GameError> {
     let state = game::GameApplicationService::state()?;
@@ -426,8 +459,43 @@ fn game_developer_streak_state() -> Result<serde_json::Value, game::GameError> {
 #[tauri::command]
 fn game_developer_restore_streak(
     payload: game::DeveloperStreakRequest,
+    correlation_id: Option<String>,
 ) -> Result<game::GameCommandResponse, game::GameError> {
-    game::GameApplicationService::developer_restore_streak(payload)
+    let correlation = correlation_id
+        .filter(|s| project_metadata_sync::uuid(s))
+        .unwrap_or_else(|| project_metadata_sync::new_event_id().unwrap_or_default());
+    let mut events = vec![
+        diagnostics::native_streak_event("native_validation", &correlation, None),
+        diagnostics::native_streak_event("native_attempt", &correlation, None),
+    ];
+    let result = game::GameApplicationService::developer_restore_streak(payload);
+    let code = match &result {
+        Ok(_) => None,
+        Err(game::GameError::Validation(message))
+            if message == "Невозможно восстановить стрик: нет сохранённой длины." =>
+        {
+            Some("streak_restore_no_history")
+        }
+        Err(game::GameError::Validation(_)) => Some("Validation"),
+        Err(game::GameError::Database(_)) => Some("Database"),
+        Err(game::GameError::NotFound(_)) => Some("NotFound"),
+        Err(game::GameError::PrerequisiteMissing(_)) => Some("PrerequisiteMissing"),
+        Err(game::GameError::InvalidState(_)) => Some("InvalidState"),
+        Err(_) => Some("unknown_error"),
+    };
+    events.push(diagnostics::native_streak_event(
+        if result.is_ok() {
+            "native_succeeded"
+        } else {
+            "native_failed"
+        },
+        &correlation,
+        code,
+    ));
+    if let Ok(path) = diagnostic_path() {
+        let _ = diagnostics::append(&path, &events);
+    } // Logging never changes the game result.
+    result
 }
 
 #[tauri::command]
@@ -5787,6 +5855,11 @@ pub fn run() {
             game_notifications,
             mark_game_notification_read,
             mark_all_game_notifications_read,
+            append_diagnostics,
+            diagnostic_stats,
+            diagnostic_text,
+            clear_diagnostics,
+            export_diagnostics,
             game_catalog,
             game_developer_state,
             game_update_developer_profile,

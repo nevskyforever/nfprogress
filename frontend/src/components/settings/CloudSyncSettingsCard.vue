@@ -4,14 +4,14 @@ import { IonIcon, IonSpinner } from '@ionic/vue'
 import { cloudOutline, lockClosedOutline, syncOutline, warningOutline } from 'ionicons/icons'
 
 import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
+import DiagnosticDetails from './DiagnosticDetails.vue'
+import FriendlyStatus from './FriendlyStatus.vue'
 import StageStructuralAuthorityPanel from './StageStructuralAuthorityPanel.vue'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
 import { encodeBase64Url } from '@/api/base64url'
 import {
   useCloudSessionStore,
-  type CloudProjectUiStatus,
-  type CloudSessionStatus,
 } from '@/stores/cloudSession'
 import { useLocaleStore } from '@/stores/locale'
 
@@ -33,33 +33,6 @@ const importProjectName = ref('')
 const recoveryKeyText = computed(() => recoveryKey.value === null ? '' : encodeBase64Url(recoveryKey.value))
 const hasPendingOnboarding = computed(() => recoveryKey.value !== null)
 
-const statusText: Record<CloudSessionStatus, string> = {
-  unavailable: 'Облачная синхронизация доступна только в настольном приложении.',
-  logged_out: 'Войдите в обычный облачный аккаунт, чтобы настроить синхронизацию заметок.',
-  provisioning: 'Для этого аккаунта нужно настроить сквозное шифрование.',
-  key_locked: 'Ключ шифрования заблокирован. Введите пароль шифрования.',
-  ready: 'Ключ шифрования разблокирован. Можно явно подключить проект или запустить разрешённый цикл.',
-  syncing: 'Выполняется ограниченный цикл синхронизации заметок.',
-  completed: 'Последний ограниченный цикл завершён. Это не означает, что весь проект синхронизирован.',
-  retryable_error: 'Цикл не завершён. Проверьте подключение и повторите действие.',
-  blocked: 'Обычный цикл заблокирован до безопасного согласования всех облачных проектов аккаунта.',
-  remaining_work: 'Ограниченный цикл завершён, но осталась работа для следующего ручного повтора.',
-}
-
-const projectStatusText: Record<CloudProjectUiStatus, string> = {
-  local_only: 'Только на этом устройстве.',
-  unsupported: 'Неподдерживаемое содержимое: подключение заблокировано.',
-  import_available: 'Облачный проект доступен для явного импорта.',
-  registering: 'Регистрация проекта.',
-  preparing_initial_notes: 'Подготовка первоначальных заметок.',
-  uploading_initial_notes: 'Загрузка первоначальных заметок.',
-  completing_registration: 'Сервер принял данные, завершается первоначальное подключение.',
-  pulling_remote_notes: 'Получение удалённых заметок.',
-  initial_sync_completed: 'Первоначальная синхронизация поддерживаемых заметок завершена.',
-  remaining_work: 'Остались изменения для отправки или получения.',
-  paused: 'Приостановлено. Локальные и облачные данные не удалены.',
-  blocked: 'Заблокировано. Автоматическое объединение или перезапись не выполняются.',
-}
 
 function clearRecoveryKey(): void {
   recoveryKey.value?.fill(0)
@@ -209,7 +182,7 @@ async function confirmImport(projectId: string): Promise<void> {
     importProjectName.value = ''
   } catch (error) {
     if (error instanceof MetadataImportContinuationError) localError.value = t('Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.')
-    else if (error instanceof Error && error.message === 'metadata_import_resource_limit') localError.value = t('История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.')
+    else if (error instanceof Error && error.message === 'metadata_import_resource_limit') localError.value = t('Не удалось обработать всю историю проекта. Проверенная часть сохранена. Экспортируйте журнал для проверки.')
     else localError.value = t('Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.')
   }
 }
@@ -253,13 +226,14 @@ onBeforeUnmount(() => {
 
     <div class="cloud-sync-card__status" :data-status="cloud.status" role="status">
       <IonIcon :icon="cloud.status === 'key_locked' ? lockClosedOutline : cloudOutline" aria-hidden="true" />
-      <p>{{ t(statusText[cloud.status]) }}</p>
+      <FriendlyStatus domain="session" :code="cloud.status" subsystem="sync" />
     </div>
 
     <p v-if="cloud.authenticated" class="cloud-sync-card__account">
       {{ t('Подключён аккаунт') }}: <strong>{{ cloud.username }}</strong>
     </p>
     <p v-if="cloud.errorMessage" class="cloud-sync-card__error" role="alert">{{ t(cloud.errorMessage) }}</p>
+    <DiagnosticDetails v-if="cloud.errorMessage" :code="cloud.errorCode" subsystem="sync" />
     <p v-if="localError" class="cloud-sync-card__error" role="alert">{{ localError }}</p>
 
     <form v-if="cloud.status === 'logged_out'" class="cloud-sync-card__form" @submit.prevent="signIn">
@@ -280,7 +254,7 @@ onBeforeUnmount(() => {
     <form v-else-if="cloud.status === 'provisioning' && !hasPendingOnboarding" class="cloud-sync-card__form" @submit.prevent="prepareProvisioning">
       <p class="cloud-sync-card__warning">
         <IonIcon :icon="warningOutline" aria-hidden="true" />
-        {{ t('Пароль шифрования не отправляется на сервер. Если потерять и его, и Recovery Key, доступ к зашифрованным данным будет утрачен.') }}
+        {{ t('Пароль шифрования не отправляется на сервер. Если потерять и его, и ключ восстановления, доступ к зашифрованным данным будет утрачен.') }}
       </p>
       <label>
         <span>{{ t('Новый пароль шифрования') }}</span>
@@ -292,19 +266,19 @@ onBeforeUnmount(() => {
       </label>
       <button class="nf-button" type="submit" :disabled="cloud.busy">
         <IonSpinner v-if="cloud.busy" name="crescent" aria-hidden="true" />
-        {{ cloud.busy ? t('Готовим ключи…') : t('Создать Recovery Key') }}
+        {{ cloud.busy ? t('Готовим ключи…') : t('Создать ключ восстановления') }}
       </button>
     </form>
 
-    <div v-else-if="hasPendingOnboarding" class="cloud-sync-card__recovery" role="region" :aria-label="t('Recovery Key')">
+    <div v-else-if="hasPendingOnboarding" class="cloud-sync-card__recovery" role="region" :aria-label="t('ключ восстановления')">
       <p class="cloud-sync-card__warning">
         <IonIcon :icon="warningOutline" aria-hidden="true" />
-        {{ t('Сохраните этот Recovery Key самостоятельно до продолжения. Он не сохраняется приложением и не передаётся серверу.') }}
+        {{ t('Сохраните этот ключ восстановления самостоятельно до продолжения. Он не сохраняется приложением и не передаётся серверу.') }}
       </p>
       <output class="cloud-sync-card__recovery-key">{{ recoveryKeyText }}</output>
-      <p>{{ t('Восстановление доступа через Recovery Key пока не реализовано. Не удаляйте его и не рассчитывайте на автоматическое восстановление.') }}</p>
+      <p>{{ t('Восстановление доступа через ключ восстановления пока не реализовано. Не удаляйте его и не рассчитывайте на автоматическое восстановление.') }}</p>
       <div class="cloud-sync-card__actions">
-        <button class="nf-button" type="button" :disabled="cloud.busy" @click="confirmRecoveryKey">{{ t('Я сохранил(а) Recovery Key') }}</button>
+        <button class="nf-button" type="button" :disabled="cloud.busy" @click="confirmRecoveryKey">{{ t('Я сохранил(а) ключ восстановления') }}</button>
         <button class="nf-button nf-button--secondary" type="button" :disabled="cloud.busy" @click="reconcileProvisioning">{{ t('Проверить статус на сервере') }}</button>
         <button class="nf-button nf-button--secondary" type="button" :disabled="cloud.busy" @click="cancelProvisioning">{{ t('Отменить настройку') }}</button>
       </div>
@@ -328,7 +302,7 @@ onBeforeUnmount(() => {
       <div class="cloud-sync-card__actions">
         <button v-if="cloud.canRunCycle && cloud.status !== 'syncing'" class="nf-button" type="button" :disabled="cloud.busy" @click="retry">
           <IonIcon :icon="syncOutline" aria-hidden="true" />
-          {{ t('Запустить ограниченный цикл заметок') }}
+          {{ t('Синхронизировать заметки') }}
         </button>
         <IonSpinner v-else-if="cloud.status === 'syncing'" name="crescent" :aria-label="t('Синхронизация заметок')" />
         <button class="nf-button nf-button--secondary" type="button" :disabled="cloud.busy" @click="refreshProjects">{{ t('Обновить состояние проектов') }}</button>
@@ -337,8 +311,8 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="cloud-sync-card__scope-note">
-        <p>{{ t('C16 синхронизирует только поддерживаемые проектные HTML-заметки. Тексты, карты, этапы и остальные сущности проекта пока не синхронизируются.') }}</p>
-        <p>{{ t('Из-за общего курсора protocol v1 один приостановленный, заблокированный или неимпортированный облачный проект останавливает обычный цикл всего аккаунта.') }}</p>
+        <p>{{ t('Обмениваются поддерживаемые заметки проекта. Подключение настроек и этапов выполняется отдельно. Тексты, карты и остальные данные пока не передаются.') }}</p>
+        <p>{{ t('Если один облачный проект приостановлен, требует проверки или ещё не импортирован, обмен изменениями аккаунта временно остановлен.') }}</p>
       </div>
 
       <section v-if="cloud.projectBootstrapEnabled" class="cloud-sync-card__projects" :aria-label="t('Проекты облачной синхронизации')">
@@ -346,12 +320,13 @@ onBeforeUnmount(() => {
         <p v-if="cloud.projects.length === 0">{{ t('Локальных и облачных проектов для подключения пока нет.') }}</p>
         <article v-for="project in cloud.projects" :key="project.projectId" class="cloud-project" :data-project-status="project.status">
           <div>
-            <strong>{{ project.name ?? t('Удалённый проект без локальных метаданных') }}</strong>
+            <strong>{{ project.name ?? t('Облачный проект без названия на этом устройстве') }}</strong>
             <small v-if="project.origin === 'remote'">{{ t('Идентификатор') }}: {{ project.projectId }}</small>
           </div>
-          <p>{{ t(projectStatusText[project.status]) }}</p>
+          <FriendlyStatus domain="project" :code="project.status" subsystem="projects" />
           <p v-if="project.status === 'local_only' && project.connectionAvailable" class="cloud-project__available">{{ t('Подключение доступно. Проект останется локальным, пока вы явно не подтвердите действие.') }}</p>
-          <p v-if="project.reason" class="cloud-sync-card__error">{{ t(project.reason) }}</p>
+          <p v-if="project.reason">{{ t(project.reason) }}</p>
+          <DiagnosticDetails v-if="project.reasonCode" :code="project.reasonCode" subsystem="projects" />
 
           <div v-if="project.status === 'local_only' && project.connectionAvailable" class="cloud-sync-card__actions">
             <button v-if="pendingProjectId !== project.projectId" class="nf-button" type="button" :disabled="cloud.busy" @click="requestConnection(project.projectId)">{{ t('Проверить и подключить') }}</button>
@@ -366,10 +341,10 @@ onBeforeUnmount(() => {
             <button v-if="pendingImportProjectId !== project.projectId" class="nf-button" type="button" :disabled="cloud.busy" @click="requestImport(project.projectId)">{{ t('Импортировать на это устройство') }}</button>
             <form v-else class="cloud-sync-card__inline-form" @submit.prevent="confirmImport(project.projectId)">
               <label>
-                <span>{{ t('Локальное название для проекта без облачных метаданных') }}</span>
+                <span>{{ t('Название для проекта без облачных настроек') }}</span>
                 <input v-model="importProjectName" />
               </label>
-              <p>{{ t('Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.') }}</p>
+              <p>{{ t('Проверенные настройки из облака зададут название и параметры проекта. Введите название только при отсутствии этих настроек.') }}</p>
               <p>{{ t('Это название используется только на этом устройстве. Будет создан новый минимальный локальный проект; совпадающий ID или локальное имя блокирует импорт, объединение и перезапись запрещены.') }}</p>
               <div class="cloud-sync-card__actions">
                 <button class="nf-button" type="submit" :disabled="cloud.busy">{{ t('Подтвердить импорт') }}</button>
@@ -397,9 +372,9 @@ onBeforeUnmount(() => {
     </div>
 
     <ul v-if="cloud.blockedEvents.length" class="cloud-sync-card__blockers" aria-live="polite">
-      <li v-for="blocker in cloud.blockedEvents" :key="blocker">{{ t(blocker) }}</li>
+      <li v-for="blocker in cloud.blockedEventCodes" :key="blocker"><FriendlyStatus :code="blocker" subsystem="sync" /></li>
     </ul>
-    <p v-if="cloud.blockedEvents.length" class="cloud-sync-card__warning">{{ t('До устранения этих состояний обычный account-wide pull/ACK не запускается. Автоматическое разрешение конфликтов не выполняется.') }}</p>
+    <p v-if="cloud.blockedEvents.length" class="cloud-sync-card__warning">{{ t('Обмен изменениями приостановлен до устранения этих причин. Варианты не выбираются автоматически.') }}</p>
   </section>
 </template>
 

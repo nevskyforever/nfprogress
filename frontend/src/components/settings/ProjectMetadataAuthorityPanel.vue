@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FriendlyStatus from './FriendlyStatus.vue'
+import DiagnosticDetails from './DiagnosticDetails.vue'
 import { useCloudSessionStore } from '@/stores/cloudSession'
 import { useLocaleStore } from '@/stores/locale'
 import type { ProjectMetadata } from '@/cloud/projectMetadataCodec'
@@ -12,17 +14,7 @@ const view = computed(() => cloud.metadataAuthority[props.projectId])
 const pending = ref(false)
 const error = ref(false)
 const draft = ref<ProjectMetadata | null>(null)
-const labels = {
-  local_legacy_only: 'Метаданные существуют только на этом устройстве.',
-  local_candidate_ready: 'Локальная версия подготовлена к явной публикации.',
-  local_matches_authenticated: 'Локальная и проверенная облачная версии совпадают.',
-  local_differs_from_authenticated: 'Локальная и проверенная облачная версии различаются. Выберите результат.',
-  genesis_conflict: 'Обнаружены несколько первоначальных облачных версий. Выберите результат согласования.',
-  metadata_conflict: 'Обнаружены параллельные изменения метаданных. Выберите результат согласования.',
-  resolution_pending: 'Выбранный результат сохранён. Ожидается подтверждение синхронизации.',
-  active: 'Метаданные согласованы. Изменения проекта передаются через зашифрованную историю.',
-  blocked: 'Согласование метаданных заблокировано. Локальная версия сохранена.',
-}
+
 const fields: Array<{ key: keyof ProjectMetadata; label: string; kind: 'string' | 'number' | 'boolean' | 'nullable' }> = [
   { key: 'name', label: 'Название', kind: 'string' },
   { key: 'goal', label: 'Цель', kind: 'number' },
@@ -76,33 +68,34 @@ function setField(key: keyof ProjectMetadata, kind: string, event: Event): void 
 </script>
 
 <template>
-  <section class="metadata-authority" :data-metadata-state="view?.state" :aria-label="t('Метаданные проекта')">
-    <h4>{{ t('Метаданные проекта') }}</h4>
-    <button type="button" class="nf-button nf-button--secondary" :disabled="pending || cloud.busy" @click="inspect">{{ t('Проверить метаданные') }}</button>
+  <section class="metadata-authority" :data-metadata-state="view?.state" :aria-label="t('Настройки проекта в облаке')">
+    <h4>{{ t('Настройки проекта в облаке') }}</h4>
+    <button type="button" class="nf-button nf-button--secondary" :disabled="pending || cloud.busy" @click="inspect">{{ t('Проверить настройки') }}</button>
     <template v-if="view">
-      <p>{{ t(labels[view.state]) }}</p>
+      <FriendlyStatus domain="metadata" :code="view.state" subsystem="migrations" />
       <div v-if="cloud.metadataTransportMode !== 3" class="metadata-actions">
-        <p>{{ t('Для синхронизации метаданных подтвердите поддержку на всех устройствах, затем включите новый протокол аккаунта.') }}</p>
-        <button class="nf-button nf-button--secondary" v-if="cloud.metadataTransportMode === 1" type="button" :disabled="pending || cloud.busy" @click="action(cloud.prepareMetadataTransport)">{{ t('Подготовить аккаунт к синхронизации метаданных') }}</button>
+        <p>{{ t('Для синхронизации настроек подтвердите поддержку на всех устройствах, затем включите её для аккаунта.') }}</p>
+        <button class="nf-button nf-button--secondary" v-if="cloud.metadataTransportMode === 1" type="button" :disabled="pending || cloud.busy" @click="action(cloud.prepareMetadataTransport)">{{ t('Подготовить аккаунт к синхронизации настроек') }}</button>
         <button class="nf-button nf-button--secondary" v-if="cloud.metadataTransportMode === 2" type="button" :disabled="pending || cloud.busy" @click="action(cloud.declareMetadataReaderReady)">{{ t('Подтвердить поддержку устройства') }}</button>
-        <button class="nf-button nf-button--secondary" v-if="cloud.metadataTransportMode === 2" type="button" :disabled="pending || cloud.busy" @click="action(async () => { await cloud.cutoverMetadataTransport(); await cloud.inspectProjectMetadata(projectId) })">{{ t('Включить синхронизацию метаданных') }}</button>
+        <button class="nf-button nf-button--secondary" v-if="cloud.metadataTransportMode === 2" type="button" :disabled="pending || cloud.busy" @click="action(async () => { await cloud.cutoverMetadataTransport(); await cloud.inspectProjectMetadata(projectId) })">{{ t('Включить синхронизацию настроек') }}</button>
       </div>
+      <p v-if="view.local">{{ t('Локальная версия') }}</p>
       <dl v-if="view.local">
-        <dt>{{ t('Локальная версия') }}</dt>
         <template v-for="field in fields" :key="field.key"><dt>{{ t(field.label) }}</dt><dd>{{ field.key === 'name' ? view.local[field.key] : display(view.local[field.key]) }}</dd></template>
       </dl>
       <div v-for="branch in view.branches" :key="branch.event_id" class="metadata-branch">
-        <p>{{ t('Проверенная облачная версия') }}: {{ branch.event_id }} <span v-if="branch.local_candidate">({{ t('Локальная версия') }})</span></p>
+        <p>{{ t('Проверенная облачная версия') }}:  <span v-if="branch.local_candidate">({{ t('Локальная версия') }})</span></p>
+        <DiagnosticDetails :code="view.state" subsystem="migrations" operation="conflict_resolution" />
         <dl><template v-for="field in fields" :key="field.key"><dt>{{ t(field.label) }}</dt><dd>{{ field.key === 'name' ? branch.metadata[field.key] : display(branch.metadata[field.key]) }}</dd></template></dl>
-        <button class="nf-button nf-button--secondary" v-if="['genesis_conflict', 'metadata_conflict'].includes(view.state)" type="button" :disabled="pending || cloud.busy" @click="decide('choose_branch', branch.event_id)">{{ t('Использовать эту версию для согласования') }}</button>
+        <button class="nf-button nf-button--secondary" v-if="['genesis_conflict', 'metadata_conflict'].includes(view.state)" type="button" :disabled="pending || cloud.busy" @click="decide('choose_branch', branch.event_id)">{{ t('Выбрать этот вариант') }}</button>
       </div>
       <div v-if="cloud.metadataTransportMode === 3" class="metadata-actions">
         <template v-if="['local_legacy_only', 'local_candidate_ready'].includes(view.state)">
-          <p>{{ t('Публикация создаст первую проверенную облачную версию показанных локальных метаданных.') }}</p>
-          <button class="nf-button nf-button--secondary" type="button" :disabled="pending || cloud.busy" @click="action(() => cloud.beginMetadataMigration(projectId))">{{ t('Опубликовать локальные метаданные') }}</button>
+          <p>{{ t('Показанные настройки будут отправлены в облако после вашего подтверждения.') }}</p>
+          <button class="nf-button nf-button--secondary" type="button" :disabled="pending || cloud.busy" @click="action(() => cloud.beginMetadataMigration(projectId))">{{ t('Отправить настройки этого устройства') }}</button>
         </template>
         <button class="nf-button nf-button--secondary" v-if="['local_matches_authenticated', 'local_differs_from_authenticated'].includes(view.state)" type="button" :disabled="pending || cloud.busy" @click="adopt">{{ t('Использовать облачную версию') }}</button>
-        <button class="nf-button nf-button--secondary" v-if="view.state === 'local_differs_from_authenticated'" type="button" :disabled="pending || cloud.busy" @click="decide('keep_local')">{{ t('Сохранить локальную версию как новое облачное изменение') }}</button>
+        <button class="nf-button nf-button--secondary" v-if="view.state === 'local_differs_from_authenticated'" type="button" :disabled="pending || cloud.busy" @click="decide('keep_local')">{{ t('Использовать вариант этого устройства') }}</button>
         <button class="nf-button nf-button--secondary" v-if="['active', 'local_differs_from_authenticated', 'genesis_conflict', 'metadata_conflict'].includes(view.state)" type="button" :disabled="pending || cloud.busy" @click="edit">{{ t('Редактировать результат') }}</button>
         <button class="nf-button nf-button--secondary" v-if="view.state === 'resolution_pending'" type="button" :disabled="pending || cloud.busy" @click="action(async () => { await cloud.retry(); await cloud.inspectProjectMetadata(projectId) })">{{ t('Безопасно продолжить') }}</button>
       </div>
@@ -121,10 +114,10 @@ function setField(key: keyof ProjectMetadata, kind: string, event: Event): void 
           </select>
           <input v-else :type="field.kind === 'boolean' ? 'checkbox' : field.kind === 'number' ? 'number' : 'text'" :checked="draft[field.key] === true" :value="draft[field.key] ?? ''" :step="field.kind === 'number' ? 'any' : undefined" @input="setField(field.key, field.kind, $event)" />
         </label>
-        <button class="nf-button nf-button--secondary" type="submit" :disabled="pending || cloud.busy">{{ t('Опубликовать результат согласования') }}</button>
+        <button class="nf-button nf-button--secondary" type="submit" :disabled="pending || cloud.busy">{{ t('Сохранить выбранный результат') }}</button>
         <button class="nf-button nf-button--secondary" type="button" @click="draft = null">{{ t('Отмена') }}</button>
       </form>
-      <p v-for="blocker in view.blockers" :key="blocker">{{ t(blocker) }}</p>
+      <FriendlyStatus v-for="blocker in view.blockers" :key="blocker" :code="blocker" subsystem="migrations" />
     </template>
     <p v-if="error" role="alert">{{ t('Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.') }}</p>
   </section>

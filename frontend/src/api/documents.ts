@@ -1,3 +1,4 @@
+import { diagnostics } from '@/diagnostics/service'
 import { apiRequest } from './client'
 import { currentPlatform } from '@/platform/runtime'
 import type { DocumentProgressResult, DocumentRepository, DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
@@ -9,6 +10,7 @@ function path(scope: DocumentScope, suffix = ''): string {
 
 async function nativeInvoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core')
+  if (['parse_word_document', 'bind_document_file'].includes(command)) return diagnostics.run('documents', 'load', () => invoke<T>(command, args))
   return invoke<T>(command, args)
 }
 

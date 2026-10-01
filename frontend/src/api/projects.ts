@@ -1,3 +1,4 @@
+import { diagnostics } from '@/diagnostics/service'
 import { apiRequest } from './client'
 import { invoke } from '@tauri-apps/api/core'
 import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
@@ -184,12 +185,12 @@ export const projectsApi = {
   },
 
   create(payload: ProjectCreate): Promise<Project> {
-    if (desktopRuntime()) return invoke<Project>('create_project', { command: desktopProjectCreate(payload) })
+    if (desktopRuntime()) return diagnostics.run('projects', 'create', () => invoke<Project>('create_project', { command: desktopProjectCreate(payload) }))
     return apiRequest<Project>('/api/projects', { method: 'POST', body: payload })
   },
 
   update(projectId: string, payload: ProjectUpdate): Promise<Project> {
-    if (desktopRuntime()) return invoke<Project>('update_project', { projectId, patch: desktopEntityPatch(payload) })
+    if (desktopRuntime()) return diagnostics.run('projects', 'update', () => invoke<Project>('update_project', { projectId, patch: desktopEntityPatch(payload) }))
     return apiRequest<Project>(projectPath(projectId), { method: 'PATCH', body: payload })
   },
 
@@ -216,7 +217,7 @@ export const projectsApi = {
   },
 
   createStage(projectId: string, payload: StageCreate): Promise<Project> {
-    if (desktopRuntime()) return invoke<Project>('create_stage', { projectId, command: desktopStageCreate(payload) })
+    if (desktopRuntime()) return diagnostics.run('stages', 'create', () => invoke<Project>('create_stage', { projectId, command: desktopStageCreate(payload) }))
     return apiRequest<Project>(`${projectPath(projectId)}/stages`, {
       method: 'POST',
       body: payload,
@@ -224,7 +225,7 @@ export const projectsApi = {
   },
 
   updateStage(projectId: string, stageId: string, payload: EntityUpdate): Promise<Project> {
-    if (desktopRuntime()) return invoke<Project>('update_stage', { projectId, stageId, patch: desktopEntityPatch(payload) })
+    if (desktopRuntime()) return diagnostics.run('stages', 'update', () => invoke<Project>('update_stage', { projectId, stageId, patch: desktopEntityPatch(payload) }))
     return apiRequest<Project>(stagePath(projectId, stageId), {
       method: 'PATCH',
       body: payload,
@@ -237,7 +238,7 @@ export const projectsApi = {
   },
 
   reorderStages(projectId: string, stageIds: string[]): Promise<Project> {
-    if (desktopRuntime()) return invoke<Project>('reorder_stages', { command: { projectId, stageIds } })
+    if (desktopRuntime()) return diagnostics.run('stages', 'reorder', () => invoke<Project>('reorder_stages', { command: { projectId, stageIds } }))
     return apiRequest<Project>(`${projectPath(projectId)}/stages/order`, {
       method: 'PUT',
       body: { stage_ids: stageIds },

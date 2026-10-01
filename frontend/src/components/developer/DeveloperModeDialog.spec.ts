@@ -5,16 +5,21 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { gameApi } from '@/api/game'
 import { gameStateFixture } from '@/test/gameFixtures'
 import { useNotificationsStore } from '@/stores/notifications'
+import { diagnostics } from '@/diagnostics/service'
 import DeveloperModeDialog from './DeveloperModeDialog.vue'
 
 vi.mock('@/api/game', () => ({
   gameApi: {
     developerState: vi.fn(),
+    developerRestoreStreak: vi.fn(),
+    developerCreateStreakSeries: vi.fn(),
     developerStreakState: vi.fn(),
     requestProfileTransfer: vi.fn(),
     takeProfileTransferResult: vi.fn(),
   },
 }))
+
+vi.mock('@tauri-apps/api/core', () => ({invoke:vi.fn().mockResolvedValue(undefined)}))
 
 vi.mock('@/platform/runtime', () => ({
   currentPlatform: () => 'tauri',
@@ -22,6 +27,8 @@ vi.mock('@/platform/runtime', () => ({
 
 describe('DeveloperModeDialog test data controls', () => {
   beforeEach(() => {
+    vi.mocked(gameApi.developerRestoreStreak).mockReset()
+    vi.mocked(gameApi.developerRestoreStreak).mockResolvedValue({ok:true,state:gameStateFixture(),message:'Стрик изменён.',messages:[],result:null})
     vi.mocked(gameApi.developerState).mockResolvedValue({
       state: gameStateFixture(),
       test_date_enabled: false,
@@ -117,4 +124,38 @@ describe('DeveloperModeDialog test data controls', () => {
     expect(useNotificationsStore().notifications.at(-1)?.kind).toBe('error')
     expect(useNotificationsStore().notifications.at(-1)?.message).toContain('проверка снимка не пройдена')
   })
+  it('records correlated successful restoration and keeps cancellation explicit', async () => {
+    const record = vi.spyOn(diagnostics,'record')
+    const confirmation = vi.spyOn(window,'confirm').mockReturnValue(false)
+    const wrapper=mountDialog();await flushPromises()
+    const button=wrapper.findAll('button').find(b=>b.text().includes('Восстановить стрик'))!
+    await button.trigger('click');await flushPromises()
+    expect(gameApi.developerRestoreStreak).not.toHaveBeenCalled()
+    expect(record.mock.calls.some(c=>c[2]==='cancelled')).toBe(true)
+    record.mockClear();confirmation.mockReturnValue(true)
+    await button.trigger('click');await flushPromises()
+    await vi.waitFor(() => expect(record.mock.calls.filter(c=>c[1]==='restore_streak')).toHaveLength(3))
+    const calls=record.mock.calls.filter(c=>c[1]==='restore_streak')
+    expect(calls.map(c=>c[2])).toEqual(['requested','started','succeeded'])
+    const id=calls[1]![3]!
+    expect(gameApi.developerRestoreStreak).toHaveBeenCalledWith({type:'global'},id)
+    expect(calls[2]![3]).toBe(id)
+    record.mockRestore();wrapper.unmount()
+  })
+  it('records stable failure and explains restoration without rendering private errors', async () => {
+    const record=vi.spyOn(diagnostics,'record');vi.spyOn(window,'confirm').mockReturnValue(true)
+    vi.mocked(gameApi.developerRestoreStreak).mockRejectedValue({code:'Validation',message:'SECRET_GAME_USER_CONTENT',token:'SECRET_TOKEN'})
+    const wrapper=mountDialog();await flushPromises()
+    await wrapper.findAll('button').find(b=>b.text().includes('Восстановить стрик'))!.trigger('click');await flushPromises()
+    expect(wrapper.find('[role="alert"]').text()).toContain('Не удалось восстановить серию')
+    expect(wrapper.find('[role="alert"] details').text()).toContain('Validation')
+    expect(wrapper.find('[role="alert"] details').attributes('open')).toBeUndefined()
+    expect(wrapper.text()).not.toContain('SECRET')
+    await vi.waitFor(() => expect(record.mock.calls.filter(c=>c[1]==='restore_streak')).toHaveLength(3))
+    const calls=record.mock.calls.filter(c=>c[1]==='restore_streak')
+    expect(calls.map(c=>c[2])).toEqual(['requested','started','failed'])
+    expect(calls.at(-1)?.[4]).toEqual({error_code:'Validation',error_class:'Error'})
+    expect(JSON.stringify(calls)).not.toContain('SECRET');record.mockRestore();wrapper.unmount()
+  })
+
 })

@@ -25,10 +25,10 @@ describe('explicit Stage authority panel', () => {
     expect(h.begin).not.toHaveBeenCalled(); expect(h.decide).not.toHaveBeenCalled(); expect(h.inspect).not.toHaveBeenCalled(); h.wrapper.unmount()
   })
   it('begins only through an explicit click', async () => {
-    const h = setup('structural_local'); await click(h, 'Опубликовать локальные этапы'); expect(h.begin).toHaveBeenCalledWith('project'); h.wrapper.unmount()
+    const h = setup('structural_local'); await click(h, 'Отправить этапы этого устройства'); expect(h.begin).toHaveBeenCalledWith('project'); h.wrapper.unmount()
   })
   it('submits the full sorted tip set and exact local snapshot', async () => {
-    const h = setup('conflict'); await click(h, 'Использовать эту версию для согласования')
+    const h = setup('conflict'); await click(h, 'Выбрать этот вариант')
     expect(h.decide).toHaveBeenCalledWith('project', { entity_type: 'stage', entity_id: 'S1', expected_tips: ['a', 'z'], expected_local: h.entity.local, proposed: null, selected_event_id: h.branch.header.event_id }); h.wrapper.unmount()
   })
   it('distinguishes selected causal deletion from physical cleanup', () => {
@@ -36,7 +36,7 @@ describe('explicit Stage authority panel', () => {
     h.cloud.structuralAuthority.project!.entities[0]!.causal_tombstone_selected = true
     return flushPromises().then(() => {
       expect(h.wrapper.text()).toContain('Удаление этапа выбрано. Физическое удаление пока заблокировано; дочерние данные сохранены.')
-      expect(h.wrapper.text()).not.toContain('Использовать эту версию для согласования')
+      expect(h.wrapper.text()).not.toContain('Выбрать этот вариант')
       h.wrapper.unmount()
     })
   })

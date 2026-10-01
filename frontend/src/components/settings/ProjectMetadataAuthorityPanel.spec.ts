@@ -37,7 +37,10 @@ describe('project metadata explicit authority panel', () => {
   it('publishes only after an explicit click and shows the local values', async () => {
     const h = setup('local_legacy_only', [])
     expect(h.wrapper.text()).toContain('Private local')
-    await click(h.wrapper, 'Опубликовать локальные метаданные')
+    expect(h.wrapper.find('.metadata-authority > dl').findAll('dt')).toHaveLength(12)
+    expect(h.wrapper.find('.metadata-authority > dl dt').text()).toBe('Название')
+    expect(h.wrapper.find('.metadata-authority > dl dd').text()).toBe('Private local')
+    await click(h.wrapper, 'Отправить настройки этого устройства')
     expect(h.begin).toHaveBeenCalledWith('project')
     h.wrapper.unmount()
   })
@@ -49,7 +52,7 @@ describe('project metadata explicit authority panel', () => {
   })
   it('keeps local values through the explicit causal decision', async () => {
     const h = setup('local_differs_from_authenticated')
-    await click(h.wrapper, 'Сохранить локальную версию как новое облачное изменение')
+    await click(h.wrapper, 'Использовать вариант этого устройства')
     expect(h.decide).toHaveBeenCalledWith('project', 'keep_local', null, null, local, ['first'])
     h.wrapper.unmount()
   })
@@ -83,7 +86,7 @@ describe('project metadata explicit authority panel', () => {
       { event_id: 'first', revision: 1, operation: 'create', metadata: { ...local, name: 'Beta' } },
     ])
     expect(h.wrapper.text()).toContain('Beta'); expect(h.wrapper.text()).toContain('Gamma')
-    await click(h.wrapper, 'Использовать эту версию для согласования')
+    await click(h.wrapper, 'Выбрать этот вариант')
     expect(h.decide).toHaveBeenCalledWith('project', 'choose_branch', 'second', null, local, ['first', 'second'])
     h.wrapper.unmount()
   })

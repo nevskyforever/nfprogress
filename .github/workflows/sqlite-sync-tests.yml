@@ -14,6 +14,8 @@ on:
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json'
       - 'frontend/src-tauri/src/account_binding.rs'
       - 'frontend/src-tauri/src/lib.rs'
+      - 'frontend/src-tauri/src/diagnostics.rs'
+      - 'frontend/src-tauri/capabilities/main.json'
       - 'frontend/src-tauri/src/project_repository.rs'
       - 'frontend/src-tauri/Cargo.toml'
       - 'frontend/src-tauri/Cargo.lock'
@@ -38,6 +40,8 @@ on:
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json'
       - 'frontend/src-tauri/src/account_binding.rs'
       - 'frontend/src-tauri/src/lib.rs'
+      - 'frontend/src-tauri/src/diagnostics.rs'
+      - 'frontend/src-tauri/capabilities/main.json'
       - 'frontend/src-tauri/src/project_repository.rs'
       - 'frontend/src-tauri/Cargo.toml'
       - 'frontend/src-tauri/Cargo.lock'
@@ -121,6 +125,13 @@ jobs:
       - name: Run Rust stage structural substrate filter
         shell: pwsh
         run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc stage_sync
+
+      - name: Run local diagnostics and developer streak regression filters
+        shell: pwsh
+        run: |
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc diagnostics
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc developer_
 
       - name: Check Rust SQLite substrate
         shell: pwsh
