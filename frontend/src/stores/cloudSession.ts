@@ -1,3 +1,4 @@
+import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import { announceDataChange } from '@/services/dataChanges'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -508,6 +509,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         if (result.hasRemainingWork) setProjectStage(projectId, 'remaining_work', epoch)
         else setProjectStage(projectId, 'initial_sync_completed', epoch)
       } catch (error) {
+        if (error instanceof MetadataImportContinuationError) {
+          if (current(epoch)) projects.value = projects.value.map(project => project.projectId === projectId
+            ? { ...project, status: 'import_available', connectionAvailable: true, reason: null } : project)
+          throw error
+        }
         setFailure(error, epoch)
         if (current(epoch)) {
           projects.value = projects.value.map(project => project.projectId === projectId

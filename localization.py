@@ -2470,6 +2470,41 @@ for _language, _translations in _C18_METADATA_HELP_TRANSLATIONS.items():
     TRANSLATION_OVERRIDES[_language].update(_translations)
 
 
+# C18.3.03 bounded continuation and explicit stale-decision recovery help.
+_C18303_HELP_PARAGRAPHS = {'ru': '<p>Длинная облачная история читается частями. Если импорт просит продолжить, повторите импорт: проверенные '
+       'страницы сохраняются и после перезапуска. При превышении безопасного объёма история сохраняется, но импорт '
+       'блокируется. Если во время согласования появилась новая ветка, прежнее решение не выбирает победителя: '
+       'проверьте все текущие версии и создайте новое решение.</p>',
+ 'en': '<p>Long cloud history is read in bounded parts. If import asks to continue, retry import: verified pages '
+       'survive restart. If the safety budget is exceeded, history is retained but import is blocked. If a new branch '
+       'arrives during reconciliation, the old decision does not choose a winner: inspect all current versions and '
+       'create a new decision.</p>',
+ 'es': '<p>El historial largo se lee por partes limitadas. Si la importación pide continuar, repítala: las páginas '
+       'verificadas se conservan tras reiniciar. Si se supera el límite seguro, se conserva el historial y se bloquea '
+       'la importación. Si aparece una nueva rama durante la conciliación, la decisión anterior no elige un ganador: '
+       'revise todas las versiones actuales y cree una nueva decisión.</p>',
+ 'de': '<p>Lange Cloud-Verläufe werden in begrenzten Teilen gelesen. Wenn der Import zur Fortsetzung auffordert, '
+       'wiederholen Sie ihn: geprüfte Seiten bleiben auch nach einem Neustart erhalten. Beim Überschreiten des '
+       'Sicherheitslimits bleibt der Verlauf erhalten, der Import wird jedoch blockiert. Erscheint während des '
+       'Abgleichs ein neuer Zweig, bestimmt die alte Entscheidung keinen Gewinner: prüfen Sie alle aktuellen Versionen '
+       'und treffen Sie eine neue Entscheidung.</p>',
+ 'fr': '<p>Les longs historiques sont lus par parties limitées. Si l’importation demande de continuer, relancez-la : '
+       'les pages vérifiées sont conservées après redémarrage. Si la limite de sécurité est dépassée, l’historique est '
+       'conservé mais l’importation est bloquée. Si une nouvelle branche arrive pendant la conciliation, l’ancienne '
+       'décision ne choisit aucun gagnant : examinez toutes les versions actuelles et prenez une nouvelle '
+       'décision.</p>',
+ 'pt_BR': '<p>Históricos longos são lidos em partes limitadas. Se a importação pedir para continuar, repita-a: as '
+          'páginas verificadas são preservadas após reiniciar. Se o limite seguro for excedido, o histórico é mantido, '
+          'mas a importação é bloqueada. Se uma nova ramificação surgir durante a conciliação, a decisão anterior não '
+          'escolhe um vencedor: verifique todas as versões atuais e crie uma nova decisão.</p>'}
+for _language, _translations in _C18_METADATA_HELP_TRANSLATIONS.items():
+    TRANSLATION_OVERRIDES[_language][_C18303_HELP_PARAGRAPHS["ru"]] = _C18303_HELP_PARAGRAPHS[_language]
+    for _source, _translated in _translations.items():
+        TRANSLATION_OVERRIDES[_language][_source.replace("</body></html>", _C18303_HELP_PARAGRAPHS["ru"] + "\n</body></html>")] = _translated.replace("</body></html>", _C18303_HELP_PARAGRAPHS[_language] + "\n</body></html>")
+for _language, _translations in {'en': {'Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.': 'Verified pages are saved. Retry import to continue reading history.', 'История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.': 'Metadata history exceeds the safety budget. Verified pages are saved; import is blocked.'}, 'es': {'Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.': 'Las páginas verificadas están guardadas. Repita la importación para continuar leyendo el historial.', 'История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.': 'El historial de metadatos supera el límite seguro. Las páginas verificadas están guardadas; la importación está bloqueada.'}, 'de': {'Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.': 'Geprüfte Seiten sind gespeichert. Wiederholen Sie den Import, um den Verlauf weiterzulesen.', 'История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.': 'Der Metadatenverlauf überschreitet das Sicherheitslimit. Geprüfte Seiten sind gespeichert; der Import ist blockiert.'}, 'fr': {'Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.': 'Les pages vérifiées sont enregistrées. Relancez l’importation pour continuer à lire l’historique.', 'История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.': 'L’historique des métadonnées dépasse la limite de sécurité. Les pages vérifiées sont enregistrées ; l’importation est bloquée.'}, 'pt_BR': {'Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.': 'As páginas verificadas estão salvas. Repita a importação para continuar lendo o histórico.', 'История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.': 'O histórico de metadados excede o limite seguro. As páginas verificadas estão salvas; a importação está bloqueada.'}}.items():
+    TRANSLATION_OVERRIDES[_language].update(_translations)
+
+
 for _language, _manual, _yes in (
     ("en", "Manual", "Yes"), ("es", "Manual", "Sí"), ("de", "Manuell", "Ja"),
     ("fr", "Manuel", "Oui"), ("pt_BR", "Manual", "Sim"),

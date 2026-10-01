@@ -6,6 +6,7 @@ import type {
   CloudProjectBootstrapRecord,
   CloudProjectBootstrapRepository,
 } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
+import { MetadataImportContinuationError } from './projectMetadataMigrationRuntime'
 import { CloudProjectBootstrapBlockedError, CloudProjectBootstrapCoordinator } from './projectBootstrap'
 import { NoteSyncTransportRouter } from './noteSyncTransportRouter'
 
@@ -297,4 +298,14 @@ describe('safe cloud project bootstrap coordinator', () => {
     expect(work.v1Upload.uploadOnce).not.toHaveBeenCalled()
     expect(work.v2Upload.uploadOnce).not.toHaveBeenCalled()
   })
+  it('continues reconstruction if account history advances before shell creation', async () => {
+    const session = auth(); await session.login('user', 'password')
+    vi.spyOn(cloudProjectsApi, 'listBootstraps').mockResolvedValue({ projects: [descriptor('active')], current_cursor: 18 })
+    const { repo } = repository(); const work = workers()
+    const coordinator = new CloudProjectBootstrapCoordinator(session, repo, work)
+    await expect(coordinator.importRemoteProject(IDENTITY, PROJECT, '', undefined,
+      { bootstrapId: TOKEN, metadata: null, head: null, tips: [], cursor: 16 })).rejects.toBeInstanceOf(MetadataImportContinuationError)
+    expect(repo.importRemote).not.toHaveBeenCalled(); expect(work.runOnce).not.toHaveBeenCalled()
+  })
+
 })

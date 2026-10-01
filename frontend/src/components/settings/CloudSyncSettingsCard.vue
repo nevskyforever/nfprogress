@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { IonIcon, IonSpinner } from '@ionic/vue'
 import { cloudOutline, lockClosedOutline, syncOutline, warningOutline } from 'ionicons/icons'
 
+import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
 import { encodeBase64Url } from '@/api/base64url'
@@ -205,8 +206,10 @@ async function confirmImport(projectId: string): Promise<void> {
   try {
     await cloud.importProject(projectId, importProjectName.value)
     importProjectName.value = ''
-  } catch {
-    localError.value = t('Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.')
+  } catch (error) {
+    if (error instanceof MetadataImportContinuationError) localError.value = t('Проверенные страницы сохранены. Повторите импорт, чтобы продолжить чтение истории.')
+    else if (error instanceof Error && error.message === 'metadata_import_resource_limit') localError.value = t('История метаданных превышает безопасный объём. Проверенные страницы сохранены, импорт заблокирован.')
+    else localError.value = t('Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.')
   }
 }
 

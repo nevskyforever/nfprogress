@@ -29,7 +29,18 @@ export interface MetadataAuthorityView {
 }
 export type MetadataDecisionKind = 'keep_local' | 'manual' | 'edit' | 'choose_branch' | 'resolve_manual'
 
+export interface MetadataImportProgress {
+  cursor: number; state: 'running' | 'complete' | 'blocked'; blocker: string | null; event_count: number
+  metadata: ProjectMetadata | null; head: string | null; tips: string[]
+}
+export interface MetadataImportPage {
+  expected_cursor: number; next_cursor: number; has_more: boolean; page_events: number; page_identity: string
+  events: Array<{ server_sequence: number; plaintext: number[] }>
+}
+
 export interface ProjectMetadataMigrationRepository {
+  readImport(scope: MetadataScope, projectId: string, bootstrapId: string): Promise<MetadataImportProgress>
+  commitImportPage(scope: MetadataScope, projectId: string, bootstrapId: string, page: MetadataImportPage): Promise<MetadataImportProgress>
   capture(scope: MetadataScope, projectId: string, now: string): Promise<string>
   status(scope: MetadataScope, projectId: string): Promise<MetadataMigrationStatus>
   prepare(scope: MetadataScope, candidateId: string, now: string): Promise<string>
@@ -49,6 +60,12 @@ export interface ProjectMetadataMigrationRepository {
 const bytes = (value: Uint8Array): number[] => Array.from(value)
 
 export class SQLiteProjectMetadataMigrationRepository implements ProjectMetadataMigrationRepository {
+  readImport(scope: MetadataScope, projectId: string, bootstrapId: string): Promise<MetadataImportProgress> {
+    return invoke('read_project_metadata_import', { scope, projectId, bootstrapId })
+  }
+  commitImportPage(scope: MetadataScope, projectId: string, bootstrapId: string, page: MetadataImportPage): Promise<MetadataImportProgress> {
+    return invoke('commit_project_metadata_import_page', { scope, projectId, bootstrapId, page })
+  }
   authority(scope: MetadataScope, projectId: string): Promise<MetadataAuthorityView> {
     return invoke('read_project_metadata_authority', { scope, projectId })
   }

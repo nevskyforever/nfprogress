@@ -12,6 +12,7 @@ import {
   useCloudSessionStore,
   type CloudSessionRuntime,
 } from '@/stores/cloudSession'
+import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import CloudSyncSettingsCard from './CloudSyncSettingsCard.vue'
 
 const RECORD: CurrentUserCryptoRecord = {
@@ -150,6 +151,11 @@ describe('CloudSyncSettingsCard', () => {
     expect(wrapper.find('input').attributes('required')).toBeUndefined()
     expect(wrapper.text()).toContain('Локальное название требуется только при отсутствии такой истории')
     expect(instance.importRemoteProject).not.toHaveBeenCalled()
+    ;(instance.importRemoteProject as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new MetadataImportContinuationError(16))
+    await wrapper.find('form.cloud-sync-card__inline-form').trigger('submit'); await flushPromises()
+    expect(wrapper.text()).toContain('Проверенные страницы сохранены. Повторите импорт')
+    expect(cloud.projects[0]?.status).toBe('import_available')
+    expect(wrapper.findAll('button').some(button => button.text().includes('Импортировать на это устройство'))).toBe(true)
     wrapper.unmount()
   })
 })

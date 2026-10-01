@@ -583,6 +583,13 @@ fn metadata_authority_bridge(request:&Value)->Value {
     let project=required_string(request,"project_id");
     let now="2026-09-29T00:00:00.000000Z";
     metadata::assert_runtime_scope(&db,account,user,device).unwrap();
+    if required_string(request,"step")=="import_read" {
+        return serde_json::to_value(metadata::read_metadata_import(&mut db,account,project,required_string(request,"bootstrap_id")).unwrap()).unwrap();
+    }
+    if required_string(request,"step")=="import_page" {
+        let page=serde_json::from_value::<metadata::MetadataImportPage>(request["page"].clone()).unwrap();
+        return serde_json::to_value(metadata::commit_metadata_import_page(&mut db,account,user,project,required_string(request,"bootstrap_id"),&page).unwrap()).unwrap();
+    }
     let result=match required_string(request,"step") {
         "begin"=>{
             let candidate=metadata::capture_legacy_candidate(&mut db,account,project,now).unwrap();

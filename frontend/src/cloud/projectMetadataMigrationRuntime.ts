@@ -10,6 +10,7 @@ import { SQLiteProjectMetadataMigrationRepository, type MetadataScope, type Meta
 import type { ProjectMetadata, ProjectMetadataEvent } from './projectMetadataCodec'
 import { cloudProjectsApi } from '@/api/cloudProjects'
 import { encodeProjectMetadataEvent, openProjectMetadataEvent, sealProjectMetadataEvent, validateProjectMetadataEvent } from './projectMetadataCodec'
+import { encodeBase64Url } from '@/api/base64url'
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 
 export interface MetadataApplyResult { applied: number; conflicts: number; orphans: number; blocked: readonly string[]; listed: number }
@@ -27,6 +28,7 @@ export class ProjectMetadataMigrationRuntime {
     private readonly inbox: NoteSyncInboxRepository = new SQLiteNoteSyncInboxRepository(),
     private readonly ack: NoteSyncAckRepository = new SQLiteNoteSyncAckRepository(),
     private readonly api: typeof encryptedSyncV3Api = encryptedSyncV3Api,
+    private readonly importPageSize = 200,
   ) {}
 
   private async scope(accountId: string, deviceId: string): Promise<{ scope: MetadataScope; context: AuthContextSnapshot }> {
@@ -96,28 +98,57 @@ export class ProjectMetadataMigrationRuntime {
     this.assertCurrent(context)
     const descriptor = descriptors.value.projects.find(project => project.project_id === projectId)
     if (!descriptor?.bootstrap_id || descriptor.state !== 'active') throw new TypeError('metadata_import_lineage')
-    const events: ProjectMetadataEvent[] = []
-    let cursor = 0
+    if (!Number.isSafeInteger(this.importPageSize) || this.importPageSize < 1 || this.importPageSize > 200) throw new TypeError('metadata_import_page_limit')
+    const bootstrapId = descriptor.bootstrap_id
+    const { scope } = await this.scope(accountId, deviceId)
+    let progress = await this.native.readImport(scope, projectId, bootstrapId)
+    this.assertCurrent(context)
+    if (progress.state === 'blocked') throw new TypeError(progress.blocker ?? 'metadata_import_blocked')
+    // Bound work per explicit attempt; the saved cursor resumes after restart/retry.
     for (let page = 0; page < 16; page += 1) {
-      const response = await this.auth.authorized(token => this.api.pull(token, deviceId, cursor))
+      const since = progress.cursor
+      const response = await this.auth.authorized(token => this.api.pull(token, deviceId, since, this.importPageSize))
       this.assertCurrent(context)
-      for (const item of response.value.items) {
+      const wire = response.value
+      if (wire.items.length > this.importPageSize || wire.next_cursor < since
+        || (wire.has_more && wire.next_cursor <= since)) throw new TypeError('metadata_import_cursor')
+      const events: Array<{ server_sequence: number; plaintext: number[] }> = []
+      let sequence = since
+      for (const item of wire.items) {
+        if (item.event.server_sequence <= sequence || item.event.server_sequence > wire.next_cursor) throw new TypeError('metadata_import_cursor')
+        sequence = item.event.server_sequence
         if (item.event.entity_type !== 'project_metadata' || item.event.project_id !== projectId) continue
         const lease = this.keys.leaseForAccount(accountId)
         if (!lease) throw new KeyNotProvisionedError()
         const opened = await lease.use(amk => openProjectMetadataEvent(amk,
           { account_id: context.userId, project_id: projectId, entity_id: projectId, event_id: item.event.event_id }, item.object))
         this.assertCurrent(context)
-        if (opened.header.bootstrap_id !== descriptor.bootstrap_id || opened.header.device_id !== item.event.device_id
+        if (opened.header.bootstrap_id !== bootstrapId || opened.header.device_id !== item.event.device_id
           || opened.header.revision !== item.event.revision || opened.header.updated_at !== canonicalizeSyncTimestamp(item.event.updated_at)
           || opened.deleted_at !== (item.event.deleted_at === null ? null : canonicalizeSyncTimestamp(item.event.deleted_at)) || (opened.header.operation === 'delete' ? 'delete' : 'upsert') !== item.event.operation) throw new TypeError('metadata_import_descriptor')
-        events.push(opened)
+        const plaintext = encodeProjectMetadataEvent(opened)
+        try { events.push({ server_sequence: item.event.server_sequence, plaintext: Array.from(plaintext) }) }
+        finally { plaintext.fill(0) }
       }
-      if (!response.value.has_more) return metadataImportSnapshot(events, descriptor.bootstrap_id, projectId)
-      if (response.value.next_cursor <= cursor) throw new TypeError('metadata_import_cursor')
-      cursor = response.value.next_cursor
+      if (sequence !== wire.next_cursor || (!wire.items.length && wire.has_more)) throw new TypeError('metadata_import_cursor')
+      const identityBytes = new TextEncoder().encode(JSON.stringify({ since, next: wire.next_cursor, more: wire.has_more,
+        items: wire.items.map(item => ({ event: item.event, nonce: encodeBase64Url(item.object.nonce), ciphertext: encodeBase64Url(item.object.ciphertext) })) }))
+      const digest = await crypto.subtle.digest('SHA-256', identityBytes)
+      const pageIdentity = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+      this.assertCurrent(context)
+      progress = await this.native.commitImportPage(scope, projectId, bootstrapId, {
+        expected_cursor: since, next_cursor: wire.next_cursor, has_more: wire.has_more,
+        page_events: wire.items.length, page_identity: pageIdentity, events,
+      })
+      this.assertCurrent(context)
+      if (progress.state === 'blocked') throw new TypeError(progress.blocker ?? 'metadata_import_blocked')
+      if (progress.state === 'complete') {
+        if (!progress.event_count) return null
+        if (progress.head && !progress.metadata) throw new TypeError('metadata_import_deleted')
+        return { bootstrapId, metadata: progress.metadata, head: progress.head, tips: progress.tips, cursor: progress.cursor }
+      }
     }
-    throw new TypeError('metadata_import_history_budget')
+    throw new MetadataImportContinuationError(progress.cursor)
   }
 
   async status(accountId: string, deviceId: string, projectId: string): Promise<MetadataMigrationStatus> {
@@ -263,7 +294,10 @@ export class ProjectMetadataMigrationRuntime {
   }
 }
 
-export interface MetadataImportSnapshot { bootstrapId: string; metadata: ProjectMetadata | null; head: string | null; tips: string[] }
+export class MetadataImportContinuationError extends Error {
+  constructor(readonly cursor: number) { super('metadata_import_continuation_required') }
+}
+export interface MetadataImportSnapshot { bootstrapId: string; metadata: ProjectMetadata | null; head: string | null; tips: string[]; cursor?: number }
 export function metadataImportSnapshot(events: ProjectMetadataEvent[], bootstrapId: string, projectId: string): MetadataImportSnapshot | null {
   if (!events.length) return null
   const history = new Map<string, ProjectMetadataEvent>()
@@ -271,12 +305,17 @@ export function metadataImportSnapshot(events: ProjectMetadataEvent[], bootstrap
   for (const event of events) {
     validateProjectMetadataEvent(event)
     const h = event.header
-    if (h.bootstrap_id !== bootstrapId || h.project_id !== projectId || history.has(h.event_id)) throw new TypeError('metadata_import_lineage')
+    if (h.bootstrap_id !== bootstrapId || h.project_id !== projectId) throw new TypeError('metadata_import_lineage')
+    const prior = history.get(h.event_id)
+    if (prior) {
+      if (new TextDecoder().decode(encodeProjectMetadataEvent(prior)) !== new TextDecoder().decode(encodeProjectMetadataEvent(event))) throw new TypeError('metadata_import_replay')
+      continue
+    }
     const parents = h.parent_event_ids.map(id => history.get(id))
     if (parents.some(parent => !parent) || parents.some(parent => parent!.header.account_id !== h.account_id)) throw new TypeError('metadata_import_dependency')
-    if (parents.length && h.revision !== Math.max(...parents.map(parent => parent!.header.revision)) + 1) throw new TypeError('metadata_import_revision')
+    if (parents.length && (h.revision !== Math.max(...parents.map(parent => parent!.header.revision)) + 1 || h.generation <= Math.max(...parents.map(parent => parent!.header.generation)))) throw new TypeError('metadata_import_revision')
     if (['resolution', 'genesis_resolution'].includes(h.operation)) {
-      if ([...tips].sort().join(',') !== h.parent_event_ids.join(',')) throw new TypeError('metadata_import_resolution')
+      // A subset resolution is historical conflict evidence; uncovered tips remain.
       if (h.operation === 'genesis_resolution' && parents.some(parent => parent!.header.operation !== 'create')) throw new TypeError('metadata_import_resolution')
     }
     for (const parent of h.parent_event_ids) tips.delete(parent)

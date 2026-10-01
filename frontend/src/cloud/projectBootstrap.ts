@@ -1,7 +1,7 @@
 import { cloudProjectsApi, type CloudProjectBootstrapDescriptor } from '@/api/cloudProjects'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import type { CloudProjectBootstrapRecord, CloudProjectBootstrapRepository, CloudProjectBootstrapScope } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
-import type { MetadataImportSnapshot } from './projectMetadataMigrationRuntime'
+import { MetadataImportContinuationError, type MetadataImportSnapshot } from './projectMetadataMigrationRuntime'
 import type { NoteSyncProductionResult } from './noteSyncTransportRouter'
 
 export class CloudProjectBootstrapBlockedError extends Error {
@@ -233,6 +233,7 @@ export class CloudProjectBootstrapCoordinator {
     if (!descriptor || descriptor.state !== 'active' || !descriptor.bootstrap_id) {
       throw new CloudProjectBootstrapBlockedError('remote_project_not_active')
     }
+    if (metadataImport?.cursor !== undefined && remote.value.current_cursor > metadataImport.cursor) throw new MetadataImportContinuationError(metadataImport.cursor)
     if (metadataImport && metadataImport.bootstrapId !== descriptor.bootstrap_id) throw new CloudProjectBootstrapBlockedError('metadata_import_lineage')
     let project = await this.repository.importRemote(
       projectId, displayName, identity.localAccountId, identity.deviceId,

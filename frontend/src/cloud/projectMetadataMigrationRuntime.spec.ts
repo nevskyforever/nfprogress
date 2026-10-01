@@ -5,7 +5,7 @@ import { NormalUserAuthRuntime } from '@/auth/userAuth'
 import { ProjectMetadataMigrationRuntime, metadataImportSnapshot } from './projectMetadataMigrationRuntime'
 import { sealProjectMetadataEvent, type ProjectMetadataEvent } from './projectMetadataCodec'
 import type { MetadataMigrationStatus, ProjectMetadataMigrationRepository, ReceivedMetadataEvent, SealedMetadataGenesis } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
-import type { V3MetadataPushItem } from '@/api/encryptedSyncV3'
+import { encryptedSyncV3Api, type V3PullItem, type V3MetadataPushItem } from '@/api/encryptedSyncV3'
 
 const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
@@ -25,7 +25,7 @@ const event = (): ProjectMetadataEvent => ({
 describe('explicit metadata migration runtime', () => {
   let amk: AccountMasterKey
   beforeAll(async () => { amk = await generateAccountMasterKey() })
-  async function setup() {
+  async function setup(pageSize = 200) {
     const auth = new NormalUserAuthRuntime({
       login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
       refresh: vi.fn(), logout: vi.fn(), me: vi.fn().mockResolvedValue({ id: USER, username: 'u', email: 'u@example.test',
@@ -40,6 +40,8 @@ describe('explicit metadata migration runtime', () => {
       authEpoch: context.authEpoch, isCurrent: () => true, use: (action: (key: AccountMasterKey) => Promise<unknown>) => action(amk) })) }
     const status: MetadataMigrationStatus = { state: 'legacy_candidate_present', candidate_id: 'candidate', event_id: null, blockers: [], genesis_tips: 0 }
     const native = {
+      readImport: vi.fn<ProjectMetadataMigrationRepository["readImport"]>(),
+      commitImportPage: vi.fn<ProjectMetadataMigrationRepository["commitImportPage"]>(),
       capture: vi.fn(async () => 'candidate'), status: vi.fn(async () => status), prepare: vi.fn(async () => EVENT),
       unsealed: vi.fn(async () => [event()]),
       commitSealed: vi.fn<ProjectMetadataMigrationRepository['commitSealed']>(async () => {}),
@@ -53,11 +55,11 @@ describe('explicit metadata migration runtime', () => {
     const ack = { prepare: vi.fn(async () => ({ current_ack_cursor: 0, candidate_cursor: 1 })), commit: vi.fn(async () => 'advanced') }
     const api = { readerReady: vi.fn(async () => {}), cutover: vi.fn(async () => ({ writer_transport_version: 3, cutover_epoch: 2 })),
       pushMetadata: vi.fn<(_token: string, _device: string, items: V3MetadataPushItem[]) => Promise<{ protocol_version: number; encrypted_sync_version: number; results: { event_id: string; server_sequence: number; duplicate: boolean }[]; current_cursor: number }>>(async () => ({ protocol_version: 3, encrypted_sync_version: 3, results: [{ event_id: EVENT, server_sequence: 1, duplicate: false }], current_cursor: 1 })),
-      pull: vi.fn(async () => ({ protocol_version: 3, encrypted_sync_version: 3, items: [], next_cursor: 0, has_more: false })),
+      pull: vi.fn<typeof encryptedSyncV3Api.pull>(async () => ({ protocol_version: 3, encrypted_sync_version: 3, items: [], next_cursor: 0, has_more: false })),
       ack: vi.fn(async () => {}),
     }
     const runtime = new ProjectMetadataMigrationRuntime(auth, bindings as never, identity as never, keys as never,
-      native as never, inbox as never, ack as never, api as never)
+      native as never, inbox as never, ack as never, api as never, pageSize)
     const capabilities = vi.spyOn((await import('@/api/encryptedSyncV2')).encryptedSyncV2Api, 'capabilities')
       .mockImplementation(async () => ({ supported_transport_version: 2, writer_transport_version: mode, cutover_epoch: 1 }) as never)
     return { runtime, native, api, ack, status, capabilities, mode: (value: number) => { mode = value } }
@@ -140,6 +142,62 @@ describe('explicit metadata migration runtime', () => {
     expect(h.native.apply).toHaveBeenCalledTimes(1)
     h.capabilities.mockRestore()
   })
+
+  it('continues beyond sixteen pages using durable progress and resumes after a lost persistence response', async () => {
+    const h = await setup(1)
+    const boot = event().header.bootstrap_id
+    const descriptors = vi.spyOn((await import('@/api/cloudProjects')).cloudProjectsApi, 'listBootstraps')
+      .mockResolvedValue({ projects: [{ project_id: PROJECT, bootstrap_id: boot, state: 'active' }], current_cursor: 35 } as never)
+    const history: ProjectMetadataEvent[] = []
+    const wire: V3PullItem[] = []
+    for (let i = 0; i < 35; i += 1) {
+      const e = event(); e.header.event_id = `123e4567-e89b-42d3-a456-${String(i + 100).padStart(12, '0')}`
+      if (i) { e.header.operation = 'update'; e.header.parent_event_ids = [history[i - 1]!.header.event_id]; e.header.revision = i + 1; e.header.generation = i + 1 }
+      history.push(e)
+      const object = await sealProjectMetadataEvent(amk, e)
+      wire.push({ event: { event_id: e.header.event_id, device_id: DEVICE, server_sequence: i + 1, project_id: PROJECT,
+        entity_id: PROJECT, entity_type: 'project_metadata', operation: 'upsert', revision: i + 1, updated_at: NOW, deleted_at: null }, object })
+    }
+    let cursor = 0; let lost = true
+    const persisted: ProjectMetadataEvent[] = []
+    const progress = () => ({ cursor, state: cursor === 35 ? 'complete' : 'running', blocker: null, event_count: cursor,
+      metadata: cursor === 35 ? history[34]!.metadata : null, head: cursor === 35 ? history[34]!.header.event_id : null,
+      tips: cursor ? [history[cursor - 1]!.header.event_id] : [] })
+    h.native.readImport.mockImplementation(async () => progress() as never)
+    h.native.commitImportPage.mockImplementation(async (_scope, _project, _boot, page) => {
+      expect(page.expected_cursor).toBe(cursor)
+      for (const item of page.events) persisted.push(JSON.parse(new TextDecoder().decode(new Uint8Array(item.plaintext))))
+      cursor = page.next_cursor
+      if (cursor === 5 && lost) { lost = false; throw new Error('lost_response_after_commit') }
+      return progress() as never
+    })
+    h.api.pull.mockImplementation(async (_token, _device, since) => ({ protocol_version: 3, encrypted_sync_version: 3,
+      items: wire.slice(since, since + 1), next_cursor: Math.min(since + 1, 35), has_more: since + 1 < 35 }) as never)
+    await expect(h.runtime.importSnapshot('local', DEVICE, PROJECT)).rejects.toThrow('lost_response_after_commit')
+    expect(cursor).toBe(5)
+    await expect(h.runtime.importSnapshot('local', DEVICE, PROJECT)).rejects.toThrow('metadata_import_continuation_required')
+    expect(cursor).toBe(21)
+    const result = await h.runtime.importSnapshot('local', DEVICE, PROJECT)
+    expect(result).toMatchObject({ cursor: 35, head: history[34]!.header.event_id })
+    expect(persisted).toHaveLength(35)
+    expect(h.api.pull.mock.calls[5]![2]).toBe(5)
+    descriptors.mockRestore(); h.capabilities.mockRestore()
+  })
+
+  it('blocks a nonadvancing page or exhausted resource status without inventing import authority', async () => {
+    const h = await setup()
+    const boot = event().header.bootstrap_id
+    const descriptors = vi.spyOn((await import('@/api/cloudProjects')).cloudProjectsApi, 'listBootstraps')
+      .mockResolvedValue({ projects: [{ project_id: PROJECT, bootstrap_id: boot, state: 'active' }] } as never)
+    h.native.readImport.mockResolvedValue({ cursor: 16, state: 'running', blocker: null, event_count: 0, metadata: null, head: null, tips: [] })
+    h.api.pull.mockResolvedValue({ protocol_version: 3, encrypted_sync_version: 3, items: [], next_cursor: 16, has_more: true })
+    await expect(h.runtime.importSnapshot('local', DEVICE, PROJECT)).rejects.toThrow('metadata_import_cursor')
+    expect(h.native.commitImportPage).not.toHaveBeenCalled()
+    h.native.readImport.mockResolvedValue({ cursor: 16, state: 'blocked', blocker: 'metadata_import_resource_limit', event_count: 3200, metadata: null, head: null, tips: [] })
+    await expect(h.runtime.importSnapshot('local', DEVICE, PROJECT)).rejects.toThrow('metadata_import_resource_limit')
+    descriptors.mockRestore(); h.capabilities.mockRestore()
+  })
+
 })
 
 describe('authenticated second-device metadata import', () => {
@@ -159,6 +217,24 @@ describe('authenticated second-device metadata import', () => {
     expect(metadataImportSnapshot([first, beta, gamma, resolution], boot, PROJECT)?.metadata?.name).toBe('Resolved')
     resolution.header.parent_event_ids = [beta.header.event_id]
     expect(() => metadataImportSnapshot([first, beta, gamma, resolution], boot, PROJECT)).toThrow()
+  })
+  it('preserves stale subset resolutions across arrival orders and exact replay', () => {
+    const first = event()
+    const make = (id: number, parents: string[], revision: number, generation: number, operation: 'update' | 'resolution') => {
+      const value = event()
+      value.header = { ...value.header, event_id: `123e4567-e89b-42d3-a456-${String(id).padStart(12, '0')}`, parent_event_ids: parents, revision, generation, operation }
+      return value
+    }
+    const a = make(101, [EVENT], 2, 2, 'update'), b = make(102, [EVENT], 2, 2, 'update'), c = make(103, [EVENT], 2, 2, 'update')
+    const r = make(104, [a.header.event_id, b.header.event_id], 3, 3, 'resolution')
+    const r2 = make(105, [c.header.event_id, r.header.event_id], 4, 4, 'resolution')
+    for (const race of [[c, r], [r, c]]) {
+      const prefix = [first, a, b, ...race]
+      expect(metadataImportSnapshot(prefix, first.header.bootstrap_id, PROJECT)).toMatchObject({ head: null, metadata: null, tips: [c.header.event_id, r.header.event_id] })
+      expect(metadataImportSnapshot([...prefix, r, r2], first.header.bootstrap_id, PROJECT)?.head).toBe(r2.header.event_id)
+    }
+    const invalid = structuredClone(r2); invalid.header.generation = 3
+    expect(() => metadataImportSnapshot([first, a, b, c, r, invalid], first.header.bootstrap_id, PROJECT)).toThrow('metadata_import_revision')
   })
   it('requires complete lineage and retains legacy import when no metadata exists', () => {
     const first = event()

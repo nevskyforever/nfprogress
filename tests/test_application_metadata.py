@@ -153,6 +153,9 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_update_guard")
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_is_final")
         database.execute("DROP TRIGGER cloud_sync_note_resolution_block_v1_intent")
+        for table in ("cloud_sync_metadata_invalidated_decisions", "cloud_sync_metadata_import_pages",
+                      "cloud_sync_metadata_import_tips", "cloud_sync_metadata_import_events", "cloud_sync_metadata_imports"):
+            database.execute(f"DROP TABLE {table}")
         # Migration 026 authority tables must be absent from this v6 fixture.
         database.execute("DROP TABLE cloud_sync_metadata_decisions")
         database.execute("DROP TABLE cloud_sync_metadata_reconciliation")

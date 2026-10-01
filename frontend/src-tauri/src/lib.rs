@@ -2484,6 +2484,17 @@ fn apply_authenticated_project_metadata(scope:project_metadata_sync::MetadataSco
 }
 
 #[tauri::command]
+fn read_project_metadata_import(scope:project_metadata_sync::MetadataScope,project_id:String,bootstrap_id:String)->Result<project_metadata_sync::MetadataImportProgress,String> {
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::read_metadata_import(&mut connection,&scope.account_id,&project_id,&bootstrap_id).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn commit_project_metadata_import_page(scope:project_metadata_sync::MetadataScope,project_id:String,bootstrap_id:String,page:project_metadata_sync::MetadataImportPage)->Result<project_metadata_sync::MetadataImportProgress,String> {
+    let mut connection=metadata_connection(&scope)?;
+    project_metadata_sync::commit_metadata_import_page(&mut connection,&scope.account_id,&scope.canonical_user_id,&project_id,&bootstrap_id,&page).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
 fn read_project_metadata_authority(
     scope: project_metadata_sync::MetadataScope,
     project_id: String,
@@ -5805,6 +5816,8 @@ pub fn run() {
             list_received_project_metadata,
             apply_authenticated_project_metadata,
             read_project_metadata_authority,
+            read_project_metadata_import,
+            commit_project_metadata_import_page,
             adopt_authenticated_project_metadata,
             prepare_project_metadata_change,
             create_note,

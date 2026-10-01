@@ -18,4 +18,13 @@ describe('metadata native authority adapter', () => {
         updated_at: '2026-09-29T00:00:00.000000Z', deleted_at: null,
         envelope: { crypto_version: 1, aad_version: 1, nonce: 'AQ', ciphertext: 'Ag' } }] } })
   })
+  it('persists import cursors and verified pages through account-scoped native commands', async () => {
+    const native = new SQLiteProjectMetadataMigrationRepository()
+    await native.readImport(scope, 'project', 'bootstrap')
+    const page = { expected_cursor: 16, next_cursor: 17, has_more: true, page_events: 1, page_identity: 'a'.repeat(64), events: [] }
+    await native.commitImportPage(scope, 'project', 'bootstrap', page)
+    expect(invoke).toHaveBeenCalledWith('read_project_metadata_import', { scope, projectId: 'project', bootstrapId: 'bootstrap' })
+    expect(invoke).toHaveBeenCalledWith('commit_project_metadata_import_page', { scope, projectId: 'project', bootstrapId: 'bootstrap', page })
+  })
+
 })
