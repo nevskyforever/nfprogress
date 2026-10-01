@@ -70,3 +70,34 @@ def test_metadata_import_v26_upgrade_keeps_forward_cursor_and_immutable_progress
     assert db.execute('SELECT cursor FROM cloud_sync_metadata_imports').fetchone()[0] == 16
     assert apply_migrations(db) == 27
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
+
+
+@pytest.mark.parametrize('version', [25, 26])
+def test_metadata_populated_intermediate_upgrade_preserves_exact_evidence(version):
+    db = _database(version)
+    device = '123e4567-e89b-42d3-a456-426614174001'
+    bootstrap = '123e4567-e89b-42d3-a456-426614174002'
+    event = '123e4567-e89b-42d3-a456-426614174003'
+    child = '123e4567-e89b-42d3-a456-426614174004'
+    db.execute("INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES('project','Local',1,'symbols','active','{}')")
+    db.execute("INSERT INTO project_order(project_id,position) VALUES('project',0)")
+    db.execute("INSERT INTO notes(id,project_id,payload_json) VALUES('note','project','{\"content\":\"preserved\"}')")
+    db.execute("INSERT INTO cloud_sync_state(account_id,device_id,created_at,updated_at) VALUES('account',?,'now','now')", (device,))
+    db.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('project','account','now','now')")
+    db.execute("INSERT INTO cloud_sync_metadata_candidates VALUES('candidate','account','project',?,?,1,1,'{\"name\":\"Local\"}','[\"unknown_extension\"]','{\"unknown_extension\":\"private\"}','then','conflict','now')", (device, bootstrap))
+    db.execute("INSERT INTO cloud_sync_metadata_events(account_id,event_id,project_id,device_id,bootstrap_id,candidate_id,parent_event_ids_json,generation,revision,operation,payload_json,state,server_sequence,created_at) VALUES('account',?,'project',?,?,'candidate','[]',1,1,'create','{\"name\":\"Local\"}','applied',1,'now')", (event, device, bootstrap))
+    db.execute("INSERT INTO cloud_sync_metadata_tips VALUES('account','project',?)", (event,))
+    tables = ['projects', 'notes', 'cloud_sync_project_bindings',
+              'cloud_sync_metadata_candidates', 'cloud_sync_metadata_events',
+              'cloud_sync_metadata_tips']
+    if version == 26:
+        db.execute("INSERT INTO cloud_sync_metadata_reconciliation VALUES('account','project',?,'{\"name\":\"Local\"}','now')", (event,))
+        db.execute("INSERT INTO cloud_sync_metadata_events(account_id,event_id,project_id,device_id,bootstrap_id,parent_event_ids_json,generation,revision,operation,payload_json,state,created_at) VALUES('account',?,'project',?,?,?,2,2,'update','{\"name\":\"Pending\"}','unsealed','now')", (child, device, bootstrap, '["' + event + '"]'))
+        db.execute("INSERT INTO cloud_sync_metadata_decisions VALUES('account','project',?,'edit','{\"name\":\"Local\"}','{\"name\":\"Pending\"}',?,'pending','now')", (child, '["' + event + '"]'))
+        tables += ['cloud_sync_metadata_reconciliation', 'cloud_sync_metadata_decisions']
+    before = {table: db.execute(f'SELECT * FROM {table} ORDER BY rowid').fetchall() for table in tables}
+    db.commit()
+    assert apply_migrations(db) == 27
+    assert {table: db.execute(f'SELECT * FROM {table} ORDER BY rowid').fetchall() for table in tables} == before
+    assert db.execute('PRAGMA foreign_key_check').fetchall() == []
+    assert apply_migrations(db) == 27

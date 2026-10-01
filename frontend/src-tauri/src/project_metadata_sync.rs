@@ -1213,6 +1213,9 @@ mod tests {
     const BOOT: &str = "123e4567-e89b-42d3-a456-426614174002";
     const NOW: &str = "2026-09-21T00:00:00.000000Z";
     fn database() -> (Connection, std::path::PathBuf) {
+        database_with_contents(false)
+    }
+    fn database_with_contents(with_note: bool) -> (Connection, std::path::PathBuf) {
         let path = std::env::temp_dir().join(format!(
             "c18-metadata-{}-{}.db",
             std::process::id(),
@@ -1226,6 +1229,9 @@ mod tests {
             [],
         )
         .unwrap();
+        if with_note {
+            db.execute("INSERT INTO notes(id,project_id,payload_json) VALUES('note','project','{}')", []).unwrap();
+        }
         db.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES(?1,?2,0,0,?3,?3)",params![ACCOUNT,DEVICE,NOW]).unwrap();
         db.execute("INSERT INTO cloud_account_bindings(local_account_id,canonical_user_id,created_at,validated_at) VALUES(?1,?2,?3,?3)",params![ACCOUNT,USER,NOW]).unwrap();
         db.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('project',?1,?2,?2)",params![ACCOUNT,NOW]).unwrap();
@@ -2010,6 +2016,161 @@ mod tests {
         );
         drop(db);
         std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn project_metadata_acceptance_all_fields_peer_apply_rollback_and_restart() {
+        let (mut db, path) = database_with_contents(true);
+        let peer = "123e4567-e89b-42d3-a456-426614174004";
+        let parent = "123e4567-e89b-42d3-a456-426614174071";
+        let child = "123e4567-e89b-42d3-a456-426614174072";
+        db.execute("UPDATE projects SET payload_json=json_set(payload_json,'$.sync_path','/private/book.docx','$.cover_image','local-cover','$.extensions',json('{\"local\":true}'))", []).unwrap();
+        inbound_causal(&db, parent, peer, 1, 1);
+        preserve_authenticated_event(&mut db, ACCOUNT, "project", &event(parent, peer, "Base"), NOW).unwrap();
+        let local = visible_metadata(&db, "project").unwrap();
+        adopt_authenticated_metadata(&mut db, ACCOUNT, "project", parent, &local, NOW).unwrap();
+        let before = visible_metadata(&db, "project").unwrap();
+        let desired = json!({"name":"All fields","goal":2500.5,"infinite":false,"unit":"A4","deadline":"2027-01-02","status":"заморожен","personal_goal":125.5,"auto_freeze":false,"streak_enabled":false,"work_method":"app","stages_enabled":true,"combine_stage_mindmaps":true});
+        let mut update: Value = serde_json::from_slice(&causal_event(child, peer, "All fields", "update", &[parent.into()], 2, 2)).unwrap();
+        update["metadata"] = desired.clone();
+        let bytes = serde_json::to_vec(&update).unwrap();
+        inbound_causal(&db, child, peer, 2, 2);
+        db.execute("UPDATE cloud_sync_state SET pull_cursor=2", []).unwrap();
+        // The inbox is durable before apply. A failure at proof commit must undo
+        // the visible write, event/tip changes and ACK evidence together.
+        db.execute_batch("CREATE TRIGGER reject_peer_proof BEFORE UPDATE ON cloud_sync_metadata_reconciliation BEGIN SELECT RAISE(ABORT,'test failure'); END;").unwrap();
+        assert!(preserve_authenticated_event(&mut db, ACCOUNT, "project", &bytes, NOW).is_err());
+        assert_eq!(visible_metadata(&db, "project").unwrap(), before);
+        assert_eq!(ack_candidate(&mut db), 1);
+        assert_eq!(db.query_row("SELECT state FROM cloud_sync_inbox WHERE event_id=?1", [child], |r|r.get::<_,String>(0)).unwrap(), "received");
+        db.execute_batch("DROP TRIGGER reject_peer_proof").unwrap();
+        drop(db);
+        let mut db = sqlite::open_database(&path).unwrap();
+        assert_eq!(preserve_authenticated_event(&mut db, ACCOUNT, "project", &bytes, NOW).unwrap(), "applied");
+        assert_eq!(visible_metadata(&db, "project").unwrap(), desired);
+        assert_eq!(ack_candidate(&mut db), 2);
+        let raw: String = db.query_row("SELECT payload_json FROM projects", [], |r|r.get(0)).unwrap();
+        let payload: Value = serde_json::from_str(&raw).unwrap();
+        assert_eq!(payload["sync_path"], "/private/book.docx");
+        assert_eq!(payload["cover_image"], "local-cover");
+        assert_eq!(payload["extensions"], json!({"local":true}));
+        assert!(!String::from_utf8(bytes.clone()).unwrap().contains("/private/"));
+        drop(db);
+        let mut db = sqlite::open_database(&path).unwrap();
+        assert_eq!(preserve_authenticated_event(&mut db, ACCOUNT, "project", &bytes, NOW).unwrap(), "applied");
+        assert_eq!(visible_metadata(&db, "project").unwrap(), desired);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM notes", [], |r|r.get::<_,i64>(0)).unwrap(), 1);
+        let next = json!({"name":"Local edit","goal":3000,"infinite":true,"unit":"symbols","deadline":null,"status":"active","personal_goal":200,"auto_freeze":true,"streak_enabled":true,"work_method":"manual","stages_enabled":false,"combine_stage_mindmaps":false});
+        assert!(capture_normal_edit(&mut db, "project", &next, NOW).unwrap());
+        let outbox = unsealed_genesis(&db, ACCOUNT, DEVICE).unwrap();
+        assert_eq!(outbox.len(), 1);
+        assert_eq!(outbox[0]["metadata"], next);
+        assert_eq!(outbox[0]["header"]["parent_event_ids"], json!([child]));
+        let pending_id = outbox[0]["header"]["event_id"].clone();
+        drop(db);
+        let db = sqlite::open_database(&path).unwrap();
+        assert_eq!(visible_metadata(&db, "project").unwrap(), next);
+        assert_eq!(unsealed_genesis(&db, ACCOUNT, DEVICE).unwrap()[0]["header"]["event_id"], pending_id);
+        drop(db); std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn project_metadata_acceptance_scope_isolation_and_foreign_parent() {
+        let (mut db, path) = database();
+        let peer = "123e4567-e89b-42d3-a456-426614174004";
+        let id = "123e4567-e89b-42d3-a456-426614174071";
+        let bytes = event(id, peer, "Remote");
+        let before = visible_metadata(&db, "project").unwrap();
+        inbound_causal(&db, id, peer, 1, 1);
+        assert!(preserve_authenticated_event(&mut db, "other-account", "project", &bytes, NOW).is_err());
+        assert!(preserve_authenticated_event(&mut db, ACCOUNT, "other-project", &bytes, NOW).is_err());
+        for key in ["account_id", "project_id", "entity_id", "bootstrap_id", "event_id"] {
+            let mut invalid: Value = serde_json::from_slice(&bytes).unwrap();
+            invalid["header"][key] = json!("123e4567-e89b-42d3-a456-426614174088");
+            assert!(preserve_authenticated_event(&mut db, ACCOUNT, "project", &serde_json::to_vec(&invalid).unwrap(), NOW).is_err(), "{key}");
+        }
+        assert_eq!(visible_metadata(&db, "project").unwrap(), before);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_apply_ledger", [], |r|r.get::<_,i64>(0)).unwrap(), 0);
+        preserve_authenticated_event(&mut db, ACCOUNT, "project", &bytes, NOW).unwrap();
+        let candidate = capture_legacy_candidate(&mut db, ACCOUNT, "project", NOW).unwrap();
+        assert!(prepare_metadata_genesis(&mut db, "other-account", &candidate, NOW).is_err());
+        assert!(adopt_authenticated_metadata(&mut db, "other-account", "project", id, &before, NOW).is_err());
+        assert!(assert_runtime_scope(&db, ACCOUNT, peer, DEVICE).is_err());
+        assert!(assert_runtime_scope(&db, ACCOUNT, USER, peer).is_err());
+        assert!(prepare_authoritative_change(&mut db, "other-account", "project", DEVICE, "keep_local", None, None, &before, &[id.into()], NOW).is_err());
+        assert!(prepare_authoritative_change(&mut db, ACCOUNT, "other-project", DEVICE, "keep_local", None, None, &before, &[id.into()], NOW).is_err());
+        let mut foreign: Value = serde_json::from_slice(&causal_event("123e4567-e89b-42d3-a456-426614174072", peer, "Foreign", "update", &[id.into()], 2, 2)).unwrap();
+        foreign["header"]["project_id"] = json!("other-project");
+        foreign["header"]["entity_id"] = json!("other-project");
+        let page = MetadataImportPage { expected_cursor:0, next_cursor:2, has_more:false, page_events:1, page_identity:"a".repeat(64), events:vec![MetadataImportEvent {server_sequence:2, plaintext:serde_json::to_vec(&foreign).unwrap()}] };
+        assert!(commit_metadata_import_page(&mut db, ACCOUNT, USER, "other-project", BOOT, &page).is_err());
+        let progress = read_metadata_import(&mut db, ACCOUNT, "other-project", BOOT).unwrap();
+        assert_eq!(progress.cursor, 0);
+        assert!(progress.head.is_none());
+        let wrong_user_page = MetadataImportPage {events:vec![MetadataImportEvent {server_sequence:1, plaintext:bytes}], ..page};
+        assert!(commit_metadata_import_page(&mut db, ACCOUNT, peer, "project", BOOT, &wrong_user_page).is_err());
+        assert!(read_metadata_import(&mut db, ACCOUNT, "project", peer).is_err());
+        assert_eq!(visible_metadata(&db, "project").unwrap(), before);
+        drop(db); std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn project_metadata_acceptance_tombstone_preserves_contents_and_mixed_ack() {
+        let (mut db, path) = database_with_contents(true);
+        let peer = "123e4567-e89b-42d3-a456-426614174004";
+        let parent = "123e4567-e89b-42d3-a456-426614174071";
+        let deletion = "123e4567-e89b-42d3-a456-426614174072";
+        inbound_causal(&db, parent, peer, 1, 1);
+        preserve_authenticated_event(&mut db, ACCOUNT, "project", &event(parent, peer, "Base"), NOW).unwrap();
+        let local = visible_metadata(&db, "project").unwrap();
+        adopt_authenticated_metadata(&mut db, ACCOUNT, "project", parent, &local, NOW).unwrap();
+        let before = visible_metadata(&db, "project").unwrap();
+        // A malformed intervening Note blocks the shared contiguous prefix.
+        db.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,state,received_at) VALUES(?1,'123e4567-e89b-42d3-a456-426614174073',2,?2,'project','note','note','upsert',1,?3,'received',?3)", params![ACCOUNT,peer,NOW]).unwrap();
+        inbound_causal(&db, deletion, peer, 3, 2);
+        db.execute("UPDATE cloud_sync_inbox SET operation='delete',deleted_at=?1 WHERE event_id=?2", params![NOW,deletion]).unwrap();
+        let mut value: Value = serde_json::from_slice(&causal_event(deletion, peer, "Delete", "delete", &[parent.into()], 2, 2)).unwrap();
+        value["metadata"] = Value::Null;
+        value["deleted_at"] = json!(NOW);
+        let bytes = serde_json::to_vec(&value).unwrap();
+        db.execute("UPDATE cloud_sync_state SET pull_cursor=3", []).unwrap();
+        assert_eq!(preserve_authenticated_event(&mut db, ACCOUNT, "project", &bytes, NOW).unwrap(), "applied");
+        assert_eq!(ack_candidate(&mut db), 1);
+        drop(db);
+        let mut db = sqlite::open_database(&path).unwrap();
+        assert_eq!(preserve_authenticated_event(&mut db, ACCOUNT, "project", &bytes, NOW).unwrap(), "applied");
+        assert_eq!(visible_metadata(&db, "project").unwrap(), before);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM notes", [], |r|r.get::<_,i64>(0)).unwrap(), 1);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_events", [], |r|r.get::<_,i64>(0)).unwrap(), 2);
+        assert_eq!(ack_candidate(&mut db), 1);
+        drop(db); std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn project_metadata_acceptance_import_byte_cap_preserves_prefix_on_restart() {
+        let (mut db, path) = database();
+        let id = "123e4567-e89b-42d3-a456-426614174071";
+        let first = MetadataImportPage { expected_cursor:0, next_cursor:1, has_more:true, page_events:1, page_identity:"a".repeat(64), events:vec![MetadataImportEvent {server_sequence:1, plaintext:event(id, DEVICE, "Prefix")}] };
+        commit_metadata_import_page(&mut db, ACCOUNT, USER, "project", BOOT, &first).unwrap();
+        // Model an already verified aggregate at the frozen byte bound without
+        // generating a large fixture. The production boundary is checked next.
+        db.execute("UPDATE cloud_sync_metadata_imports SET payload_bytes=16777216 WHERE account_id=?1", [ACCOUNT]).unwrap();
+        let next = MetadataImportPage { expected_cursor:1, next_cursor:2, has_more:false, page_events:1, page_identity:"b".repeat(64), events:vec![MetadataImportEvent {server_sequence:2, plaintext:causal_event("123e4567-e89b-42d3-a456-426614174072", DEVICE, "Tail", "update", &[id.into()], 2, 2)}] };
+        let blocked = commit_metadata_import_page(&mut db, ACCOUNT, USER, "project", BOOT, &next).unwrap();
+        assert_eq!(blocked.blocker.as_deref(), Some("metadata_import_resource_limit"));
+        assert_eq!(blocked.cursor, 1);
+        assert_eq!(blocked.event_count, 1);
+        assert!(blocked.head.is_none() && blocked.metadata.is_none());
+        drop(db);
+        let mut db = sqlite::open_database(&path).unwrap();
+        let blocked = read_metadata_import(&mut db, ACCOUNT, "project", BOOT).unwrap();
+        assert_eq!(blocked.state, "blocked");
+        assert_eq!(blocked.tips, vec![id.to_string()]);
+        assert!(blocked.head.is_none());
+        assert!(commit_metadata_import_page(&mut db, ACCOUNT, USER, "project", BOOT, &next).is_err());
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_import_events", [], |r|r.get::<_,i64>(0)).unwrap(), 1);
+        assert_eq!(db.query_row("SELECT pull_cursor+ack_cursor FROM cloud_sync_state", [], |r|r.get::<_,i64>(0)).unwrap(), 0);
+        assert_eq!(visible_metadata(&db, "project").unwrap()["name"], "Local name");
+        drop(db); std::fs::remove_file(path).unwrap();
     }
 }
 

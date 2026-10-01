@@ -47,6 +47,36 @@ describe('project metadata explicit authority panel', () => {
     expect(h.adopt).toHaveBeenCalledWith('project', 'first', local)
     expect(h.decide).not.toHaveBeenCalled(); h.wrapper.unmount()
   })
+  it('keeps local values through the explicit causal decision', async () => {
+    const h = setup('local_differs_from_authenticated')
+    await click(h.wrapper, 'Сохранить локальную версию как новое облачное изменение')
+    expect(h.decide).toHaveBeenCalledWith('project', 'keep_local', null, null, local, ['first'])
+    h.wrapper.unmount()
+  })
+  it('retries pending publication explicitly and surfaces a failed retry', async () => {
+    const h = setup('resolution_pending')
+    const retry = vi.spyOn(h.cloud, 'retry').mockRejectedValueOnce(new Error('durable blocker')).mockResolvedValue()
+    expect(retry).not.toHaveBeenCalled()
+    await click(h.wrapper, 'Безопасно продолжить')
+    expect(h.wrapper.find('[role="alert"]').exists()).toBe(true)
+    expect(h.inspect).not.toHaveBeenCalled()
+    await click(h.wrapper, 'Безопасно продолжить')
+    expect(retry).toHaveBeenCalledTimes(2)
+    expect(h.inspect).toHaveBeenCalledWith('project')
+    expect(h.wrapper.find('[role="alert"]').exists()).toBe(false)
+    h.wrapper.unmount()
+  })
+  it('submits a manual conflict result with the exact complete tip set', async () => {
+    const h = setup('metadata_conflict', [
+      { event_id: 'second', revision: 2, operation: 'update', metadata: { ...local, name: 'Gamma' } },
+      { event_id: 'first', revision: 2, operation: 'update', metadata: { ...local, name: 'Beta' } },
+    ])
+    await click(h.wrapper, 'Редактировать результат')
+    await h.wrapper.find('form input').setValue('Merged conflict')
+    await h.wrapper.find('form').trigger('submit'); await flushPromises()
+    expect(h.decide).toHaveBeenCalledWith('project', 'resolve_manual', null, { ...local, name: 'Merged conflict' }, local, ['first', 'second'])
+    h.wrapper.unmount()
+  })
   it('preserves all branch identities in the explicit resolution request', async () => {
     const h = setup('genesis_conflict', [
       { event_id: 'second', revision: 1, operation: 'create', metadata: { ...local, name: 'Gamma' } },

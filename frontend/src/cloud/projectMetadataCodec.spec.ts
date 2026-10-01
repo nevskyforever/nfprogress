@@ -35,9 +35,11 @@ describe('C18 metadata codec and isolated E2EE', () => {
     expect(encodeProjectMetadataEvent(a)).toEqual(encodeProjectMetadataEvent(b))
     expect(decodeProjectMetadataEvent(encodeProjectMetadataEvent(a))).toEqual(a)
     expect(unframeProjectMetadata(frameProjectMetadata(a))).toEqual(a)
-    const unsupported = frameProjectMetadata(a)
-    unsupported[11] = 1
-    expect(() => unframeProjectMetadata(unsupported)).toThrow('invalid_project_metadata')
+    for (const position of [8, 9, 10, 11]) {
+      const unsupported = frameProjectMetadata(a)
+      unsupported[position] = unsupported[position]! + 1
+      expect(() => unframeProjectMetadata(unsupported)).toThrow('invalid_project_metadata')
+    }
   })
   it('rejects unknown fields, malformed types, invalid causal identity and tombstone', () => {
     expect(() => encodeProjectMetadataEvent({ ...event(), metadata: { ...event().metadata, secret: 'x' } } as ProjectMetadataEvent)).toThrow()
