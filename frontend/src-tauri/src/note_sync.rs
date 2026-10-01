@@ -306,7 +306,7 @@ mod cloud_project_bootstrap_tests {
         let mut collision = database(&[]);
         let command = ImportRemoteCloudProjectCommand {
             project_id: "p".into(), display_name: "Remote".into(), account_id: ACCOUNT.into(),
-            device_id: DEVICE.into(), bootstrap_id: generate_bootstrap_id().unwrap(), remote_high_water: 0,
+            device_id: DEVICE.into(), bootstrap_id: generate_bootstrap_id().unwrap(), remote_high_water: 0, authenticated_metadata: None,
         };
         assert!(import_remote_cloud_project(&mut collision, &command).is_err());
 
@@ -4188,6 +4188,8 @@ pub(crate) struct ImportRemoteCloudProjectCommand {
     pub device_id: String,
     pub bootstrap_id: String,
     pub remote_high_water: i64,
+    #[serde(default)]
+    pub authenticated_metadata: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -5440,6 +5442,11 @@ pub(crate) fn import_remote_cloud_project(
         "INSERT INTO projects(id,name,goal,infinite,unit,status,created_at,updated_at,payload_json) VALUES(?1,?2,NULL,1,'symbols','активен',?3,?3,?4)",
         rusqlite::params![command.project_id, name, now, payload.to_string()],
     )?;
+    if let Some(metadata)=command.authenticated_metadata.as_ref() {
+        crate::project_metadata_sync::write_visible_metadata(&transaction,&command.project_id,metadata,&now)
+            .map_err(|_|NoteSyncError::InvalidSealState("invalid authenticated import metadata"))?;
+        // The writer preserves locally initialized bindings and extension fields.
+    }
     let position: i64 = transaction.query_row(
         "SELECT COALESCE(MAX(position),-1)+1 FROM project_order", [], |row| row.get(0),
     )?;

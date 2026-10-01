@@ -2272,6 +2272,219 @@ _qt_translator: QTranslator | None = None
 _placeholder_pattern = re.compile(r"\{[^{}]*\}")
 
 
+# C18 metadata authority terminology, generated locally without external transmission.
+_C18_METADATA_TRANSLATIONS = {
+    "en": {
+        "Автозаморозка": "Automatic freeze",
+        "Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.": "A local name is required without cloud metadata history. Conflicting cloud versions are reconciled after import.",
+        "Включить синхронизацию метаданных": "Enable metadata sync",
+        "Выбранный результат сохранён. Ожидается подтверждение синхронизации.": "Your chosen result is saved. Waiting for sync confirmation.",
+        "Для синхронизации метаданных подтвердите поддержку на всех устройствах, затем включите новый протокол аккаунта.": "Confirm metadata support on every device, then enable the new account protocol.",
+        "Использовать облачную версию": "Use cloud version",
+        "Использовать эту версию для согласования": "Use this version to reconcile",
+        "Личная цель": "Personal goal",
+        "Локальная версия": "Local version",
+        "Локальная версия подготовлена к явной публикации.": "The local version is ready for explicit publication.",
+        "Локальная и проверенная облачная версии различаются. Выберите результат.": "The local and authenticated cloud versions differ. Choose the result.",
+        "Локальная и проверенная облачная версии совпадают.": "The local and authenticated cloud versions match.",
+        "Локальное название для проекта без облачных метаданных": "Local name for a project without cloud metadata",
+        "Метаданные проекта": "Project metadata",
+        "Метаданные согласованы. Изменения проекта передаются через зашифрованную историю.": "Metadata is reconciled. Project changes use encrypted history.",
+        "Метаданные существуют только на этом устройстве.": "Metadata exists only on this device.",
+        "Метод работы": "Working method",
+        "Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.": "Reconciliation could not be completed. Check the state and safely retry.",
+        "Облачные метаданные проекта": "Cloud project metadata",
+        "Обнаружены несколько первоначальных облачных версий. Выберите результат согласования.": "Several initial cloud versions were found. Choose a reconciliation result.",
+        "Обнаружены параллельные изменения метаданных. Выберите результат согласования.": "Concurrent metadata changes were found. Choose a reconciliation result.",
+        "Объединение карт этапов": "Combine stage maps",
+        "Опубликовать локальные метаданные": "Publish local metadata",
+        "Опубликовать результат согласования": "Publish reconciliation result",
+        "Подтвердить поддержку устройства": "Confirm device support",
+        "Проверенная облачная версия": "Authenticated cloud version",
+        "Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.": "Authenticated cloud metadata supplies the project name and settings. A local name is needed only without this history.",
+        "Проверить метаданные": "Inspect metadata",
+        "Публикация создаст первую проверенную облачную версию показанных локальных метаданных.": "Publication creates the first authenticated cloud version of the local metadata shown.",
+        "Редактировать результат": "Edit result",
+        "Согласование метаданных заблокировано. Локальная версия сохранена.": "Metadata reconciliation is blocked. The local version is preserved.",
+        "Сохранить локальную версию как новое облачное изменение": "Keep local version as a new cloud change"
+    },
+    "es": {
+        "Автозаморозка": "Congelación automática",
+        "Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.": "Sin historial de metadatos en la nube se requiere un nombre local. Las versiones en conflicto se concilian después de importar.",
+        "Включить синхронизацию метаданных": "Activar sincronización de metadatos",
+        "Выбранный результат сохранён. Ожидается подтверждение синхронизации.": "El resultado elegido está guardado. Esperando confirmación de sincronización.",
+        "Для синхронизации метаданных подтвердите поддержку на всех устройствах, затем включите новый протокол аккаунта.": "Confirme la compatibilidad de metadatos en todos los dispositivos y active el nuevo protocolo de la cuenta.",
+        "Использовать облачную версию": "Usar versión de la nube",
+        "Использовать эту версию для согласования": "Usar esta versión para conciliar",
+        "Личная цель": "Meta personal",
+        "Локальная версия": "Versión local",
+        "Локальная версия подготовлена к явной публикации.": "La versión local está lista para su publicación explícita.",
+        "Локальная и проверенная облачная версии различаются. Выберите результат.": "Las versiones local y autenticada de la nube difieren. Elija el resultado.",
+        "Локальная и проверенная облачная версии совпадают.": "Las versiones local y autenticada de la nube coinciden.",
+        "Локальное название для проекта без облачных метаданных": "Nombre local para un proyecto sin metadatos en la nube",
+        "Метаданные проекта": "Metadatos del proyecto",
+        "Метаданные согласованы. Изменения проекта передаются через зашифрованную историю.": "Los metadatos están conciliados. Los cambios usan el historial cifrado.",
+        "Метаданные существуют только на этом устройстве.": "Los metadatos existen solo en este dispositivo.",
+        "Метод работы": "Método de trabajo",
+        "Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.": "No se pudo completar la conciliación. Compruebe el estado y vuelva a intentarlo de forma segura.",
+        "Облачные метаданные проекта": "Metadatos del proyecto en la nube",
+        "Обнаружены несколько первоначальных облачных версий. Выберите результат согласования.": "Se encontraron varias versiones iniciales en la nube. Elija el resultado de la conciliación.",
+        "Обнаружены параллельные изменения метаданных. Выберите результат согласования.": "Se encontraron cambios simultáneos de metadatos. Elija el resultado de la conciliación.",
+        "Объединение карт этапов": "Combinar mapas de etapas",
+        "Опубликовать локальные метаданные": "Publicar metadatos locales",
+        "Опубликовать результат согласования": "Publicar resultado de conciliación",
+        "Подтвердить поддержку устройства": "Confirmar compatibilidad del dispositivo",
+        "Проверенная облачная версия": "Versión autenticada de la nube",
+        "Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.": "Los metadatos autenticados de la nube definen el nombre y los parámetros. El nombre local solo se necesita sin ese historial.",
+        "Проверить метаданные": "Comprobar metadatos",
+        "Публикация создаст первую проверенную облачную версию показанных локальных метаданных.": "La publicación crea la primera versión autenticada en la nube de los metadatos locales mostrados.",
+        "Редактировать результат": "Editar resultado",
+        "Согласование метаданных заблокировано. Локальная версия сохранена.": "La conciliación está bloqueada. La versión local se conserva.",
+        "Сохранить локальную версию как новое облачное изменение": "Conservar versión local como nuevo cambio en la nube"
+    },
+    "de": {
+        "Автозаморозка": "Automatisches Einfrieren",
+        "Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.": "Ohne Metadatenverlauf in der Cloud ist ein lokaler Name erforderlich. Konflikte werden nach dem Import abgestimmt.",
+        "Включить синхронизацию метаданных": "Metadatensynchronisierung aktivieren",
+        "Выбранный результат сохранён. Ожидается подтверждение синхронизации.": "Das gewählte Ergebnis ist gespeichert. Die Synchronisierungsbestätigung steht aus.",
+        "Для синхронизации метаданных подтвердите поддержку на всех устройствах, затем включите новый протокол аккаунта.": "Bestätigen Sie die Metadatenunterstützung auf allen Geräten und aktivieren Sie dann das neue Kontoprotokoll.",
+        "Использовать облачную версию": "Cloud-Version verwenden",
+        "Использовать эту версию для согласования": "Mit dieser Version abstimmen",
+        "Личная цель": "Persönliches Ziel",
+        "Локальная версия": "Lokale Version",
+        "Локальная версия подготовлена к явной публикации.": "Die lokale Version ist für die ausdrückliche Veröffentlichung vorbereitet.",
+        "Локальная и проверенная облачная версии различаются. Выберите результат.": "Die lokale und die authentifizierte Cloud-Version unterscheiden sich. Wählen Sie das Ergebnis.",
+        "Локальная и проверенная облачная версии совпадают.": "Die lokale und die authentifizierte Cloud-Version stimmen überein.",
+        "Локальное название для проекта без облачных метаданных": "Lokaler Name für ein Projekt ohne Cloud-Metadaten",
+        "Метаданные проекта": "Projektmetadaten",
+        "Метаданные согласованы. Изменения проекта передаются через зашифрованную историю.": "Die Metadaten sind abgestimmt. Projektänderungen werden über den verschlüsselten Verlauf übertragen.",
+        "Метаданные существуют только на этом устройстве.": "Die Metadaten existieren nur auf diesem Gerät.",
+        "Метод работы": "Arbeitsmethode",
+        "Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.": "Die Abstimmung konnte nicht abgeschlossen werden. Prüfen Sie den Zustand und wiederholen Sie die Aktion sicher.",
+        "Облачные метаданные проекта": "Projektmetadaten in der Cloud",
+        "Обнаружены несколько первоначальных облачных версий. Выберите результат согласования.": "Mehrere ursprüngliche Cloud-Versionen wurden gefunden. Wählen Sie das Ergebnis der Abstimmung.",
+        "Обнаружены параллельные изменения метаданных. Выберите результат согласования.": "Parallele Metadatenänderungen wurden gefunden. Wählen Sie das Ergebnis der Abstimmung.",
+        "Объединение карт этапов": "Phasenkarten zusammenführen",
+        "Опубликовать локальные метаданные": "Lokale Metadaten veröffentlichen",
+        "Опубликовать результат согласования": "Abstimmungsergebnis veröffentlichen",
+        "Подтвердить поддержку устройства": "Geräteunterstützung bestätigen",
+        "Проверенная облачная версия": "Authentifizierte Cloud-Version",
+        "Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.": "Authentifizierte Cloud-Metadaten bestimmen Namen und Einstellungen. Ein lokaler Name ist nur ohne diesen Verlauf nötig.",
+        "Проверить метаданные": "Metadaten prüfen",
+        "Публикация создаст первую проверенную облачную версию показанных локальных метаданных.": "Die Veröffentlichung erstellt die erste authentifizierte Cloud-Version der angezeigten lokalen Metadaten.",
+        "Редактировать результат": "Ergebnis bearbeiten",
+        "Согласование метаданных заблокировано. Локальная версия сохранена.": "Die Metadatenabstimmung ist blockiert. Die lokale Version bleibt erhalten.",
+        "Сохранить локальную версию как новое облачное изменение": "Lokale Version als neue Cloud-Änderung behalten"
+    },
+    "fr": {
+        "Автозаморозка": "Gel automatique",
+        "Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.": "Sans historique de métadonnées dans le cloud, un nom local est nécessaire. Les conflits sont résolus après l’importation.",
+        "Включить синхронизацию метаданных": "Activer la synchronisation des métadonnées",
+        "Выбранный результат сохранён. Ожидается подтверждение синхронизации.": "Le résultat choisi est enregistré. En attente de confirmation de synchronisation.",
+        "Для синхронизации метаданных подтвердите поддержку на всех устройствах, затем включите новый протокол аккаунта.": "Confirmez la prise en charge des métadonnées sur chaque appareil, puis activez le nouveau protocole du compte.",
+        "Использовать облачную версию": "Utiliser la version du cloud",
+        "Использовать эту версию для согласования": "Utiliser cette version pour la résolution",
+        "Личная цель": "Objectif personnel",
+        "Локальная версия": "Version locale",
+        "Локальная версия подготовлена к явной публикации.": "La version locale est prête à être publiée sur votre demande.",
+        "Локальная и проверенная облачная версии различаются. Выберите результат.": "Les versions locale et authentifiée du cloud diffèrent. Choisissez le résultat.",
+        "Локальная и проверенная облачная версии совпадают.": "Les versions locale et authentifiée du cloud correspondent.",
+        "Локальное название для проекта без облачных метаданных": "Nom local pour un projet sans métadonnées dans le cloud",
+        "Метаданные проекта": "Métadonnées du projet",
+        "Метаданные согласованы. Изменения проекта передаются через зашифрованную историю.": "Les métadonnées sont résolues. Les modifications utilisent l’historique chiffré.",
+        "Метаданные существуют только на этом устройстве.": "Les métadonnées existent uniquement sur cet appareil.",
+        "Метод работы": "Méthode de travail",
+        "Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.": "La résolution n’a pas pu être terminée. Vérifiez l’état et réessayez en toute sécurité.",
+        "Облачные метаданные проекта": "Métadonnées du projet dans le cloud",
+        "Обнаружены несколько первоначальных облачных версий. Выберите результат согласования.": "Plusieurs versions initiales du cloud ont été trouvées. Choisissez le résultat de la résolution.",
+        "Обнаружены параллельные изменения метаданных. Выберите результат согласования.": "Des modifications simultanées de métadonnées ont été trouvées. Choisissez le résultat de la résolution.",
+        "Объединение карт этапов": "Combiner les cartes des étapes",
+        "Опубликовать локальные метаданные": "Publier les métadonnées locales",
+        "Опубликовать результат согласования": "Publier le résultat de la résolution",
+        "Подтвердить поддержку устройства": "Confirmer la prise en charge de l’appareil",
+        "Проверенная облачная версия": "Version authentifiée du cloud",
+        "Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.": "Les métadonnées authentifiées du cloud définissent le nom et les paramètres. Un nom local est nécessaire uniquement sans cet historique.",
+        "Проверить метаданные": "Vérifier les métadonnées",
+        "Публикация создаст первую проверенную облачную версию показанных локальных метаданных.": "La publication crée la première version authentifiée du cloud des métadonnées locales affichées.",
+        "Редактировать результат": "Modifier le résultat",
+        "Согласование метаданных заблокировано. Локальная версия сохранена.": "La résolution des métadonnées est bloquée. La version locale est conservée.",
+        "Сохранить локальную версию как новое облачное изменение": "Conserver la version locale comme nouvelle modification du cloud"
+    },
+    "pt_BR": {
+        "Автозаморозка": "Congelamento automático",
+        "Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.": "Sem histórico de metadados na nuvem, é necessário um nome local. Versões em conflito são conciliadas após a importação.",
+        "Включить синхронизацию метаданных": "Ativar sincronização de metadados",
+        "Выбранный результат сохранён. Ожидается подтверждение синхронизации.": "O resultado escolhido foi salvo. Aguardando confirmação da sincronização.",
+        "Для синхронизации метаданных подтвердите поддержку на всех устройствах, затем включите новый протокол аккаунта.": "Confirme o suporte a metadados em todos os dispositivos e ative o novo protocolo da conta.",
+        "Использовать облачную версию": "Usar versão da nuvem",
+        "Использовать эту версию для согласования": "Usar esta versão para conciliar",
+        "Личная цель": "Meta pessoal",
+        "Локальная версия": "Versão local",
+        "Локальная версия подготовлена к явной публикации.": "A versão local está pronta para publicação explícita.",
+        "Локальная и проверенная облачная версии различаются. Выберите результат.": "As versões local e autenticada da nuvem são diferentes. Escolha o resultado.",
+        "Локальная и проверенная облачная версии совпадают.": "As versões local e autenticada da nuvem correspondem.",
+        "Локальное название для проекта без облачных метаданных": "Nome local para um projeto sem metadados na nuvem",
+        "Метаданные проекта": "Metadados do projeto",
+        "Метаданные согласованы. Изменения проекта передаются через зашифрованную историю.": "Os metadados estão conciliados. As alterações usam o histórico criptografado.",
+        "Метаданные существуют только на этом устройстве.": "Os metadados existem apenas neste dispositivo.",
+        "Метод работы": "Método de trabalho",
+        "Не удалось завершить согласование. Проверьте состояние и безопасно повторите действие.": "Não foi possível concluir a conciliação. Verifique o estado e tente novamente com segurança.",
+        "Облачные метаданные проекта": "Metadados do projeto na nuvem",
+        "Обнаружены несколько первоначальных облачных версий. Выберите результат согласования.": "Foram encontradas várias versões iniciais na nuvem. Escolha o resultado da conciliação.",
+        "Обнаружены параллельные изменения метаданных. Выберите результат согласования.": "Foram encontradas alterações simultâneas nos metadados. Escolha o resultado da conciliação.",
+        "Объединение карт этапов": "Combinar mapas das etapas",
+        "Опубликовать локальные метаданные": "Publicar metadados locais",
+        "Опубликовать результат согласования": "Publicar resultado da conciliação",
+        "Подтвердить поддержку устройства": "Confirmar suporte do dispositivo",
+        "Проверенная облачная версия": "Versão autenticada da nuvem",
+        "Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.": "Os metadados autenticados da nuvem definem o nome e os parâmetros. Um nome local só é necessário sem esse histórico.",
+        "Проверить метаданные": "Verificar metadados",
+        "Публикация создаст первую проверенную облачную версию показанных локальных метаданных.": "A publicação cria a primeira versão autenticada na nuvem dos metadados locais exibidos.",
+        "Редактировать результат": "Editar resultado",
+        "Согласование метаданных заблокировано. Локальная версия сохранена.": "A conciliação de metadados está bloqueada. A versão local foi preservada.",
+        "Сохранить локальную версию как новое облачное изменение": "Manter versão local como nova alteração na nuvem"
+    }
+}
+for _language, _translations in _C18_METADATA_TRANSLATIONS.items():
+    TRANSLATION_OVERRIDES[_language].update(_translations)
+
+
+_C18_METADATA_HELP_TRANSLATIONS = {
+    "en": {
+        "<html><body>\n<h2>Облачные метаданные проекта</h2>\n<p>В настройках облака проверьте метаданные подключённого проекта. Подтвердите поддержку на всех устройствах и включите синхронизацию метаданных. Первоначальная публикация выполняется только вашим действием.</p>\n<p>Если версии различаются, используйте облачную, сохраните локальную как новое изменение или отредактируйте результат. При конфликте выберите ветку или составьте общий результат. Все предыдущие версии сохраняются. После согласования обычное редактирование создаёт зашифрованные изменения. Незавершённое действие можно безопасно продолжить.</p>\n<p>При импорте проверенная облачная история задаёт параметры проекта; конфликт требует выбора. Без такой истории нужно локальное название и отдельное подтверждение публикации. Локальные пути, документы и обложки сохраняются на устройстве.</p>\n</body></html>": "<html><body>\n<h2>Cloud project metadata</h2>\n<p>Inspect the connected project's metadata in cloud settings. Confirm support on every device and enable metadata sync. Initial publication requires your explicit action.</p>\n<p>If versions differ, use the cloud version, keep the local version as a new change, or edit the result. For a conflict, choose a branch or compose a merged result. All previous versions are preserved. After reconciliation, ordinary editing creates encrypted changes. An unfinished action can be safely resumed.</p>\n<p>During import, authenticated cloud history supplies project settings; conflicts require a choice. Without this history, a local name and separate publication confirmation are required. Local paths, documents and covers remain on the device.</p>\n</body></html>"
+    },
+    "es": {
+        "<html><body>\n<h2>Облачные метаданные проекта</h2>\n<p>В настройках облака проверьте метаданные подключённого проекта. Подтвердите поддержку на всех устройствах и включите синхронизацию метаданных. Первоначальная публикация выполняется только вашим действием.</p>\n<p>Если версии различаются, используйте облачную, сохраните локальную как новое изменение или отредактируйте результат. При конфликте выберите ветку или составьте общий результат. Все предыдущие версии сохраняются. После согласования обычное редактирование создаёт зашифрованные изменения. Незавершённое действие можно безопасно продолжить.</p>\n<p>При импорте проверенная облачная история задаёт параметры проекта; конфликт требует выбора. Без такой истории нужно локальное название и отдельное подтверждение публикации. Локальные пути, документы и обложки сохраняются на устройстве.</p>\n</body></html>": "<html><body>\n<h2>Metadatos del proyecto en la nube</h2>\n<p>Compruebe los metadatos del proyecto conectado en los ajustes de la nube. Confirme la compatibilidad en todos los dispositivos y active la sincronización de metadatos. La publicación inicial requiere una acción explícita.</p>\n<p>Si las versiones difieren, use la de la nube, conserve la local como nuevo cambio o edite el resultado. Ante un conflicto, elija una rama o componga un resultado combinado. Se conservan todas las versiones anteriores. Tras la conciliación, la edición normal crea cambios cifrados. Puede reanudar una acción pendiente de forma segura.</p>\n<p>Al importar, el historial autenticado de la nube define los parámetros del proyecto; los conflictos requieren una elección. Sin ese historial, se necesita un nombre local y una confirmación de publicación aparte. Las rutas locales, los documentos y las portadas permanecen en el dispositivo.</p>\n</body></html>"
+    },
+    "de": {
+        "<html><body>\n<h2>Облачные метаданные проекта</h2>\n<p>В настройках облака проверьте метаданные подключённого проекта. Подтвердите поддержку на всех устройствах и включите синхронизацию метаданных. Первоначальная публикация выполняется только вашим действием.</p>\n<p>Если версии различаются, используйте облачную, сохраните локальную как новое изменение или отредактируйте результат. При конфликте выберите ветку или составьте общий результат. Все предыдущие версии сохраняются. После согласования обычное редактирование создаёт зашифрованные изменения. Незавершённое действие можно безопасно продолжить.</p>\n<p>При импорте проверенная облачная история задаёт параметры проекта; конфликт требует выбора. Без такой истории нужно локальное название и отдельное подтверждение публикации. Локальные пути, документы и обложки сохраняются на устройстве.</p>\n</body></html>": "<html><body>\n<h2>Projektmetadaten in der Cloud</h2>\n<p>Prüfen Sie die Metadaten des verbundenen Projekts in den Cloud-Einstellungen. Bestätigen Sie die Unterstützung auf allen Geräten und aktivieren Sie die Metadatensynchronisierung. Die erste Veröffentlichung erfordert Ihre ausdrückliche Aktion.</p>\n<p>Bei unterschiedlichen Versionen verwenden Sie die Cloud-Version, behalten die lokale Version als neue Änderung oder bearbeiten das Ergebnis. Bei einem Konflikt wählen Sie einen Zweig oder erstellen ein gemeinsames Ergebnis. Alle früheren Versionen bleiben erhalten. Nach der Abstimmung erstellt die normale Bearbeitung verschlüsselte Änderungen. Eine offene Aktion kann sicher fortgesetzt werden.</p>\n<p>Beim Import bestimmt der authentifizierte Cloud-Verlauf die Projekteinstellungen; Konflikte erfordern eine Auswahl. Ohne diesen Verlauf sind ein lokaler Name und eine gesonderte Veröffentlichungsbestätigung nötig. Lokale Pfade, Dokumente und Titelbilder bleiben auf dem Gerät.</p>\n</body></html>"
+    },
+    "fr": {
+        "<html><body>\n<h2>Облачные метаданные проекта</h2>\n<p>В настройках облака проверьте метаданные подключённого проекта. Подтвердите поддержку на всех устройствах и включите синхронизацию метаданных. Первоначальная публикация выполняется только вашим действием.</p>\n<p>Если версии различаются, используйте облачную, сохраните локальную как новое изменение или отредактируйте результат. При конфликте выберите ветку или составьте общий результат. Все предыдущие версии сохраняются. После согласования обычное редактирование создаёт зашифрованные изменения. Незавершённое действие можно безопасно продолжить.</p>\n<p>При импорте проверенная облачная история задаёт параметры проекта; конфликт требует выбора. Без такой истории нужно локальное название и отдельное подтверждение публикации. Локальные пути, документы и обложки сохраняются на устройстве.</p>\n</body></html>": "<html><body>\n<h2>Métadonnées du projet dans le cloud</h2>\n<p>Vérifiez les métadonnées du projet connecté dans les paramètres du cloud. Confirmez la prise en charge sur chaque appareil et activez la synchronisation des métadonnées. La publication initiale nécessite votre action explicite.</p>\n<p>Si les versions diffèrent, utilisez celle du cloud, conservez la version locale comme nouvelle modification ou modifiez le résultat. En cas de conflit, choisissez une branche ou composez un résultat commun. Toutes les versions précédentes sont conservées. Après la résolution, les modifications ordinaires créent des changements chiffrés. Une action inachevée peut être reprise en toute sécurité.</p>\n<p>À l’importation, l’historique authentifié du cloud définit les paramètres du projet ; les conflits nécessitent un choix. Sans cet historique, un nom local et une confirmation de publication distincte sont nécessaires. Les chemins locaux, documents et couvertures restent sur l’appareil.</p>\n</body></html>"
+    },
+    "pt_BR": {
+        "<html><body>\n<h2>Облачные метаданные проекта</h2>\n<p>В настройках облака проверьте метаданные подключённого проекта. Подтвердите поддержку на всех устройствах и включите синхронизацию метаданных. Первоначальная публикация выполняется только вашим действием.</p>\n<p>Если версии различаются, используйте облачную, сохраните локальную как новое изменение или отредактируйте результат. При конфликте выберите ветку или составьте общий результат. Все предыдущие версии сохраняются. После согласования обычное редактирование создаёт зашифрованные изменения. Незавершённое действие можно безопасно продолжить.</p>\n<p>При импорте проверенная облачная история задаёт параметры проекта; конфликт требует выбора. Без такой истории нужно локальное название и отдельное подтверждение публикации. Локальные пути, документы и обложки сохраняются на устройстве.</p>\n</body></html>": "<html><body>\n<h2>Metadados do projeto na nuvem</h2>\n<p>Verifique os metadados do projeto conectado nas configurações da nuvem. Confirme o suporte em todos os dispositivos e ative a sincronização de metadados. A publicação inicial exige sua ação explícita.</p>\n<p>Se as versões forem diferentes, use a da nuvem, mantenha a local como nova alteração ou edite o resultado. Em caso de conflito, escolha uma ramificação ou componha um resultado combinado. Todas as versões anteriores são preservadas. Após a conciliação, a edição normal cria alterações criptografadas. Uma ação incompleta pode ser retomada com segurança.</p>\n<p>Na importação, o histórico autenticado da nuvem define os parâmetros do projeto; conflitos exigem uma escolha. Sem esse histórico, é necessário um nome local e uma confirmação de publicação separada. Caminhos locais, documentos e capas permanecem no dispositivo.</p>\n</body></html>"
+    }
+}
+for _language, _translations in _C18_METADATA_HELP_TRANSLATIONS.items():
+    TRANSLATION_OVERRIDES[_language].update(_translations)
+
+
+for _language, _manual, _yes in (
+    ("en", "Manual", "Yes"), ("es", "Manual", "Sí"), ("de", "Manuell", "Ja"),
+    ("fr", "Manuel", "Oui"), ("pt_BR", "Manual", "Sim"),
+):
+    TRANSLATION_OVERRIDES[_language].update({"Вручную": _manual, "Да": _yes})
+
+
+for _language, _translation in (
+    ("en", "Prepare account for metadata sync"), ("es", "Preparar cuenta para sincronizar metadatos"),
+    ("de", "Konto für die Metadatensynchronisierung vorbereiten"), ("fr", "Préparer le compte à la synchronisation des métadonnées"),
+    ("pt_BR", "Preparar conta para sincronizar metadados"),
+):
+    TRANSLATION_OVERRIDES[_language]["Подготовить аккаунт к синхронизации метаданных"] = _translation
+
+
 def normalize_language(language: str | None) -> str:
     if not language:
         return DEFAULT_LANGUAGE

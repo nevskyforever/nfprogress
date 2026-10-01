@@ -196,6 +196,12 @@
   },
   {
     "children": [],
+    "content": "<html><body>\n<h2>Metadatos del proyecto en la nube</h2>\n<p>Compruebe los metadatos del proyecto conectado en los ajustes de la nube. Confirme la compatibilidad en todos los dispositivos y active la sincronización de metadatos. La publicación inicial requiere una acción explícita.</p>\n<p>Si las versiones difieren, use la de la nube, conserve la local como nuevo cambio o edite el resultado. Ante un conflicto, elija una rama o componga un resultado combinado. Se conservan todas las versiones anteriores. Tras la conciliación, la edición normal crea cambios cifrados. Puede reanudar una acción pendiente de forma segura.</p>\n<p>Al importar, el historial autenticado de la nube define los parámetros del proyecto; los conflictos requieren una elección. Sin ese historial, se necesita un nombre local y una confirmación de publicación aparte. Las rutas locales, los documentos y las portadas permanecen en el dispositivo.</p>\n</body></html>",
+    "key": "cloud_project_metadata",
+    "title": "Metadatos del proyecto en la nube"
+  },
+  {
+    "children": [],
     "content": "<html><body>\n<h2>Atajos de teclado</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> abrir la creación de proyectos.</li>\n<li><b>Ctrl+H / Command+H:</b> abrir la ayuda.</li>\n<li><b>Ctrl+S / Command+S:</b> abrir la sincronización del proyecto o etapa seleccionados.</li>\n<li><b>Ctrl+E / Command+E:</b> editar el proyecto o etapa seleccionados.</li>\n<li><b>Delete:</b> eliminar el proyecto o etapa seleccionados tras la confirmación.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> ir a las estadísticas.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> completar el proyecto o etapa seleccionados.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archivar el proyecto seleccionado.</li>\n</ul>\n<p>En la ayuda, Ctrl+F o Command+F lleva el foco a la búsqueda. Los atajos no se interceptan al escribir en un campo, editor o lista desplegable.</p>\n<p>Todos los elementos interactivos son accesibles con el teclado en el orden habitual de Tab. Enter o la barra espaciadora activa el botón seleccionado, y Escape cierra los diálogos y menús compatibles.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Atajos de teclado"

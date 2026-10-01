@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { generateAccountMasterKey, type AccountMasterKey } from '@/crypto'
 import { NormalUserAuthRuntime } from '@/auth/userAuth'
-import { ProjectMetadataMigrationRuntime } from './projectMetadataMigrationRuntime'
+import { ProjectMetadataMigrationRuntime, metadataImportSnapshot } from './projectMetadataMigrationRuntime'
 import { sealProjectMetadataEvent, type ProjectMetadataEvent } from './projectMetadataCodec'
 import type { MetadataMigrationStatus, ProjectMetadataMigrationRepository, ReceivedMetadataEvent, SealedMetadataGenesis } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
 import type { V3MetadataPushItem } from '@/api/encryptedSyncV3'
@@ -62,6 +62,20 @@ describe('explicit metadata migration runtime', () => {
       .mockImplementation(async () => ({ supported_transport_version: 2, writer_transport_version: mode, cutover_epoch: 1 }) as never)
     return { runtime, native, api, ack, status, capabilities, mode: (value: number) => { mode = value } }
   }
+
+  it('prepares the mode-two prerequisite only through a separate explicit action', async () => {
+    const h = await setup(); h.mode(1)
+    const v2 = (await import('@/api/encryptedSyncV2')).encryptedSyncV2Api
+    const prepare = vi.spyOn(v2, 'cutover').mockResolvedValue({ supported_transport_version: 2, writer_transport_version: 2, cutover_epoch: 2 })
+    expect(prepare).not.toHaveBeenCalled()
+    await h.runtime.prepareTransport('local', DEVICE)
+    expect(prepare).toHaveBeenCalledWith('token', 1)
+    expect(h.api.readerReady).not.toHaveBeenCalled(); expect(h.api.cutover).not.toHaveBeenCalled()
+    expect(h.native.prepare).not.toHaveBeenCalled()
+    h.mode(2); await h.runtime.prepareTransport('local', DEVICE)
+    expect(prepare).toHaveBeenCalledTimes(1)
+    prepare.mockRestore(); h.capabilities.mockRestore()
+  })
 
   it('requires explicit mode and keeps missing-lineage candidate as a visible blocker', async () => {
     const h = await setup()
@@ -125,5 +139,33 @@ describe('explicit metadata migration runtime', () => {
     expect((await h.runtime.applyOnce('local', DEVICE)).blocked).toEqual([EVENT])
     expect(h.native.apply).toHaveBeenCalledTimes(1)
     h.capabilities.mockRestore()
+  })
+})
+
+describe('authenticated second-device metadata import', () => {
+  it('derives a sole authenticated head and preserves a concurrent rename conflict', () => {
+    const first = event(); const beta = event(); const gamma = event()
+    beta.header = { ...first.header, event_id: '123e4567-e89b-42d3-a456-426614174011', operation: 'update', parent_event_ids: [EVENT], revision: 2, generation: 2 }
+    gamma.header = { ...beta.header, event_id: '123e4567-e89b-42d3-a456-426614174012', updated_at: '2026-09-22T00:00:00.000000Z' }
+    beta.metadata = { ...first.metadata!, name: 'Project Beta' }; gamma.metadata = { ...first.metadata!, name: 'Project Gamma' }
+    const boot = first.header.bootstrap_id
+    expect(metadataImportSnapshot([first], boot, PROJECT)?.metadata?.name).toBe('Private name')
+    expect(metadataImportSnapshot([first, beta], boot, PROJECT)?.metadata?.name).toBe('Project Beta')
+    for (const branches of [[beta, gamma], [gamma, beta]]) {
+      expect(metadataImportSnapshot([first, ...branches], boot, PROJECT)).toMatchObject({ head: null, metadata: null, tips: [beta.header.event_id, gamma.header.event_id] })
+    }
+    const resolution = event(); resolution.header = { ...beta.header, event_id: '123e4567-e89b-42d3-a456-426614174013', operation: 'resolution', parent_event_ids: [beta.header.event_id, gamma.header.event_id], revision: 3, generation: 3 }
+    resolution.metadata = { ...first.metadata!, name: 'Resolved' }
+    expect(metadataImportSnapshot([first, beta, gamma, resolution], boot, PROJECT)?.metadata?.name).toBe('Resolved')
+    resolution.header.parent_event_ids = [beta.header.event_id]
+    expect(() => metadataImportSnapshot([first, beta, gamma, resolution], boot, PROJECT)).toThrow()
+  })
+  it('requires complete lineage and retains legacy import when no metadata exists', () => {
+    const first = event()
+    expect(metadataImportSnapshot([], first.header.bootstrap_id, PROJECT)).toBeNull()
+    expect(() => metadataImportSnapshot([first], EVENT, PROJECT)).toThrow('metadata_import_lineage')
+    first.header.operation = 'update'; first.header.revision = 2; first.header.generation = 2
+    first.header.parent_event_ids = ['123e4567-e89b-42d3-a456-426614174014']
+    expect(() => metadataImportSnapshot([first], first.header.bootstrap_id, PROJECT)).toThrow('metadata_import_dependency')
   })
 })

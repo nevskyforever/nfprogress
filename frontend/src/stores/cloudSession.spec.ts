@@ -88,6 +88,10 @@ function runtime(record: CurrentUserCryptoRecord = PROVISIONED): CloudSessionRun
     bootstrapLocalProject: vi.fn(),
     importRemoteProject: vi.fn(),
     setProjectPaused: vi.fn().mockResolvedValue(READY_REGISTRY),
+    metadataTransportMode: vi.fn().mockResolvedValue(3),
+    prepareMetadataTransport: vi.fn(), declareMetadataReaderReady: vi.fn(), cutoverMetadataTransport: vi.fn(),
+    projectMetadataAuthority: vi.fn(), beginProjectMetadataMigration: vi.fn(),
+    adoptProjectMetadata: vi.fn(), decideProjectMetadata: vi.fn(),
     retry: vi.fn().mockResolvedValue(EMPTY_CYCLE),
     lock: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
@@ -101,6 +105,29 @@ describe('desktop cloud session owner', () => {
     configureCloudSessionRuntimeFactoryForTests(null)
     configureCloudSessionProjectLoaderForTests(async () => [])
     vi.mocked(currentPlatform).mockReturnValue('tauri')
+  })
+
+  it('does not migrate or reconcile metadata on login, unlock or project listing', async () => {
+    const instance = runtime()
+    configureCloudSessionRuntimeFactoryForTests(() => instance)
+    const store = useCloudSessionStore(); store.initialize()
+    await store.login('normal-user', 'password'); await store.unlock('encryption-password'); await store.refreshProjects()
+    expect(instance.beginProjectMetadataMigration).not.toHaveBeenCalled()
+    expect(instance.adoptProjectMetadata).not.toHaveBeenCalled()
+    expect(instance.decideProjectMetadata).not.toHaveBeenCalled()
+    expect(instance.projectMetadataAuthority).not.toHaveBeenCalled()
+  })
+
+  it('does not restore metadata transport state after logout during explicit preparation', async () => {
+    const instance = runtime(); const pending = deferred<void>()
+    vi.mocked(instance.prepareMetadataTransport).mockReturnValue(pending.promise)
+    configureCloudSessionRuntimeFactoryForTests(() => instance)
+    const store = useCloudSessionStore(); store.initialize()
+    await store.login('normal-user', 'password'); await store.unlock('encryption-password')
+    const preparation = store.prepareMetadataTransport()
+    await store.logout(); pending.resolve(); await preparation
+    expect(store.metadataTransportMode).toBeNull()
+    expect(store.metadataAuthority).toEqual({})
   })
 
   it('constructs exactly one desktop runtime and exposes no transient key material in Pinia state', () => {
@@ -315,6 +342,17 @@ describe('desktop cloud session owner', () => {
     expect(collision.projects[0]).toMatchObject({ status: 'blocked', connectionAvailable: false })
     expect(collision.projects[0]!.reason).toContain('общая история')
     expect(collisionInstance.importRemoteProject).not.toHaveBeenCalled()
+  })
+
+  it('lets authenticated metadata import proceed without an invented local name', async () => {
+    const instance = runtime()
+    ;(instance.importRemoteProject as ReturnType<typeof vi.fn>).mockResolvedValue(progress(READY_REGISTRY))
+    configureCloudSessionRuntimeFactoryForTests(() => instance)
+    const store = useCloudSessionStore(); store.initialize()
+    await store.login('normal-user', 'account-password')
+    await store.unlock('e2ee-password')
+    await store.importProject(PROJECT, '')
+    expect(instance.importRemoteProject).toHaveBeenCalledWith(PROJECT, '', expect.any(Function))
   })
 
   it('keeps one project flight and ignores its stale completion after logout', async () => {

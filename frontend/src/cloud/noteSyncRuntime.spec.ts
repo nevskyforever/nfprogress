@@ -1,3 +1,4 @@
+import { ProjectMetadataMigrationRuntime } from './projectMetadataMigrationRuntime'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ApiError } from '@/api/client'
@@ -168,13 +169,15 @@ describe('headless normal-user Notes sync runtime', () => {
 
     await h.runtime.preflightLocalProject('project')
     await h.runtime.bootstrapLocalProject('project', report)
+    const preview = vi.spyOn(ProjectMetadataMigrationRuntime.prototype, 'importSnapshot').mockResolvedValue(null)
     await h.runtime.importRemoteProject('remote', 'Импорт', report)
+    preview.mockRestore()
     await h.runtime.setProjectPaused('project', true)
 
     const identity = { localAccountId: IDENTITY.local_account_id, deviceId: IDENTITY.device_id }
     expect(h.bootstrap.preflightLocalProject).toHaveBeenCalledWith('project')
     expect(h.bootstrap.bootstrapLocalProject).toHaveBeenCalledWith(identity, 'project', report)
-    expect(h.bootstrap.importRemoteProject).toHaveBeenCalledWith(identity, 'remote', 'Импорт', report)
+    expect(h.bootstrap.importRemoteProject).toHaveBeenCalledWith(identity, 'remote', 'Импорт', report, null)
     expect(h.bootstrap.setPaused).toHaveBeenCalledWith(identity, 'project', true)
   })
 

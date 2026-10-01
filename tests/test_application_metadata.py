@@ -153,6 +153,9 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_update_guard")
         database.execute("DROP TRIGGER cloud_sync_resolution_inbox_applied_is_final")
         database.execute("DROP TRIGGER cloud_sync_note_resolution_block_v1_intent")
+        # Migration 026 authority tables must be absent from this v6 fixture.
+        database.execute("DROP TABLE cloud_sync_metadata_decisions")
+        database.execute("DROP TABLE cloud_sync_metadata_reconciliation")
         # Migration 025 objects must also be absent from the reconstructed v6
         # database so the real forward migration can create them from scratch.
         database.execute("DROP TRIGGER cloud_sync_metadata_candidate_immutable_update")

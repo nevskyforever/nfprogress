@@ -196,6 +196,12 @@
   },
   {
     "children": [],
+    "content": "<html><body>\n<h2>Cloud project metadata</h2>\n<p>Inspect the connected project's metadata in cloud settings. Confirm support on every device and enable metadata sync. Initial publication requires your explicit action.</p>\n<p>If versions differ, use the cloud version, keep the local version as a new change, or edit the result. For a conflict, choose a branch or compose a merged result. All previous versions are preserved. After reconciliation, ordinary editing creates encrypted changes. An unfinished action can be safely resumed.</p>\n<p>During import, authenticated cloud history supplies project settings; conflicts require a choice. Without this history, a local name and separate publication confirmation are required. Local paths, documents and covers remain on the device.</p>\n</body></html>",
+    "key": "cloud_project_metadata",
+    "title": "Cloud project metadata"
+  },
+  {
+    "children": [],
     "content": "<html><body>\n<h2>Keyboard shortcuts</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> open project creation.</li>\n<li><b>Ctrl+H / Command+H:</b> open Help.</li>\n<li><b>Ctrl+S / Command+S:</b> open synchronization for the selected project or stage.</li>\n<li><b>Ctrl+E / Command+E:</b> edit the selected project or stage.</li>\n<li><b>Delete:</b> delete the selected project or stage after confirmation.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> go to statistics.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> complete the selected project or stage.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archive the selected project.</li>\n</ul>\n<p>In Help, Ctrl+F or Command+F moves focus to search. Shortcuts are not intercepted while typing in a field, editor, or drop-down list.</p>\n<p>All interactive elements are available from the keyboard in the normal Tab order. Enter or Space activates the selected button, and Escape closes supported dialogs and menus.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Hotkeys"

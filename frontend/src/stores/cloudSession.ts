@@ -1,3 +1,4 @@
+import { announceDataChange } from '@/services/dataChanges'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -19,6 +20,8 @@ import {
 } from '@/cloud/projectBootstrap'
 import { NoteSyncRuntime, type NoteSyncRuntimeUnlockResult } from '@/cloud/noteSyncRuntime'
 import type { NoteSyncProductionResult } from '@/cloud/noteSyncTransportRouter'
+import type { MetadataAuthorityView, MetadataDecisionKind, MetadataMigrationStatus } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
+import type { ProjectMetadata } from '@/cloud/projectMetadataCodec'
 import { canEnableCloudProjectSync } from '@/cloud/capabilities'
 import type { CloudProjectBootstrapRecord } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
 import { currentPlatform } from '@/platform/runtime'
@@ -77,6 +80,15 @@ export interface CloudSessionRuntime {
   importRemoteProject(projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   setProjectPaused(projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
   retry(): Promise<NoteSyncProductionResult>
+  metadataTransportMode(): Promise<1 | 2 | 3>
+  prepareMetadataTransport(): Promise<void>
+  declareMetadataReaderReady(): Promise<void>
+  cutoverMetadataTransport(): Promise<void>
+  projectMetadataAuthority(projectId: string): Promise<MetadataAuthorityView>
+  beginProjectMetadataMigration(projectId: string): Promise<MetadataMigrationStatus>
+  adoptProjectMetadata(projectId: string, expectedHead: string, expectedLocal: ProjectMetadata): Promise<MetadataAuthorityView>
+  decideProjectMetadata(projectId: string, kind: MetadataDecisionKind, selectedEventId: string | null,
+    proposed: ProjectMetadata | null, expectedLocal: ProjectMetadata, expectedTips: string[]): Promise<string>
   lock(): Promise<void>
   logout(): Promise<void>
   dispose(): Promise<void>
@@ -174,6 +186,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   const lastCycleAt = ref<string | null>(null)
   const busy = ref(false)
   const projects = ref<CloudProjectView[]>([])
+  const metadataTransportMode = ref<1 | 2 | 3 | null>(null)
+  const metadataAuthority = ref<Record<string, MetadataAuthorityView>>({})
   const canRunCycle = ref(false)
   const projectBootstrapEnabled = canEnableCloudProjectSync()
   const authenticated = computed(() => username.value !== null)
@@ -186,6 +200,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     hasRemainingWork.value = false
     lastCycleAt.value = null
     projects.value = []
+    metadataTransportMode.value = null
+    metadataAuthority.value = {}
     canRunCycle.value = false
   }
 
@@ -346,6 +362,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
       try {
         const result = await operation()
         if (current(epoch)) await refreshProjects()
+        if (current(epoch) && result.transport_version === 3 && (result.cycle.metadataApply?.applied ?? 0) > 0) announceDataChange('projects')
         applyCycle(result, epoch)
       } catch (error) {
         setFailure(error, epoch)
@@ -514,7 +531,6 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function importProject(projectId: string, displayName: string): Promise<void> {
     if (!projectBootstrapEnabled) throw new CloudProjectBootstrapBlockedError('project_bootstrap_disabled')
-    if (displayName.trim().length === 0) throw new Error('A local project name is required.')
     await runProjectOperation(projectId, report => requireRuntime().importRemoteProject(projectId, displayName.trim(), report))
   }
 
@@ -543,6 +559,63 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function retry(): Promise<void> {
     if (!hasProvisionedKey.value) throw new Error('Encryption provisioning is required before sync.')
     await runCycle(() => requireRuntime().retry())
+  }
+
+  async function inspectProjectMetadata(projectId: string): Promise<void> {
+    const epoch = lifecycleEpoch
+    const activeRuntime = requireRuntime()
+    const [mode, authority] = await Promise.all([
+      activeRuntime.metadataTransportMode(), activeRuntime.projectMetadataAuthority(projectId),
+    ])
+    if (!current(epoch)) return
+    metadataTransportMode.value = mode
+    metadataAuthority.value = { ...metadataAuthority.value, [projectId]: authority }
+  }
+
+  async function prepareMetadataTransport(): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().prepareMetadataTransport()
+    const mode = await requireRuntime().metadataTransportMode()
+    if (current(epoch)) metadataTransportMode.value = mode
+  }
+
+  async function declareMetadataReaderReady(): Promise<void> {
+    await requireRuntime().declareMetadataReaderReady()
+  }
+
+  async function cutoverMetadataTransport(): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().cutoverMetadataTransport()
+    if (current(epoch)) metadataTransportMode.value = 3
+  }
+
+  async function beginMetadataMigration(projectId: string): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().beginProjectMetadataMigration(projectId)
+    if (!current(epoch)) return
+    await inspectProjectMetadata(projectId)
+    await retry()
+    await inspectProjectMetadata(projectId)
+  }
+
+  async function adoptMetadata(projectId: string, expectedHead: string, expectedLocal: ProjectMetadata): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().adoptProjectMetadata(projectId, expectedHead, expectedLocal)
+    if (!current(epoch)) return
+    announceDataChange('projects')
+    await refreshProjects()
+    await inspectProjectMetadata(projectId)
+  }
+
+  async function decideMetadata(projectId: string, kind: MetadataDecisionKind, selectedEventId: string | null,
+    proposed: ProjectMetadata | null, expectedLocal: ProjectMetadata, expectedTips: string[]): Promise<void> {
+    const epoch = lifecycleEpoch
+    await requireRuntime().decideProjectMetadata(projectId, kind, selectedEventId, proposed, expectedLocal, expectedTips)
+    if (!current(epoch)) return
+    announceDataChange('projects')
+    await inspectProjectMetadata(projectId)
+    await retry()
+    await inspectProjectMetadata(projectId)
   }
 
   async function lock(): Promise<void> {
@@ -593,10 +666,12 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   return {
     supported, status, username, hasProvisionedKey, errorMessage, blockedEvents,
     hasRemainingWork, lastCycleAt, busy, authenticated, projects, canRunCycle,
+    metadataTransportMode, metadataAuthority,
     projectBootstrapEnabled,
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,
     bootstrapProject, importProject, resumeProject, pauseProject,
-    retry, lock, logout, dispose,
+    retry, inspectProjectMetadata, prepareMetadataTransport, declareMetadataReaderReady, cutoverMetadataTransport,
+    beginMetadataMigration, adoptMetadata, decideMetadata, lock, logout, dispose,
   }
 })

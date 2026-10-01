@@ -196,6 +196,12 @@
   },
   {
     "children": [],
+    "content": "<html><body>\n<h2>Metadados do projeto na nuvem</h2>\n<p>Verifique os metadados do projeto conectado nas configurações da nuvem. Confirme o suporte em todos os dispositivos e ative a sincronização de metadados. A publicação inicial exige sua ação explícita.</p>\n<p>Se as versões forem diferentes, use a da nuvem, mantenha a local como nova alteração ou edite o resultado. Em caso de conflito, escolha uma ramificação ou componha um resultado combinado. Todas as versões anteriores são preservadas. Após a conciliação, a edição normal cria alterações criptografadas. Uma ação incompleta pode ser retomada com segurança.</p>\n<p>Na importação, o histórico autenticado da nuvem define os parâmetros do projeto; conflitos exigem uma escolha. Sem esse histórico, é necessário um nome local e uma confirmação de publicação separada. Caminhos locais, documentos e capas permanecem no dispositivo.</p>\n</body></html>",
+    "key": "cloud_project_metadata",
+    "title": "Metadados do projeto na nuvem"
+  },
+  {
+    "children": [],
     "content": "<html><body>\n<h2>Atalhos de teclado</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> abrir a criação de projeto.</li>\n<li><b>Ctrl+H / Command+H:</b> abrir a ajuda.</li>\n<li><b>Ctrl+S / Command+S:</b> abrir a sincronização do projeto ou etapa selecionados.</li>\n<li><b>Ctrl+E / Command+E:</b> editar o projeto ou etapa selecionados.</li>\n<li><b>Delete:</b> excluir o projeto ou etapa selecionados após confirmação.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> ir para as estatísticas.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> concluir o projeto ou etapa selecionados.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> arquivar o projeto selecionado.</li>\n</ul>\n<p>Na ajuda, Ctrl+F ou Command+F move o foco para a pesquisa. Os atalhos não são interceptados durante a digitação em um campo, editor ou lista suspensa.</p>\n<p>Todos os elementos interativos podem ser acessados pelo teclado na ordem normal de Tab. Enter ou Espaço ativa o botão selecionado, e Escape fecha caixas de diálogo e menus compatíveis.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Teclas de atalho"

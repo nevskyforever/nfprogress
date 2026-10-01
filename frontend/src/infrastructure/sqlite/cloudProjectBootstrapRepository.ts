@@ -1,3 +1,4 @@
+import type { ProjectMetadata } from '@/cloud/projectMetadataCodec'
 import { invoke } from '@tauri-apps/api/core'
 
 export type CloudProjectBootstrapMode = 'upload_existing' | 'import_remote'
@@ -41,7 +42,7 @@ export interface CloudProjectBootstrapRepository {
   markCompleting(scope: CloudProjectBootstrapScope): Promise<CloudProjectBootstrapRecord>
   markReady(scope: CloudProjectBootstrapScope): Promise<CloudProjectBootstrapRecord>
   list(accountId: string): Promise<CloudProjectBootstrapRecord[]>
-  importRemote(projectId: string, displayName: string, accountId: string, deviceId: string, bootstrapId: string, remoteHighWater: number): Promise<CloudProjectBootstrapRecord>
+  importRemote(projectId: string, displayName: string, accountId: string, deviceId: string, bootstrapId: string, remoteHighWater: number, authenticatedMetadata?: ProjectMetadata): Promise<CloudProjectBootstrapRecord>
   setPaused(scope: CloudProjectBootstrapScope, paused: boolean): Promise<CloudProjectBootstrapRecord>
 }
 
@@ -82,11 +83,12 @@ export class SQLiteCloudProjectBootstrapRepository implements CloudProjectBootst
     return invoke<CloudProjectBootstrapRecord[]>('list_cloud_project_bootstraps', { accountId })
   }
 
-  importRemote(projectId: string, displayName: string, accountId: string, deviceId: string, bootstrapId: string, remoteHighWater: number) {
+  importRemote(projectId: string, displayName: string, accountId: string, deviceId: string, bootstrapId: string, remoteHighWater: number, authenticatedMetadata?: ProjectMetadata) {
     return invoke<CloudProjectBootstrapRecord>('import_remote_cloud_project', {
       command: {
         project_id: projectId, display_name: displayName, account_id: accountId,
         device_id: deviceId, bootstrap_id: bootstrapId, remote_high_water: remoteHighWater,
+        ...(authenticatedMetadata ? { authenticated_metadata: authenticatedMetadata } : {}),
       },
     })
   }

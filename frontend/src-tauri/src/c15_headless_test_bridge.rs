@@ -226,6 +226,7 @@ fn bootstrap_import(request: &Value) -> Value {
         device_id: required_string(request, "device_id").to_string(),
         bootstrap_id: required_string(request, "bootstrap_id").to_string(),
         remote_high_water: required_i64(request, "remote_high_water"),
+        authenticated_metadata: request.get("authenticated_metadata").cloned(),
     }).expect("import active remote project")).unwrap()
 }
 
@@ -573,6 +574,55 @@ fn receive_resolution(request: &Value) -> Value {
     json!({"result":result,"ack":ack})
 }
 
+fn metadata_authority_bridge(request:&Value)->Value {
+    use crate::project_metadata_sync as metadata;
+    let mut db=open_database(&database_path(request)).expect("metadata device database");
+    let account=required_string(request,"local_account_id");
+    let user=required_string(request,"canonical_user_id");
+    let device=required_string(request,"device_id");
+    let project=required_string(request,"project_id");
+    let now="2026-09-29T00:00:00.000000Z";
+    metadata::assert_runtime_scope(&db,account,user,device).unwrap();
+    let result=match required_string(request,"step") {
+        "begin"=>{
+            let candidate=metadata::capture_legacy_candidate(&mut db,account,project,now).unwrap();
+            json!(metadata::prepare_metadata_genesis(&mut db,account,&candidate,now).unwrap())
+        },
+        "adopt"=>{
+            let view=metadata::authority_view(&db,account,project).unwrap();
+            serde_json::to_value(metadata::adopt_authenticated_metadata(&mut db,account,project,
+                view.head_event_id.as_deref().unwrap(),view.local.as_ref().unwrap(),now).unwrap()).unwrap()
+        },
+        "change"=>{
+            let view=metadata::authority_view(&db,account,project).unwrap();
+            let tips=view.branches.iter().map(|b|b.event_id.clone()).collect::<Vec<_>>();
+            let id=metadata::prepare_authoritative_change(&mut db,account,project,device,required_string(request,"kind"),
+                request.get("selected").and_then(Value::as_str),request.get("proposed"),view.local.as_ref().unwrap(),&tips,now).unwrap();
+            json!(id)
+        },
+        "normal_edit"=>{
+            let proposed=request.get("proposed").unwrap();
+            json!(metadata::capture_normal_edit(&mut db,project,proposed,now).unwrap())
+        },
+        "seal"=>{
+            metadata::commit_sealed_genesis(&mut db,account,device,required_string(request,"event_id"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)
+        },
+        "receive"=>{
+            let command:CommitNoteSyncInboundPageCommand=serde_json::from_value(request["command"].clone()).unwrap();
+            crate::note_sync::commit_v3_sync_inbound_page(&mut db,&command).unwrap();
+            let opened=&request["opened"];
+            json!(metadata::preserve_authenticated_event_checked(&mut db,account,project,&bytes(opened,"plaintext"),now,
+                Some((&bytes(opened,"nonce"),&bytes(opened,"ciphertext")))).unwrap())
+        },
+        "read"=>Value::Null,
+        _=>panic!("unsupported metadata bridge step"),
+    };
+    let view=metadata::authority_view(&db,account,project).unwrap();
+    let events=metadata::unsealed_genesis(&db,account,device).unwrap();
+    let payload:String=db.query_row("SELECT payload_json FROM projects WHERE id=?1",[project],|r|r.get(0)).unwrap();
+    json!({"result":result,"view":view,"unsealed":events,"payload":serde_json::from_str::<Value>(&payload).unwrap()})
+}
+
 #[test]
 #[ignore = "invoked only by tests/test_c15_headless_cross_runtime.py"]
 fn c15_headless_native_bridge() {
@@ -582,6 +632,7 @@ fn c15_headless_native_bridge() {
         &std::fs::read(request_path).expect("read bridge request"),
     ).expect("parse bridge request");
     let response = match required_string(&request, "action") {
+        "metadata_authority" => metadata_authority_bridge(&request),
         "provision" => provision(&request),
         "bootstrap_prepare" => bootstrap_prepare(&request),
         "bootstrap_prepare_capture" => bootstrap_prepare_capture(&request),

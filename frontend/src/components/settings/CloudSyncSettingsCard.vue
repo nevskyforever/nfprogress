@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { IonIcon, IonSpinner } from '@ionic/vue'
 import { cloudOutline, lockClosedOutline, syncOutline, warningOutline } from 'ionicons/icons'
 
+import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
+
 import { encodeBase64Url } from '@/api/base64url'
 import {
   useCloudSessionStore,
@@ -199,16 +201,12 @@ function requestImport(projectId: string): void {
 
 async function confirmImport(projectId: string): Promise<void> {
   if (pendingImportProjectId.value !== projectId || cloud.busy) return
-  if (importProjectName.value.trim().length === 0) {
-    localError.value = t('Укажите локальное название: оно необходимо для создания проекта на этом устройстве.')
-    return
-  }
   pendingImportProjectId.value = null
   try {
     await cloud.importProject(projectId, importProjectName.value)
     importProjectName.value = ''
   } catch {
-    // Collision and lineage errors are rendered in redacted project state.
+    localError.value = t('Без облачной истории метаданных требуется локальное название. При конфликте облачных версий выбор выполняется после импорта.')
   }
 }
 
@@ -364,10 +362,10 @@ onBeforeUnmount(() => {
             <button v-if="pendingImportProjectId !== project.projectId" class="nf-button" type="button" :disabled="cloud.busy" @click="requestImport(project.projectId)">{{ t('Импортировать на это устройство') }}</button>
             <form v-else class="cloud-sync-card__inline-form" @submit.prevent="confirmImport(project.projectId)">
               <label>
-                <span>{{ t('Локальное название на этом устройстве (обязательно)') }}</span>
-                <input v-model="importProjectName" required />
+                <span>{{ t('Локальное название для проекта без облачных метаданных') }}</span>
+                <input v-model="importProjectName" />
               </label>
-              <p>{{ t('Название проекта пока не передаётся через облако. Укажите обязательное локальное название для создания проекта на этом устройстве; в C18 названия и другие метаданные будут синхронизироваться.') }}</p>
+              <p>{{ t('Проверенные облачные метаданные зададут название и параметры проекта. Локальное название требуется только при отсутствии такой истории.') }}</p>
               <p>{{ t('Это название используется только на этом устройстве. Будет создан новый минимальный локальный проект; совпадающий ID или локальное имя блокирует импорт, объединение и перезапись запрещены.') }}</p>
               <div class="cloud-sync-card__actions">
                 <button class="nf-button" type="submit" :disabled="cloud.busy">{{ t('Подтвердить импорт') }}</button>
@@ -385,6 +383,7 @@ onBeforeUnmount(() => {
           <div v-else-if="project.status === 'paused'" class="cloud-sync-card__actions">
             <button class="nf-button" type="button" :disabled="cloud.busy" @click="resumeProject(project.projectId)">{{ t('Возобновить') }}</button>
           </div>
+          <ProjectMetadataAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
         </article>
       </section>
     </template>

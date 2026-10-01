@@ -167,6 +167,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 23: "023_note_sync_applied_resolutions.sql",
                 24: "024_note_sync_multigeneration_tips.sql",
                 25: "025_project_metadata_sync.sql",
+                26: "026_project_metadata_authority.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

@@ -25,7 +25,8 @@ import { DurableNoteSyncV2Inbox, NoteSyncV2AckAdapter } from './noteSyncV2Transp
 import { NoteSyncV2Cycle, type NoteSyncV2CycleResult } from './noteSyncV2Cycle'
 import { NoteSyncV3Cycle } from './noteSyncV3Cycle'
 import { ProjectMetadataMigrationRuntime } from './projectMetadataMigrationRuntime'
-import type { MetadataMigrationStatus } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
+import type { MetadataMigrationStatus, MetadataAuthorityView, MetadataDecisionKind } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
+import type { ProjectMetadata } from './projectMetadataCodec'
 import { encryptedSyncV2Api } from '@/api/encryptedSyncV2'
 import { NoteSyncTransportRouter, type NoteSyncProductionResult } from './noteSyncTransportRouter'
 import { sealPendingNoteSyncIntents } from './noteSyncIntent'
@@ -63,7 +64,7 @@ interface ProjectBootstrapGate {
   preflightLocalProject(projectId: string): Promise<Array<{ note_id: string, code: string }>>
   runReadyCycle(identity: { localAccountId: string, deviceId: string }): Promise<NoteSyncProductionResult>
   bootstrapLocalProject(identity: { localAccountId: string, deviceId: string }, projectId: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
-  importRemoteProject(identity: { localAccountId: string, deviceId: string }, projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
+  importRemoteProject(identity: { localAccountId: string, deviceId: string }, projectId: string, displayName: string, report?: CloudProjectBootstrapReporter, metadataImport?: import('./projectMetadataMigrationRuntime').MetadataImportSnapshot | null): Promise<CloudProjectBootstrapProgress>
   setPaused(identity: { localAccountId: string, deviceId: string }, projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
 }
 
@@ -201,7 +202,19 @@ export class NoteSyncRuntime {
     const context = this.auth.requireContext()
     const identity = await this.readFor(context)
     this.assertUnlocked(context, identity)
-    return this.bootstrap.importRemoteProject(this.bootstrapIdentity(identity), projectId, displayName, report)
+    const snapshot = await this.metadata.importSnapshot(identity.local_account_id, identity.device_id, projectId)
+    this.assertUnlocked(context, identity)
+    const name = snapshot?.metadata?.name ?? (snapshot ? projectId : displayName)
+    if (!name.trim()) throw new TypeError('legacy_import_name_required')
+    const result = await this.bootstrap.importRemoteProject(this.bootstrapIdentity(identity), projectId, name, report, snapshot)
+    this.assertUnlocked(context, identity)
+    if (snapshot?.head) {
+      const view = await this.metadata.authority(identity.local_account_id, identity.device_id, projectId)
+      if (view.head_event_id === snapshot.head && view.state === 'local_matches_authenticated' && view.local) {
+        await this.metadata.adopt(identity.local_account_id, identity.device_id, projectId, snapshot.head, view.local)
+      }
+    }
+    return result
   }
 
   async setProjectPaused(projectId: string, paused: boolean): Promise<CloudRegistryReconciliation> {
@@ -210,6 +223,13 @@ export class NoteSyncRuntime {
     const identity = await this.readFor(context)
     this.assertUnlocked(context, identity)
     return this.bootstrap.setPaused(this.bootstrapIdentity(identity), projectId, paused)
+  }
+
+  async prepareMetadataTransport(): Promise<void> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    await this.metadata.prepareTransport(identity.local_account_id, identity.device_id)
   }
 
   /** Explicit internal reader declaration. Every registered device must do this before mode-3 cutover. */
@@ -241,6 +261,36 @@ export class NoteSyncRuntime {
     const identity = await this.readFor(context)
     this.assertUnlocked(context, identity)
     return this.metadata.status(identity.local_account_id, identity.device_id, projectId)
+  }
+
+  async projectMetadataAuthority(projectId: string): Promise<MetadataAuthorityView> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.metadata.authority(identity.local_account_id, identity.device_id, projectId)
+  }
+
+  async metadataTransportMode(): Promise<1 | 2 | 3> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.metadata.mode(identity.local_account_id, identity.device_id)
+  }
+
+  async adoptProjectMetadata(projectId: string, expectedHead: string, expectedLocal: ProjectMetadata): Promise<MetadataAuthorityView> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.metadata.adopt(identity.local_account_id, identity.device_id, projectId, expectedHead, expectedLocal)
+  }
+
+  async decideProjectMetadata(projectId: string, kind: MetadataDecisionKind, selectedEventId: string | null,
+    proposed: ProjectMetadata | null, expectedLocal: ProjectMetadata, expectedTips: string[]): Promise<string> {
+    const context = this.auth.requireContext()
+    const identity = await this.readFor(context)
+    this.assertUnlocked(context, identity)
+    return this.metadata.decide(identity.local_account_id, identity.device_id, projectId,
+      kind, selectedEventId, proposed, expectedLocal, expectedTips)
   }
 
   async lock(): Promise<void> {

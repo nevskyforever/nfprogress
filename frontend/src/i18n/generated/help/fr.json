@@ -196,6 +196,12 @@
   },
   {
     "children": [],
+    "content": "<html><body>\n<h2>Métadonnées du projet dans le cloud</h2>\n<p>Vérifiez les métadonnées du projet connecté dans les paramètres du cloud. Confirmez la prise en charge sur chaque appareil et activez la synchronisation des métadonnées. La publication initiale nécessite votre action explicite.</p>\n<p>Si les versions diffèrent, utilisez celle du cloud, conservez la version locale comme nouvelle modification ou modifiez le résultat. En cas de conflit, choisissez une branche ou composez un résultat commun. Toutes les versions précédentes sont conservées. Après la résolution, les modifications ordinaires créent des changements chiffrés. Une action inachevée peut être reprise en toute sécurité.</p>\n<p>À l’importation, l’historique authentifié du cloud définit les paramètres du projet ; les conflits nécessitent un choix. Sans cet historique, un nom local et une confirmation de publication distincte sont nécessaires. Les chemins locaux, documents et couvertures restent sur l’appareil.</p>\n</body></html>",
+    "key": "cloud_project_metadata",
+    "title": "Métadonnées du projet dans le cloud"
+  },
+  {
+    "children": [],
     "content": "<html><body>\n<h2>Raccourcis clavier</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> ouvrir la création d’un projet.</li>\n<li><b>Ctrl+H / Command+H:</b> ouvrir l’aide.</li>\n<li><b>Ctrl+S / Command+S:</b> ouvrir la synchronisation du projet ou de l’étape sélectionnés.</li>\n<li><b>Ctrl+E / Command+E:</b> modifier le projet ou l’étape sélectionnés.</li>\n<li><b>Delete:</b> supprimer le projet ou l’étape sélectionnés après confirmation.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> accéder aux statistiques.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> terminer le projet ou l’étape sélectionnés.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archiver le projet sélectionné.</li>\n</ul>\n<p>Dans l’aide, Ctrl+F ou Command+F place le focus dans la recherche. Les raccourcis ne sont pas interceptés lors de la saisie dans un champ, un éditeur ou une liste déroulante.</p>\n<p>Tous les éléments interactifs sont accessibles au clavier dans l’ordre normal de tabulation. Entrée ou Espace active le bouton sélectionné, et Échap ferme les boîtes de dialogue et menus compatibles.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Raccourcis clavier"

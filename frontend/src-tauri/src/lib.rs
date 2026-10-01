@@ -2484,6 +2484,63 @@ fn apply_authenticated_project_metadata(scope:project_metadata_sync::MetadataSco
 }
 
 #[tauri::command]
+fn read_project_metadata_authority(
+    scope: project_metadata_sync::MetadataScope,
+    project_id: String,
+) -> Result<project_metadata_sync::MetadataAuthorityView, String> {
+    let connection = metadata_connection(&scope)?;
+    project_metadata_sync::authority_view(&connection, &scope.account_id, &project_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn adopt_authenticated_project_metadata(
+    scope: project_metadata_sync::MetadataScope,
+    project_id: String,
+    expected_head: String,
+    expected_local: serde_json::Value,
+    now: String,
+) -> Result<project_metadata_sync::MetadataAuthorityView, String> {
+    let mut connection = metadata_connection(&scope)?;
+    project_metadata_sync::adopt_authenticated_metadata(
+        &mut connection,
+        &scope.account_id,
+        &project_id,
+        &expected_head,
+        &expected_local,
+        &now,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn prepare_project_metadata_change(
+    scope: project_metadata_sync::MetadataScope,
+    project_id: String,
+    kind: String,
+    selected_event_id: Option<String>,
+    proposed: Option<serde_json::Value>,
+    expected_local: serde_json::Value,
+    expected_tips: Vec<String>,
+    now: String,
+) -> Result<String, String> {
+    let mut connection = metadata_connection(&scope)?;
+    project_metadata_sync::prepare_authoritative_change(
+        &mut connection,
+        &scope.account_id,
+        &project_id,
+        &scope.device_id,
+        &kind,
+        selected_event_id.as_deref(),
+        proposed.as_ref(),
+        &expected_local,
+        &expected_tips,
+        &now,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
@@ -3391,6 +3448,45 @@ fn update_project_metadata(
         MetadataDeadline::Null => Some(None),
         MetadataDeadline::Value(value) => Some(Some(value)),
     };
+    let mut proposed = project_payload(&mut connection, &project_id)?;
+    if let Some(value) = patch.name.as_ref() {
+        proposed["name"] = value.trim().into();
+    }
+    if let Some(value) = patch.goal {
+        proposed["goal"] = value.into();
+    }
+    if let Some(value) = patch.unit.as_ref() {
+        proposed["unit"] = value.clone().into();
+    }
+    if let Some(value) = patch.infinite {
+        proposed["infinite"] = value.into();
+        if value {
+            proposed["goal"] = serde_json::Value::Null;
+        }
+    }
+    if let Some(value) = deadline.as_ref() {
+        proposed["deadline"] = value
+            .clone()
+            .map_or(serde_json::Value::Null, serde_json::Value::String);
+    }
+    if proposed["infinite"] == true { proposed["goal"] = serde_json::Value::Null; }
+    let metadata_now = connection
+        .query_row(
+            "SELECT strftime('%Y-%m-%dT%H:%M:%f','now') || '000Z'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .map_err(|e| e.to_string())?;
+    if project_metadata_sync::capture_normal_edit(
+        &mut connection,
+        &project_id,
+        &proposed,
+        &metadata_now,
+    )
+    .map_err(|e| e.to_string())?
+    {
+        return project_payload(&mut connection, &project_id);
+    }
     let mut repository = ProjectsRepository::new(&mut connection);
     let updated = repository
         .update_project_metadata(
@@ -3801,9 +3897,28 @@ fn update_project(
                 .map_or(serde_json::Value::Null, serde_json::Value::String),
         );
     }
-    repository
-        .update_project_payload(&project_id, &payload)
-        .map_err(|error| error.to_string())?;
+    if payload["infinite"] == true { payload["goal"] = serde_json::Value::Null; }
+    drop(repository);
+    let metadata_now = connection
+        .query_row(
+            "SELECT strftime('%Y-%m-%dT%H:%M:%f','now') || '000Z'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .map_err(|e| e.to_string())?;
+    let captured = project_metadata_sync::capture_normal_edit(
+        &mut connection,
+        &project_id,
+        &payload,
+        &metadata_now,
+    )
+    .map_err(|e| e.to_string())?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    if !captured {
+        repository
+            .update_project_payload(&project_id, &payload)
+            .map_err(|error| error.to_string())?;
+    }
     if let Some(folder_id) = folder_id {
         repository
             .set_project_folder(&project_id, folder_id.as_deref())
@@ -5689,6 +5804,9 @@ pub fn run() {
             commit_project_metadata_upload_receipt,
             list_received_project_metadata,
             apply_authenticated_project_metadata,
+            read_project_metadata_authority,
+            adopt_authenticated_project_metadata,
+            prepare_project_metadata_change,
             create_note,
             update_note,
             delete_note,

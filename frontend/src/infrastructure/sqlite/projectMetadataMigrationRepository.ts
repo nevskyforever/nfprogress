@@ -1,7 +1,9 @@
+import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import { invoke } from '@tauri-apps/api/core'
 import { encodeBase64Url } from '@/api/base64url'
 import type { V3PullResponse } from '@/api/encryptedSyncV3'
 import type { ProjectMetadataEvent } from '@/cloud/projectMetadataCodec'
+import type { ProjectMetadata } from '@/cloud/projectMetadataCodec'
 import type { CommitInboundPageResult } from './noteSyncInboxRepository'
 
 export interface MetadataScope { account_id: string; canonical_user_id: string; device_id: string }
@@ -18,6 +20,14 @@ export interface ReceivedMetadataEvent {
   revision: number; updated_at: string; deleted_at: string | null; operation: 'upsert' | 'delete' | 'resolution'
   crypto_version: number; aad_version: number; nonce: number[]; ciphertext: number[]
 }
+export interface MetadataAuthorityBranch { event_id: string; revision: number; operation: string; metadata: ProjectMetadata; device_id?: string; local_candidate?: boolean }
+export interface MetadataAuthorityView {
+  state: 'local_legacy_only' | 'local_candidate_ready' | 'local_matches_authenticated'
+    | 'local_differs_from_authenticated' | 'genesis_conflict' | 'metadata_conflict' | 'resolution_pending' | 'active' | 'blocked'
+  local: ProjectMetadata | null; authenticated: ProjectMetadata | null; head_event_id: string | null
+  branches: MetadataAuthorityBranch[]; pending_event_id: string | null; blockers: string[]
+}
+export type MetadataDecisionKind = 'keep_local' | 'manual' | 'edit' | 'choose_branch' | 'resolve_manual'
 
 export interface ProjectMetadataMigrationRepository {
   capture(scope: MetadataScope, projectId: string, now: string): Promise<string>
@@ -30,11 +40,25 @@ export interface ProjectMetadataMigrationRepository {
   received(scope: MetadataScope, limit: number, after: number): Promise<ReceivedMetadataEvent[]>
   apply(scope: MetadataScope, projectId: string, plaintext: Uint8Array, nonce: Uint8Array, ciphertext: Uint8Array, now: string): Promise<'applied' | 'conflict_preserved' | 'orphan'>
   commitV3Page(scope: MetadataScope, since: number, page: V3PullResponse): Promise<CommitInboundPageResult>
+  authority(scope: MetadataScope, projectId: string): Promise<MetadataAuthorityView>
+  adopt(scope: MetadataScope, projectId: string, expectedHead: string, expectedLocal: ProjectMetadata, now: string): Promise<MetadataAuthorityView>
+  prepareChange(scope: MetadataScope, projectId: string, kind: MetadataDecisionKind, selectedEventId: string | null,
+    proposed: ProjectMetadata | null, expectedLocal: ProjectMetadata, expectedTips: string[], now: string): Promise<string>
 }
 
 const bytes = (value: Uint8Array): number[] => Array.from(value)
 
 export class SQLiteProjectMetadataMigrationRepository implements ProjectMetadataMigrationRepository {
+  authority(scope: MetadataScope, projectId: string): Promise<MetadataAuthorityView> {
+    return invoke('read_project_metadata_authority', { scope, projectId })
+  }
+  adopt(scope: MetadataScope, projectId: string, expectedHead: string, expectedLocal: ProjectMetadata, now: string): Promise<MetadataAuthorityView> {
+    return invoke('adopt_authenticated_project_metadata', { scope, projectId, expectedHead, expectedLocal, now })
+  }
+  prepareChange(scope: MetadataScope, projectId: string, kind: MetadataDecisionKind, selectedEventId: string | null,
+    proposed: ProjectMetadata | null, expectedLocal: ProjectMetadata, expectedTips: string[], now: string): Promise<string> {
+    return invoke('prepare_project_metadata_change', { scope, projectId, kind, selectedEventId, proposed, expectedLocal, expectedTips, now })
+  }
   capture(scope: MetadataScope, projectId: string, now: string): Promise<string> {
     return invoke('capture_project_metadata_candidate', { scope, projectId, now })
   }
@@ -69,7 +93,7 @@ export class SQLiteProjectMetadataMigrationRepository implements ProjectMetadata
       items: page.items.map(({ event, object }) => ({
         event_id: event.event_id, server_sequence: event.server_sequence, source_device_id: event.device_id,
         project_id: event.project_id, entity_id: event.entity_id, entity_type: event.entity_type,
-        operation: event.operation, revision: event.revision, updated_at: event.updated_at, deleted_at: event.deleted_at,
+        operation: event.operation, revision: event.revision, updated_at: canonicalizeSyncTimestamp(event.updated_at), deleted_at: event.deleted_at === null ? null : canonicalizeSyncTimestamp(event.deleted_at),
         envelope: { crypto_version: object.crypto_version, aad_version: object.aad_version,
           nonce: encodeBase64Url(object.nonce), ciphertext: encodeBase64Url(object.ciphertext) },
       })),

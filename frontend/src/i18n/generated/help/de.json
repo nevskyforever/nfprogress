@@ -196,6 +196,12 @@
   },
   {
     "children": [],
+    "content": "<html><body>\n<h2>Projektmetadaten in der Cloud</h2>\n<p>Prüfen Sie die Metadaten des verbundenen Projekts in den Cloud-Einstellungen. Bestätigen Sie die Unterstützung auf allen Geräten und aktivieren Sie die Metadatensynchronisierung. Die erste Veröffentlichung erfordert Ihre ausdrückliche Aktion.</p>\n<p>Bei unterschiedlichen Versionen verwenden Sie die Cloud-Version, behalten die lokale Version als neue Änderung oder bearbeiten das Ergebnis. Bei einem Konflikt wählen Sie einen Zweig oder erstellen ein gemeinsames Ergebnis. Alle früheren Versionen bleiben erhalten. Nach der Abstimmung erstellt die normale Bearbeitung verschlüsselte Änderungen. Eine offene Aktion kann sicher fortgesetzt werden.</p>\n<p>Beim Import bestimmt der authentifizierte Cloud-Verlauf die Projekteinstellungen; Konflikte erfordern eine Auswahl. Ohne diesen Verlauf sind ein lokaler Name und eine gesonderte Veröffentlichungsbestätigung nötig. Lokale Pfade, Dokumente und Titelbilder bleiben auf dem Gerät.</p>\n</body></html>",
+    "key": "cloud_project_metadata",
+    "title": "Projektmetadaten in der Cloud"
+  },
+  {
+    "children": [],
     "content": "<html><body>\n<h2>Tastenkürzel</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> Projekterstellung öffnen.</li>\n<li><b>Ctrl+H / Command+H:</b> Hilfe öffnen.</li>\n<li><b>Ctrl+S / Command+S:</b> Synchronisierung des ausgewählten Projekts oder Abschnitts öffnen.</li>\n<li><b>Ctrl+E / Command+E:</b> ausgewähltes Projekt oder Abschnitt bearbeiten.</li>\n<li><b>Delete:</b> ausgewähltes Projekt oder Abschnitt nach Bestätigung löschen.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> zur Statistik wechseln.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> ausgewähltes Projekt oder Abschnitt abschließen.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> ausgewähltes Projekt archivieren.</li>\n</ul>\n<p>In der Hilfe verschiebt Ctrl+F oder Command+F den Fokus auf die Suche. Tastenkürzel werden beim Tippen in einem Feld, Editor oder einer Auswahlliste nicht abgefangen.</p>\n<p>Alle interaktiven Elemente sind in der normalen Tab-Reihenfolge per Tastatur erreichbar. Enter oder die Leertaste aktiviert die ausgewählte Schaltfläche, Escape schließt unterstützte Dialoge und Menüs.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Hotkeys"

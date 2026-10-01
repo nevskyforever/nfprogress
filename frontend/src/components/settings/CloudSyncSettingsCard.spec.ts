@@ -117,7 +117,7 @@ describe('CloudSyncSettingsCard', () => {
     wrapper.unmount()
   })
 
-  it('requires a device-local project name and explains that C18 will synchronize metadata', async () => {
+  it('allows authenticated cloud metadata to supply the imported project name', async () => {
     const instance = runtime()
     const remoteRegistry = {
       ...REGISTRY,
@@ -146,11 +146,10 @@ describe('CloudSyncSettingsCard', () => {
     await startImport!.trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Локальное название на этом устройстве (обязательно)')
-    expect(wrapper.find('input').attributes('required')).toBeDefined()
-    expect(wrapper.text()).toContain('Название проекта пока не передаётся через облако')
-    expect(wrapper.text()).toContain('в C18 названия и другие метаданные будут синхронизироваться')
-    expect(wrapper.text()).toContain('Это название используется только на этом устройстве')
+    expect(wrapper.text()).toContain('Локальное название для проекта без облачных метаданных')
+    expect(wrapper.find('input').attributes('required')).toBeUndefined()
+    expect(wrapper.text()).toContain('Локальное название требуется только при отсутствии такой истории')
+    expect(instance.importRemoteProject).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

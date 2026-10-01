@@ -20,12 +20,12 @@ def _database(version: int) -> sqlite3.Connection:
 
 def test_c18_metadata_fresh_schema_and_immutable_candidate():
     db = _database(0)
-    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 25
+    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 26
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {'cloud_sync_metadata_candidates','cloud_sync_metadata_events',
             'cloud_sync_metadata_tips','cloud_sync_metadata_projection',
-            'cloud_sync_metadata_apply_ledger'} <= tables
-    assert apply_migrations(db) == 25
+            'cloud_sync_metadata_apply_ledger', 'cloud_sync_metadata_reconciliation'} <= tables
+    assert apply_migrations(db) == 26
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
 
 
@@ -37,10 +37,10 @@ def test_c18_metadata_populated_v24_upgrade_preserves_note_and_blocks_bad_event(
     db.execute("INSERT INTO cloud_sync_state(account_id,device_id,created_at,updated_at) VALUES('account','123e4567-e89b-42d3-a456-426614174001','now','now')")
     db.execute("INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES('project','account','now','now')")
     db.commit()
-    assert apply_migrations(db) == 25
+    assert apply_migrations(db) == 26
     assert db.execute("SELECT id,project_id,payload_json FROM notes").fetchone() == ('note','project','{}')
     assert db.execute("SELECT COUNT(*) FROM cloud_sync_metadata_candidates").fetchone()[0] == 0
     with pytest.raises(sqlite3.IntegrityError):
         db.execute("INSERT INTO cloud_sync_metadata_events(account_id,event_id,project_id,device_id,bootstrap_id,parent_event_ids_json,generation,revision,operation,payload_json,state,created_at) VALUES('account','123e4567-e89b-42d3-a456-426614174010','project','123e4567-e89b-42d3-a456-426614174001','123e4567-e89b-42d3-a456-426614174002','[]',1,2,'create','{}','received','now')")
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
-    assert apply_migrations(db) == 25
+    assert apply_migrations(db) == 26

@@ -1,6 +1,7 @@
 import { cloudProjectsApi, type CloudProjectBootstrapDescriptor } from '@/api/cloudProjects'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import type { CloudProjectBootstrapRecord, CloudProjectBootstrapRepository, CloudProjectBootstrapScope } from '@/infrastructure/sqlite/cloudProjectBootstrapRepository'
+import type { MetadataImportSnapshot } from './projectMetadataMigrationRuntime'
 import type { NoteSyncProductionResult } from './noteSyncTransportRouter'
 
 export class CloudProjectBootstrapBlockedError extends Error {
@@ -128,10 +129,11 @@ export class CloudProjectBootstrapCoordinator {
     projectId: string,
     displayName: string,
     report?: CloudProjectBootstrapReporter,
+    metadataImport?: MetadataImportSnapshot | null,
   ): Promise<CloudProjectBootstrapProgress> {
     return this.runSingleFlight(
       `import:${identity.localAccountId}:${identity.deviceId}:${projectId}`,
-      () => this.importRemoteProjectOnce(identity, projectId, displayName, report),
+      () => this.importRemoteProjectOnce(identity, projectId, displayName, report, metadataImport),
     )
   }
 
@@ -222,6 +224,7 @@ export class CloudProjectBootstrapCoordinator {
     projectId: string,
     displayName: string,
     report?: CloudProjectBootstrapReporter,
+    metadataImport?: MetadataImportSnapshot | null,
   ): Promise<CloudProjectBootstrapProgress> {
     const context = this.auth.requireContext()
     const remote = await this.auth.authorized(token => cloudProjectsApi.listBootstraps(token))
@@ -230,9 +233,10 @@ export class CloudProjectBootstrapCoordinator {
     if (!descriptor || descriptor.state !== 'active' || !descriptor.bootstrap_id) {
       throw new CloudProjectBootstrapBlockedError('remote_project_not_active')
     }
+    if (metadataImport && metadataImport.bootstrapId !== descriptor.bootstrap_id) throw new CloudProjectBootstrapBlockedError('metadata_import_lineage')
     let project = await this.repository.importRemote(
       projectId, displayName, identity.localAccountId, identity.deviceId,
-      descriptor.bootstrap_id, remote.value.current_cursor,
+      descriptor.bootstrap_id, remote.value.current_cursor, metadataImport?.metadata ?? undefined,
     )
     const registry = await this.reconcile(identity)
     if (!registry.readyForCycle) {

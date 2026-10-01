@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { openProjectMetadataEvent, sealProjectMetadataEvent, encodeProjectMetadataEvent, type ProjectMetadataEvent } from './projectMetadataCodec'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { asAccountMasterKey, decryptObjectBytes, encryptObjectBytes, generateAccountMasterKey } from '@/crypto'
@@ -40,9 +41,22 @@ interface ResolutionSealRequest {
 interface ResolutionOpenRequest { action: 'resolution_open'; canonical_user_id: string; amk: number[]; item: OpenRequest['item'] }
 interface SealIntentRequest { action: 'seal_intent'; canonical_user_id: string; amk: number[]; intent: UnsealedNoteSyncIntent }
 
-type BridgeRequest = SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
+interface MetadataSealRequest { action: 'metadata_seal'; payload: ProjectMetadataEvent; amk: number[] }
+interface MetadataOpenRequest { action: 'metadata_open'; canonical_user_id: string; amk: number[]; item: OpenRequest['item'] }
+type BridgeRequest = MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
+  if (request.action === 'metadata_seal') {
+    const object = await sealProjectMetadataEvent(asAccountMasterKey(Uint8Array.from(request.amk)), request.payload)
+    return { object: resolutionEnvelopeWire(object), nonce: Array.from(object.nonce), ciphertext: Array.from(object.ciphertext) }
+  }
+  if (request.action === 'metadata_open') {
+    const envelope=encryptedSyncObjectFromWire(request.item.object)
+    const event=request.item.event
+    const decoded=await openProjectMetadataEvent(asAccountMasterKey(Uint8Array.from(request.amk)),
+      { account_id: request.canonical_user_id, project_id: event.project_id, entity_id: event.entity_id, event_id: event.event_id },envelope)
+    return { decoded, nonce:Array.from(envelope.nonce), ciphertext:Array.from(envelope.ciphertext), plaintext:Array.from(encodeProjectMetadataEvent(decoded)) }
+  }
   if (request.action === 'seal_intent') {
     let object: ReturnType<typeof resolutionEnvelopeWire> | undefined
     const keyContext = {
