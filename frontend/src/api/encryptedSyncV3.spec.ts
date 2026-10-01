@@ -10,7 +10,7 @@ const descriptor = { event_id: EVENT, device_id: DEVICE, server_sequence: 1, pro
   entity_type: 'project_metadata' as const, operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }
 
 describe('mode-3 metadata transport boundary', () => {
-  it('permits only metadata in the publication primitive and exact project scope', () => {
+  it('retains metadata publication and exact project scope', () => {
     const event = { event_id: EVENT, project_id: 'project', entity_id: 'project', entity_type: 'project_metadata' as const,
       operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }
     const valid = { event, object }
@@ -34,4 +34,16 @@ describe('mode-3 metadata transport boundary', () => {
     expect(() => parseV3Pull({ ...page, items: [{ event: { ...descriptor, entity_type: 'future' }, object: wireObject }], next_cursor: 1 }, 0, 200)).toThrow()
     expect(() => parseV3Pull({ ...page, items: [{ event: { ...descriptor, server_sequence: 3 }, object: wireObject }], next_cursor: 3 }, 3, 200)).toThrow()
   })
+  it('publishes and reads opaque structural descriptors with exact type/operation pairing', () => {
+    for (const kind of ['stage', 'stage_order'] as const) {
+      const event = {event_id:EVENT,project_id:'project',entity_id:kind==='stage'?'S1':'stage_order',entity_type:kind,operation:'upsert' as const,revision:1,updated_at:NOW,deleted_at:null}
+      const wire = JSON.parse(encodeV3MetadataPush(DEVICE,[{event,object}]))
+      const parsed = parseV3Pull({protocol_version:3,encrypted_sync_version:3,items:[{event:{...event,device_id:DEVICE,server_sequence:1},object:wire.items[0].object}],next_cursor:1,has_more:false},0,10)
+      expect(parsed.items[0]!.event.entity_type).toBe(kind)
+      expect(Object.keys(wire.items[0].event)).not.toContain('stage_ids')
+      expect(() => encodeV3MetadataPush(DEVICE,[{event:{...event,operation:'resolution',revision:2},object}])).toThrow()
+      if (kind==='stage_order') expect(() => encodeV3MetadataPush(DEVICE,[{event:{...event,entity_id:'other'},object}])).toThrow()
+    }
+  })
+
 })

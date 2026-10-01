@@ -6652,6 +6652,17 @@ fn contiguous_applied_ack_prefix(
         let next = candidate.checked_add(1).ok_or(NoteSyncError::InvalidEnvelope("ACK cursor overflow"))?;
         let durable: Option<i64> = transaction.query_row(
             "SELECT CASE
+                WHEN inbox.entity_type IN ('stage','stage_order')
+                 AND inbox.state IN ('applied','conflict')
+                 AND EXISTS(SELECT 1 FROM cloud_sync_structural_apply_ledger l
+                   JOIN cloud_sync_structural_events e ON e.account_id=l.account_id AND e.event_id=l.event_id
+                   JOIN cloud_sync_event_objects o ON o.account_id=l.account_id AND o.event_id=l.event_id
+                   WHERE l.account_id=inbox.account_id AND l.event_id=inbox.event_id
+                    AND e.project_id=inbox.project_id AND e.entity_type=inbox.entity_type AND e.entity_id=inbox.entity_id
+                    AND e.server_sequence=inbox.server_sequence AND l.server_sequence=inbox.server_sequence
+                    AND e.state=l.outcome AND l.outcome=CASE WHEN inbox.state='conflict' THEN 'conflict_preserved' ELSE 'applied' END
+                    AND o.nonce=l.nonce AND o.ciphertext=l.ciphertext AND o.crypto_version=1 AND o.aad_version=1) THEN 1
+                WHEN inbox.entity_type IN ('stage','stage_order') THEN 0
                 WHEN inbox.entity_type='project_metadata'
                  AND inbox.state IN ('applied','conflict')
                  AND EXISTS(
@@ -6940,15 +6951,19 @@ fn commit_encrypted_sync_inbound_page(
             return Err(NoteSyncError::InvalidEnvelope("invalid inbound resolution"));
         }
         if allow_metadata {
-            if !matches!(item.entity_type.as_str(), "note" | "project_metadata")
+            if !matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order")
                 || item.entity_type == "project_metadata" && (
                     item.entity_id != item.project_id || item.operation == "event") {
                 return Err(NoteSyncError::InvalidEnvelope("unsupported mode-3 entity"));
             }
-        } else if item.entity_type == "project_metadata" {
+        } else if matches!(item.entity_type.as_str(), "project_metadata" | "stage" | "stage_order") {
             return Err(NoteSyncError::InvalidEnvelope("metadata requires mode-3 inbox"));
         }
-        if matches!(item.entity_type.as_str(), "note" | "project_metadata") && item.envelope.is_none() {
+        if item.entity_type == "stage_order" && (item.entity_id != "stage_order" || item.operation != "upsert")
+            || item.entity_type == "stage" && !matches!(item.operation.as_str(), "upsert" | "delete") {
+            return Err(NoteSyncError::InvalidEnvelope("unsupported structural descriptor"));
+        }
+        if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order") && item.envelope.is_none() {
             return Err(NoteSyncError::InvalidEnvelope("note object missing"));
         }
         let decoded = item.envelope.as_ref().map(decode_encrypted_note_sync_envelope).transpose()?;
@@ -6970,7 +6985,7 @@ fn commit_encrypted_sync_inbound_page(
             if exact_replay {
                 return Err(NoteSyncError::InvalidEnvelope("incomplete inbox replay"));
             }
-            let state = if matches!(item.entity_type.as_str(), "note" | "project_metadata") { "received" } else { "unknown_entity" };
+            let state = if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order") { "received" } else { "unknown_entity" };
             transaction.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
                 rusqlite::params![command.account_id,item.event_id,item.server_sequence,item.source_device_id,item.project_id,item.entity_id,item.entity_type,item.operation,item.revision,item.updated_at,item.deleted_at,state])?;
             new_events += 1;

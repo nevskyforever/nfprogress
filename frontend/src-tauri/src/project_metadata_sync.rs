@@ -81,7 +81,7 @@ impl std::fmt::Display for MetadataError {
         }
     }
 }
-fn uuid(value: &str) -> bool {
+pub(crate) fn uuid(value: &str) -> bool {
     let b = value.as_bytes();
     b.len() == 36
         && (b'1'..=b'5').contains(&b[14])
@@ -109,7 +109,7 @@ fn positive(o: &Map<String, Value>, key: &str) -> Result<i64, MetadataError> {
         .filter(|v| (1..=MAX_REVISION).contains(v))
         .ok_or(MetadataError::Invalid)
 }
-fn timestamp(value: &str) -> bool {
+pub(crate) fn timestamp(value: &str) -> bool {
     let b = value.as_bytes();
     if !(b.len() == 27
         && b[4] == b'-'
@@ -144,7 +144,7 @@ fn timestamp(value: &str) -> bool {
     };
     day > 0 && day <= days && hour < 24 && minute < 60 && second < 60
 }
-fn new_event_id() -> Result<String, MetadataError> {
+pub(crate) fn new_event_id() -> Result<String, MetadataError> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| MetadataError::Invalid)?;
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -202,7 +202,7 @@ fn validate_metadata(value: &Value) -> Result<(), MetadataError> {
     Ok(())
 }
 
-fn normalize_metadata_numbers(mut metadata:Value)->Value {
+pub(crate) fn normalize_metadata_numbers(mut metadata:Value)->Value {
     for key in ["goal","personal_goal"] {
         if let Some(value)=metadata[key].as_f64() {
             if value.fract()==0.0 && value>=0.0 && value<=MAX_REVISION as f64 {

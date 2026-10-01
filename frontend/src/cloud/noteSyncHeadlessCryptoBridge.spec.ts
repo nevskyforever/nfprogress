@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { openProjectMetadataEvent, sealProjectMetadataEvent, encodeProjectMetadataEvent, type ProjectMetadataEvent } from './projectMetadataCodec'
+import { openStructuralEvent, sealStructuralEvent, frameStructuralEvent, type StructuralEvent } from './stageCodec'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { asAccountMasterKey, decryptObjectBytes, encryptObjectBytes, generateAccountMasterKey } from '@/crypto'
@@ -43,9 +44,20 @@ interface SealIntentRequest { action: 'seal_intent'; canonical_user_id: string; 
 
 interface MetadataSealRequest { action: 'metadata_seal'; payload: ProjectMetadataEvent; amk: number[] }
 interface MetadataOpenRequest { action: 'metadata_open'; canonical_user_id: string; amk: number[]; item: OpenRequest['item'] }
-type BridgeRequest = MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
+interface StructuralSealRequest { action: 'structural_seal'; payload: StructuralEvent; amk: number[] }
+interface StructuralOpenRequest { action: 'structural_open'; canonical_user_id: string; amk: number[]; item: { event: StructuralEvent['header']; object: OpenRequest['item']['object'] } }
+type BridgeRequest = StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
+  if (request.action === 'structural_seal') {
+    const object = await sealStructuralEvent(asAccountMasterKey(Uint8Array.from(request.amk)), request.payload)
+    return { object: resolutionEnvelopeWire(object), nonce: Array.from(object.nonce), ciphertext: Array.from(object.ciphertext), frame: Array.from(frameStructuralEvent(request.payload)) }
+  }
+  if (request.action === 'structural_open') {
+    const envelope = encryptedSyncObjectFromWire(request.item.object), h = request.item.event
+    const decoded = await openStructuralEvent(asAccountMasterKey(Uint8Array.from(request.amk)), {account_id: request.canonical_user_id, project_id: h.project_id, entity_id: h.entity_id, entity_type: h.entity_type, event_id: h.event_id}, envelope)
+    return { decoded, nonce: Array.from(envelope.nonce), ciphertext: Array.from(envelope.ciphertext), frame: Array.from(frameStructuralEvent(decoded)) }
+  }
   if (request.action === 'metadata_seal') {
     const object = await sealProjectMetadataEvent(asAccountMasterKey(Uint8Array.from(request.amk)), request.payload)
     return { object: resolutionEnvelopeWire(object), nonce: Array.from(object.nonce), ciphertext: Array.from(object.ciphertext) }

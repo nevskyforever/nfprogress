@@ -22,6 +22,7 @@ mod note_sync;
 mod note_sync_plaintext;
 #[allow(dead_code)]
 mod project_metadata_sync;
+mod stage_sync;
 mod profile_transfer;
 #[allow(dead_code)]
 mod project_repository;

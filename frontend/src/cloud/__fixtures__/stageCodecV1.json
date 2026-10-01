@@ -1,0 +1,82 @@
+{
+  "portable_fields": [
+    "name",
+    "goal",
+    "infinite",
+    "unit",
+    "status",
+    "deadline",
+    "personal_goal",
+    "auto_freeze",
+    "streak_enabled",
+    "work_method",
+    "created_at",
+    "completed_at"
+  ],
+  "event": {
+    "version": 1,
+    "header": {
+      "account_id": "123e4567-e89b-42d3-a456-426614174099",
+      "project_id": "project",
+      "bootstrap_id": "123e4567-e89b-42d3-a456-426614174002",
+      "device_id": "123e4567-e89b-42d3-a456-426614174003",
+      "entity_id": "S1",
+      "entity_type": "stage",
+      "event_id": "123e4567-e89b-42d3-a456-426614174101",
+      "operation": "create",
+      "revision": 1,
+      "generation": 1,
+      "parent_event_ids": [],
+      "updated_at": "2026-10-01T00:00:00.000000Z",
+      "metadata_event_id": "123e4567-e89b-42d3-a456-426614174100"
+    },
+    "stage": {
+      "name": "Stage Alpha",
+      "goal": 1234.5,
+      "infinite": false,
+      "unit": "symbols",
+      "status": "активен",
+      "deadline": "2027-01-01",
+      "personal_goal": 100,
+      "auto_freeze": true,
+      "streak_enabled": true,
+      "work_method": "manual",
+      "created_at": "2026-09-01",
+      "completed_at": null
+    },
+    "stage_ids": null,
+    "stage_heads": null,
+    "deleted_at": null
+  },
+  "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":1234.5,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}",
+  "numeric_cases": [
+    {
+      "goal": 0,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":0,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    },
+    {
+      "goal": 0.000001,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":0.000001,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    },
+    {
+      "goal": 1e-7,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":1e-7,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    },
+    {
+      "goal": 0.30000000000000004,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":0.30000000000000004,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    },
+    {
+      "goal": 1000000000000.001,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":1000000000000.001,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    },
+    {
+      "goal": 5e-324,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":5e-324,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    },
+    {
+      "goal": 2.2250738585072014e-308,
+      "canonical_json": "{\"deleted_at\":null,\"header\":{\"account_id\":\"123e4567-e89b-42d3-a456-426614174099\",\"bootstrap_id\":\"123e4567-e89b-42d3-a456-426614174002\",\"device_id\":\"123e4567-e89b-42d3-a456-426614174003\",\"entity_id\":\"S1\",\"entity_type\":\"stage\",\"event_id\":\"123e4567-e89b-42d3-a456-426614174101\",\"generation\":1,\"metadata_event_id\":\"123e4567-e89b-42d3-a456-426614174100\",\"operation\":\"create\",\"parent_event_ids\":[],\"project_id\":\"project\",\"revision\":1,\"updated_at\":\"2026-10-01T00:00:00.000000Z\"},\"stage\":{\"auto_freeze\":true,\"completed_at\":null,\"created_at\":\"2026-09-01\",\"deadline\":\"2027-01-01\",\"goal\":2.2250738585072014e-308,\"infinite\":false,\"name\":\"Stage Alpha\",\"personal_goal\":100,\"status\":\"активен\",\"streak_enabled\":true,\"unit\":\"symbols\",\"work_method\":\"manual\"},\"stage_heads\":null,\"stage_ids\":null,\"version\":1}"
+    }
+  ]
+}

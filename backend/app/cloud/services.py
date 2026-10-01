@@ -512,10 +512,12 @@ class SyncService:
     @staticmethod
     def _validate_encrypted_item(item: EncryptedSyncPushItem | V2EncryptedSyncPushItem, *, transport_version: int) -> None:
         allowed_operations = ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
-        allowed_types = ('note', 'project_metadata') if transport_version == 3 else ('note',)
+        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order') if transport_version == 3 else ('note',)
         if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
                 or (item.event.entity_type == 'project_metadata'
-                    and item.event.entity_id != item.event.project_id)):
+                    and item.event.entity_id != item.event.project_id)
+                or (item.event.entity_type == 'stage' and item.event.operation not in ('upsert', 'delete'))
+                or (item.event.entity_type == 'stage_order' and (item.event.entity_id != 'stage_order' or item.event.operation != 'upsert'))):
             raise SyncProtocolError('encrypted_sync_event_unsupported', 'Unsupported encrypted sync event.', 422)
         if item.object.crypto_version != 1 or item.object.aad_version != 1:
             raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted object version.', 422)
@@ -713,9 +715,11 @@ class SyncService:
             session, user_id, device_id, since, limit, transport_version=3,
         )
         for event, encrypted in rows:
-            if (encrypted is None or event.entity_type not in ('note', 'project_metadata')
+            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order')
                     or event.operation not in ('upsert', 'delete', 'resolution')
-                    or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)):
+                    or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)
+                    or (event.entity_type == 'stage' and event.operation not in ('upsert', 'delete'))
+                    or (event.entity_type == 'stage_order' and (event.entity_id != 'stage_order' or event.operation != 'upsert'))):
                 raise SyncProtocolError(
                     'encrypted_sync_event_incomplete',
                     'V3 encrypted pull encountered an event without a supported opaque object.', 409,

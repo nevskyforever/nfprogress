@@ -13,7 +13,7 @@ const headers = (token: string) => new Headers({ Authorization: `Bearer ${token}
 
 export interface V3Descriptor {
   event_id: string; device_id: string; server_sequence: number; project_id: string; entity_id: string
-  entity_type: 'note' | 'project_metadata'; operation: 'upsert' | 'delete' | 'resolution'
+  entity_type: 'note' | 'project_metadata' | 'stage' | 'stage_order'; operation: 'upsert' | 'delete' | 'resolution'
   revision: number; updated_at: string; deleted_at: string | null
 }
 export interface V3PullItem { event: V3Descriptor; object: ObjectCryptoEnvelope }
@@ -40,8 +40,10 @@ export function parseV3Pull(value: unknown, since: number, limit: number): V3Pul
     if (!UUID.test(e.event_id) || !UUID.test(e.device_id) || ids.has(e.event_id)
       || typeof e.project_id !== 'string' || !e.project_id || e.project_id.length > 512
       || typeof e.entity_id !== 'string' || !e.entity_id || e.entity_id.length > 512
-      || !['note', 'project_metadata'].includes(e.entity_type) || !['upsert', 'delete', 'resolution'].includes(e.operation)
+      || !['note', 'project_metadata', 'stage', 'stage_order'].includes(e.entity_type) || !['upsert', 'delete', 'resolution'].includes(e.operation)
       || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
+      || e.entity_type === 'stage_order' && (e.entity_id !== 'stage_order' || e.operation !== 'upsert')
+      || e.entity_type === 'stage' && e.operation === 'resolution'
       || !safe(e.server_sequence, previous + 1) || !safe(e.revision, e.operation === 'resolution' ? 2 : 1)
       || typeof e.updated_at !== 'string' || (e.operation === 'delete' ? typeof e.deleted_at !== 'string' : e.deleted_at !== null)) fail()
     try { parseSyncTimestamp(e.updated_at); if (e.deleted_at !== null) parseSyncTimestamp(e.deleted_at) } catch { fail() }
@@ -66,8 +68,11 @@ export function encodeV3MetadataPush(deviceId: string, items: readonly V3Metadat
   const wire = items.map(item => {
     const e = item.event
     if (!exact(e, ['event_id', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at'])
-      || !UUID.test(e.event_id) || ids.has(e.event_id) || e.entity_type !== 'project_metadata'
-      || e.entity_id !== e.project_id || !e.project_id || e.project_id.length > 512
+      || !UUID.test(e.event_id) || ids.has(e.event_id) || !['project_metadata', 'stage', 'stage_order'].includes(e.entity_type)
+      || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
+      || e.entity_type === 'stage_order' && (e.entity_id !== 'stage_order' || e.operation !== 'upsert')
+      || e.entity_type === 'stage' && e.operation === 'resolution'
+      || !e.entity_id || e.entity_id.length > 512 || !e.project_id || e.project_id.length > 512
       || !['upsert', 'delete', 'resolution'].includes(e.operation) || !safe(e.revision, e.operation === 'resolution' ? 2 : 1)
       || typeof e.updated_at !== 'string' || (e.operation === 'delete' ? typeof e.deleted_at !== 'string' : e.deleted_at !== null)
       || item.object.crypto_version !== 1 || item.object.aad_version !== 1

@@ -574,6 +574,24 @@ fn receive_resolution(request: &Value) -> Value {
     json!({"result":result,"ack":ack})
 }
 
+fn structural_bridge(request:&Value)->Value {
+    use crate::stage_sync as stages;
+    let mut db=open_database(&database_path(request)).expect("structural database");
+    let account=required_string(request,"local_account_id");
+    let project=required_string(request,"project_id");
+    crate::project_metadata_sync::assert_runtime_scope(&db,account,required_string(request,"canonical_user_id"),required_string(request,"device_id")).unwrap();
+    match required_string(request,"step") {
+        "capture"=>json!(stages::capture_candidate(&mut db,account,project,required_string(request,"stage_id"),"2026-10-01T00:00:00.000000Z").unwrap()),
+        "prepare"=>{let e:stages::Event=serde_json::from_value(request["event"].clone()).unwrap();let expected:Vec<String>=serde_json::from_value(request["expected_tips"].clone()).unwrap();stages::prepare(&mut db,account,&e,&expected).unwrap();json!(stages::frame(&e).unwrap())},
+        "seal"=>{stages::seal(&mut db,account,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)},
+        "receive"=>{let cmd:CommitNoteSyncInboundPageCommand=serde_json::from_value(request["command"].clone()).unwrap();crate::note_sync::commit_v3_sync_inbound_page(&mut db,&cmd).unwrap();let opened=&request["opened"];json!(stages::apply_received(&mut db,account,required_string(&request["command"]["items"][0],"event_id"),&bytes(opened,"frame"),&bytes(opened,"nonce"),&bytes(opened,"ciphertext")).unwrap())},
+        "retry"=>json!(stages::retry(&mut db,account,8).unwrap()),
+        "ack"=>serde_json::to_value(prepare_note_sync_ack(&mut db,&PrepareNoteSyncAckCommand{account_id:account.into(),device_id:required_string(request,"device_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into()}).unwrap()).unwrap(),
+        "read"=>{let mut q=db.prepare("SELECT entity_type,entity_id,event_id,state,blocker FROM cloud_sync_structural_events WHERE account_id=?1 ORDER BY event_id").unwrap();let rows=q.query_map([account],|r|Ok(json!({"type":r.get::<_,String>(0)?,"id":r.get::<_,String>(1)?,"event_id":r.get::<_,String>(2)?,"state":r.get::<_,String>(3)?,"blocker":r.get::<_,Option<String>>(4)?}))).unwrap().collect::<Result<Vec<_>,_>>().unwrap();json!(rows)},
+        _=>panic!("unsupported structural bridge step"),
+    }
+}
+
 fn metadata_authority_bridge(request:&Value)->Value {
     use crate::project_metadata_sync as metadata;
     let mut db=open_database(&database_path(request)).expect("metadata device database");
@@ -640,6 +658,7 @@ fn c15_headless_native_bridge() {
     ).expect("parse bridge request");
     let response = match required_string(&request, "action") {
         "metadata_authority" => metadata_authority_bridge(&request),
+        "structural" => structural_bridge(&request),
         "provision" => provision(&request),
         "bootstrap_prepare" => bootstrap_prepare(&request),
         "bootstrap_prepare_capture" => bootstrap_prepare_capture(&request),

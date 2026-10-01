@@ -169,6 +169,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 25: "025_project_metadata_sync.sql",
                 26: "026_project_metadata_authority.sql",
                 27: "027_metadata_edge_continuation.sql",
+                28: "028_stage_structural_sync.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

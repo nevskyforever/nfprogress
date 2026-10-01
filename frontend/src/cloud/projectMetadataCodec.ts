@@ -32,7 +32,7 @@ function exact(value: Record<string, unknown>, keys: readonly string[]): boolean
 function positive(value: unknown): value is number { return Number.isSafeInteger(value) && (value as number) >= 1 }
 function finiteNonnegative(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= 0 }
 function nonempty(value: unknown): value is string { return typeof value === 'string' && value.length > 0 && encoder.encode(value).length <= 512 }
-function timestamp(value: unknown): value is string {
+export function timestamp(value: unknown): value is string {
   if (typeof value !== 'string') return false
   try { return canonicalizeSyncTimestamp(value) === value } catch { return false }
 }
@@ -63,7 +63,7 @@ export function validateProjectMetadataEvent(value: unknown): asserts value is P
       || typeof m.stages_enabled !== 'boolean' || typeof m.combine_stage_mindmaps !== 'boolean') fail()
   }
 }
-function canonical(value: unknown): string {
+export function canonical(value: unknown): string {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
   if (typeof value === 'number' && Number.isFinite(value)) return JSON.stringify(value)
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
