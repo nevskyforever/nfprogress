@@ -870,6 +870,10 @@ fn project_coverage(
     }
     Ok(())
 }
+// Shared consumer boundary; catalog recovery semantics stay unchanged.
+pub(crate) fn project_reference_ready(db: &Connection, account: &str, project: &str, bootstrap: &str, reference: &str) -> Result<()> {
+    project_coverage(db, account, project, &ProjectProof { bootstrap_id: bootstrap.into(), metadata_event_id: reference.into() }, &mut ProofBudget(DEPENDENCY_TOTAL_NODES))
+}
 // true means a known incompatible live-set/destructive evolution: retain a
 // complete conflict, never use that payload as an exact current projection.
 fn dependencies_ready(db: &Connection, a: &str, e: &Event) -> Result<bool> {
@@ -1551,7 +1555,7 @@ pub(crate) fn ack_proven(db: &Connection, a: &str, seq: i64) -> Result<bool> {
     Ok(db.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_account_inbox i JOIN cloud_catalog_events e ON e.account_id=i.account_id AND e.event_id=i.event_id JOIN cloud_catalog_apply_ledger l ON l.account_id=e.account_id AND l.event_id=e.event_id WHERE i.account_id=?1 AND i.server_sequence=?2 AND e.server_sequence=i.server_sequence AND l.server_sequence=i.server_sequence AND e.entity_type=i.entity_type AND e.entity_id=i.entity_id AND e.state=l.outcome AND e.canonical_frame=l.canonical_frame AND i.nonce=l.nonce AND i.ciphertext=l.ciphertext AND e.nonce=l.nonce AND e.ciphertext=l.ciphertext AND i.crypto_version=2 AND i.aad_version=2 AND i.error_code IS NULL)",params![a,seq],|r|r.get(0))?)
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     const USER: &str = "123e4567-e89b-42d3-a456-426614174000";
     const DEVICE: &str = "123e4567-e89b-42d3-a456-426614174001";
@@ -1566,7 +1570,7 @@ mod tests {
     fn id(n: u32) -> String {
         format!("123e4567-e89b-42d3-a456-{n:012}")
     }
-    fn setup() -> (Connection, std::path::PathBuf) {
+    pub(crate) fn setup() -> (Connection, std::path::PathBuf) {
         let path =
             std::env::temp_dir().join(format!("catalog-{}.db", metadata::new_event_id().unwrap()));
         let db = crate::sqlite::open_database(&path).unwrap();
@@ -1578,7 +1582,7 @@ mod tests {
         .unwrap();
         (db, path)
     }
-    fn seed(db: &mut Connection) {
+    pub(crate) fn seed(db: &mut Connection) {
         for (i, p) in ["L1", "C1", "C2"].iter().enumerate() {
             let meta = json!({"name":p,"goal":null,"infinite":true,"unit":"symbols","status":"active","deadline":null,"personal_goal":0,"auto_freeze":true,"streak_enabled":true,"work_method":"manual","stages_enabled":false,"combine_stage_mindmaps":false});
             db.execute("INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES(?1,?1,1,'symbols','active',?2)",params![p,meta.to_string()]).unwrap();
@@ -1654,7 +1658,7 @@ mod tests {
         )
         .unwrap()
     }
-    fn migrate(db: &mut Connection) -> Vec<Event> {
+    pub(crate) fn migrate(db: &mut Connection) -> Vec<Event> {
         begin(db, &scope(), NOW).unwrap();
         let mut out = vec![];
         let mut seq = 3;
@@ -2260,7 +2264,7 @@ mod tests {
         )
         .unwrap()
     }
-    fn metadata_successor(db: &mut Connection, project: &str, seq: i64) {
+    pub(crate) fn metadata_successor(db: &mut Connection, project: &str, seq: i64) {
         let head = metadata::authority_view(db, "a", project)
             .unwrap()
             .head_event_id

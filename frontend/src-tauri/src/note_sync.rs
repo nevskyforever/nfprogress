@@ -4420,6 +4420,7 @@ pub(crate) struct ListReceivedNoteSyncInboxCommand {
 pub(crate) enum ReceivedNoteSyncInboxPageKind {
     V1,
     Resolution,
+    Content,
 }
 
 /// A bounded, independently paginated received Note stream. The `kind`
@@ -4987,7 +4988,7 @@ fn valid_note_sync_timestamp(value: &str) -> bool {
     parse_note_sync_timestamp(value).is_some()
 }
 
-fn note_sync_timestamps_equal(left: &str, right: &str) -> bool {
+pub(crate) fn note_sync_timestamps_equal(left: &str, right: &str) -> bool {
     parse_note_sync_timestamp(left).is_some_and(|left| {
         parse_note_sync_timestamp(right).is_some_and(|right| right == left)
     })
@@ -5581,7 +5582,7 @@ fn applied_resolution_parent_revision(
                 (resolution.strategy='keep_both' AND resolution.clone_entity_id=?4))
            AND resolution.lifecycle='applied'
            AND resolution.revision BETWEEN 2 AND 9007199254740991
-           AND inbox.operation='resolution' AND inbox.state='applied'
+           AND (inbox.operation='resolution' OR (inbox.operation='event' AND EXISTS(SELECT 1 FROM cloud_content_note_receipts r WHERE r.account_id=inbox.account_id AND r.event_id=inbox.event_id AND r.outcome='applied'))) AND inbox.state='applied'
            AND inbox.project_id=resolution.project_id
            AND inbox.entity_id=resolution.entity_id
            AND inbox.device_id=resolution.source_device_id
@@ -6679,6 +6680,8 @@ fn contiguous_applied_ack_prefix(
             if !crate::account_catalog::ack_proven(transaction,account_id,next).map_err(|_|NoteSyncError::InvalidEnvelope("catalog ACK proof unavailable"))? { break; }
             candidate=next; continue;
         }
+        let framed: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence=?2 AND entity_type='note' AND operation='event')",rusqlite::params![account_id,next],|r|r.get(0))?;
+        if framed && !crate::content_note_sync::ack_proven(transaction,account_id,next)? { break; }
         let durable: Option<i64> = transaction.query_row(
             "SELECT CASE
                 WHEN inbox.entity_type IN ('stage','stage_order')
@@ -6891,6 +6894,10 @@ pub(crate) fn list_received_note_sync_inbox_page(
             "AND inbox.state='received' AND inbox.operation IN ('upsert','delete')",
             &["upsert", "delete"],
         ),
+        ReceivedNoteSyncInboxPageKind::Content => (
+            "AND inbox.state IN ('received','orphan') AND inbox.operation='event'",
+            &["event"],
+        ),
         ReceivedNoteSyncInboxPageKind::Resolution => (
             "AND inbox.state='received' AND inbox.operation='resolution'",
             &["resolution"],
@@ -7005,7 +7012,7 @@ fn commit_encrypted_sync_inbound_page(
                     item.entity_id != item.project_id || item.operation == "event") {
                 return Err(NoteSyncError::InvalidEnvelope("unsupported mode-3 entity"));
             }
-        } else if matches!(item.entity_type.as_str(), "project_metadata" | "stage" | "stage_order") {
+        } else if matches!(item.entity_type.as_str(), "project_metadata" | "stage" | "stage_order") || item.entity_type == "note" && item.operation == "event" {
             return Err(NoteSyncError::InvalidEnvelope("metadata requires mode-3 inbox"));
         }
         if item.entity_type == "stage_order" && (item.entity_id != "stage_order" || item.operation != "upsert")
@@ -8559,6 +8566,13 @@ fn peer_result_evidence(
     resolution: &crate::note_sync_plaintext::NoteSyncResolutionV2,
     tips: &[PeerResolutionTipProof],
 ) -> Result<(&'static str, String, Option<String>, Option<String>), ApplyVerifiedReceivedResolutionV2Error> {
+    peer_result_evidence_with_content(resolution, tips, false)
+}
+fn peer_result_evidence_with_content(
+    resolution: &crate::note_sync_plaintext::NoteSyncResolutionV2,
+    tips: &[PeerResolutionTipProof],
+    content: bool,
+) -> Result<(&'static str, String, Option<String>, Option<String>), ApplyVerifiedReceivedResolutionV2Error> {
     let (result_operation, result_value) = result_parts(&resolution.result)
         .map_err(peer_resolution_error)?;
     let find_tip = |event_id: &str| tips.iter().find(|tip| tip.event_id == event_id)
@@ -8578,7 +8592,7 @@ fn peer_result_evidence(
             let NoteSyncResolutionV2Result::Upsert(note) = &resolution.result else {
                 return Err(ApplyVerifiedReceivedResolutionV2Error::InvalidPayload);
             };
-            if eligibility(&note.route) != Eligibility::Eligible {
+            if !content && eligibility(&note.route) != Eligibility::Eligible {
                 return Err(ApplyVerifiedReceivedResolutionV2Error::InvalidPayload);
             }
             (None, None)
@@ -8739,7 +8753,7 @@ fn peer_resolution_tip_proofs(
                     "SELECT server_sequence FROM cloud_sync_inbox
                      WHERE account_id=?1 AND event_id=?2 AND server_sequence=?3
                        AND project_id=?4 AND entity_id=?5 AND entity_type='note'
-                       AND operation=?6 AND sync_revision=?7
+                       AND (operation=?6 OR (operation='event' AND EXISTS(SELECT 1 FROM cloud_content_note_receipts r WHERE r.account_id=cloud_sync_inbox.account_id AND r.event_id=cloud_sync_inbox.event_id AND r.outcome='conflict_preserved'))) AND sync_revision=?7
                        AND state='conflict_preserved' AND conflict_group_id=?8",
                     rusqlite::params![account_id, version.1, expected, project_id, entity_id,
                         version.4, version.3, group_id], |row| row.get(0),
@@ -8851,6 +8865,15 @@ fn apply_verified_received_resolution_v2_inner(
     inject_after_original: bool,
     inject_before_completion: bool,
 ) -> Result<ApplyVerifiedReceivedResolutionV2Result, ApplyVerifiedReceivedResolutionV2Error> {
+    apply_resolution_with_content(connection, command, inject_after_original, inject_before_completion, None)
+}
+fn apply_resolution_with_content(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    command: &VerifiedPeerResolutionCommand,
+    inject_after_original: bool,
+    inject_before_completion: bool,
+    content: Option<(&crate::content_note_sync::ContentNote, &ApplyVerifiedReceivedNoteIpcCommand)>,
+) -> Result<ApplyVerifiedReceivedResolutionV2Result, ApplyVerifiedReceivedResolutionV2Error> {
     if command.event_id != command.resolution.header.event_id
         || command.crypto_version != SUPPORTED_CRYPTO_VERSION
         || command.aad_version != SUPPORTED_AAD_VERSION
@@ -8877,7 +8900,7 @@ fn apply_verified_received_resolution_v2_inner(
             };
             if sequence != command.server_sequence || source != command.source_device_id
                 || project != command.resolution.header.project_id
-                || entity != command.resolution.header.entity_id || operation != "resolution"
+                || entity != command.resolution.header.entity_id || operation != if content.is_some() { "event" } else { "resolution" }
                 || revision != command.resolution.header.revision
                 || !note_sync_timestamps_equal(&updated_at, &command.resolution.header.updated_at)
                 || deleted_at.is_some()
@@ -8894,6 +8917,16 @@ fn apply_verified_received_resolution_v2_inner(
                 command.nonce.clone(), command.ciphertext.clone()))
             {
                 return Err(ApplyVerifiedReceivedResolutionV2Error::ImmutableMismatch);
+            }
+            if let Some((event, raw)) = content {
+                crate::content_note_sync::receipt(transaction, raw, Some(&event.frame))?;
+                if state != "applied" {
+                    if let Err(code) = crate::content_note_sync::ready(transaction, &command.account_id, &command.canonical_user_id, &command.source_device_id, event) {
+                        transaction.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?3 WHERE account_id=?1 AND event_id=?2", rusqlite::params![command.account_id,command.event_id,code])?;
+                        transaction.execute("UPDATE cloud_content_note_receipts SET blocker=?3 WHERE account_id=?1 AND event_id=?2", rusqlite::params![command.account_id,command.event_id,code])?;
+                        return Ok((Vec::new(), PeerResolutionApplyPlan::Orphan { error_code: "dependency_not_synced" }));
+                    }
+                }
             }
             let project_bound: i64 = transaction.query_row(
                 "SELECT EXISTS(SELECT 1 FROM cloud_sync_project_bindings
@@ -8997,7 +9030,7 @@ fn apply_verified_received_resolution_v2_inner(
                 return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
             }
             let (result_operation,result_snapshot_json,clone_entity_id,clone_snapshot_json) =
-                peer_result_evidence(&command.resolution, &tips)?;
+                peer_result_evidence_with_content(&command.resolution, &tips, content.is_some())?;
             if let Some(clone_id) = clone_entity_id.as_deref() {
                 let collision: i64 = transaction.query_row(
                     "SELECT EXISTS(
@@ -9055,6 +9088,7 @@ fn apply_verified_received_resolution_v2_inner(
                      WHERE account_id=?2 AND event_id=?3 AND state='received'",
                     rusqlite::params![error_code, command.account_id, command.event_id],
                 )?;
+                if content.is_some() { crate::content_note_sync::complete(transaction, &command.account_id, &command.event_id)?; }
                 Ok(ApplyVerifiedReceivedResolutionV2Result::Orphan)
             }
             PeerResolutionApplyPlan::Apply {
@@ -9132,6 +9166,7 @@ fn apply_verified_received_resolution_v2_inner(
                 if completed != 1 || resolved != 1 || applied != 1 {
                     return Err(ApplyVerifiedReceivedResolutionV2Error::StaleConflict);
                 }
+                if content.is_some() { crate::content_note_sync::complete(transaction, &command.account_id, &command.event_id)?; }
                 Ok(ApplyVerifiedReceivedResolutionV2Result::Applied)
             }
         },
@@ -9664,6 +9699,57 @@ fn remote_apply_storage_error(error: StorageError) -> NoteSyncError {
 /// Applies one TypeScript-authenticated Note plaintext.  The caller never
 /// supplies a capability, and every mutable SQLite fact is re-checked inside
 /// the immediate transaction owned by the privileged connection.
+pub(crate) fn record_content_note_blocker(connection:&mut PrivilegedRemoteApplyConnection, command:&ApplyVerifiedReceivedNoteIpcCommand, code:&str)->Result<(),NoteSyncError> {
+    if !matches!(code,"decrypt_failed"|"invalid_note_payload") {return Err(NoteSyncError::InvalidEnvelope("invalid content blocker"))}
+    connection.execute_planned_once(|tx| {
+        crate::content_note_sync::receipt(tx,command,None)?;
+        tx.execute("UPDATE cloud_content_note_receipts SET blocker=?3 WHERE account_id=?1 AND event_id=?2 AND outcome='waiting'",rusqlite::params![command.account_id,command.event_id,code])?;
+        tx.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?3 WHERE account_id=?1 AND event_id=?2 AND state IN ('received','orphan')",rusqlite::params![command.account_id,command.event_id,code])?;
+        Ok((None,()))
+    },|_,_|Ok(())).map_err(remote_apply_storage_error)
+}
+
+/// Explicit mode-3 framed Note route; no legacy decoder fallback.
+pub(crate) fn apply_verified_received_content_note_ipc(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    mut command: ApplyVerifiedReceivedNoteIpcCommand,
+) -> Result<String, NoteSyncError> {
+    let decoded = crate::content_note_sync::decode(&command.plaintext);
+    let result = match decoded {
+        Err(code) => connection.execute_planned_once(
+            |tx| {
+                let frame = if command.plaintext.len() <= 8388608 { Some(command.plaintext.as_slice()) } else { None };
+                crate::content_note_sync::receipt(tx, &command, frame)?;
+                tx.execute("UPDATE cloud_content_note_receipts SET blocker=?3 WHERE account_id=?1 AND event_id=?2 AND outcome='waiting'",rusqlite::params![command.account_id,command.event_id,code])?;
+                tx.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?3 WHERE account_id=?1 AND event_id=?2 AND state IN ('received','orphan')",rusqlite::params![command.account_id,command.event_id,code])?;
+                Ok((None,code.to_string()))
+            }, |_,code| Ok(code),
+        ).map_err(remote_apply_storage_error),
+        Ok(mut event) => {
+            if let Some(plaintext) = event.ordinary.take() {
+                let verified = ApplyVerifiedReceivedNoteCommand {
+                    account_id:command.account_id.clone(),canonical_user_id:command.canonical_user_id.clone(),pulling_device_id:command.pulling_device_id.clone(),event_id:command.event_id.clone(),server_sequence:command.server_sequence,source_device_id:command.source_device_id.clone(),crypto_version:command.crypto_version,aad_version:command.aad_version,nonce:command.nonce.clone(),ciphertext:command.ciphertext.clone(),plaintext,
+                };
+                // Keep the parsed route available to the common transaction hook.
+                event.ordinary=Some(verified.plaintext.clone());
+                apply_received_note_with_content(connection,&verified,Some((&event,&command)))
+                    .map(|r|serde_json::to_value(r).unwrap().as_str().unwrap().to_string())
+            } else {
+                let canonical_payload=serde_json::to_vec(&event.root["event"]).unwrap();
+                let resolution=crate::note_sync_plaintext::decode_note_sync_resolution_v2(&canonical_payload).unwrap();
+                let verified=VerifiedPeerResolutionCommand {
+                    account_id:command.account_id.clone(),canonical_user_id:command.canonical_user_id.clone(),pulling_device_id:command.pulling_device_id.clone(),event_id:command.event_id.clone(),server_sequence:command.server_sequence,source_device_id:command.source_device_id.clone(),crypto_version:command.crypto_version,aad_version:command.aad_version,nonce:command.nonce.clone(),ciphertext:command.ciphertext.clone(),canonical_payload,resolution,
+                };
+                apply_resolution_with_content(connection,&verified,false,false,Some((&event,&command)))
+                    .map(|r|serde_json::to_value(r).unwrap().as_str().unwrap().to_string())
+                    .map_err(|_|NoteSyncError::InvalidEnvelope("content Note resolution rejected"))
+            }
+        }
+    };
+    command.plaintext.fill(0);
+    result
+}
+
 pub(crate) fn apply_verified_received_note_ipc(
     connection: &mut PrivilegedRemoteApplyConnection,
     mut command: ApplyVerifiedReceivedNoteIpcCommand,
@@ -9695,6 +9781,13 @@ pub(crate) fn apply_verified_received_note_ipc(
 pub(crate) fn apply_verified_received_note(
     connection: &mut PrivilegedRemoteApplyConnection,
     command: &ApplyVerifiedReceivedNoteCommand,
+) -> Result<ApplyVerifiedReceivedNoteResult, NoteSyncError> {
+    apply_received_note_with_content(connection, command, None)
+}
+fn apply_received_note_with_content(
+    connection: &mut PrivilegedRemoteApplyConnection,
+    command: &ApplyVerifiedReceivedNoteCommand,
+    content: Option<(&crate::content_note_sync::ContentNote, &ApplyVerifiedReceivedNoteIpcCommand)>,
 ) -> Result<ApplyVerifiedReceivedNoteResult, NoteSyncError> {
     let incoming = verified_incoming_note(&command.plaintext)?;
     if command.event_id != incoming.event_id {
@@ -9735,14 +9828,14 @@ pub(crate) fn apply_verified_received_note(
                     && source_device_id == command.source_device_id
                     && project_id == incoming.project_id
                     && entity_id == incoming.entity_id
-                    && operation == incoming.operation
+                    && operation == if content.is_some() { "event" } else { &incoming.operation }
                     && revision == incoming.revision
                     && note_sync_timestamps_equal(&updated_at, &incoming.updated_at)
-                    && match (deleted_at.as_deref(), incoming.deleted_at.as_deref()) {
+                    && if content.is_some() { deleted_at.is_none() } else { match (deleted_at.as_deref(), incoming.deleted_at.as_deref()) {
                         (None, None) => true,
                         (Some(stored), Some(opened)) => note_sync_timestamps_equal(stored, opened),
                         _ => false,
-                    };
+                    }};
                 if !immutable_matches {
                     return classify_remote_apply(
                         transaction,
@@ -9781,6 +9874,15 @@ pub(crate) fn apply_verified_received_note(
                         error_code,
                     )
                     .map_err(Into::into);
+                }
+                if let Some((event, raw)) = content {
+                    crate::content_note_sync::receipt(transaction, raw, Some(&event.frame))?;
+                    // Completed immutable replay does not re-open dependencies.
+                    if !matches!(inbox_state.as_str(), "applied" | "conflict_preserved") {
+                        if let Err(code) = crate::content_note_sync::ready(transaction, &command.account_id, &command.canonical_user_id, &command.source_device_id, event) {
+                            return classify_remote_apply(transaction, command, ApplyVerifiedReceivedNoteResult::Orphan, "orphan", &code).map_err(Into::into);
+                        }
+                    }
                 }
                 if inbox_state == "applied" {
                     if !applied_remote_history_matches(transaction, command, &incoming)? {
@@ -9862,7 +9964,7 @@ pub(crate) fn apply_verified_received_note(
                     )
                     .map_err(Into::into);
                 }
-                match eligibility(&incoming.route) {
+                match if content.is_some() { Eligibility::Eligible } else { eligibility(&incoming.route) } {
                     Eligibility::DependencyNotSynced => {
                         return classify_remote_apply(transaction, command,
                             ApplyVerifiedReceivedNoteResult::Orphan, "orphan", "dependency_not_synced")
@@ -10049,13 +10151,13 @@ pub(crate) fn apply_verified_received_note(
                     RemoteNoteMutation::Insert { payload_json, updated_at } => {
                         transaction.execute(
                             "INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json)
-                             VALUES(?1,?2,NULL,?3,?4)",
+                             VALUES(?1,?2,json_extract(?4,'$.stage_id'),?3,?4)",
                             rusqlite::params![plan.entity_id, plan.project_id, updated_at, payload_json],
                         )?;
                     }
                     RemoteNoteMutation::Update { payload_json, updated_at } => {
                         let changed = transaction.execute(
-                            "UPDATE notes SET updated_at=?1,payload_json=?2
+                            "UPDATE notes SET updated_at=?1,payload_json=?2,stage_id=json_extract(?2,'$.stage_id')
                              WHERE id=?3 AND project_id=?4",
                             rusqlite::params![updated_at, payload_json, plan.entity_id, plan.project_id],
                         )?;
@@ -10080,6 +10182,7 @@ pub(crate) fn apply_verified_received_note(
                         Some(&plan.updated_at),
                     )?;
                 }
+                if content.is_some() { crate::content_note_sync::complete(transaction, &plan.account_id, &plan.event_id)?; }
                 Ok(plan.result)
             },
         )

@@ -516,9 +516,10 @@ class SyncService:
             if transport_version != 3 or item.object.crypto_version != 2 or item.object.aad_version != 2:
                 raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported account object version.', 422)
             return
-        allowed_operations = ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
+        allowed_operations = ('upsert', 'delete', 'resolution', 'event') if transport_version == 3 else ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
         allowed_types = ('note', 'project_metadata', 'stage', 'stage_order') if transport_version == 3 else ('note',)
         if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
+                or (item.event.operation == 'event' and item.event.entity_type != 'note')
                 or (item.event.entity_type == 'project_metadata'
                     and item.event.entity_id != item.event.project_id)
                 or (item.event.entity_type == 'stage' and item.event.operation not in ('upsert', 'delete'))
@@ -730,7 +731,8 @@ class SyncService:
                     raise SyncProtocolError('encrypted_sync_event_incomplete', 'Invalid account object.', 409)
                 continue
             if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order')
-                    or event.operation not in ('upsert', 'delete', 'resolution')
+                    or event.operation not in ('upsert', 'delete', 'resolution', 'event')
+                    or (event.operation == 'event' and event.entity_type != 'note')
                     or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)
                     or (event.entity_type == 'stage' and event.operation not in ('upsert', 'delete'))
                     or (event.entity_type == 'stage_order' and (event.entity_id != 'stage_order' or event.operation != 'upsert'))):

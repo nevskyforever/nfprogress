@@ -628,6 +628,24 @@ fn reference_coverage(
     }
     Ok(Some(covered.len() == refs.len()))
 }
+// Read-only C18 content consumer. Accepted Stage-order coverage is unchanged.
+pub(crate) fn content_reference_ready(db: &Connection, a: &str, p: &str, id: &str, refs: &[String]) -> Result<(), String> {
+    let current = tips(db, a, p, "stage", id).map_err(|_| "stage_dependency_missing")?;
+    if current.len() != 1 { return Err("stage_dependency_missing".into()); }
+    let raw: Vec<u8> = db.query_row("SELECT canonical_frame FROM cloud_sync_structural_events WHERE account_id=?1 AND project_id=?2 AND entity_type='stage' AND entity_id=?3 AND event_id=?4", params![a,p,id,current[0]], |r|r.get(0)).map_err(|_| "stage_dependency_missing")?;
+    let event = unframe(&raw).map_err(|_| "stage_dependency_missing")?;
+    if event.header.operation == "delete" { return Err("stage_tombstone_child_manifest_incomplete".into()); }
+    // Consume the same authority facts for this Stage only. Do not materialize
+    // every Stage/Stage-order branch just to verify one bounded Note dependency.
+    let (local, _, unsupported) = snapshot(db, p, id).map_err(|_| "stage_dependency_missing")?;
+    let projection: Option<String> = db.query_row("SELECT head_event_id FROM cloud_sync_structural_projection WHERE account_id=?1 AND project_id=?2 AND entity_type='stage' AND entity_id=?3", params![a,p,id], |r|r.get(0)).optional().map_err(|_| "stage_dependency_missing")?;
+    if !unsupported.is_empty() || projection.as_ref() != current.first() || event.stage != local {
+        return Err("stage_dependency_missing".into());
+    }
+    match reference_coverage(db, a, p, id, &current, refs).map_err(|_| "stage_dependency_missing")? {
+        Some(true) => Ok(()), None => Err("stage_dependency_proof_limit".into()), _ => Err("stage_dependency_missing".into())
+    }
+}
 // Remote decisions may reconcile authenticated history, but must not adopt an
 // unrelated legacy/local candidate on behalf of this device. Prove the visible
 // snapshot belongs to the decision's lineage, or require a local explicit CAS.

@@ -8,11 +8,19 @@ and [Cloud 36996342235](https://github.com/nevskyforever/nfprogress/actions/runs
 SUCCESS, including Python SQLite, Rust Windows, Frontend admin and PostgreSQL.
 That audit intentionally kept C18.4 open for P1-02. Codex did not query Actions.
 
-**Closure decision: C18.4 — LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING.**
-No P0 or remaining P1 found within this bounded integration matrix. P1-01 remains
-fixed; P1-02 is resolved locally with causal recovery and complete preservation.
-This is a closure candidate, not CLOSED or remotely accepted. C18 remains
-IN PROGRESS; official progress exactly77.0%. No C18.5 implementation.
+## C18.4 final independent remote acceptance — 2 October 2026
+
+Owner-supplied independent verification for implementation SHA
+`ddfe65c5b606fca259a88bfc6644074098e9faac`:
+
+- [SQLite sync substrate tests 37004006923](https://github.com/nevskyforever/nfprogress/actions/runs/37004006923) — **SUCCESS**: Python SQLite substrate and Rust SQLite substrate / Windows.
+- [Cloud backend tests 37004006914](https://github.com/nevskyforever/nfprogress/actions/runs/37004006914) — **SUCCESS**: Frontend admin and PostgreSQL cloud backend.
+
+**C18.4.07 — REMOTELY ACCEPTED.** **C18.4 STRUCTURAL / CATALOG ENTITIES — CLOSED.**
+C18.4.06 found no P0; P1-01 remains fixed; C18.4.07 resolves P1-02. No new P1
+remains; other matrix items are PASS or legitimate later-stage/P2 deferrals.
+This closure uses the owner's independent evidence; Codex did not inspect Actions.
+C18 remains **IN PROGRESS**, official progress exactly **77.0%**. No partial points.
 
 ## Audit method and production wiring
 

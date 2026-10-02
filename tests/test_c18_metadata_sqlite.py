@@ -20,7 +20,7 @@ def _database(version: int) -> sqlite3.Connection:
 
 def test_c18_metadata_fresh_schema_and_immutable_candidate():
     db = _database(0)
-    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 31
+    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 32
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {'cloud_sync_metadata_candidates','cloud_sync_metadata_events',
             'cloud_sync_metadata_tips','cloud_sync_metadata_projection',

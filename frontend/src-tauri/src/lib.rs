@@ -23,6 +23,7 @@ mod note_sync;
 mod account_sync;
 mod account_catalog;
 mod note_sync_plaintext;
+mod content_note_sync;
 #[allow(dead_code)]
 mod project_metadata_sync;
 mod stage_sync;
@@ -2436,6 +2437,20 @@ fn apply_verified_received_note(
         .map_err(|error| error.to_string())?;
     note_sync::apply_verified_received_note_ipc(&mut connection, command)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn apply_verified_received_content_note(command: note_sync::ApplyVerifiedReceivedNoteIpcCommand) -> Result<String,String> {
+    let ordinary=open_notes_database(true)?;
+    require_sqlite_notes_owner(&ordinary)?; drop(ordinary);
+    let mut connection=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|e|e.to_string())?;
+    note_sync::apply_verified_received_content_note_ipc(&mut connection,command).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn record_content_note_blocker(command: note_sync::ApplyVerifiedReceivedNoteIpcCommand,code:String) -> Result<(),String> {
+    let mut connection=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|e|e.to_string())?;
+    note_sync::record_content_note_blocker(&mut connection,&command,&code).map_err(|e|e.to_string())
 }
 
 /// Dormant peer-only resolution-v2 apply boundary. TypeScript supplies
@@ -6023,6 +6038,8 @@ pub fn run() {
             list_received_note_sync_inbox_page,
             list_orphan_note_resolution_inbox,
             apply_verified_received_note,
+            apply_verified_received_content_note,
+            record_content_note_blocker,
             apply_verified_received_resolution_v2,
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,

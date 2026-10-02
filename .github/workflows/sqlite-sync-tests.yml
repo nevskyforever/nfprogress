@@ -6,6 +6,7 @@ on:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/content_note_sync.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
@@ -13,6 +14,7 @@ on:
       - 'frontend/src-tauri/src/account_catalog.rs'
       - 'frontend/src/crypto/account-object-v2.vectors.json'
       - 'frontend/src/cloud/__fixtures__/stageCodecV1.json'
+      - 'frontend/src/cloud/__fixtures__/contentNoteCodecV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json'
       - 'frontend/src-tauri/src/account_binding.rs'
@@ -27,6 +29,7 @@ on:
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
+      - 'tests/test_c18_content_note_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -37,6 +40,7 @@ on:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/content_note_sync.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
@@ -44,6 +48,7 @@ on:
       - 'frontend/src-tauri/src/account_catalog.rs'
       - 'frontend/src/crypto/account-object-v2.vectors.json'
       - 'frontend/src/cloud/__fixtures__/stageCodecV1.json'
+      - 'frontend/src/cloud/__fixtures__/contentNoteCodecV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json'
       - 'frontend/src-tauri/src/account_binding.rs'
@@ -58,6 +63,7 @@ on:
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
+      - 'tests/test_c18_content_note_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -95,7 +101,7 @@ jobs:
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
-            tests/test_c18_catalog_sqlite.py \
+            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \

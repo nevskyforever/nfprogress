@@ -38,6 +38,7 @@ describe('support diagnostic privacy and orchestration', () => {
     expect(h.events[5]?.context).toEqual({error_code: 'Validation', error_class: 'TypeError'})
     expect(JSON.stringify(h.events)).not.toContain(secret)
     expect(safeError(new Error('metadata_import_resource_limit')).error_code).toBe('metadata_import_resource_limit')
+    for(const code of ['content_note_codec_unsupported','content_note_map_owned','content_note_unsupported_source','content_note_scope_mismatch','content_note_resource_limit']) expect(sanitizeContext({error_code:code,content:secret,title:secret,stage_name:secret})).toEqual({error_code:code})
     expect(safeError(new Error(secret)).error_code).toBe('unknown_error')
     expect(safeError({code: secret, message: secret})).toEqual({error_code: 'unknown_error', error_class: 'Error'})
   })
@@ -56,6 +57,11 @@ describe('support diagnostic privacy and orchestration', () => {
 describe('central friendly presentations', () => {
   it.each([
     ['metadata','local_differs_from_authenticated','Версии различаются'], ['structure','published_self_echo_pending','Изменения ожидают подтверждения'],
+    ['error','content_note_codec_unsupported','Эти данные пока не поддерживаются'],
+    ['error','content_note_map_owned','Эти данные пока не поддерживаются'],
+    ['error','content_note_unsupported_source','Эти данные пока не поддерживаются'],
+    ['error','content_note_scope_mismatch','Требуется ваше внимание'],
+    ['error','content_note_resource_limit','Не удалось обработать всю историю'],
     ['error','orphan','Ожидает связанных данных'], ['error','conflict_preserved','Есть конфликт изменений'],
     ['error','stale_structural_resolution','Во время выбора появились новые изменения'], ['error','metadata_import_resource_limit','Не удалось обработать всю историю'],
     ['session','key_locked','Введите пароль шифрования'], ['error','future_safe_code','Не удалось завершить действие'],

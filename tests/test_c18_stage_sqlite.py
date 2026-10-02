@@ -14,7 +14,7 @@ FIELDS = ['name', 'goal', 'infinite', 'unit', 'status', 'deadline', 'personal_go
 def test_structural_every_supported_schema_and_idempotent_upgrade(version):
     db = _database(version)
     db.commit()
-    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 31
+    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 32
     assert apply_migrations(db) == CURRENT_SCHEMA_VERSION
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
     assert db.execute('SELECT COUNT(*) FROM cloud_sync_stage_candidates').fetchone()[0] == 0
@@ -78,8 +78,8 @@ def test_populated_28_integration_upgrade_retains_structural_frames_and_cipherte
     tables = ['cloud_sync_structural_events', 'cloud_sync_event_objects', 'projects', 'project_order']
     before = {table: db.execute(f'SELECT * FROM {table}').fetchall() for table in tables}
     db.commit()
-    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 31
+    assert apply_migrations(db) == CURRENT_SCHEMA_VERSION == 32
     assert {table: db.execute(f'SELECT * FROM {table}').fetchall() for table in tables} == before
-    assert apply_migrations(db) == 31
+    assert apply_migrations(db) == 32
     assert db.execute('SELECT count(*) FROM cloud_sync_structural_migrations').fetchone()[0] == 0
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []

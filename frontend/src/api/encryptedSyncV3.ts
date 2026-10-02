@@ -14,7 +14,7 @@ const headers = (token: string) => new Headers({ Authorization: `Bearer ${token}
 
 export interface V3Descriptor {
   event_id: string; device_id: string; server_sequence: number; project_id: string; entity_id: string
-  entity_type: 'note' | 'project_metadata' | 'stage' | 'stage_order'; operation: 'upsert' | 'delete' | 'resolution'
+  entity_type: 'note' | 'project_metadata' | 'stage' | 'stage_order'; operation: 'upsert' | 'delete' | 'resolution' | 'event'
   revision: number; updated_at: string; deleted_at: string | null
 }
 export interface AccountDescriptor {
@@ -54,7 +54,8 @@ export function parseV3Pull(value: unknown, since: number, limit: number): V3Pul
     if (!UUID.test(e.event_id) || !UUID.test(e.device_id) || ids.has(e.event_id)
       || !account && (typeof e.project_id !== 'string' || !e.project_id || e.project_id.length > 512)
       || typeof e.entity_id !== 'string' || !e.entity_id || e.entity_id.length > 512
-      || !account && !['note', 'project_metadata', 'stage', 'stage_order'].includes(e.entity_type) || !['upsert', 'delete', 'resolution'].includes(e.operation)
+      || !account && !['note', 'project_metadata', 'stage', 'stage_order'].includes(e.entity_type) || !['upsert', 'delete', 'resolution', 'event'].includes(e.operation)
+      || e.operation === 'event' && e.entity_type !== 'note'
       || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
       || e.entity_type === 'stage_order' && (e.entity_id !== 'stage_order' || e.operation !== 'upsert')
       || e.entity_type === 'stage' && e.operation === 'resolution'

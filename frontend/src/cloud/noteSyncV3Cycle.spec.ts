@@ -7,7 +7,7 @@ const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const PAGE = { committed_cursor: 1, new_events: 1, replayed_events: 0, has_more: false }
 
-async function setup(structuralEnabled = false, accountEnabled = false) {
+async function setup(structuralEnabled = false, accountEnabled = false, contentEnabled = false) {
   const auth = new NormalUserAuthRuntime({
     login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
     refresh: vi.fn(), logout: vi.fn(), me: vi.fn().mockResolvedValue({ id: USER, username: 'u',
@@ -46,8 +46,9 @@ async function setup(structuralEnabled = false, accountEnabled = false) {
     applyOnce: vi.fn(async () => { calls.push('apply_structure'); return { applied: 0, conflicts: 0, orphans: 0, blocked: [], listed: 0 } }),
   }
   const account = { readOnce: vi.fn(async () => { calls.push('apply_account'); return { blocked: ['account_entity_codec_not_activated'], listed: 1, hasRemainingWork: false } }) }
+  const content = { readOnce: vi.fn(async () => { calls.push('apply_content'); return { blocked: ['orphan'], listed: 1, hasRemainingWork: true } }) }
   const cycle = new NoteSyncV3Cycle(auth, bindings as never, identity as never, keys as never,
-    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined)
+    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined, contentEnabled ? content as never : undefined)
   return { account, structural, cycle, calls, capabilities, intents, note, resolution, metadata,
     mode: (value: number) => { writerMode = value } }
 }
@@ -55,6 +56,15 @@ async function setup(structuralEnabled = false, accountEnabled = false) {
 afterEach(() => vi.restoreAllMocks())
 
 describe('mode-3 Note and metadata cycle', () => {
+  it('runs the framed Note reader after dependencies and before common ACK without a content writer', async () => {
+    const h=await setup(true,true,true),r=await h.cycle.runOnce('local',DEVICE)
+    expect(h.calls.indexOf('apply_structure')).toBeLessThan(h.calls.indexOf('apply_content'))
+    expect(h.calls.indexOf('apply_metadata')).toBeLessThan(h.calls.indexOf('apply_content'))
+    expect(h.calls.indexOf('apply_content')).toBeLessThan(h.calls.indexOf('apply_account'))
+    expect(h.calls.indexOf('apply_content')).toBeLessThan(h.calls.indexOf('ack'))
+    expect(r.blocked).toContain('orphan');expect(r.hasRemainingWork).toBe(true)
+    expect(r.stages.filter(s=>s.includes('content'))).toEqual(['apply_content_notes'])
+  })
   it('runs one bounded mixed cycle and ACKs only after both appliers', async () => {
     const h = await setup()
     const result = await h.cycle.runOnce('local', DEVICE)

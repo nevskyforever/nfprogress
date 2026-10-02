@@ -1,3 +1,4 @@
+import type { ContentNoteReader } from './contentNoteReader'
 import { diagnostics } from '@/diagnostics/service'
 import type { AccountObjectReader } from './accountObjectReader'
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
@@ -45,6 +46,7 @@ export class NoteSyncV3Cycle {
     private readonly metadata: ProjectMetadataMigrationRuntime,
     private readonly structural?: StageStructuralRuntime,
     private readonly accountReader?: AccountObjectReader & Partial<Pick<import("./accountCatalogRuntime").AccountCatalogRuntime,"sealCatalog"|"uploadCatalog">>,
+    private readonly contentNotes?: ContentNoteReader,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -135,6 +137,7 @@ export class NoteSyncV3Cycle {
       // Frozen migration order can become ready during apply; leave a visible continuation.
       hasRemainingWork ||= structuralApply.applied > 0
     })) return result()
+    if (this.contentNotes && !await stage('apply_content_notes', async()=>{await mode();const pass=await this.contentNotes!.readOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...pass.blocked);hasRemainingWork ||= pass.hasRemainingWork})) return result()
     if (this.accountReader && !await stage('apply_account', async () => {
       const account = await this.accountReader!.readOnce(accountId, deviceId, limits.applyLimit, limits.maxApplyPasses)
       blocked.push(...account.blocked)

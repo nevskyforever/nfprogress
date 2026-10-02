@@ -58,6 +58,11 @@ const EVENT_CODES: &[&str] = &[
     "ack_result",
 ];
 const SAFE_CODES: &[&str] = &[
+    "content_note_codec_unsupported",
+    "content_note_map_owned",
+    "content_note_unsupported_source",
+    "content_note_scope_mismatch",
+    "content_note_resource_limit",
     "applied","folder","folder_order","folder_membership","project_order",
     "invalid_catalog_frame","catalog_dependency_missing","catalog_parent_unknown","catalog_membership_changed","catalog_project_unproven","catalog_folder_has_members","catalog_resource_limit","catalog_dependency_conflict","catalog_conflict","stale_catalog_resolution","unsupported_catalog_source","catalog_disconnect_requires_reconciliation",
     "account_entity_codec_not_activated", "account_scope_rejected", "decrypt_failed", "unknown_error",

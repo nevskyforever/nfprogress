@@ -1,3 +1,4 @@
+import { ContentNoteReader } from './contentNoteReader'
 import { AccountCatalogRuntime } from './accountCatalogRuntime'
 import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
 import { AuthoritativeAccountBinding } from '@/auth/accountBinding'
@@ -374,7 +375,7 @@ export class NoteSyncRuntime {
     )
     const catalog=new AccountCatalogRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const v3Cycle = new NoteSyncV3Cycle(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext,
-      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog)
+      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog, new ContentNoteReader(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext))
     const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader, encryptedSyncV2Api, v3Cycle)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,

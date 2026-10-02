@@ -305,6 +305,202 @@ Account crypto2/2, C11, codec/frame format and blind server transport stay uncha
 
 Local closure evidence is in `C18_4_INTEGRATION_ACCEPTANCE.md`: converted immutable
 O10/R11/Stage12 shared-ACK regression, folder/member/project positives/negatives and
-one production-crypto PostgreSQL two-device extension. C18.4 is **LOCAL COMPLETE /
-REMOTE ACCEPTANCE PENDING**, not CLOSED. C18 IN PROGRESS; official progress77.0%.
-C18.5 requires independent acceptance before any new implementation.
+one production-crypto PostgreSQL two-device extension. C18.4 is **CLOSED** after owner-supplied independent acceptance of SHA
+`ddfe65c5b606fca259a88bfc6644074098e9faac`, SQLite37004006923 and Cloud37004006914
+(all four jobs SUCCESS). C18 remains IN PROGRESS; official progress77.0%.
+The owner authorized the bounded C18.5.01 reader prerequisite below.
+
+
+## C18.5.01 — Content entity contract / Note gate / dependency substrate
+
+Branch `6.0`; preflight cwd `/Users/romankisockin/Desktop/nfprogress/ts_migration`,
+clean starting HEAD == local `origin/6.0` == `ddfe65c5b606fca259a88bfc6644074098e9faac`.
+This is production **reader readiness**, with new Note migration/publication and
+writers dormant. Legacy Project HTML writers/readers continue unchanged. C18.4
+stays CLOSED; C18.5 and C18 stay IN PROGRESS at **77.0%**.
+
+### Explicit format and routing
+
+Next unoccupied entity codec **8**, codec version **1**, WORTA-C1 frame version
+**1**, compression ID **0**. IDs1–7 remain metadata/Stage/Stage-order/catalog;
+none is reused. Frame = ASCII `WORTA-C1`, bytes `[1,8,1,0]`, two identical
+big-endian u32 payload lengths, canonical UTF-8 JSON. No compression or decoder
+fallback. New opaque mode3 descriptor is `entity_type=note`, `operation=event`,
+`deleted_at=null`; the actual upsert/delete/resolution is authenticated inside.
+C11 crypto1/AAD1 and project Note key/context stay unchanged; account crypto2/2
+cannot authenticate this route. Legacy outer upsert/delete explicitly use frozen
+Note v1, outer resolution explicitly uses frozen resolution v2. Their bytes,
+serializers, vectors and history are unchanged.
+
+New admitted Note variants: **Project HTML, Project plain, Stage HTML, Stage plain**.
+Source is exactly `project`, map/node IDs are null. No format conversion. Mindmap
+Notes are class B materialization of future map authority; `content_note_map_owned`
+retains source/event and grants no independent ACK/publication authority.
+Unknown source or unclassified extension metadata uses `content_note_unsupported_source`;
+unknown content format uses `unsupported_content_format`. No source/owner/format
+move contract is introduced, including after the visible Note has been tombstoned.
+
+### Canonical plaintext and field allowlist
+
+Strict root (no extra fields):
+
+```json
+{
+  "version": 1,
+  "account_id": "canonical account UUID",
+  "device_id": "canonical source device UUID",
+  "dependencies": {
+    "bootstrap_id": "canonical bootstrap UUID",
+    "metadata_event_id": "canonical metadata event UUID",
+    "stage_event_ids": []
+  },
+  "event": "exact embedded ordinary Note v1 or resolution v2 object"
+}
+```
+
+`event` is an object, not a JSON string; the placeholder above refers to the
+frozen C15/C17 structural schemas. Ordinary event fields are exactly
+`version/header/mutation/note`; header is exactly event_id/parent_event_id/
+project_id/entity_id/entity_type/operation/revision/updated_at/deleted_at.
+Mutation create/update/delete keeps existing revision/parent/tombstone rules.
+Resolution event is exactly version/header/mutation/resolution/result; retains
+additional parent IDs, exact full-tip generation/set, strategy, selected/retained
+IDs and the existing result/keep-both contract. All duplicated identity/route,
+revision and timestamp facts must match the immutable authenticated inbox.
+Timestamps validate identity and display data, never choose a winner.
+
+Portable Note record fields (actual current model): `id`, `project_id`, `stage_id`,
+`source_type`, `source_map_id`, `source_node_id`, `content_format`, `title`, `content`,
+`checklist` (exact id/text/checked), `color`, `pinned`, `archived`, `sort_order`,
+`tags`, `created_at`, `updated_at`, `metadata`. **metadata must be exactly `{}`**;
+unclassified extensions are retained and block, never silently dropped.
+Tombstone contains the seven route fields plus deleted_at. sort_order stays in
+this Note conflict unit; no separate Note-order authority.
+
+Excluded local/computed fields: revision bookkeeping outside the authenticated
+header, display_title, system_tags, owner_type/owner_id/owner_order, stage_name,
+read_only, editor focus/selection, local errors, migration/sync bookkeeping,
+paths and diagnostics. Local rows are not scanned or stripped. An incompatible
+existing local source/metadata row blocks remote overwrite and remains retained.
+
+### Frozen resource bounds
+
+- Canonical JSON **8,388,588 bytes** (8 MiB minus the 20-byte frame); frame
+  **8,388,608 bytes**. This fits the unchanged encrypted object cap8,388,624 bytes
+  including the 16-byte AEAD tag. Legacy v1's plaintext limit remains8 MiB.
+- content7 MiB; title512 KiB; color512 UTF-8 bytes; Note/project/Stage/checklist IDs512 UTF-8 bytes.
+- tags4096, each16 KiB UTF-8; checklist16384, each text64 KiB UTF-8, exact boolean checked.
+- metadata extension count0; JSON depth12, total value nodes131072; malformed UTF-8/lone UTF-16 surrogates reject.
+- resolution parents/tips64; ordinary parent1; sorted unique Stage event references0 for Project,1–64 for Stage.
+- Stage ancestry256 distinct traversed nodes; metadata dependency256 per unit /65536 aggregate accepted catalog proof budget.
+- read limit1–32, passes1–8; default8 ×4. Scope/auth-epoch keyset cursor is ephemeral,
+  advances across cycles, resets at end-of-list and retries retained blockers.
+
+Exceeded bounds preserve original encrypted source/event, produce a durable
+resource blocker, and grant no partial projection/ACK. Oversized authenticated
+frames are not duplicated into a plaintext receipt. Transport resource limits
+remain unchanged.
+
+### Dependency and native apply contract
+
+Project proof consumes accepted C18.4 metadata/catalog coverage: explicit same
+account/project binding and bootstrap, frozen applied non-delete metadata,
+current active authority, authenticated scoped bounded causal coverage. Historical
+metadata ledger alone cannot bypass current unresolved/local-divergent authority.
+
+Stage proof consumes accepted Stage ancestry: same account/project/stable Stage
+ID, frozen live authenticated references, one resolved live current tip, matching
+local structural projection, no entity conflict or unsupported local Stage fields.
+The consumer checks the named Stage only, using accepted snapshot/projection facts;
+it does not load every unrelated Stage branch. A→B causal rename covers A;
+matching names, timestamps or sequence proximity never prove ancestry. Unknown,
+foreign/unrelated Stage or unresolved tips block. Current tombstone yields
+`stage_tombstone_child_manifest_incomplete`; Note and Stage history/children remain,
+with no fake Stage creation, physical cleanup or ACK.
+
+TS performs C11 AEAD before frame validation/native submission; native rechecks
+scope, immutable inbox/envelope identity and all dependencies inside the same
+privileged IMMEDIATE transaction as C15/C17 projection/history/conflict application.
+Schema32 adds only `cloud_content_note_receipts`: exact bounded frame + original
+nonce/ciphertext/sequence, waiting/applied/conflict_preserved outcome and blocker.
+Identity/frame/source bytes are immutable; completed outcome is final; no delete.
+Waiting survives reopen and is not ACK authority. C17's existing resolution insert
+and parent proof guards gain exact framed-receipt alternatives in forward32;
+all legacy branches and historical migrations stay unchanged.
+
+C15/C17 remain the single Note causal/conflict engine. Concurrent edit and delete
+versus edit retain all branches; full-tip resolution applies exactly once; stale
+decision cannot collapse a later child. Native failure rolls back receipt,
+history and projection together. Replayed applied/conflict events retain their
+original bytes and prove the same result without reopening current dependencies.
+Common ACK requires exact completed frame/envelope/identity plus matching existing
+history/conflict/resolution evidence and the existing complete conflict-tip proof.
+A received/waiting/unsupported source never fills the shared ACK hole.
+
+Durable blockers reuse project_metadata_authority_unresolved, stage_dependency_missing,
+stage_dependency_proof_limit, stage_tombstone_child_manifest_incomplete,
+unsupported_content_format, invalid_note_payload and decrypt_failed; new bounded
+codes are content_note_codec_unsupported/content_note_map_owned/
+content_note_unsupported_source/content_note_scope_mismatch/content_note_resource_limit.
+
+### Production reader, diagnostics, server and future writer gate
+
+Production mode3 dispatcher runs metadata → Stage → framed Note → account reader
+before common ACK, with bounded retries and authoritative auth/key leases. Legacy
+Note readers still process their independent explicit routes. No format sniffing.
+Wrong codec IDs/versions/compression/length/canonical bytes reject; metadata,
+Stage/order, catalog/future account and legacy Note bytes never fall back into8.
+
+Backend change is only the mode3 opaque Note `event` allowlist and pull route.
+Modes1/2 reject it; registration/binding, immutable replay and C11 envelope
+checks stay intact. Server receives no Note content/title/tags/checklist/color/
+pin/archive/Stage name or plaintext dependency semantics. No new endpoint.
+
+Safe local diagnostics record frame receipt/apply/blocker/conflict status only,
+with mirrored TS/Rust scalar allowlists. No names, content, UUIDs, ciphertext,
+nonce, keys or tokens; no telemetry. Existing centralized friendly format,
+dependency, conflict and resource messages are reused; technical codes stay in
+details. No major UI/new labels/help claim is added. Existing help remains accurate
+for activated Project HTML sync; Stage/plain publication is not advertised.
+
+Before a future writer emits: active metadata authority; active Stage authority
+when scoped; explicit participating-reader support for codec8; classified source,
+format and local fields; durable candidate/outbox; explicit migration consent and
+safe coexistence with old history. Transport-version3 alone is **not** the future
+codec capability proof. Reader capability negotiation, capture/migration/writers
+and new-format self-echo publication are deferred to C18.5.02. No publication on
+login/startup/unlock/open/pull/background cycle is introduced by this slice.
+
+### Local verification and remaining boundary
+
+Stable `contentNoteCodecV1.json` adds four Project/Stage plain/HTML vectors with
+canonical JSON, UTF-8 hex, frame hex, IDs/dependencies and explicit format numbers.
+Production TS serializers match independent native serde validation; old fixtures
+and crypto vectors unchanged. TS reader tests use actual production C11 AEAD;
+native dependency/transaction fixtures inject at the authenticated IPC boundary
+and do not claim Rust AEAD. PostgreSQL checks blind transport separately.
+
+Local focused verification: frontend81 tests in12 files; typecheck and production
+build PASS (existing chunk/dynamic import warnings). Rust Note filter165 tests,
+including12 new reader/dependency/atomic/conflict tests; Stage20, metadata19,
+SQLite29, diagnostics5 PASS; cargo check PASS (existing warnings). Python focused
+SQLite/API252 PASS; final schema32 subset127 PASS plus receipt-focused35 PASS.
+PostgreSQL transport/regressions43 PASS,0 skipped, on disposable PostgreSQL16; final Note transport2 PASS. Python fail-closed cross-runtime UDF2 PASS.
+Workflow mandatory commands include the new codec/reader/native/schema32/transport
+checks; PostgreSQL timeout remains40 minutes. No new Vue interaction requires
+Chromium; no full Nuitka/platform build claim. git diff --check PASS.
+
+C18.5.01 **LOCAL COMPLETE / REMOTE CI PENDING** after authorized commit/push;
+expected Cloud backend tests and SQLite sync substrate tests. Codex stops after
+push and does not poll Actions. No maps/documents/progress/game/compression,
+C18.6+ or C21 implementation. Next: **C18.5.02 — NOTE EXPLICIT MIGRATION /
+STAGE+PLAIN WRITERS / MULTI-DEVICE ACCEPTANCE**, including reader capability gate,
+explicit local candidate capture, ordinary writers/conflict UI and two-device
+PostgreSQL acceptance. This slice does not claim that activation or acceptance.
+
+Permanent rules preserved: public registration CLOSED until owner dogfoods,
+stabilizes/fixes blocking bugs, reviews diagnostics, completes final terminology
+audit, repeats critical manual scenarios and explicitly opens registration;
+PF6.0/RC completion does not open it. C22/PF6.0 final terminology audit remains
+required. C21: local browser build → Tauri dependency audit → browser adapters →
+stable local Web → VPS/production. Official progress remains exactly77.0%.

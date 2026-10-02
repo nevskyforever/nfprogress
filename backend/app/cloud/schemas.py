@@ -490,10 +490,13 @@ class V3EncryptedSyncAckRequest(BaseModel):
 
 
 class V3SyncEventEnvelope(V2SyncEventEnvelope):
+    operation: Literal['upsert', 'delete', 'resolution', 'event']
     entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order']
 
     @model_validator(mode='after')
     def validate_metadata_scope(self) -> 'V3SyncEventEnvelope':
+        if self.operation == 'event' and self.entity_type != 'note':
+            raise ValueError('Framed operation requires Note entity.')
         if self.entity_type == 'project_metadata' and self.entity_id != self.project_id:
             raise ValueError('Project metadata entity ID must equal project ID.')
         if self.entity_type == 'stage_order' and (self.entity_id != 'stage_order' or self.operation != 'upsert'):
