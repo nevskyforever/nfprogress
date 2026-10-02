@@ -1,17 +1,18 @@
-# C18.4.06 structural / account catalog integration acceptance
+# C18.4.07 structural / account catalog integration acceptance
 
-Branch `6.0`; clean preflight in `/Users/romankisockin/Desktop/nfprogress/ts_migration`.
-HEAD and local `origin/6.0` both `d95e4c0d8612783e13950bd1aac8cfded318b44b`.
-The independent evidence supplied by the owner accepts C18.4.05: SQLite run
-[36992277299](https://github.com/nevskyforever/nfprogress/actions/runs/36992277299)
-and Cloud run [36992277357](https://github.com/nevskyforever/nfprogress/actions/runs/36992277357)
-SUCCESS; Python SQLite, Rust Windows, Frontend admin and PostgreSQL all green.
-Codex did not query Actions. Baseline evidence remains valid; this review does
-not declare the new commit remotely accepted.
+Branch `6.0`; clean starting HEAD == local `origin/6.0` ==
+`39022df6ff0f69cc7ec3f9a4b317e8c6eb6f8f39`.
+Owner-supplied independent evidence: **C18.4.06 — REMOTELY ACCEPTED AS INTEGRATION AUDIT**:
+[SQLite 36996342190](https://github.com/nevskyforever/nfprogress/actions/runs/36996342190)
+and [Cloud 36996342235](https://github.com/nevskyforever/nfprogress/actions/runs/36996342235)
+SUCCESS, including Python SQLite, Rust Windows, Frontend admin and PostgreSQL.
+That audit intentionally kept C18.4 open for P1-02. Codex did not query Actions.
 
-**Closure decision: C18.4 remains IN PROGRESS.** No P0 found. One bounded P1 is
-fixed here; one P1 remains and requires C18.4.07. C18 remains IN PROGRESS and
-official progress is exactly 77.0%. No C18.5 implementation.
+**Closure decision: C18.4 — LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING.**
+No P0 or remaining P1 found within this bounded integration matrix. P1-01 remains
+fixed; P1-02 is resolved locally with causal recovery and complete preservation.
+This is a closure candidate, not CLOSED or remotely accepted. C18 remains
+IN PROGRESS; official progress exactly77.0%. No C18.5 implementation.
 
 ## Audit method and production wiring
 
@@ -30,9 +31,9 @@ requires the appropriate ledger in the common account sequence.
 The audit uses independently accepted existing proofs plus focused regressions.
 The accepted PostgreSQL catalog test is extended with the missing Stage graph;
 its account/bootstrap setup is reused, not duplicated into another expensive
-scenario. All native calls reopen distinct device database files. The separate
-known-gap regression deliberately documents failed progress; its green result
-does **not** establish acceptance of that requirement.
+scenario. All native calls reopen distinct device database files. The former known-gap regression is now a positive recovery proof with an exact
+legacy blocker, reopen, preserved O/R tips and a follow-on project Stage event.
+The existing PostgreSQL scenario also exercises recovery with production TS crypto.
 
 ## Acceptance matrix
 
@@ -46,16 +47,16 @@ Evidence paths are repository-relative. Native names refer to tests/functions in
 | C. Stage order | PASS | Exact live set and scoped bounded causal ancestry proof; `stage_sync_frozen_order_reference_survives_rename_but_not_unknown_or_delete`, concurrent/stale order tests | Rename ancestry is already handled for Stage order |
 | D. Account-object v2 | PASS | `account_sync` golden vector; TS account crypto/C11 vectors; `tests/test_cloud_c18_account.py` closed descriptor, ownership, replay and shared stream; no project slot/fallback | Accepted 2/2 contract unchanged |
 | E. Folder | PASS | Strict codec, retained history/tips/projection, explicit migration, normal writer, immutable retries; native generic conflict/tombstone suite and PG rename conflict | Physical deletion remains disabled |
-| F. Folder order | GAP-P1 | `proof_ready` / `dependencies_ready` require current folder heads byte-for-byte; new `account_catalog_audit_stale_dependency_cannot_resume_after_new_resolution` | Ordinary folder rename can permanently strand a received order and global ACK |
-| G. Membership | PASS after bounded P1 fix; recovery affected by F | New `account_catalog_membership_waits_for_reconciled_metadata_after_restart`; current metadata must be `active`, not merely have a historical ledger; PG move/remove conflict | Authority admission fixed; stale folder-head dependency recovery remains in C18.4.07 scope |
-| H. Project order | GAP-P1 recovery; otherwise PASS | Exact eligible project set and membership proofs, generic conflicts/full-tip/stale decisions; `dependencies_ready` compares metadata proof maps and current membership heads exactly | Same stale-dependency recovery mechanism is absent; no claim of complete recovery |
+| F. Folder order | PASS locally | `account_catalog_stale_dependency_recovery_preserves_newer_resolution_and_shared_ack`; scoped ancestry over unchanged exact live IDs; PG frozen O → folder rename → newer R → O/R preservation → explicit R2 | No permanent stale-rename ACK hole |
+| G. Membership | PASS locally | `account_catalog_membership_waits_for_reconciled_metadata_after_restart` retains P1-01; `account_catalog_project_order_and_membership_cover_causal_metadata_move_and_null` covers folder/metadata rename; live-set/tombstone regression preserves incompatible old relation without moving to deleted folder | Active metadata authority remains required |
+| H. Project order | PASS locally | Causal metadata + move/null membership native regression and PG frozen order; `account_catalog_project_set_change_preserves_order_and_unproven_local_ids_block` covers C3, unproven C2, local-only, wrong bootstrap/account | Exact eligible IDs required for direct projection; known additions preserve conflict only |
 | I. Local-only exclusion | PASS | `eligible` uses explicit same-account binding and metadata authority; `portable` filters before constructing payload/proofs; interleaved native test, PG L1 absence on B, binding count2 | No login/order/folder/current-selection path registers L1 |
-| J. Dependencies/orphans | GAP-P1 recovery; safety PASS | Unknown dependency retains exact inbox bytes and blocks ACK; typed blockers persist; new known-gap reopen/retry proof | Missing dependency can retry; superseded immutable dependency has no completion protocol |
-| K. Shared ACK | PASS safety; GAP-P1 eventual progress | `ack_proven` matches frame/nonce/ciphertext/sequence/outcome; extended PG proves blocked account event followed by applied Stage cannot advance ACK; known-gap shows newer resolution cannot fill earlier hole | No per-entity bypass; closure blocked by recovery |
-| L. Conflicts/full-tip/stale resolution | PASS for admitted events | Native generic all-four-type A+B/R+C/R2, Stage/order full-tip and metadata stale decision proofs; exact local CAS; PG branch preservation and convergence | Dependency-blocked events are not admitted tips; the gap is classified separately |
+| J. Dependencies/orphans | PASS locally | `account_catalog_dependency_conflict_restart_resolution_and_unrelated_history`; `account_catalog_ancestry_budget_cycle_and_missing_are_not_ack_proofs`; reader keyset fairness regression | Unknown/unproven/unrelated/over-budget remains blocked; proven safe successors recover |
+| K. Shared ACK | PASS locally | Converted recovery regression uses real `prepare_note_sync_ack`:9 before recovery,12 after O10/R11/Stage12; PG exact common ACK candidate before user R2 plus confirmed server/local ACK; immutable-byte negative | No per-entity cursor or stored-only ACK |
+| L. Conflicts/full-tip/stale resolution | PASS for admitted events | Native generic all-four-type A+B/R+C/R2, Stage/order full-tip and metadata stale decision proofs; exact local CAS; PG branch preservation and convergence | Recovered old events join causal tips without removing concurrent newer branches |
 | M. Tombstones/destruction | PASS safety; DEFERRED BY FROZEN DESIGN cleanup | Folder relation/tip checks retain projects/memberships; Stage unconditional `tombstone_blocked` retains children/order and has no destructive ledger; metadata tombstone retains visible project/children | Metadata intent ACK authorizes preservation only, as frozen by accepted C18.3.04, never cleanup |
-| N. Restart/replay | PASS durability; GAP-P1 eventual progress | File-backed native reopen, exact IDs/frames/sealed nonce/ciphertext, PG response-loss duplicate replay; typed blocker reopen regression | Stored data survives; permanent stale-dependency blocker remains |
-| O. Two-device integration | PASS for bounded graph; not full closure | Extended `test_account_catalog_explicit_migration_two_native_devices_v2_postgresql`: metadata → two Stages → Stage order; folder/order → membership → project order; L1 only on A; explicit conflict resolution, confirmed common ACK and later blocked-account/applied-Stage sequence | Tests normal integrated graph, not a workaround for the reproduced P1 |
+| N. Restart/replay | PASS locally | File-backed legacy blocker reopen/retry with exact ID/frame/nonce/ciphertext; conflict-resolution reopen regression; PG duplicate upload/apply and response-loss recovery | Same immutable old event receives durable existing outcome |
+| O. Two-device integration | PASS locally | Extended `test_account_catalog_explicit_migration_two_native_devices_v2_postgresql`: accepted metadata/Stage/catalog graph plus frozen folder-order O/R conflict recovery, explicit R2, metadata rename + null membership → frozen project order; L1 only on A | One bounded real PostgreSQL scenario, production TS crypto, distinct reopened native devices |
 | P. Security isolation/readers | PASS | Metadata account/project/foreign-parent negatives; Stage foreign-stage/unknown-frame tests; account crypto wrong user/type/scope/version vectors; catalog exact inner/outer pair checks and binding joins; runtime auth/key lease/epoch guards | No downgrade or cross-account/project borrowing found |
 | Q. Diagnostics/UX | PASS; graphical shell P2 | Mirrored safe allowlists, `diagnostics.spec.ts`/`desktop.spec.ts`, prior native privacy/queue/reopen proofs; friendly status maps/fallbacks for dependencies/limits/formats; separate metadata/Stage/catalog controls | Clear → reproduce → correlated copy/export supported locally; no telemetry |
 | R. Future children | DEFERRED BY FROZEN DESIGN | Stage tombstone blocks regardless of whether current known children appear empty; unknown maps/documents/progress/game cannot prove completeness; project physical cleanup absent | Notes/maps/documents/progress/covers/game manifests belong to later C18; not a closure gap by themselves |
@@ -75,58 +76,81 @@ membership frame applies and receives ACK proof. No new ID or ciphertext is issu
 Existing friendly waiting/help text already describes this dependency; no new
 UI text, localization, protocol, schema or dependency is introduced.
 
-## P1-02 — immutable stale dependency has no safe recovery (unresolved)
+## P1-02 — immutable stale dependency (resolved locally by C18.4.07)
 
-Exact reproducible sequence in the new native known-gap test:
+Historical root cause: C18.4.06 required frozen dependency heads/proof maps to equal
+current heads. O froze F1/F2; rename at9 advanced F1; O10 blocked; R11 applied;
+reopen/retry left common ACK at9 permanently. Data retention was safe but eventual
+progress was missing. The old deficiency test is replaced by
+`account_catalog_stale_dependency_recovery_preserves_newer_resolution_and_shared_ack`.
+It retains an exact legacy O10 blocker, applies R11 and real Stage12, reopens,
+recovers O as `conflict_preserved`, verifies both O/R tips and visible R, and uses
+real `prepare_note_sync_ack` to obtain12 without immediate user resolution.
 
-1. Explicitly migrate the catalog (metadata sequences1–2, catalog3–8).
-2. Capture and seal folder-order O over the current live F1/F2 heads.
-3. Apply another device's ordinary F1 rename at sequence9. Folder IDs/live membership do not change.
-4. Receive O at sequence10. Its proven old F1 head differs from current tips:
-   `catalog_membership_changed`; no ledger or ACK proof is written.
-5. Explicitly publish/apply R over the exact current folder-order tips and fresh
-   dependency heads at sequence11. R has valid proof; O was never admitted as a tip.
-6. Reopen the database and retry the exact immutable O: the same blocker remains;
-   `ack_proven(10)` is false even though `ack_proven(11)` is true. The real common
-   ACK candidate remains9; O's exact sealed nonce/ciphertext are retained.
+The catalog-scoped iterative walker follows authenticated parent IDs, using a
+cycle-safe visited set and deterministic retained history. Bounds:256 distinct
+nodes per dependency unit and65,536 loads per complete event. Every frozen node
+and traversed catalog node is same-account/type/entity and has exact `ack_proven`
+ledger/frame/nonce/ciphertext/sequence evidence. Current dependency tips must be
+single; unresolved branches block until explicit full-tip resolution. The resolved
+single tip must cover every frozen reference. Unrelated history, missing/unproven
+references and proof limits produce existing typed blockers, never ACK evidence.
+Stage's accepted ancestry implementation is unchanged.
 
-`proof_ready` accepts only current heads; `decide` can resolve current causal tips,
-not a dependency-blocked event outside that tip set. There is no bounded ancestry
-admission or complete conflict-preservation proof for this old operation. New R
-therefore cannot repair the contiguous hole. A Stage rename already has a bounded
-ancestry rule for Stage order, which makes this difference observable rather than
-a hypothetical concern. Project-order proof-map equality has the same recovery
-boundary when metadata or membership heads advance.
+Entity semantics are explicit. Folder renames preserve identity/liveness. Folder
+order still requires the exact portable live ID set for direct application.
+Project proof requires the same explicit account/project/bootstrap, frozen applied
+non-delete metadata, active current authority and scoped causal coverage. Membership
+can survive folder/metadata rename. For project order a folder move or null relation
+is not project removal: authenticated membership ancestry covers the frozen relation,
+while exact eligible connected project IDs remain required. Local-only projects
+never become proofs or implicit bindings.
 
-This is P1, not P0: exact source/history/children remain retained and ACK correctly
-stops. It is not a later-content manifest requirement and not a harmless P2 cap.
-A simple skip, fabricated ledger, changed ciphertext under the same ID, or weakened
-current-head comparison would be unsafe. Generic recovery affects frozen immutable
-dependencies, resolution admission and complete-preservation ACK semantics for
-several catalog types; it deserves corrective **C18.4.07 — CATALOG STALE DEPENDENCY
-RECOVERY / SHARED ACK PROOF**. Freeze a scoped bounded ancestry/reconciliation rule,
-preserve all changed-membership conflicts, and prove old-event completion plus
-two-device contiguous ACK recovery. Do not start C18.5 or close C18.4 first.
+Known added/deleted folder sets, proven folder tombstones, or added eligible project
+sets are incompatible with direct projection. The event is fully conflict-preserved
+with its immutable payload/dependencies and current local candidate; no invalid
+permutation or deleted-folder assignment is materialized. Unknown history, unbound
+or unproven projects, unresolved metadata authority and unrelated bootstrap continue
+to block. Folder tombstones still cannot cascade or delete referenced children.
+
+Existing `cloud_catalog_apply_ledger` outcomes suffice: `applied` and truthful
+`conflict_preserved`, exact immutable event/frame/nonce/ciphertext/sequence, retained
+authenticated dependency history, event tips and local conflict candidate, all
+committed atomically. There is no ignore flag, synthetic replacement, new schema
+or new ACK outcome. Causal admission removes only named parents, so late O cannot
+roll back concurrent R. Explicit ordinary full-tip R2 can subsequently reconcile.
+`ack_proven` remains unchanged; tampered bytes or foreign account never gain proof.
+
+Account reader retains only a scoped ephemeral keyset scheduling position across
+bounded cycles, then resets at end-of-list to retry old blockers. New successors
+cannot be starved by a long blocked prefix; authentication epoch/scope changes reset
+scheduling. This is not a transport/ACK cursor. Existing safe diagnostics codes and
+friendly waiting/conflict/resource messages remain accurate; no new UI strings,
+plaintext logging or telemetry.
 
 ## Local checks and CI disposition
 
-Focused frontend checks: **38 PASS** across8 files (account-object/C11 vectors,
-catalog codec/runtime/reader, mixed V3 cycle, diagnostics and desktop support).
-Native: **37 PASS** (catalog9 including two new audit/regression tests,
-metadata acceptance4, Stage20, account transport/vector4); cargo check PASS with
-existing warnings. Python SQLite/catalog/account subset: **64 PASS**. One extended
-real PostgreSQL two-device scenario: **1 PASS, 0 skipped, 99.49 seconds**, including
-confirmed server/local cursor convergence before the intentional account blocker
-and an applied Stage afterward. Affected Python files compile in memory without
-bytecode. No full legacy green-suite rerun or full SQLite CI-equivalent claim.
+Frontend: **53 PASS /9 files**, including catalog codec/runtime/reader fairness,
+account-object/C11 vectors, mixed V3 cycle, Note runtime, diagnostics and desktop.
+TypeScript typecheck and frontend build PASS; existing chunk/dynamic-import warnings.
+Rust: **52 PASS** (catalog14, metadata acceptance4, Stage20, account transport4,
+diagnostics5, developer/profile5); cargo check PASS with existing warnings.
+Python SQLite/catalog/account subset: **64 PASS**. Extended real PostgreSQL two-device
+scenario: **1 PASS, 0 skipped,258.56 seconds**. Affected Python syntax compiled in
+memory without bytecode. No full legacy suite or full SQLite CI-equivalent claim.
 
-No TS/Vue, build, schema, dependency or workflow change: typecheck/frontend build
-were not rerun; independently accepted C18.4.05 evidence is retained. Existing
-mandatory Cloud command includes all three affected PG modules; existing native
-catalog filters include the new tests on Cloud Linux and SQLite Windows. Both
-workflow triggers cover `account_catalog.rs`; PostgreSQL timeout remains40 minutes.
-Expected Actions: Cloud backend tests and SQLite sync substrate tests. New remote
-CI is PENDING; after the authorized push Codex stops without polling/watching it.
+Native regressions cover causal rename/move/null, unresolved branch then resolution,
+unrelated/missing/cyclic/over-budget history, tombstone/live-set conflict preservation,
+exact immutable byte checks, project addition/unproven/local-only/wrong scope proofs.
+The PG extension reuses accepted account/bootstrap setup and production TS encryption;
+all bridge calls reopen device databases. Confirmed shared server/local ACK converges;
+a later deliberately blocked account event followed by applied Stage still blocks ACK.
+
+Existing mandatory Cloud and SQLite Windows `account_catalog` filters cover the new
+native tests; reader spec and PG integration module already run in required Cloud
+checks. Changed paths trigger both workflows. No workflow or timeout change:
+PostgreSQL stays40 minutes. Expected Actions: Cloud backend tests and SQLite sync
+substrate tests. New remote CI is PENDING; after push Codex stops without polling.
 
 ## Deferred/P2 and permanent rules
 

@@ -21,7 +21,7 @@ def native(tmp, path, identity, user, action='catalog', step='authority', **valu
         canonical_user_id=user, **values))
 
 
-def push(tmp, client, token, path, identity, user, amk, lost=False):
+def push(tmp, client, token, path, identity, user, amk, lost=False, defer_ids=()):
     ready = native(tmp, path, identity, user, step='pending', sealed=False)
     for row in ready:
         e = row['event']; sealed = _crypto_bridge(tmp, dict(action='catalog_seal', payload=e, amk=amk))
@@ -30,6 +30,7 @@ def push(tmp, client, token, path, identity, user, amk, lost=False):
     rows = native(tmp, path, identity, user, step='pending', sealed=True)
     for row in rows:
         e = row['event']; h = e['header']
+        if h['event_id'] in defer_ids:continue
         wire = {k:h[k] for k in ('event_id','entity_id','entity_type','revision','updated_at')}
         wire.update(canonical_user_id=user, scope='account', operation='delete' if e['deleted_at'] else 'upsert', deleted_at=e['deleted_at'])
         b64 = lambda b: base64.urlsafe_b64encode(bytes(b)).decode().rstrip('=')
@@ -42,7 +43,7 @@ def push(tmp, client, token, path, identity, user, amk, lost=False):
             response=client.post('/api/v3/sync/encrypted/account/push',headers=_headers(token),json=body)
             assert response.status_code==200 and response.json()['results'][0]['duplicate']
         native(tmp,path,identity,user,step='receipt',event_id=h['event_id'],server_sequence=response.json()['results'][0]['server_sequence'])
-    return [row['event'] for row in rows]
+    return [row['event'] for row in rows if row['event']['header']['event_id'] not in defer_ids]
 
 
 def pull(tmp,client,token,path,identity,user,amk):
@@ -59,11 +60,14 @@ def pull(tmp,client,token,path,identity,user,amk):
     outcomes=[]
     for item in page['items']:
         account=item['event'].get('scope')=='account'
-        opened=_crypto_bridge(tmp,dict(action='catalog_open' if account else 'structural_open',canonical_user_id=user,amk=amk,item=item))
-        route={} if account else dict(action='structural',project_id=item['event']['project_id'])
-        outcomes.append(native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened,**route))
+        metadata=item['event']['entity_type']=='project_metadata'
+        opened=_crypto_bridge(tmp,dict(action='catalog_open' if account else 'metadata_open' if metadata else 'structural_open',canonical_user_id=user,amk=amk,item=item))
+        route={} if account else dict(action='metadata_authority' if metadata else 'structural',project_id=item['event']['project_id'])
+        outcome=native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened,**route)
+        outcomes.append(outcome['result'] if metadata else outcome)
         # Duplicate authenticated apply reopens again and produces the same proof.
-        assert native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened,**route)==outcomes[-1]
+        replay=native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened,**route)
+        assert (replay['result'] if metadata else replay)==outcomes[-1]
     return outcomes
 
 
@@ -161,6 +165,65 @@ def test_account_catalog_explicit_migration_two_native_devices_v2_postgresql(clo
         assert resolution['header']['parent_event_ids']==sorted(e['header']['event_id'] for e in edits)
         for path,i in ((a,ia),(b,ib)):
             pull(tmp_path,client,token,path,i,user,amk);assert native(tmp_path,path,i,user)['state']=='active'
+    def freeze_catalog(t, entity, payload):
+        assert native(tmp_path,a,ia,user,step='normal',entity_type=t,entity_id=entity,payload=payload)
+        pending=native(tmp_path,a,ia,user,step='pending',sealed=False)
+        row=next(r for r in pending if r['event']['header']['entity_type']==t)
+        e=row['event'];sealed=_crypto_bridge(tmp_path,dict(action='catalog_seal',payload=e,amk=amk))
+        native(tmp_path,a,ia,user,step='seal',event_id=e['header']['event_id'],**{k:sealed[k] for k in ('frame','nonce','ciphertext')})
+        return e, sealed
+
+    # A's immutable order is frozen before B's rename and newer order branch.
+    old_order, sealed_order=freeze_catalog('folder_order','folder_order',dict(ids=['F2','F1']))
+    assert native(tmp_path,b,ib,user,step='normal',entity_type='folder',entity_id='F1',payload=dict(name='Rename after frozen order'))
+    push(tmp_path,client,token,b,ib,user,amk,lost=True)
+    assert pull(tmp_path,client,token,b,ib,user,amk)==['applied']
+    decision(tmp_path,b,ib,user,'folder_order','folder_order',proposed=dict(ids=['F1','F2']))
+    newer_order=push(tmp_path,client,token,b,ib,user,amk,lost=True)[0]
+    # Reopened pending/read/upload calls still use O's original bytes.
+    persisted=next(r for r in native(tmp_path,a,ia,user,step='pending',sealed=True) if r['event']['header']['event_id']==old_order['header']['event_id'])
+    assert persisted['nonce']==sealed_order['nonce'] and persisted['ciphertext']==sealed_order['ciphertext']
+    assert push(tmp_path,client,token,a,ia,user,amk,lost=True)==[old_order]
+    for path,i in ((a,ia),(b,ib)):
+        outcomes=pull(tmp_path,client,token,path,i,user,amk)
+        assert outcomes[-1]=='conflict_preserved'
+        view=native(tmp_path,path,i,user)
+        entity=next(e for e in view['entities'] if e['entity_type']=='folder_order')
+        assert sorted(entity['tips'])==sorted([old_order['header']['event_id'],newer_order['header']['event_id']])
+        with sqlite3.connect(path) as db: latest=db.execute('SELECT pull_cursor FROM cloud_sync_state').fetchone()[0]
+        # Complete conflict preservation is enough for common ACK before R2.
+        assert native(tmp_path,path,i,user,step='ack')['candidate_cursor']==latest
+    decision(tmp_path,a,ia,user,'folder_order','folder_order',selected=old_order['header']['event_id'])
+    push(tmp_path,client,token,a,ia,user,amk,lost=True)
+    for path,i in ((a,ia),(b,ib)):assert pull(tmp_path,client,token,path,i,user,amk)==['applied']
+
+    # Frozen project order survives both metadata and null-membership evolution.
+    frozen_projects,sealed_projects=freeze_catalog('project_order','project_order',dict(ids=['C1','C2']))
+    meta=native(tmp_path,a,ia,user,action='metadata_authority',project_id='C1',step='read')['view']['local']
+    meta['name']='Metadata after frozen project order'
+    edited=native(tmp_path,a,ia,user,action='metadata_authority',project_id='C1',step='normal_edit',proposed=meta)
+    e=next(e for e in edited['unsealed'] if e['header']['project_id']=='C1')
+    opened=_crypto_bridge(tmp_path,dict(action='metadata_seal',payload=e,amk=amk))
+    native(tmp_path,a,ia,user,action='metadata_authority',project_id='C1',step='seal',event_id=e['header']['event_id'],nonce=opened['nonce'],ciphertext=opened['ciphertext'])
+    h=e['header'];wire={k:h[k] for k in ('event_id','project_id','entity_id','revision','updated_at')};wire.update(entity_type='project_metadata',operation='upsert',deleted_at=None)
+    response=client.post('/api/v3/sync/encrypted/push',headers=headers,json=dict(protocol_version=3,encrypted_sync_version=3,device_id=ia['device_id'],items=[dict(event=wire,object=opened['object'])]))
+    assert response.status_code==200,response.text
+    for path,i in ((a,ia),(b,ib)):assert pull(tmp_path,client,token,path,i,user,amk)==['applied']
+    assert native(tmp_path,a,ia,user,step='normal',entity_type='folder_membership',entity_id='C2',payload=dict(folder_id=None))
+    pushed=push(tmp_path,client,token,a,ia,user,amk,lost=True,defer_ids=[frozen_projects['header']['event_id']])
+    assert len(pushed)==1 and pushed[0]['header']['entity_type']=='folder_membership'
+    for path,i in ((a,ia),(b,ib)):assert pull(tmp_path,client,token,path,i,user,amk)==['applied']
+    persisted=next(r for r in native(tmp_path,a,ia,user,step='pending',sealed=True) if r['event']['header']['event_id']==frozen_projects['header']['event_id'])
+    assert persisted['nonce']==sealed_projects['nonce'] and persisted['ciphertext']==sealed_projects['ciphertext']
+    assert push(tmp_path,client,token,a,ia,user,amk,lost=True)==[frozen_projects]
+    # Both the changed relation and the old order have exact durable proofs.
+    for path,i in ((a,ia),(b,ib)):
+        assert all(o=='applied' for o in pull(tmp_path,client,token,path,i,user,amk))
+        with sqlite3.connect(path) as db:
+            assert db.execute("SELECT count(*) FROM projects WHERE id='L1'").fetchone()[0]==(1 if path==a else 0)
+    assert native(tmp_path,a,ia,user,step='normal',entity_type='folder_membership',entity_id='C2',payload=dict(folder_id='F2'))
+    push(tmp_path,client,token,a,ia,user,amk,lost=True)
+    for path,i in ((a,ia),(b,ib)):assert pull(tmp_path,client,token,path,i,user,amk)==['applied']
     # Both readers share one confirmed cursor after resolving catalog conflicts.
     for path,i in ((a,ia),(b,ib)):
         with sqlite3.connect(path) as db: latest=db.execute('SELECT pull_cursor FROM cloud_sync_state').fetchone()[0]
@@ -189,5 +252,5 @@ def test_account_catalog_explicit_migration_two_native_devices_v2_postgresql(clo
             assert db.execute("SELECT name FROM stages WHERE id='S1'").fetchone()[0]=='Stage after account blocker'
     with sqlite3.connect(a) as db:
         assert db.execute("SELECT folder_id FROM project_folder_members WHERE project_id='L1'").fetchone()==('F1',)
-        assert db.execute("SELECT project_id FROM project_order ORDER BY position").fetchall()==[('L1',),('C2',),('C1',)]
+        assert db.execute("SELECT project_id FROM project_order ORDER BY position").fetchall()==[('L1',),('C1',),('C2',)]
         assert db.execute('SELECT count(*) FROM cloud_sync_project_bindings').fetchone()[0]==2

@@ -256,3 +256,55 @@ recoverable blocker; it cannot produce partial ACK. C18.7 owns future compressio
 C18.4 remains IN PROGRESS. C18.4.06 should review combined metadata/Stage/catalog
 integration, strict stale dependency blockers, destructive manifests/retention,
 mixed-sequence ACK and platform release qualification before any closure decision.
+
+
+## C18.4.07 — frozen catalog dependency recovery
+
+The C18.4.06 audit's strict frozen/current head equality caused permanent stale
+immutable dependency blockers. C18.4.07 permits scoped causal coverage rather than
+rewriting a frozen event. Stage's accepted `reference_coverage` is architectural
+precedent; its implementation/semantics remain unchanged. Catalog proof uses an
+iterative deterministic cycle-safe walk, at most256 distinct nodes per dependency
+unit and65,536 loads per event. Bounds produce `catalog_resource_limit`, never
+partial proof. Each frozen/traversed catalog node requires the same account,
+entity type/ID and exact authenticated apply/conflict ledger proof. Single current
+tips must cover all frozen references. Unresolved dependency multi-tips block;
+explicit full-tip resolution may subsequently establish a covering live tip.
+Neither timestamps, sequence proximity nor matching payloads establish causality.
+
+Folder identity dependencies survive causal live rename/resolution. Direct folder
+order application still requires the exact live folder ID set. Project proofs
+require explicit same-account/project/bootstrap binding, frozen applied non-delete
+metadata, current `active` authority (C18.4.06 preserved) and authenticated causal
+coverage. Membership survives safe folder/metadata advancement. Project order
+requires exact eligible project IDs and causal membership coverage; a relation
+move or null/removal does not remove the connected project. Local-only projects
+cannot become eligible through proof recovery or order/membership application.
+
+Known causally proven tombstones and incompatible exact-set changes authorize
+complete conflict preservation only, never invalid projection/materialization.
+An old membership pointing at a proven deleted folder cannot move a project there.
+Unknown/unverified/unrelated history, unresolved authority, invalid bootstrap or
+unbound project remain blockers. Folder no-cascade/child checks stay in force;
+physical history cleanup and future destructive manifests remain deferred.
+
+Recovery preserves original event ID, canonical frame, payload, dependency maps,
+nonce, ciphertext and sequence. The existing atomic apply ledger outcomes
+`applied`/`conflict_preserved` suffice with retained authenticated history, exact
+source bytes, causal event tips and local conflict candidate. No ignore flag,
+replacement event, new schema or ACK outcome. Late O removes only named parents,
+preserving concurrent newer R; both tips are available to explicit ordinary R2.
+Complete conflict preservation can fill the common ACK hole before user resolution;
+`ack_proven` exactness is unchanged. Mixed project/account sequencing has one cursor.
+
+Bounded reader scheduling carries an ephemeral scope/auth-epoch keyset position
+across cycles, resets at end-of-list and retries retained blockers. It does not
+change pull/ACK state. Existing friendly dependency/conflict/resource messages and
+safe diagnostics classifications apply without new UI text or plaintext logging.
+Account crypto2/2, C11, codec/frame format and blind server transport stay unchanged.
+
+Local closure evidence is in `C18_4_INTEGRATION_ACCEPTANCE.md`: converted immutable
+O10/R11/Stage12 shared-ACK regression, folder/member/project positives/negatives and
+one production-crypto PostgreSQL two-device extension. C18.4 is **LOCAL COMPLETE /
+REMOTE ACCEPTANCE PENDING**, not CLOSED. C18 IN PROGRESS; official progress77.0%.
+C18.5 requires independent acceptance before any new implementation.

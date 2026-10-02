@@ -38,13 +38,15 @@ const native: AccountInboxRepository = {
   block: (scope, row, code) => invoke('block_account_object', { scope, eventId: row.event_id, nonce: row.nonce, ciphertext: row.ciphertext, code }),
 }
 export class AccountObjectReader extends ProjectMetadataMigrationRuntime {
+  private retryPage: { scope: string; after: number } | undefined
   constructor(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, identity: CloudIdentityRepository,
     keys: RuntimeKeyContext, private readonly accountInbox: AccountInboxRepository = native) { super(auth, bindings, identity, keys) }
   async readOnce(accountId: string, deviceId: string, limit = 8, maxPasses = 4): Promise<{ blocked: AccountReaderBlocker[]; listed: number; hasRemainingWork: boolean }> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 32 || !Number.isSafeInteger(maxPasses) || maxPasses < 1 || maxPasses > 8) throw new RangeError('invalid_account_reader_limits')
     const { scope, context } = await this.scope(accountId, deviceId)
     const blocked: AccountReaderBlocker[] = []
-    let after = 0, listed = 0, remaining = false, changed=false
+    const retryScope = JSON.stringify([scope.account_id, scope.device_id, context.userId, context.authEpoch])
+    let after = this.retryPage?.scope === retryScope ? this.retryPage.after : 0, listed = 0, remaining = false, changed=false
     for (let pass = 0; pass < maxPasses; pass++) {
       const rows = await this.accountInbox.received(scope, limit, after)
       this.assertCurrent(context)
@@ -80,6 +82,10 @@ export class AccountObjectReader extends ProjectMetadataMigrationRuntime {
       remaining = rows.length === limit
       if (!remaining) break
     }
+    // Continue keyset traversal across bounded cycles so an old blocked prefix
+    // cannot starve the successor that makes it recoverable. End-of-list resets
+    // the next cycle to retry retained blockers; this is never an ACK cursor.
+    this.retryPage = { scope: retryScope, after: remaining ? after : 0 }
     return { blocked: [...new Set(blocked)], listed, hasRemainingWork: remaining||changed }
   }
 }

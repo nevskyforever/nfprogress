@@ -1561,3 +1561,105 @@ local Web → VPS/production. No telemetry, account game, C18.5 or destructive c
 Publish a truthful bounded-fix/audit commit to origin/6.0, then stop without polling
 Actions. Expected **Cloud backend tests; SQLite sync substrate tests**. New remote CI
 **PENDING — not polled by Codex**. **C18.4 IN PROGRESS; C18 IN PROGRESS; official progress77.0%.**
+
+
+## C18.4.06 — independent remote acceptance of integration audit
+
+**C18.4.06 — REMOTELY ACCEPTED AS INTEGRATION AUDIT.**
+Implementation/audit SHA `39022df6ff0f69cc7ec3f9a4b317e8c6eb6f8f39`.
+Owner-supplied independent verification:
+[SQLite sync substrate tests36996342190](https://github.com/nevskyforever/nfprogress/actions/runs/36996342190)
+— **SUCCESS** (Python SQLite substrate and Rust SQLite/Windows);
+[Cloud backend tests36996342235](https://github.com/nevskyforever/nfprogress/actions/runs/36996342235)
+— **SUCCESS** (Frontend admin and PostgreSQL cloud backend). All four jobs green.
+Codex did not query Actions. Audit intentionally kept C18.4 open: P0 none, P1-01
+fixed, P1-02 unresolved. This supersedes the C18.4.06 remote-pending statement above,
+without retroactively declaring structural/catalog closure.
+
+## C18.4.07 — catalog stale dependency recovery / shared ACK proof
+
+**C18.4 — LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING.** Closure candidate only;
+not CLOSED or remotely accepted. Preflight branch `6.0`, clean HEAD == local
+origin/6.0 == required `39022df6ff0f69cc7ec3f9a4b317e8c6eb6f8f39`.
+Protected engine/game_data bytecode untouched; no destructive checkout/reset/clean.
+
+**Root cause / correction:** frozen heads and project-proof maps were compared
+exactly with current heads. Rename9 stranded immutable O10, even after R11 and
+restart, leaving shared ACK9. New catalog-scoped iterative causal coverage verifies
+all frozen and traversed events against same account/type/entity authenticated
+ledger; cycle-safe visited/cache, single resolved current tip and every frozen
+reference covered. Bound256 distinct nodes per dependency unit /65,536 loads per
+event; typed existing resource blocker if exceeded. Stage ancestry remains unchanged.
+
+**Entity semantics:** folder rename preserves live identity; direct folder order
+still requires exact live folder IDs. Membership can cover old target-folder and
+metadata heads. Project proof retains explicit binding/bootstrap, frozen applied
+non-delete metadata, active current authority (P1-01), and authenticated scoped
+ancestry. Project order preserves exact eligible connected IDs while permitting
+causal metadata update, folder move or null membership. Null relation is not project
+removal. Local-only L1 is neither bound nor transported by reconciliation.
+
+**Incompatibility / preservation:** known added/deleted folder set, proven folder
+tombstone or added connected project set preserves old intent as conflict only;
+no invalid order/deleted-folder membership is projected. Unknown/unproven/unrelated
+history, invalid bootstrap/account, unbound project, unresolved metadata/dependency
+tips and proof overflow remain legitimate blockers without ACK. Explicit full-tip
+resolution enables retry; no arbitrary branch selection. No physical cleanup/cascade.
+
+**Complete-preservation ledger:** existing `applied`/`conflict_preserved` binds exact
+immutable ID/frame/nonce/ciphertext/sequence. Retained authenticated history, original
+payload/dependencies, causal tips and local conflict candidate provide complete
+preservation in the same transaction. No new table/schema/outcome, ignore flag,
+replacement event or changed crypto/codec. Late O removes only named parents;
+concurrent newer R survives, and explicit ordinary O+R resolution remains possible.
+Common ACK does not require immediate user resolution, but still requires exact
+proof for every sequence; `ack_proven` is unchanged.
+
+**Restart / shared ACK:** renamed positive regression
+`account_catalog_stale_dependency_recovery_preserves_newer_resolution_and_shared_ack`
+retains the exact legacy blocker O10, applies R11 and real project Stage12, reopens,
+recovers O as preserved conflict, checks O/R tips and unchanged R projection, and
+uses real `prepare_note_sync_ack`:9 before recovery →12 afterward. Original sealed
+bytes/frame survive. PG extension uses production TS crypto and reopened A/B files:
+frozen order → folder rename → R → O/R conflict → explicit R2; frozen project order
+survives metadata rename and null membership; both devices prove common ACK before
+R2 and later confirm server/local convergence. Intentional later account blocker
+still stops ACK despite an applied Stage afterward. No special catalog cursor.
+
+**Fair retry / UX:** scoped ephemeral keyset scheduling continues across bounded
+reader cycles so blocked prefixes cannot starve successors; end-of-list restarts old
+blockers, auth epoch changes reset scope. Scheduling is not ACK/pull state. Existing
+safe diagnostic/friendly waiting/conflict/resource mappings suffice; no new text,
+localization change, plaintext logs, telemetry or server semantic knowledge.
+
+**Evidence:**14 catalog Rust tests cover rename, metadata/move/null, unresolved
+conflict → resolution, unrelated/missing/cyclic/over-budget history, set/tombstone
+conflict preservation without invalid materialization, foreign/altered-byte negatives,
+C3 addition/unproven C2/wrong bootstrap/local-only exclusion and reopen/mixed ACK.
+Acceptance matrix F/G/H/J/K/N/O updated with named evidence in
+[structural/catalog acceptance](cloud/C18_4_INTEGRATION_ACCEPTANCE.md).
+P0:none found. P1-01:still fixed. P1-02:resolved locally. No new P1 found in this scope.
+Every row PASS or legitimate DEFERRED BY FROZEN DESIGN; graphical shell remains P2.
+
+**Local validation:**53 frontend tests /9 files PASS; TypeScript typecheck/frontend
+build PASS (existing chunk/dynamic-import warnings);52 Rust tests PASS (catalog14,
+metadata acceptance4, Stage20, account transport4, diagnostics5, developer/profile5);
+cargo check PASS (existing warnings);64 focused Python SQLite/catalog/account PASS;
+one extended real PostgreSQL16 two-device acceptance **PASS,0 skipped,258.56s**;
+affected Python syntax in memory, no bytecode; full scoped diff /git diff --check.
+Focused subset, no full legacy suite or full SQLite CI-equivalent claim. Mandatory
+Cloud/Windows catalog filters and Cloud reader/PG commands already include new
+proofs; workflows unchanged, PostgreSQL timeout40 minutes. Expected **Cloud backend
+tests; SQLite sync substrate tests**. New remote CI **PENDING — not polled by Codex**.
+Commit `fix(c18): recover stale catalog dependencies`, push origin/6.0, then stop.
+
+**P2/deferred / release rules:** full graphical Tauri/Windows E2E and broader manual
+device qualification remain C22/C23/PF6.0 hardening. Child manifests/physical history
+cleanup/compression/content/game remain later frozen scope. Registration remains
+CLOSED until owner stabilization/dogfooding, diagnostics/release blocker review,
+final terminology audit and critical manual tests, followed by explicit opening;
+PF6.0/RC never opens it automatically. C22/PF6.0 final terminology audit preserved.
+C21 remains local browser build → Tauri dependency audit → browser adapters → stable
+local Web → VPS/production. No C18.5 work. **C18 IN PROGRESS; official progress77.0%.**
+After independent acceptance, recommend bounded **C18.5.01 — CONTENT ENTITY CONTRACT /
+NOTE GATE / DEPENDENCY SUBSTRATE**; recommendation only, no implementation here.

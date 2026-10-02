@@ -38,5 +38,13 @@ describe('production account reader readiness',()=>{
     lease.canonicalUserId=DEVICE
     await expect(reader.readOnce('local',DEVICE)).rejects.toThrow()
     expect(inbox.received).toHaveBeenCalledTimes(2)
+    lease.canonicalUserId=USER
+    inbox.received.mockReset().mockImplementation(async (_scope, _limit, after) =>
+      after===0?[r]:after===1?[{...r,server_sequence:2}]:[])
+    await reader.readOnce('local',DEVICE,1,1)
+    await reader.readOnce('local',DEVICE,1,1)
+    await reader.readOnce('local',DEVICE,1,1)
+    await reader.readOnce('local',DEVICE,1,1)
+    expect(inbox.received.mock.calls.map(call=>call[2])).toEqual([0,1,2,0])
   })
 })

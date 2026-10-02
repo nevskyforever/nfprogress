@@ -669,6 +669,11 @@ fn metadata_authority_bridge(request:&Value)->Value {
             json!(metadata::preserve_authenticated_event_checked(&mut db,account,project,&bytes(opened,"plaintext"),now,
                 Some((&bytes(opened,"nonce"),&bytes(opened,"ciphertext")))).unwrap())
         },
+        "apply"=>{
+            let opened=&request["opened"];
+            json!(metadata::preserve_authenticated_event_checked(&mut db,account,project,&bytes(opened,"plaintext"),now,
+                Some((&bytes(opened,"nonce"),&bytes(opened,"ciphertext")))).unwrap())
+        },
         "read"=>Value::Null,
         _=>panic!("unsupported metadata bridge step"),
     };
