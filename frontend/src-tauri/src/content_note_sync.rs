@@ -232,6 +232,17 @@ pub(crate) fn receipt(
     db.execute("INSERT OR IGNORE INTO cloud_content_note_receipts VALUES(?1,?2,?3,?4,?5,?6,'waiting',NULL)",params![c.account_id,c.event_id,c.server_sequence,frame,c.nonce,c.ciphertext])?;
     if frame.is_some() {
         db.execute("UPDATE cloud_content_note_receipts SET canonical_frame=COALESCE(canonical_frame,?3) WHERE account_id=?1 AND event_id=?2",params![c.account_id,c.event_id,frame])?;
+        // Lost upload response: exact own immutable frame and encrypted pair
+        // in the authenticated inbox prove acceptance without an HTTP receipt.
+        if c.source_device_id == c.pulling_device_id {
+            let own:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM cloud_content_note_writer_events w JOIN cloud_sync_outbox b ON b.event_id=w.event_id JOIN cloud_sync_event_objects o ON o.account_id=b.account_id AND o.event_id=b.event_id WHERE w.account_id=?1 AND w.event_id=?2 AND w.canonical_frame=?3 AND b.device_id=?4 AND b.lifecycle IN ('sealed','accepted') AND o.nonce=?5 AND o.ciphertext=?6)",params![c.account_id,c.event_id,frame,c.pulling_device_id,c.nonce,c.ciphertext],|r|r.get(0))?;
+            if own {
+                db.execute("INSERT OR IGNORE INTO cloud_sync_upload_receipts(account_id,event_id,device_id,server_sequence,duplicate,accepted_at) VALUES(?1,?2,?3,?4,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",params![c.account_id,c.event_id,c.pulling_device_id,c.server_sequence])?;
+                let proven:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_upload_receipts WHERE account_id=?1 AND event_id=?2 AND device_id=?3 AND server_sequence=?4)",params![c.account_id,c.event_id,c.pulling_device_id,c.server_sequence],|r|r.get(0))?;
+                if !proven{return Err(rusqlite::Error::InvalidQuery)}
+                db.execute("UPDATE cloud_sync_outbox SET lifecycle='accepted' WHERE event_id=?1 AND account_id=?2 AND lifecycle='sealed'",params![c.event_id,c.account_id])?;
+            }
+        }
     }
     Ok(())
 }
@@ -327,6 +338,9 @@ pub(crate) fn complete(db: &Connection, a: &str, id: &str) -> rusqlite::Result<(
     )?;
     if matches!(state.as_str(), "applied" | "conflict_preserved") {
         db.execute("UPDATE cloud_content_note_receipts SET outcome=?3,blocker=NULL WHERE account_id=?1 AND event_id=?2",params![a,id,state])?;
+        if state == "applied" {
+            db.execute("UPDATE cloud_content_note_migrations SET activated=1 WHERE account_id=?1 AND project_id=(SELECT project_id FROM cloud_sync_inbox WHERE account_id=?1 AND event_id=?2) AND EXISTS(SELECT 1 FROM cloud_content_note_writer_events WHERE account_id=?1 AND event_id=?2)",params![a,id])?;
+        }
     } else {
         db.execute("UPDATE cloud_content_note_receipts SET blocker=(SELECT error_code FROM cloud_sync_inbox WHERE account_id=?1 AND event_id=?2) WHERE account_id=?1 AND event_id=?2",params![a,id])?;
     }
@@ -583,6 +597,8 @@ mod tests {
         let mut db = crate::sqlite::open_database(&path).unwrap();
         stage(&mut db, 10, 0);
         stage(&mut db, 11, 1);
+        // Later applied Stage events cannot bridge the still-blocked Note prefix.
+        assert_eq!(ack(&mut db), 8);
         let mut p = PrivilegedRemoteApplyConnection::from_connection(db).unwrap();
         assert_eq!(
             sync::apply_verified_received_content_note_ipc(&mut p, cmd.clone()).unwrap(),

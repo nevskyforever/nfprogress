@@ -131,6 +131,16 @@ export function encodeAccountPush(deviceId:string,items:readonly AccountPushItem
   const body=JSON.stringify({protocol_version:3,encrypted_sync_version:3,device_id:deviceId,items:wire});if(new TextEncoder().encode(body).length>MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES)fail();return body
 }
 export const encryptedSyncV3Api = {
+  noteReaderCapabilities:(token:string,deviceId:string,support:{reader_transport_version:3;frame_version:1;codec8_version:1;compression_zero:true;ordinary_reader_version:1;resolution_reader_version:2}):Promise<void>=>{
+    if(!UUID.test(deviceId))fail()
+    return apiRequest('/api/v3/sync/encrypted/note-reader-capabilities',{method:'PUT',headers:headers(token),body:{device_id:deviceId,...support}})
+  },
+  noteReaderGate:(token:string):Promise<{ready:boolean;missing_devices:number}>=>apiRequest<unknown>('/api/v3/sync/encrypted/note-reader-capabilities',{headers:headers(token)}).then(value=>{
+    if(!exact(value,['ready','missing_devices']))fail()
+    const result=value as {ready:boolean;missing_devices:number}
+    if(typeof result.ready!=='boolean'||!safe(result.missing_devices,0))fail()
+    return result
+  }),
   pushAccount:(token:string,deviceId:string,items:readonly AccountPushItem[]):Promise<V3PushResponse> => apiRequest<unknown>('/api/v3/sync/encrypted/account/push',{method:'POST',headers:headers(token),rawBody:encodeAccountPush(deviceId,items)}).then(value=>parsePush(value,items.map(i=>i.event.event_id))),
   readerReady: (token: string, deviceId: string): Promise<void> => {
     if (!UUID.test(deviceId)) fail()

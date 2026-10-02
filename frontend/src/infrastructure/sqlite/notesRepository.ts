@@ -28,8 +28,8 @@ export class SQLiteNotesRepository implements NotesRepository {
     return note
   }
 
-  async create(scope: NotesScope): Promise<ProjectNote> {
-    const note = await invoke<ProjectNote>('create_note', nativeScope(scope))
+  async create(scope: NotesScope,contentFormat?:'html'|'plain'): Promise<ProjectNote> {
+    const note = await invoke<ProjectNote>('create_note', {...nativeScope(scope),...(contentFormat?{contentFormat}:{})})
     return note
   }
 

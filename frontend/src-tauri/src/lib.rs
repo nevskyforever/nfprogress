@@ -24,6 +24,7 @@ mod account_sync;
 mod account_catalog;
 mod note_sync_plaintext;
 mod content_note_sync;
+mod content_note_writer;
 #[allow(dead_code)]
 mod project_metadata_sync;
 mod stage_sync;
@@ -2542,6 +2543,32 @@ fn metadata_connection(scope:&project_metadata_sync::MetadataScope)->Result<rusq
 }
 
 #[tauri::command]
+fn begin_content_note_migration(scope:project_metadata_sync::MetadataScope,project_id:String,now:String)->Result<serde_json::Value,String>{let mut db=metadata_connection(&scope)?;content_note_writer::begin(&mut db,&scope,&project_id,&now)}
+#[tauri::command]
+fn read_content_note_migration(scope:project_metadata_sync::MetadataScope,project_id:String)->Result<serde_json::Value,String>{let db=metadata_connection(&scope)?;content_note_writer::view(&db,&scope,&project_id)}
+#[tauri::command]
+fn read_content_note_conflicts(scope:project_metadata_sync::MetadataScope,project_id:String)->Result<Vec<serde_json::Value>,String>{let db=metadata_connection(&scope)?;content_note_writer::conflicts(&db,&scope,&project_id)}
+#[tauri::command]
+fn choose_content_note_version(scope:project_metadata_sync::MetadataScope,project_id:String,decision:serde_json::Value,selected:String,now:String)->Result<(),String>{
+    let mut db=metadata_connection(&scope)?;
+    if decision["kind"]=="import" {
+        let command=content_note_writer::prepare_import_choice(&mut db,&scope,&project_id,&decision,&selected,&now)?;
+        drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|e|e.to_string())?;
+        note_sync::apply_verified_received_content_note_ipc(&mut privileged,command).map_err(|e|e.to_string())?;return Ok(())
+    }
+    let command=content_note_writer::prepare_choice(&mut db,&scope,&project_id,&decision,&selected,&now)?;
+    drop(db);
+    let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|e|e.to_string())?;
+    note_sync::apply_prepared_note_conflict_resolution(&mut privileged,&command).map_err(|_|"stale_note_resolution")?;Ok(())
+}
+#[tauri::command]
+fn list_pending_content_notes(scope:project_metadata_sync::MetadataScope,sealed:bool)->Result<Vec<serde_json::Value>,String>{let db=metadata_connection(&scope)?;content_note_writer::pending(&db,&scope,sealed)}
+#[tauri::command]
+fn seal_content_note(scope:project_metadata_sync::MetadataScope,event_id:String,frame:Vec<u8>,envelope:note_sync::EncryptedNoteSyncEnvelope)->Result<(),String>{let mut db=metadata_connection(&scope)?;content_note_writer::seal(&mut db,&scope,&event_id,&frame,envelope)}
+#[tauri::command]
+fn receipt_content_note(scope:project_metadata_sync::MetadataScope,event_id:String,server_sequence:i64,duplicate:bool)->Result<(),String>{let mut db=metadata_connection(&scope)?;content_note_writer::receipt(&mut db,&scope,&event_id,server_sequence,duplicate)}
+
+#[tauri::command]
 fn read_stage_structural_authority(scope:project_metadata_sync::MetadataScope,project_id:String)->Result<stage_sync::StructuralView,String>{
     let db=metadata_connection(&scope)?;stage_sync::authority(&db,&scope.account_id,&project_id).map_err(|e|e.to_string())
 }
@@ -2718,11 +2745,11 @@ fn prepare_project_metadata_change(
 }
 
 #[tauri::command]
-fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+fn create_note(project_id: String, stage_id: Option<String>, content_format:Option<String>) -> Result<serde_json::Value, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
     let id = new_note_id()?;
-    create_note_in_connection(&mut connection, &project_id, stage_id.as_deref(), &id)?;
+    create_note_with_format_in_connection(&mut connection, &project_id, stage_id.as_deref(), &id,content_format.as_deref().unwrap_or("html"))?;
     get_note(project_id, id, stage_id)?.ok_or_else(|| "Созданная заметка не найдена.".to_string())
 }
 
@@ -2757,6 +2784,13 @@ fn create_note_in_connection(
     stage_id: Option<&str>,
     note_id: &str,
 ) -> Result<String, String> {
+    create_note_with_format_in_connection(connection,project_id,stage_id,note_id,"html")
+}
+
+fn create_note_with_format_in_connection(
+    connection:&mut rusqlite::Connection,project_id:&str,stage_id:Option<&str>,note_id:&str,content_format:&str,
+)->Result<String,String>{
+    if !matches!(content_format,"plain"|"html"){return Err("invalid_note_payload".into())}
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;
@@ -2767,7 +2801,7 @@ fn create_note_in_connection(
         "SELECT COALESCE(MAX(json_extract(payload_json, '$.sort_order')), -1) + 1 FROM notes WHERE project_id = ?1",
         [project_id], |row| row.get(0),
     ).map_err(|error| error.to_string())?;
-    let payload = serde_json::json!({"id": note_id, "project_id": project_id, "stage_id": stage_id, "title": "", "content": "", "content_format": "html", "checklist": [], "color": "default", "pinned": false, "archived": false, "sort_order": sort_order, "tags": [], "source_type": "project", "source_map_id": null, "source_node_id": null, "created_at": now, "updated_at": now, "revision": 0, "metadata": {}});
+    let payload = serde_json::json!({"id": note_id, "project_id": project_id, "stage_id": stage_id, "title": "", "content": "", "content_format": content_format, "checklist": [], "color": "default", "pinned": false, "archived": false, "sort_order": sort_order, "tags": [], "source_type": "project", "source_map_id": null, "source_node_id": null, "created_at": now, "updated_at": now, "revision": 0, "metadata": {}});
     let snapshot = payload.to_string();
     prepare_direct_note_intent(
         &transaction,
@@ -6049,6 +6083,13 @@ pub fn run() {
             block_account_object,
             read_stage_structural_authority,
             begin_stage_structural_migration,
+            begin_content_note_migration,
+            read_content_note_conflicts,
+            choose_content_note_version,
+            read_content_note_migration,
+            list_pending_content_notes,
+            seal_content_note,
+            receipt_content_note,
             prepare_stage_structural_decision,
             list_pending_stage_structural,
             commit_sealed_stage_structural,

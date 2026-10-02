@@ -5,7 +5,7 @@
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Последнее закрытие:** C18.4 независимо закрыт для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac`; SQLite `37004006923` и Cloud `37004006914` — **SUCCESS**, все четыре jobs. Последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
@@ -1872,3 +1872,106 @@ audit, repeats critical manual scenarios and explicitly opens registration;
 PF6.0/RC completion does not open it. C22/PF6.0 final terminology audit remains
 required. C21: local browser build → Tauri dependency audit → browser adapters →
 stable local Web → VPS/production. Official progress remains exactly77.0%.
+
+
+## C18.5.01 — independent remote acceptance
+
+Owner-supplied independent GPT verification for implementation SHA
+`c01ed8cd965a0e48fefb4f5b147ff3a99eccca31`:
+
+- [SQLite sync substrate 37014080772](https://github.com/nevskyforever/nfprogress/actions/runs/37014080772) — **SUCCESS**.
+- [Cloud backend 37014080630](https://github.com/nevskyforever/nfprogress/actions/runs/37014080630) — **SUCCESS**.
+
+**C18.5.01 — REMOTELY ACCEPTED.** C18.4 remains CLOSED.
+C18.5 and C18 remain **IN PROGRESS**. Official progress remains exactly **77.0%**;
+no partial roadmap points. Evidence was supplied independently by the owner;
+Codex did not inspect or poll GitHub Actions.
+
+C18.5.02 preflight: cwd `/Users/romankisockin/Desktop/nfprogress/ts_migration`,
+branch `6.0`, clean HEAD == local `origin/6.0` ==
+`c01ed8cd965a0e48fefb4f5b147ff3a99eccca31` before changes.
+The complete C18.5.02 task and the owner's continuation decision have been received.
+SyncDevice remains a non-secret account-scoped transport identity. Codec capability
+declarations are authorized by the authenticated account and restricted to device
+IDs registered to that account. Production clients declare capabilities only for
+their persisted local device ID. C18.5.02 does not introduce device PKI or
+cryptographic device self-attestation. The stricter per-device cryptographic-auth
+requirement was rejected by the owner as outside the current frozen trust model
+and scope; the accepted account/device authorization model is preserved.
+This acceptance record is retained as part of C18.5.02. Permanent release/terminology/C21 rules remain unchanged.
+
+
+## C18.5.02 — local implementation / remote CI pending
+
+Explicit Cloud “Опубликовать заметки” activates Project plain, Stage plain and
+Stage HTML writers after the all-registered-device capability gate and verified
+self-echo. Required evidence: mode3/frame1/codec8v1/compression0/ordinaryv1/
+resolutionv2. PostgreSQL migration `c18_note_readers` is the single Alembic head;
+same-account registered UUID authorization is preserved, foreign/unregistered
+declarations rejected, production uses its persisted device ID. No device PKI.
+
+SQLite33 atomically retains deterministic migration candidates, source and
+generation evidence, canonical frames, future IDs, causal parents and metadata/
+Stage dependencies. Local/captured/publication/self-echo/active/conflict/blocked
+states survive restart. Unsupported source evidence is retained without field
+dropping; map Notes stay local with no independent event/ACK. Local-only projects
+remain excluded. Exact sealed replay and fair bounded queue scans are durable.
+
+Existing Project HTML remains on its single C15/C17 v1/v2 writer, including
+future Project HTML creates. No old history/ciphertext rewrite or duplicate
+genesis. The new forms use the same ordinary/resolution queues with codec8
+sidecars; after activation/import, ordinary create/edit/portable metadata/delete
+works automatically. Post-capture local drafts become later causal events after
+self-echo; child publication waits for authenticated parents. Ownership/format
+transitions are rejected. Stage rename reuses proven ancestry; tombstones or
+unresolved dependencies retain Note data and block unsafe apply without cascade.
+
+C17 handles edit/edit, delete/edit and explicit full-tip choices with local CAS.
+Later branches reject stale choices. Local same-ID unauthenticated content is
+retained alongside remote evidence, requiring explicit choice; keeping it creates
+a child of the imported authenticated parent. Already-published competing genesis
+roots remain honestly blocked rather than fabricated or overwritten.
+Shared contiguous ACK uses existing exact inbox/frame/encrypted-pair/sequence/
+dependency/apply proofs, never capability declaration alone. Lost upload response
+and reopen retry preserve exact event/frame/dependencies/nonce/ciphertext.
+
+Bounded real PostgreSQL16 acceptance uses production TS C11 and two distinct
+file-backed native SQLite devices. It covers legacy H1 coexistence, explicit
+P1/S1/S2 publication, M1 exclusion, missing third-device capability then readiness,
+local B candidate reconciliation, lost-response duplicate retry/reopen,
+ordinary creation of all new forms, metadata edits, Stage HTML deletion,
+concurrent Stage plain edits, later third branch/stale choice rejection,
+full-tip convergence, Project plain delete/edit preservation and common ACK.
+A blocked local-candidate prefix prevents advancing over later applied Notes;
+native dependency tests additionally cover unresolved Stage prefixes and recovery.
+
+Local validation: Python affected SQLite suites181 PASS, including every supported
+prefix0–32, populated32 preservation and reopen. Remaining SQLite CI modules:
+72 PASS; two historical fixtures updated for schema33, focused rerun2 PASS
+(255 distinct SQLite/API checks across the bounded pass and repairs). PostgreSQL capability/foundation/
+acceptance16 PASS; final resolved-state acceptance1 PASS.
+Rust Note engine165, framed reader/writer15, project lifecycle5 and diagnostics5
+PASS; cargo check PASS. Frontend focused91 tests PASS; final changed-area pass53
+PASS, final UI/store/diagnostics38 PASS; TypeScript typecheck/production build PASS.
+Help/localization29 PASS,1 deselected: native macOS Help bridge aborts in the
+headless environment; no bridge code was changed. All five non-Russian locales
+have complete new Note UI/help strings. Chromium verified real plain-text dialog
+hydration/edit/save with literal HTML-looking text on isolated fixtures.
+No full Nuitka/platform build claim; existing Rust/build warnings remain.
+Final diff/syntax/import checks PASS; protected engine/game_data pyc unchanged.
+Temporary PostgreSQL and isolated Web processes were removed/stopped.
+
+Diagnostics use allowlisted codes/counts without content or telemetry.
+User-visible publication, device-update blockers and Note version choice use
+central presentation/localization. Dedicated help describes the real boundary.
+C11, codec8/frame versions and fixtures, compression and game behavior unchanged.
+No map/document/progress/game authority or C18.6+/C21 implementation.
+
+C18.5.02 LOCAL COMPLETE / REMOTE CI PENDING after authorized commit/push;
+expected Cloud backend tests and SQLite sync substrate tests. PostgreSQL timeout
+stays40 minutes. Codex stops after push without inspecting/polling Actions.
+C18.5/C18 remain IN PROGRESS, C18.4 CLOSED, official progress exactly77.0%.
+Registration CLOSED until explicit owner decision after dogfooding/stabilization;
+C22/PF6.0 final terminology audit and C21 local browser → Tauri audit → adapters →
+stable local Web → VPS order preserved. Next recommendation only:
+C18.5.03 — MAP AUTHORITY / DERIVED NOTE ANNOTATIONS / ATOMIC APPLY.

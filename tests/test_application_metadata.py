@@ -120,6 +120,14 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        # Reconstruct v6 without any migration-033 writer sidecars or guards.
+        database.execute("DROP TRIGGER content_note_route_immutable")
+        for table in ("cloud_content_note_import_decisions", "cloud_content_note_local_candidates",
+                      "cloud_content_note_resolution_decisions", "cloud_content_note_resolution_events",
+                      "cloud_content_note_pending_local_changes", "cloud_content_note_writer_scan",
+                      "cloud_content_note_writer_events", "cloud_content_note_candidates",
+                      "cloud_content_note_migrations"):
+            database.execute(f"DROP TABLE {table}")
         database.execute("DROP TABLE cloud_content_note_receipts")
         database.execute("DROP TRIGGER catalog_binding_removal_guard")
         for table in ("cloud_catalog_inbox_blockers","cloud_catalog_candidates","cloud_catalog_local_conflicts","cloud_catalog_decisions","cloud_catalog_apply_ledger","cloud_catalog_projection","cloud_catalog_tips","cloud_catalog_events","cloud_catalog_state"):

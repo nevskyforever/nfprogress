@@ -53,7 +53,7 @@ async function hydrateEditor(): Promise<void> {
   await nextTick()
   const editor = contentEditor.value
   if (!props.open || !props.note || !editor) return
-  if (props.note.source_type === 'mindmap') editor.textContent = form.content
+  if (props.note.source_type === 'mindmap' || props.note.content_format === 'plain') editor.textContent = form.content
   else editor.innerHTML = form.content
   editorReady.value = true
   editor.focus()
@@ -61,7 +61,7 @@ async function hydrateEditor(): Promise<void> {
 
 function contentChanged(event: Event): void {
   const target = event.currentTarget as HTMLElement
-  form.content = props.note?.source_type === 'mindmap' ? target.innerText : target.innerHTML
+  form.content = (props.note?.source_type === 'mindmap' || props.note?.content_format === 'plain') ? target.innerText : target.innerHTML
 }
 
 function addChecklistItem(): void {

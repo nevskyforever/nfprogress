@@ -130,7 +130,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 32
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 33
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -719,6 +719,9 @@ def test_c17_upgrade_from_populated_v23_replaces_only_generation_guards(tmp_path
     replaced = {
         'cloud_sync_note_applied_resolution_parent_insert_guard',
         'cloud_sync_note_applied_resolution_completion_guard',
+        'notes_require_sync_intent_insert',
+        'notes_require_sync_intent_update',
+        'notes_require_sync_intent_delete',
     }
     preserved_triggers = dict(connection.execute(
         "SELECT name,sql FROM sqlite_master WHERE type='trigger' ORDER BY name"

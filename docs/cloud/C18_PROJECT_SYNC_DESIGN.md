@@ -504,3 +504,82 @@ audit, repeats critical manual scenarios and explicitly opens registration;
 PF6.0/RC completion does not open it. C22/PF6.0 final terminology audit remains
 required. C21: local browser build → Tauri dependency audit → browser adapters →
 stable local Web → VPS/production. Official progress remains exactly77.0%.
+
+## C18.5.02 — explicit Note migration and production writers
+
+The owner accepted C18.5.01 independently at
+`c01ed8cd965a0e48fefb4f5b147ff3a99eccca31`. This implementation activates
+Project plain, Stage plain and Stage HTML Notes without changing codec8 v1,
+frame v1, compression0 or C11 project crypto1/1. Project HTML, including newly
+created Project HTML Notes, retains the established C15/C17 v1/v2 writer.
+No accepted legacy history is republished, resealed or assigned another genesis.
+
+SyncDevice remains a non-secret account-scoped transport identity. Authenticated
+accounts may declare capabilities only for their own registered device IDs;
+production clients use their persisted local ID. No device PKI/self-attestation
+is added. Normalized PostgreSQL columns retain mode3, frame1, codec8v1,
+compression0, ordinaryv1 and resolutionv2 reader evidence. Every registered
+device participates; no retirement or silent exclusion exists. Missing evidence
+blocks explicit migration and new-format publication. After framed history,
+a downgraded reader cannot pull through the format gate. Capability evidence
+neither decrypts content nor grants ACK eligibility. This preserves the existing
+trust model; intentionally using another registered UUID within one's own
+account is not cryptographically distinguished.
+
+Only the localized Cloud action “Опубликовать заметки” captures local sources.
+Capability advertisement may run automatically; migration cannot. Capture
+requires an existing project binding and active metadata authority. Stage Notes
+also require authenticated, live same-project Stage dependency proofs.
+SQLite33 retains deterministic source snapshots, canonical frames, reserved
+event IDs, generations, parent/dependency evidence and blockers atomically.
+States are local, captured, publication pending, self-echo pending, active,
+conflict and blocked. Source rows outside the portable contract are retained
+without dropping fields. Map-owned Notes remain local/materialized and have no
+independent event, descriptor or ACK authority; their presence does not prevent
+eligible Notes from publishing.
+
+C15 ordinary outbox and C17 resolution outbox remain the only Note queues.
+Codec8 sidecars retain framing and source/generation evidence after sealing.
+Legacy sealers/uploaders exclude these entries. After verified migration
+self-echo or verified import, ordinary create/edit/portable metadata/delete
+writes automatically enqueue codec8. Before consent they remain local.
+Post-capture edits are deferred local drafts until the frozen candidate applies,
+then become causal children. Sealed events never change. Children wait for
+authenticated parent proofs, and a fair durable bounded scan prevents blocked
+items from starving later entries. Bound Note source/format/owner transitions
+are rejected; the UI does not expose a format or ownership conversion workflow.
+
+Stage rename uses the existing ancestry proof; a causally covering live Stage
+does not strand an older frozen Note dependency. Stage tombstones/unresolved
+tips block unsafe Note publication/apply without deleting retained Note data.
+Local-only projects cannot acquire bindings through Note discovery.
+
+C17 preserves edit/edit and delete/edit versions and requires exact full tips,
+generation and local compare-and-swap for explicit version selection.
+New-format ordinary edits wait while a conflict is open. A later branch rejects
+an older rendered decision. A same-ID unauthenticated local row is retained
+alongside the verified remote frame; explicit cloud/local choice is required.
+Keeping local first imports the authenticated parent, then queues the chosen
+local snapshot as its causal child in the same transaction. Import choices are
+append-only, preserving stale decisions while allowing a freshly rendered choice.
+Independent already-published genesis roots remain blocked with both sources
+retained; this slice does not invent a common parent or rewrite accepted history.
+
+Upload acceptance does not activate authority. Verified exact self-echo does.
+Lost-response retry reuses event/frame/dependencies/nonce/ciphertext; exact own
+inbox evidence can recover a missing upload receipt. Legacy and framed Notes
+share the same contiguous sequence and existing ACK proof checks; unresolved
+dependencies/local reconciliation stop the prefix. PostgreSQL stores only
+protocol capabilities, descriptors and opaque encrypted objects.
+
+The Cloud Note panel presents localized publication/blocker/conflict actions
+and readable saved versions. Plain text remains literal in the editor.
+Diagnostics retain allowlisted protocol codes/counts only, never Note titles,
+content, tags or checklists; no telemetry. Dedicated help explains explicit
+publication, old-device blockers, retained HTML compatibility, conflicts and
+future map authority in Russian and all five supported translations.
+
+C18.5 and C18 remain IN PROGRESS at exactly77.0%. Remaining C18.5 scope:
+maps/derived annotations, documents, progress and game ledgers. Registration
+remains CLOSED pending owner dogfooding/stabilization and explicit decision;
+C22/PF6.0 terminology audit and C21 local-Web-first order remain mandatory.

@@ -7,7 +7,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .models import (AuthRefreshToken, AuthSession, CloudProject, EmailVerificationToken, SyncDevice,
+from .models import (AuthRefreshToken, AuthSession, CloudProject, EmailVerificationToken, SyncDevice, SyncEvent,
                      GlobalLimits, PasswordResetToken, RegistrationSettings,
                      ReservedUsername, User, UserLimitOverrides)
 from .passwords import PasswordService
@@ -345,9 +345,9 @@ class SyncService:
         try:
             session.commit()
             with session.begin():
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
                 device = self._sync.register_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
-                state = self._sync.ensure_user_state(session, user_id)
                 session.flush()
                 return device.device_id, device.last_ack_sequence, state.current_sequence
         except Exception:
@@ -419,6 +419,35 @@ class SyncService:
                     raise SyncProtocolError('sync_transport_mode_incompatible', 'Mode 2 is required before reader readiness.', 409)
                 device = self._registered_device(session, user_id, device_id)
                 device.reader_transport_version = 3
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
+    @staticmethod
+    def content_note_reader_ready(device) -> bool:
+        return (device.reader_transport_version == 3 and device.note_frame_version == 1
+                and device.note_codec_version == 1 and device.note_compression_zero
+                and device.note_ordinary_reader_version == 1 and device.note_resolution_reader_version == 2)
+
+    def content_note_gate(self, session: Session, user_id: object) -> tuple[bool, int]:
+        devices = session.scalars(select(SyncDevice).where(SyncDevice.user_id == user_id)).all()
+        missing = sum(not self.content_note_reader_ready(device) for device in devices)
+        mode, _ = self.capabilities(session, user_id)
+        return bool(devices) and missing == 0 and mode == 3, missing
+
+    def declare_content_note_reader(self, session: Session, user_id: object, request) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, request.device_id)
+                device.reader_transport_version = request.reader_transport_version
+                device.note_frame_version = request.frame_version
+                device.note_codec_version = request.codec8_version
+                device.note_compression_zero = request.compression_zero
+                device.note_ordinary_reader_version = request.ordinary_reader_version
+                device.note_resolution_reader_version = request.resolution_reader_version
                 device.last_seen_at = utc_now()
         except Exception:
             session.rollback()
@@ -560,6 +589,9 @@ class SyncService:
                 # Its request schema admits Notes only; metadata uses v3.
                 if not (transport_version == 2 and state.writer_transport_version == 3):
                     self._require_transport_mode(state, transport_version)
+                if any(item.event.entity_type == 'note' and item.event.operation == 'event' for item in items):
+                    if not self.content_note_gate(session, user_id)[0]:
+                        raise SyncProtocolError('content_note_readers_not_ready', 'Registered devices must support Note readers.', 409)
                 results: list[SyncPushResult] = []
                 for item in items:
                     event = item.event
@@ -674,6 +706,11 @@ class SyncService:
         self._require_transport_mode(state, transport_version)
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
+        if transport_version == 3 and not self.content_note_reader_ready(device):
+            emitted = session.scalar(select(SyncEvent.event_id).where(
+                SyncEvent.user_id == user_id, SyncEvent.entity_type == 'note', SyncEvent.operation == 'event').limit(1))
+            if emitted is not None:
+                raise SyncProtocolError('content_note_reader_required', 'This device must support Note readers.', 409)
         descriptors = self._sync.pull_encrypted_descriptors(session, user_id, since, limit)
         selected_descriptors: list[EncryptedPullDescriptor] = []
         ciphertext_total = 0

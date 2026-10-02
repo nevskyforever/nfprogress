@@ -32,6 +32,12 @@ describe('SQLiteNotesRepository', () => {
     expect(invoke).toHaveBeenNthCalledWith(5, 'reorder_notes', { ...scope, noteIds: ['note-id'] })
   })
 
+  it('creates plain notes through the production typed native command', async () => {
+    invoke.mockResolvedValue({ id: 'plain' })
+    await repository.create(scope, 'plain')
+    expect(invoke).toHaveBeenCalledWith('create_note', { ...scope, contentFormat: 'plain' })
+  })
+
   it('uses typed Tauri commands for maps and XMind without an API fallback', async () => {
     const map = { nodeData: { id: 'root', topic: 'Root', children: [] } }
     const file = new File([new Uint8Array([1, 2, 3])], 'map.xmind')

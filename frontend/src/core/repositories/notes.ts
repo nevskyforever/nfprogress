@@ -12,7 +12,7 @@ import type {
 export interface NotesRepository {
   list(scope: NotesScope): Promise<NotesResponse>
   get(scope: NotesScope, noteId: string): Promise<ProjectNote>
-  create(scope: NotesScope): Promise<ProjectNote>
+  create(scope: NotesScope,contentFormat?:'html'|'plain'): Promise<ProjectNote>
   update(scope: NotesScope, noteId: string, patch: ProjectNotePatch): Promise<ProjectNote>
   delete(scope: NotesScope, noteId: string): Promise<void>
   reorder(scope: NotesScope, noteIds: string[]): Promise<NoteOrderResponse>

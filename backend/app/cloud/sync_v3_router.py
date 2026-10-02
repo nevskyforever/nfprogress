@@ -12,7 +12,7 @@ from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_use
 from .schemas import (ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
                       V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
-                      V3ReaderReadyRequest, V3CutoverRequest, V3CutoverResponse, V3SyncPullEvent,
+                      ContentNoteReaderCapabilities, ContentNoteCapabilityGate, V3ReaderReadyRequest, V3CutoverRequest, V3CutoverResponse, V3SyncPullEvent,
                       encode_canonical_base64url, AccountEncryptedPushRequest, AccountSyncPullEvent)
 from .services import SyncProtocolError, SyncService
 from .sync_router import _error, _inline_json_schema, _read_encrypted_push_body
@@ -128,3 +128,20 @@ async def account_push(http_request: Request,
         raise _error(error) from None
     return V3EncryptedSyncPushResponse(results=[SyncPushResult(event_id=row.event_id,
         server_sequence=row.server_sequence, duplicate=row.duplicate) for row in results], current_cursor=cursor)
+
+
+@router.put('/note-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
+def note_reader_capabilities(request: ContentNoteReaderCapabilities,
+                             current: AuthenticatedUser = Depends(get_current_user),
+                             session: Session = Depends(get_cloud_session)) -> None:
+    try:
+        SyncService().declare_content_note_reader(session, current.user.id, request)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+
+
+@router.get('/note-reader-capabilities', response_model=ContentNoteCapabilityGate)
+def note_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
+    ready, missing = SyncService().content_note_gate(session, current.user.id)
+    return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)

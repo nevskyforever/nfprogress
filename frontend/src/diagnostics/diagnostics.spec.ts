@@ -39,6 +39,10 @@ describe('support diagnostic privacy and orchestration', () => {
     expect(JSON.stringify(h.events)).not.toContain(secret)
     expect(safeError(new Error('metadata_import_resource_limit')).error_code).toBe('metadata_import_resource_limit')
     for(const code of ['content_note_codec_unsupported','content_note_map_owned','content_note_unsupported_source','content_note_scope_mismatch','content_note_resource_limit']) expect(sanitizeContext({error_code:code,content:secret,title:secret,stage_name:secret})).toEqual({error_code:code})
+    for(const code of ['content_note_parent_pending','unresolved_note_conflict','content_note_readers_not_ready','content_note_local_candidate']) {
+      expect(safeError(new Error(code)).error_code).toBe(code)
+      expect(sanitizeContext({error_code:code,title:secret,content:secret})).toEqual({error_code:code})
+    }
     expect(safeError(new Error(secret)).error_code).toBe('unknown_error')
     expect(safeError({code: secret, message: secret})).toEqual({error_code: 'unknown_error', error_class: 'Error'})
   })

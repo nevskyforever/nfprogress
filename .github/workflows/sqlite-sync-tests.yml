@@ -7,6 +7,7 @@ on:
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
       - 'frontend/src-tauri/src/content_note_sync.rs'
+      - 'frontend/src-tauri/src/content_note_writer.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
@@ -41,6 +42,7 @@ on:
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
       - 'frontend/src-tauri/src/content_note_sync.rs'
+      - 'frontend/src-tauri/src/content_note_writer.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
@@ -161,3 +163,6 @@ jobs:
 
       - name: Verify account catalog durable substrate
         run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_catalog
+
+      - name: Verify content Note durable readers and writers
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc content_note

@@ -26,9 +26,9 @@ const DeferredIonModal = defineComponent({
   },
 })
 
-function mountDialog(content: string) {
+function mountDialog(content: string, contentFormat:'html'|'plain'='html') {
   return mount(NoteEditorDialog, {
-    props: { open: true, note: noteFixture({ content }) },
+    props: { open: true, note: noteFixture({ content,content_format:contentFormat }) },
     global: {
       plugins: [createPinia()],
       stubs: {
@@ -43,6 +43,15 @@ function mountDialog(content: string) {
 }
 
 describe('NoteEditorDialog', () => {
+  it('preserves plain text markup literally during hydration',async()=>{
+    const text='<b>literal text</b>'
+    const wrapper=mountDialog(text,'plain')
+    mountDeferredModalContent?.();await flushPromises();presentDeferredModal?.()
+    await flushPromises()
+    expect(wrapper.get('.note-content-editor').element.textContent).toBe(text)
+    expect(wrapper.find('.note-content-editor b').exists()).toBe(false)
+    wrapper.unmount()
+  })
   it('hydrates existing HTML only after the Ionic modal content is presented', async () => {
     const html = '<p>Полный <strong>текст заметки</strong></p>'
     const wrapper = mountDialog(html)

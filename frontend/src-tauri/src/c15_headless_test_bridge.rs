@@ -594,6 +594,30 @@ fn catalog_bridge(request:&Value)->Value {
     }
 }
 
+fn content_note_bridge(request:&Value)->Value {
+    use crate::{content_note_writer as writer,project_metadata_sync as metadata};
+    let path=database_path(request);let mut db=open_database(&path).unwrap();
+    let scope=metadata::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+    let p=required_string(request,"project_id");
+    match required_string(request,"step"){
+        "begin"=>writer::begin(&mut db,&scope,p,"2026-10-02T00:00:00.000000Z").unwrap(),
+        "view"=>writer::view(&db,&scope,p).unwrap(),
+        "conflicts"=>json!(writer::conflicts(&db,&scope,p).unwrap()),
+        "import_choice"=>{let command=writer::prepare_import_choice(&mut db,&scope,p,&request["decision"],required_string(request,"selected"),required_string(request,"now")).unwrap();drop(db);let mut privileged=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();json!(crate::note_sync::apply_verified_received_content_note_ipc(&mut privileged,command).unwrap())},
+        "choose"=>{let command=writer::prepare_choice(&mut db,&scope,p,&request["decision"],required_string(request,"selected"),required_string(request,"now"));match command {Err(code)=>json!({"error":code}),Ok(command)=>{drop(db);let mut privileged=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();json!(format!("{:?}",crate::note_sync::apply_prepared_note_conflict_resolution(&mut privileged,&command).unwrap()))}}},
+        "pending"=>json!(writer::pending(&db,&scope,request["sealed"].as_bool().unwrap_or(false)).unwrap()),
+        "seal"=>{writer::seal(&mut db,&scope,required_string(request,"event_id"),&bytes(request,"frame"),serde_json::from_value(request["envelope"].clone()).unwrap()).unwrap();json!(true)},
+        "receipt"=>{writer::receipt(&mut db,&scope,required_string(request,"event_id"),request["server_sequence"].as_i64().unwrap(),request["duplicate"].as_bool().unwrap()).unwrap();json!(true)},
+        "create"=>json!(crate::create_note_with_format_in_connection(&mut db,p,request["stage_id"].as_str(),required_string(request,"note_id"),required_string(request,"content_format")).unwrap()),
+        "edit"=>{let stage=request["stage_id"].as_str();json!(crate::update_note_in_connection(&mut db,p,required_string(request,"note_id"),&request["patch"],stage).unwrap())},
+        "delete"=>{crate::delete_note_in_connection(&mut db,p,required_string(request,"note_id"),request["stage_id"].as_str()).unwrap();json!(true)},
+        "receive"=>{let cmd:CommitNoteSyncInboundPageCommand=serde_json::from_value(request["command"].clone()).unwrap();crate::note_sync::commit_v3_sync_inbound_page(&mut db,&cmd).unwrap();let c=&request["command"]["items"][0];let opened=&request["opened"];
+            let command=crate::note_sync::ApplyVerifiedReceivedNoteIpcCommand{account_id:scope.account_id,canonical_user_id:scope.canonical_user_id,pulling_device_id:scope.device_id,event_id:required_string(c,"event_id").into(),server_sequence:c["server_sequence"].as_i64().unwrap(),source_device_id:required_string(c,"source_device_id").into(),crypto_version:1,aad_version:1,nonce:bytes(opened,"nonce"),ciphertext:bytes(opened,"ciphertext"),plaintext:bytes(opened,"frame")};drop(db);let mut privileged=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();json!(crate::note_sync::apply_verified_received_content_note_ipc(&mut privileged,command).unwrap())},
+        "ack"=>json!(prepare_note_sync_ack(&mut db,&PrepareNoteSyncAckCommand{account_id:scope.account_id,canonical_user_id:scope.canonical_user_id,device_id:scope.device_id}).unwrap()),
+        _=>panic!("unknown content Note bridge step")
+    }
+}
+
 fn structural_bridge(request:&Value)->Value {
     use crate::stage_sync as stages;
     let mut db=open_database(&database_path(request)).expect("structural database");
@@ -694,6 +718,7 @@ fn c15_headless_native_bridge() {
     let response = match required_string(&request, "action") {
         "metadata_authority" => metadata_authority_bridge(&request),
         "structural" => structural_bridge(&request),
+        "content_note" => content_note_bridge(&request),
         "catalog" => catalog_bridge(&request),
         "provision" => provision(&request),
         "bootstrap_prepare" => bootstrap_prepare(&request),

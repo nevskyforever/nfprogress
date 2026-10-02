@@ -1,3 +1,4 @@
+import {unframeContentNote,frameContentNote} from './contentNoteCodec'
 import {frameCatalogEvent,sealCatalogEvent,openCatalogEvent,type CatalogEvent} from './accountCatalogCodec'
 // @vitest-environment node
 import { openProjectMetadataEvent, sealProjectMetadataEvent, encodeProjectMetadataEvent, type ProjectMetadataEvent } from './projectMetadataCodec'
@@ -49,9 +50,24 @@ interface StructuralSealRequest { action: 'structural_seal'; payload: Structural
 interface StructuralOpenRequest { action: 'structural_open'; canonical_user_id: string; amk: number[]; item: { event: StructuralEvent['header']; object: OpenRequest['item']['object'] } }
 interface CatalogSealRequest {action:'catalog_seal';payload:CatalogEvent;amk:number[]}
 interface CatalogOpenRequest {action:'catalog_open';canonical_user_id:string;amk:number[];item:{event:{entity_id:string;entity_type:string};object:OpenRequest['item']['object']}}
-type BridgeRequest = CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
+interface ContentSealRequest{action:'content_note_seal';frame:number[];amk:number[]}
+interface ContentOpenRequest{action:'content_note_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
+type BridgeRequest = ContentSealRequest | ContentOpenRequest | CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
+  if(request.action==='content_note_seal'){
+    const frame=new Uint8Array(request.frame),event=unframeContentNote(frame),h=event.event.header
+    expect([...frameContentNote(event)]).toEqual(request.frame)
+    const object=await encryptObjectBytes(asAccountMasterKey(new Uint8Array(request.amk)),{userId:event.account_id,projectId:h.project_id,entityType:'note',entityId:h.entity_id},frame)
+    return {object:resolutionEnvelopeWire(object),nonce:[...object.nonce],ciphertext:[...object.ciphertext],frame:[...frame]}
+  }
+  if(request.action==='content_note_open'){
+    const e=request.item.event,o=encryptedSyncObjectFromWire(request.item.object)
+    const frame=await decryptObjectBytes(asAccountMasterKey(new Uint8Array(request.amk)),{userId:request.canonical_user_id,projectId:e.project_id,entityType:'note',entityId:e.entity_id},o)
+    const decoded=unframeContentNote(frame)
+    expect(decoded.event.header.event_id).toBe(e.event_id)
+    return {decoded,nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
+  }
   if(request.action==='catalog_seal'){
     const object=await sealCatalogEvent(asAccountMasterKey(Uint8Array.from(request.amk)),request.payload)
     return {object:{crypto_version:2,aad_version:2,nonce:encodeBase64Url(object.nonce),ciphertext:encodeBase64Url(object.ciphertext)},nonce:Array.from(object.nonce),ciphertext:Array.from(object.ciphertext),frame:Array.from(frameCatalogEvent(request.payload))}

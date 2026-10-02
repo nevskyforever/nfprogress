@@ -1123,7 +1123,7 @@ mod tests {
     }
 
     #[test]
-    fn note_sync_stage_delete_persists_all_tombstones_after_reopen() {
+    fn note_sync_unmigrated_stage_delete_keeps_notes_out_of_cloud_history() {
         let (root, mut connection) = temp_database("stage-note-delete");
         configure_delete_database(&connection, false);
         insert_test_note(&connection, "stage-one", Some("s"), false);
@@ -1172,7 +1172,7 @@ mod tests {
                     |row| row.get::<_, i64>(0)
                 )
                 .unwrap(),
-            2
+            0
         );
         drop(connection);
         std::fs::remove_dir_all(root).unwrap();

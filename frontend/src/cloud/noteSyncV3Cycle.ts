@@ -46,7 +46,7 @@ export class NoteSyncV3Cycle {
     private readonly metadata: ProjectMetadataMigrationRuntime,
     private readonly structural?: StageStructuralRuntime,
     private readonly accountReader?: AccountObjectReader & Partial<Pick<import("./accountCatalogRuntime").AccountCatalogRuntime,"sealCatalog"|"uploadCatalog">>,
-    private readonly contentNotes?: ContentNoteReader,
+    private readonly contentNotes?: ContentNoteReader & Partial<Pick<import("./contentNoteRuntime").ContentNoteRuntime,"declareSupport"|"sealNotes"|"uploadNotes">>,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -92,6 +92,7 @@ export class NoteSyncV3Cycle {
       await mode()
     })) return result()
     if (!await stage('register_device', async () => { await this.device.registerOnce(accountId, deviceId) })) return result()
+    if(this.contentNotes?.declareSupport) await stage('declare_note_readers',async()=>{await this.contentNotes!.declareSupport!(accountId,deviceId)})
     if (!await stage('seal_notes', async () => {
       await mode()
       const pass = await sealPendingNoteSyncIntents(this.intents, this.keys, { limit: limits.sealLimit })
@@ -100,6 +101,7 @@ export class NoteSyncV3Cycle {
     await stage('seal_metadata', async () => { await mode(); hasRemainingWork ||= (await this.metadata.sealOnce(accountId, deviceId)) === 8 })
     if (this.structural) await stage('seal_structure', async () => { await mode(); const count = await this.structural!.sealOnce(accountId, deviceId); hasRemainingWork ||= count === 8 })
     if(this.accountReader?.sealCatalog) await stage('seal_catalog',async()=>{await mode();hasRemainingWork ||= await this.accountReader!.sealCatalog!(accountId,deviceId)===8})
+    if(this.contentNotes?.sealNotes) await stage('seal_content_notes',async()=>{hasRemainingWork ||= await this.contentNotes!.sealNotes!(accountId,deviceId)===8})
     if (abort) return result()
     // A lost upload response must not prevent the self echo from being pulled.
     await stage('upload_notes', async () => { await mode(); noteUploaded = (await this.noteUploader.uploadOnce(accountId)).uploaded })
@@ -112,6 +114,7 @@ export class NoteSyncV3Cycle {
     if (abort) return result()
     if(this.accountReader?.uploadCatalog) await stage('upload_catalog',async()=>{await mode();await this.accountReader!.uploadCatalog!(accountId,deviceId)})
     if(abort)return result()
+    if(this.contentNotes?.uploadNotes) await stage('upload_content_notes',async()=>{await this.contentNotes!.uploadNotes!(accountId,deviceId)})
     for (let page = 0; page < limits.maxPullPages; page += 1) {
       if (!await stage('pull_v3', async () => { await mode(); pulled.push(await this.metadata.pullOnce(accountId, deviceId)) })) return result()
       if (!pulled.at(-1)!.has_more) break

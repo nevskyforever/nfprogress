@@ -665,3 +665,29 @@ class ReservedUsernameRequest(BaseModel):
 class ReservedUsernameResponse(BaseModel):
     username_normalized: str
     created_at: datetime
+
+
+class ContentNoteReaderCapabilities(BaseModel):
+    """Protocol metadata only; zero explicitly withdraws support."""
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    reader_transport_version: Literal[2, 3]
+    frame_version: Literal[0, 1]
+    codec8_version: Literal[0, 1]
+    compression_zero: bool = Field(strict=True)
+    ordinary_reader_version: Literal[0, 1]
+    resolution_reader_version: Literal[0, 2]
+
+    @field_validator('reader_transport_version', 'frame_version', 'codec8_version',
+                     'ordinary_reader_version', 'resolution_reader_version', mode='before')
+    @classmethod
+    def strict_version(cls, value):
+        if type(value) is not int:
+            raise ValueError('Reader version must be an integer')
+        return value
+
+
+class ContentNoteCapabilityGate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    ready: bool
+    missing_devices: int = Field(ge=0)

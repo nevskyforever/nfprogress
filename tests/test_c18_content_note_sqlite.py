@@ -1,4 +1,4 @@
-"""Schema32 is forward-only; framed Note receipts retain exact source bytes."""
+"""Schema33 is forward-only; framed Note receipts retain exact source bytes."""
 import sqlite3
 import pytest
 from nfprogress.core.sqlite.schema import apply_migrations, MIGRATIONS_DIR
@@ -11,16 +11,16 @@ def test_content_note_every_prefix_upgrade_and_reopen(version,tmp_path):
     for p in sorted(MIGRATIONS_DIR.glob('*.sql'))[:version]:db.executescript(p.read_text())
     db.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
     db.execute('INSERT INTO schema_info VALUES(?)',(version,));db.commit()
-    assert apply_migrations(db)==32
+    assert apply_migrations(db)==33
     assert db.execute('SELECT count(*) FROM cloud_content_note_receipts').fetchone()==(0,)
-    db.close();db=sqlite3.connect(path);assert apply_migrations(db)==32;db.close()
+    db.close();db=sqlite3.connect(path);assert apply_migrations(db)==33;db.close()
 
 
-def test_content_note_populated31_preserves_all_existing_tables(tmp_path,monkeypatch):
+def test_content_note_populated32_preserves_all_existing_tables(tmp_path,monkeypatch):
     import nfprogress.core.sqlite.schema as schema
     path=tmp_path/'upgrade.db';db=sqlite3.connect(path)
     with monkeypatch.context() as m:
-        m.setattr(schema,'CURRENT_SCHEMA_VERSION',31);assert apply_migrations(db)==31
+        m.setattr(schema,'CURRENT_SCHEMA_VERSION',32);assert apply_migrations(db)==32
     db.execute("INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES('L','Local',1,'symbols','active','{}')")
     db.execute("INSERT INTO project_order VALUES('L',0)")
     db.execute("INSERT INTO stages(id,project_id,name,infinite,unit,status,payload_json) VALUES('S','L','Stage',1,'symbols','active','{}')")
@@ -29,9 +29,9 @@ def test_content_note_populated31_preserves_all_existing_tables(tmp_path,monkeyp
     db.execute("INSERT INTO cloud_sync_state(account_id,device_id,created_at,updated_at) VALUES('a','123e4567-e89b-42d3-a456-426614174001','now','now')")
     tables=[r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='schema_info'")]
     before={t:db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables};db.commit()
-    assert apply_migrations(db)==32
+    assert apply_migrations(db)==33
     for t,rows in before.items():assert db.execute(f'SELECT * FROM "{t}"').fetchall()==rows
-    db.close();db=sqlite3.connect(path);assert apply_migrations(db)==32
+    db.close();db=sqlite3.connect(path);assert apply_migrations(db)==33
     for t,rows in before.items():assert db.execute(f'SELECT * FROM "{t}"').fetchall()==rows
     db.close()
 

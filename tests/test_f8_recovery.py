@@ -174,6 +174,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 30: "030_account_sync_inbox.sql",
                 31: "031_account_catalog.sql",
                 32: "032_content_note_gate.sql",
+                33: "033_content_note_writers.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

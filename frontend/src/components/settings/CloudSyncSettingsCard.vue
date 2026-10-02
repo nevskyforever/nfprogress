@@ -7,6 +7,7 @@ import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigratio
 import DiagnosticDetails from './DiagnosticDetails.vue'
 import FriendlyStatus from './FriendlyStatus.vue'
 import AccountCatalogAuthorityPanel from './AccountCatalogAuthorityPanel.vue'
+import ContentNoteAuthorityPanel from './ContentNoteAuthorityPanel.vue'
 import StageStructuralAuthorityPanel from './StageStructuralAuthorityPanel.vue'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
@@ -364,6 +365,7 @@ onBeforeUnmount(() => {
           <div v-else-if="project.status === 'paused'" class="cloud-sync-card__actions">
             <button class="nf-button" type="button" :disabled="cloud.busy" @click="resumeProject(project.projectId)">{{ t('Возобновить') }}</button>
           </div>
+          <ContentNoteAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
           <StageStructuralAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
           <ProjectMetadataAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
         </article>

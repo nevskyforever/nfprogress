@@ -1,3 +1,4 @@
+import type { ContentNoteConflict, ContentNoteMigrationView } from '@/cloud/contentNoteRuntime'
 import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
 import { diagnostics } from '@/diagnostics/service'
 import { safeError } from '@/diagnostics/events'
@@ -90,6 +91,10 @@ export interface CloudSessionRuntime {
   catalogAuthority?():Promise<CatalogView>
   beginCatalogMigration?():Promise<CatalogView>
   decideCatalog?(decision:CatalogDecision):Promise<string>
+  projectNoteAuthority?(projectId:string):Promise<ContentNoteMigrationView>
+  beginNoteMigration?(projectId:string):Promise<ContentNoteMigrationView>
+  noteConflicts?(projectId:string):Promise<ContentNoteConflict[]>
+  chooseNoteVersion?(projectId:string,decision:ContentNoteConflict,selected:string):Promise<void>
   projectStructuralAuthority(projectId: string): Promise<StructuralView>
   beginStageMigration(projectId: string): Promise<StructuralView>
   decideStructure(projectId: string, decision: StructuralDecision): Promise<string>
@@ -194,6 +199,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     metadataTransportMode.value = null
     metadataAuthority.value = {}
     structuralAuthority.value = {}
+    noteAuthority.value = {}
+    noteConflicts.value = {}
     catalogAuthority.value=null
     canRunCycle.value = false
   }
@@ -583,6 +590,12 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function beginCatalog():Promise<void>{await diagnostics.run('migrations','catalog_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginCatalogMigration)throw new Error('catalog_runtime_unavailable');await runtime.beginCatalogMigration();if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
   async function decideCatalog(decision:CatalogDecision):Promise<void>{await diagnostics.run('projects','conflict_resolution',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.decideCatalog)throw new Error('catalog_runtime_unavailable');await runtime.decideCatalog(decision);if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
 
+  const noteConflicts=ref<Record<string,ContentNoteConflict[]>>({})
+  const noteAuthority=ref<Record<string,ContentNoteMigrationView>>({})
+  async function inspectNotes(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectNoteAuthority)throw new Error('content_note_runtime_unavailable');const view=await runtime.projectNoteAuthority(projectId);if(current(epoch)){noteAuthority.value={...noteAuthority.value,[projectId]:view};if(runtime.noteConflicts){const groups=await runtime.noteConflicts(projectId);if(current(epoch))noteConflicts.value={...noteConflicts.value,[projectId]:groups}}}}
+  async function chooseNoteVersion(projectId:string,decision:ContentNoteConflict,selected:string):Promise<void>{const runtime=requireRuntime();if(!runtime.chooseNoteVersion)throw new Error('content_note_runtime_unavailable');await diagnostics.run('sync','conflict_resolution',async()=>{const epoch=lifecycleEpoch;await runtime.chooseNoteVersion!(projectId,decision,selected);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectNotes(projectId);if(current(epoch))announceDataChange('projects')})}
+  async function beginNotes(projectId:string):Promise<void>{await diagnostics.run('migrations','note_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginNoteMigration)throw new Error('content_note_runtime_unavailable');await runtime.beginNoteMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectNotes(projectId)})}
+
   async function inspectStructure(projectId: string): Promise<void> {
     const epoch = lifecycleEpoch
     const view = await requireRuntime().projectStructuralAuthority(projectId)
@@ -727,6 +740,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,
     bootstrapProject, importProject, resumeProject, pauseProject,
+    noteAuthority,noteConflicts,inspectNotes,beginNotes,chooseNoteVersion,
     retry, inspectProjectMetadata, prepareMetadataTransport, declareMetadataReaderReady, cutoverMetadataTransport,
     beginMetadataMigration, adoptMetadata, decideMetadata, lock, logout, dispose,
   }
