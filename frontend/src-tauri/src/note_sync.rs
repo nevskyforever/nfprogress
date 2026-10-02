@@ -4375,6 +4375,27 @@ pub(crate) struct InboundNoteSyncItem {
     pub envelope: Option<EncryptedNoteSyncEnvelope>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct CommitMixedSyncInboundPageCommand {
+    pub account_id: String, pub device_id: String, pub canonical_user_id: String,
+    pub expected_cursor: i64, pub next_cursor: i64, pub has_more: bool,
+    pub items: Vec<InboundSyncItem>,
+}
+impl From<&CommitNoteSyncInboundPageCommand> for CommitMixedSyncInboundPageCommand {
+    fn from(c: &CommitNoteSyncInboundPageCommand) -> Self { Self {
+        account_id:c.account_id.clone(),device_id:c.device_id.clone(),canonical_user_id:c.canonical_user_id.clone(),
+        expected_cursor:c.expected_cursor,next_cursor:c.next_cursor,has_more:c.has_more,
+        items:c.items.iter().cloned().map(InboundSyncItem::Project).collect(),
+    } }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum InboundSyncItem {
+    Project(InboundNoteSyncItem),
+    Account(crate::account_sync::InboundAccountItem),
+}
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct CommitNoteSyncInboundPageResult {
     pub committed_cursor: i64,
@@ -6604,7 +6625,7 @@ fn valid_inbound_identity(value: &str, maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum
 }
 
-fn validate_pull_scope(
+pub(crate) fn validate_pull_scope(
     transaction: &Transaction<'_>, account_id: &str, device_id: &str, canonical_user_id: &str,
 ) -> Result<(), NoteSyncError> {
     if !valid_inbound_identity(account_id, 512) || device_id.len() != 36 || canonical_user_id.len() != 36 {
@@ -6650,6 +6671,11 @@ fn contiguous_applied_ack_prefix(
     let mut candidate = ack_cursor;
     while candidate < pull_cursor {
         let next = candidate.checked_add(1).ok_or(NoteSyncError::InvalidEnvelope("ACK cursor overflow"))?;
+        let account_blocker: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM cloud_sync_account_inbox WHERE account_id=?1 AND server_sequence=?2)",
+            rusqlite::params![account_id, next], |row| row.get(0),
+        )?;
+        if account_blocker { break; }
         let durable: Option<i64> = transaction.query_row(
             "SELECT CASE
                 WHEN inbox.entity_type IN ('stage','stage_order')
@@ -6889,17 +6915,21 @@ pub(crate) fn list_orphan_note_resolution_inbox(
 pub(crate) fn commit_note_sync_inbound_page(
     connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
 ) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
-    commit_encrypted_sync_inbound_page(connection, command, false)
+    commit_encrypted_sync_inbound_page(connection, &command.into(), false)
 }
 
 pub(crate) fn commit_v3_sync_inbound_page(
     connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
 ) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
-    commit_encrypted_sync_inbound_page(connection, command, true)
+    commit_encrypted_sync_inbound_page(connection, &command.into(), true)
+}
+
+pub(crate) fn commit_mixed_sync_inbound_page(connection: &mut Connection, command: &CommitMixedSyncInboundPageCommand) -> Result<CommitNoteSyncInboundPageResult,NoteSyncError> {
+    commit_encrypted_sync_inbound_page(connection,command,true)
 }
 
 fn commit_encrypted_sync_inbound_page(
-    connection: &mut Connection, command: &CommitNoteSyncInboundPageCommand,
+    connection: &mut Connection, command: &CommitMixedSyncInboundPageCommand,
     allow_metadata: bool,
 ) -> Result<CommitNoteSyncInboundPageResult, NoteSyncError> {
     if command.items.len() > 200 || !(0..=MAX_SYNC_INTEGER).contains(&command.expected_cursor)
@@ -6923,8 +6953,8 @@ fn commit_encrypted_sync_inbound_page(
     }
     if exact_replay {
         let stored_page_events: i64 = transaction.query_row(
-            "SELECT COUNT(*) FROM cloud_sync_inbox
-             WHERE account_id=?1 AND server_sequence>?2 AND server_sequence<=?3",
+            "SELECT (SELECT COUNT(*) FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence>?2 AND server_sequence<=?3) +
+             (SELECT COUNT(*) FROM cloud_sync_account_inbox WHERE account_id=?1 AND server_sequence>?2 AND server_sequence<=?3)",
             rusqlite::params![command.account_id, command.expected_cursor, command.next_cursor],
             |row| row.get(0),
         )?;
@@ -6936,7 +6966,23 @@ fn commit_encrypted_sync_inbound_page(
     let mut aggregate = 0usize;
     let mut new_events = 0u32;
     let mut replayed_events = 0u32;
-    for item in &command.items {
+    for incoming in &command.items {
+        let item = match incoming {
+            InboundSyncItem::Project(item) => item,
+            InboundSyncItem::Account(item) => {
+                if !allow_metadata { return Err(NoteSyncError::InvalidEnvelope("account requires mixed mode-3 inbox")); }
+                if item.server_sequence <= previous || item.server_sequence > MAX_SYNC_INTEGER || !valid_note_sync_timestamp(&item.updated_at)
+                    || item.deleted_at.as_deref().is_some_and(|value| !valid_note_sync_timestamp(value)) {
+                    return Err(NoteSyncError::InvalidEnvelope("invalid account sequence or timestamp"));
+                }
+                let (replay, size) = crate::account_sync::preserve(&transaction, command, item, exact_replay)?;
+                aggregate += size;
+                if aggregate > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES { return Err(NoteSyncError::InvalidEnvelope("inbox aggregate too large")); }
+                if replay { replayed_events += 1; } else { new_events += 1; }
+                previous = item.server_sequence;
+                continue;
+            }
+        };
         if item.server_sequence <= previous || item.server_sequence > MAX_SYNC_INTEGER
             || !valid_inbound_identity(&item.event_id, 36) || item.source_device_id.len() != 36
             || !valid_inbound_identity(&item.project_id, 512) || !valid_inbound_identity(&item.entity_id, 512)
@@ -6966,6 +7012,7 @@ fn commit_encrypted_sync_inbound_page(
         if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order") && item.envelope.is_none() {
             return Err(NoteSyncError::InvalidEnvelope("note object missing"));
         }
+        if crate::account_sync::TYPES.contains(&item.entity_type.as_str()) { return Err(NoteSyncError::InvalidEnvelope("account object on project inbox")); }
         let decoded = item.envelope.as_ref().map(decode_encrypted_note_sync_envelope).transpose()?;
         if let Some(envelope) = &decoded {
             aggregate = aggregate.checked_add(envelope.ciphertext.len()).ok_or(NoteSyncError::InvalidEnvelope("inbox object overflow"))?;
@@ -7267,7 +7314,7 @@ fn decode_encrypted_note_sync_envelope(
     })
 }
 
-fn decode_canonical_base64url(
+pub(crate) fn decode_canonical_base64url(
     input: &str,
     minimum_length: usize,
     maximum_length: usize,
@@ -7339,7 +7386,7 @@ fn base64url_encoded_length(byte_length: usize) -> Option<usize> {
         })
 }
 
-fn encode_canonical_base64url(bytes: &[u8]) -> String {
+pub(crate) fn encode_canonical_base64url(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut encoded = String::with_capacity(base64url_encoded_length(bytes.len()).unwrap_or(0));
     let complete_length = bytes.len() / 3 * 3;

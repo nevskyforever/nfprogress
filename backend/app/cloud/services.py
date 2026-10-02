@@ -295,7 +295,7 @@ class EncryptedPullDescriptor:
     user_id: object
     event_id: object
     device_id: object
-    project_id: str
+    project_id: str | None
     entity_id: str
     entity_type: str
     operation: str
@@ -511,6 +511,11 @@ class SyncService:
 
     @staticmethod
     def _validate_encrypted_item(item: EncryptedSyncPushItem | V2EncryptedSyncPushItem, *, transport_version: int) -> None:
+        from .schemas import AccountSyncEventEnvelope
+        if isinstance(item.event, AccountSyncEventEnvelope):
+            if transport_version != 3 or item.object.crypto_version != 2 or item.object.aad_version != 2:
+                raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported account object version.', 422)
+            return
         allowed_operations = ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
         allowed_types = ('note', 'project_metadata', 'stage', 'stage_order') if transport_version == 3 else ('note',)
         if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
@@ -540,6 +545,10 @@ class SyncService:
                        items: list[EncryptedSyncPushItem] | list[V2EncryptedSyncPushItem], *,
                        transport_version: int = 1) -> tuple[list[SyncPushResult], int]:
         try:
+            from .schemas import AccountSyncEventEnvelope
+            for item in items:
+                if isinstance(item.event, AccountSyncEventEnvelope) and item.event.canonical_user_id != user_id:
+                    raise SyncProtocolError('account_scope_rejected', 'Account scope does not match authenticated identity.', 403)
             self._validate_encrypted_batch(items, transport_version=transport_version)
             session.commit()
             with session.begin():
@@ -564,10 +573,10 @@ class SyncService:
                             raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different encrypted object.')
                         results.append(SyncPushResult(event.event_id, existing.server_sequence, True))
                         continue
-                    project = self._projects.get(session, user_id, event.project_id)
-                    if project is None:
+                    project = self._projects.get(session, user_id, event.project_id) if event.project_id is not None else None
+                    if event.project_id is not None and project is None:
                         raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
-                    if (project.bootstrap_state == 'initializing'
+                    if (project is not None and project.bootstrap_state == 'initializing'
                             and project.bootstrap_device_id != device_id):
                         raise SyncProtocolError(
                             'cloud_project_bootstrap_origin_required',
@@ -714,7 +723,12 @@ class SyncService:
         rows, next_cursor, has_more, high_water = self.pull_encrypted(
             session, user_id, device_id, since, limit, transport_version=3,
         )
+        from .schemas import ACCOUNT_ENTITY_TYPES
         for event, encrypted in rows:
+            if event.project_id is None:
+                if event.entity_type not in ACCOUNT_ENTITY_TYPES or event.operation not in ('upsert', 'delete') or encrypted is None or encrypted.crypto_version != 2 or encrypted.aad_version != 2:
+                    raise SyncProtocolError('encrypted_sync_event_incomplete', 'Invalid account object.', 409)
+                continue
             if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order')
                     or event.operation not in ('upsert', 'delete', 'resolution')
                     or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)

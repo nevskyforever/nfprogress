@@ -2,6 +2,7 @@ import { decodeBase64Url, encodeBase64Url } from './base64url'
 import { apiRequest } from './client'
 import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from './encryptedSync'
 import { parseSyncTimestamp } from '@/cloud/syncTimestamp'
+import { ACCOUNT_ENTITY_TYPES, encodeAccountTuple, type AccountObjectEnvelope } from '@/crypto/accountObjectCrypto'
 import type { ObjectCryptoEnvelope } from '@/crypto'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -16,7 +17,14 @@ export interface V3Descriptor {
   entity_type: 'note' | 'project_metadata' | 'stage' | 'stage_order'; operation: 'upsert' | 'delete' | 'resolution'
   revision: number; updated_at: string; deleted_at: string | null
 }
-export interface V3PullItem { event: V3Descriptor; object: ObjectCryptoEnvelope }
+export interface AccountDescriptor {
+  event_id: string; device_id: string; server_sequence: number; canonical_user_id: string; scope: 'account';
+  entity_id: string; entity_type: typeof ACCOUNT_ENTITY_TYPES[number]; operation: 'upsert' | 'delete';
+  revision: number; updated_at: string; deleted_at: string | null
+}
+export type V3PullItem = { event: V3Descriptor; object: ObjectCryptoEnvelope } | { event: AccountDescriptor; object: AccountObjectEnvelope }
+export function isAccountItem(item: V3PullItem): item is { event: AccountDescriptor; object: AccountObjectEnvelope } { return 'scope' in item.event }
+
 export interface V3PullResponse { protocol_version: 3; encrypted_sync_version: 3; items: V3PullItem[]; next_cursor: number; has_more: boolean }
 export interface V3MetadataPushItem {
   event: Pick<V3Descriptor, 'event_id' | 'project_id' | 'entity_id' | 'entity_type' | 'operation' | 'revision' | 'updated_at' | 'deleted_at'>
@@ -34,13 +42,19 @@ export function parseV3Pull(value: unknown, since: number, limit: number): V3Pul
   const items = page.items.map((item: unknown): V3PullItem => {
     if (!exact(item, ['event', 'object'])) fail()
     const row = item as V3PullItem
-    if (!exact(row.event, ['event_id', 'device_id', 'server_sequence', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at'])
+    if (typeof row.event !== 'object' || row.event === null || Array.isArray(row.event)) fail()
+    const account = 'scope' in row.event
+    if (!exact(row.event, account ? ['event_id','device_id','server_sequence','canonical_user_id','scope','entity_id','entity_type','operation','revision','updated_at','deleted_at'] : ['event_id', 'device_id', 'server_sequence', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at'])
       || !exact(row.object, ['crypto_version', 'aad_version', 'nonce', 'ciphertext'])) fail()
-    const e = row.event
+    const e = row.event as Omit<V3Descriptor, 'entity_type'> & { entity_type: string; canonical_user_id?: string; scope?: 'account' }
+    if (account) {
+      if (!UUID.test(e.canonical_user_id ?? '') || e.scope !== 'account' || !ACCOUNT_ENTITY_TYPES.includes(e.entity_type as typeof ACCOUNT_ENTITY_TYPES[number]) || !['upsert','delete'].includes(e.operation)) fail()
+      try { encodeAccountTuple({ userId: e.canonical_user_id!, scope: e.scope!, entityId: e.entity_id, entityType: e.entity_type }) } catch { fail() }
+    }
     if (!UUID.test(e.event_id) || !UUID.test(e.device_id) || ids.has(e.event_id)
-      || typeof e.project_id !== 'string' || !e.project_id || e.project_id.length > 512
+      || !account && (typeof e.project_id !== 'string' || !e.project_id || e.project_id.length > 512)
       || typeof e.entity_id !== 'string' || !e.entity_id || e.entity_id.length > 512
-      || !['note', 'project_metadata', 'stage', 'stage_order'].includes(e.entity_type) || !['upsert', 'delete', 'resolution'].includes(e.operation)
+      || !account && !['note', 'project_metadata', 'stage', 'stage_order'].includes(e.entity_type) || !['upsert', 'delete', 'resolution'].includes(e.operation)
       || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
       || e.entity_type === 'stage_order' && (e.entity_id !== 'stage_order' || e.operation !== 'upsert')
       || e.entity_type === 'stage' && e.operation === 'resolution'
@@ -48,14 +62,14 @@ export function parseV3Pull(value: unknown, since: number, limit: number): V3Pul
       || typeof e.updated_at !== 'string' || (e.operation === 'delete' ? typeof e.deleted_at !== 'string' : e.deleted_at !== null)) fail()
     try { parseSyncTimestamp(e.updated_at); if (e.deleted_at !== null) parseSyncTimestamp(e.deleted_at) } catch { fail() }
     const object = row.object as unknown as { crypto_version: number; aad_version: number; nonce: string; ciphertext: string }
-    if (object.crypto_version !== 1 || object.aad_version !== 1 || typeof object.nonce !== 'string' || typeof object.ciphertext !== 'string') fail()
+    if (object.crypto_version !== (account ? 2 : 1) || object.aad_version !== (account ? 2 : 1) || typeof object.nonce !== 'string' || typeof object.ciphertext !== 'string') fail()
     const nonce = decodeBase64Url(object.nonce, { expectedLength: 24 })
     const ciphertext = decodeBase64Url(object.ciphertext, { minimumLength: 16, maximumLength: MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES })
     if (encodeBase64Url(nonce) !== object.nonce || encodeBase64Url(ciphertext) !== object.ciphertext) fail()
     total += ciphertext.length
     if (total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) fail()
     ids.add(e.event_id); previous = e.server_sequence
-    return { event: e, object: { crypto_version: 1, aad_version: 1, nonce, ciphertext } }
+    return account ? { event: row.event as AccountDescriptor, object: { crypto_version: 2, aad_version: 2, nonce, ciphertext } } : { event: e as V3Descriptor, object: { crypto_version: 1, aad_version: 1, nonce, ciphertext } }
   })
   if (page.next_cursor !== previous || (!items.length && page.has_more)) fail()
   return { ...page, items }

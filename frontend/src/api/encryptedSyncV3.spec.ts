@@ -47,3 +47,12 @@ describe('mode-3 metadata transport boundary', () => {
   })
 
 })
+
+it('accepts exact mixed account descriptors and rejects cross-scope/version frames',()=>{
+  const event={event_id:EVENT,device_id:DEVICE,server_sequence:1,canonical_user_id:DEVICE,scope:'account',entity_id:'каталог/📁',entity_type:'folder',operation:'upsert',revision:1,updated_at:NOW,deleted_at:null}
+  const object={crypto_version:2,aad_version:2,nonce:'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',ciphertext:'AAAAAAAAAAAAAAAAAAAAAA'}
+  const page={protocol_version:3,encrypted_sync_version:3,items:[{event,object}],next_cursor:1,has_more:false}
+  expect(parseV3Pull(page,0,1).items[0]!.object.crypto_version).toBe(2)
+  for(const change of [{scope:'project'},{project_id:'fake'},{entity_type:'note'},{canonical_user_id:'other'},{entity_id:'😀'.repeat(129)}]) expect(()=>parseV3Pull({...page,items:[{event:{...event,...change},object}]},0,1)).toThrow()
+  for(const change of [{crypto_version:1},{aad_version:1}]) expect(()=>parseV3Pull({...page,items:[{event,object:{...object,...change}}]},0,1)).toThrow()
+})

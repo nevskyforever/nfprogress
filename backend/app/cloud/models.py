@@ -188,13 +188,14 @@ class SyncEvent(Base):
         CheckConstraint('revision >= 1', name='ck_sync_events_revision_positive'),
         CheckConstraint('server_sequence > 0', name='ck_sync_events_sequence_positive'),
         CheckConstraint("(operation = 'delete' AND deleted_at IS NOT NULL) OR (operation != 'delete' AND deleted_at IS NULL)", name='ck_sync_events_tombstone'),
+        CheckConstraint("(project_id IS NULL AND entity_type IN ('folder','folder_order','folder_membership','project_order')) OR (project_id IS NOT NULL AND entity_type NOT IN ('folder','folder_order','folder_membership','project_order'))", name='ck_sync_events_scope'),
         UniqueConstraint('user_id', 'server_sequence', name='uq_sync_events_user_sequence'),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
     event_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     device_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
-    project_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    project_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     entity_id: Mapped[str] = mapped_column(String(512), nullable=False)
     entity_type: Mapped[str] = mapped_column(String(128), nullable=False)
     operation: Mapped[str] = mapped_column(String(16), nullable=False)

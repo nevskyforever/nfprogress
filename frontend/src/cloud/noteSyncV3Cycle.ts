@@ -1,3 +1,4 @@
+import type { AccountObjectReader } from './accountObjectReader'
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { KeyNotProvisionedError, type RuntimeKeyContext } from '@/auth/keyContext'
@@ -42,6 +43,7 @@ export class NoteSyncV3Cycle {
     private readonly noteApplier: NoteSyncOrchestrator,
     private readonly metadata: ProjectMetadataMigrationRuntime,
     private readonly structural?: StageStructuralRuntime,
+    private readonly accountReader?: AccountObjectReader,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -128,6 +130,11 @@ export class NoteSyncV3Cycle {
       hasRemainingWork ||= structuralApply.blocked.length > 0 || structuralApply.orphans > 0 || structuralApply.listed === 8 * limits.maxApplyPasses
       // Frozen migration order can become ready during apply; leave a visible continuation.
       hasRemainingWork ||= structuralApply.applied > 0
+    })) return result()
+    if (this.accountReader && !await stage('apply_account', async () => {
+      const account = await this.accountReader!.readOnce(accountId, deviceId, limits.applyLimit, limits.maxApplyPasses)
+      blocked.push(...account.blocked)
+      hasRemainingWork ||= account.hasRemainingWork || account.blocked.length > 0
     })) return result()
     await stage('ack_v3', async () => { await mode(); ack = await this.metadata.ackOnce(accountId, deviceId); hasRemainingWork ||= ack.status === 'stale' })
     return result()

@@ -1,4 +1,4 @@
-"""Explicit C18 mode-3 transport for opaque project metadata and legacy Notes."""
+"""C18 mode-3 opaque project and account transport with one shared sequence."""
 from __future__ import annotations
 
 from uuid import UUID
@@ -13,12 +13,13 @@ from .schemas import (ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequ
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
                       V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
                       V3ReaderReadyRequest, V3CutoverRequest, V3CutoverResponse, V3SyncPullEvent,
-                      encode_canonical_base64url)
+                      encode_canonical_base64url, AccountEncryptedPushRequest, AccountSyncPullEvent)
 from .services import SyncProtocolError, SyncService
 from .sync_router import _error, _inline_json_schema, _read_encrypted_push_body
 
 router = APIRouter(prefix='/api/v3/sync/encrypted', tags=['cloud sync v3'])
 _PUSH_SCHEMA = _inline_json_schema(V3EncryptedSyncPushRequest)
+_ACCOUNT_PUSH_SCHEMA = _inline_json_schema(AccountEncryptedPushRequest)
 
 
 @router.post('/reader-ready', status_code=status.HTTP_204_NO_CONTENT)
@@ -82,7 +83,11 @@ def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_74
     except SyncProtocolError as error:
         raise _error(error) from None
     return V3EncryptedSyncPullResponse(items=[V3EncryptedSyncPullItem(
-        event=V3SyncPullEvent(
+        event=AccountSyncPullEvent(
+            event_id=event.event_id, device_id=event.device_id, canonical_user_id=current.user.id, scope='account',
+            entity_id=event.entity_id, entity_type=event.entity_type, operation=event.operation,
+            revision=event.revision, updated_at=event.updated_at, deleted_at=event.deleted_at, server_sequence=event.server_sequence,
+        ) if event.project_id is None else V3SyncPullEvent(
             event_id=event.event_id, device_id=event.device_id, project_id=event.project_id,
             entity_id=event.entity_id, entity_type=event.entity_type, operation=event.operation,
             revision=event.revision, updated_at=event.updated_at, deleted_at=event.deleted_at,
@@ -103,3 +108,23 @@ def ack(request: V3EncryptedSyncAckRequest,
         SyncService().ack(session, current.user.id, request.device_id, request.cursor, transport_version=3)
     except SyncProtocolError as error:
         raise _error(error) from None
+
+
+@router.post('/account/push', response_model=V3EncryptedSyncPushResponse, openapi_extra={
+    'requestBody': {'required': True, 'content': {'application/json': {'schema': _ACCOUNT_PUSH_SCHEMA}}},
+})
+async def account_push(http_request: Request,
+                       current: AuthenticatedUser = Depends(get_current_user),
+                       session: Session = Depends(get_cloud_session)) -> V3EncryptedSyncPushResponse:
+    body = await _read_encrypted_push_body(http_request)
+    try:
+        request = AccountEncryptedPushRequest.model_validate_json(body)
+    except ValidationError as error:
+        raise RequestValidationError(error.errors()) from None
+    try:
+        results, cursor = await run_in_threadpool(SyncService().push_encrypted, session,
+            current.user.id, request.device_id, request.items, transport_version=3)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+    return V3EncryptedSyncPushResponse(results=[SyncPushResult(event_id=row.event_id,
+        server_sequence=row.server_sequence, duplicate=row.duplicate) for row in results], current_cursor=cursor)

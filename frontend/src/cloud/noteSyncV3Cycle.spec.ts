@@ -7,7 +7,7 @@ const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const PAGE = { committed_cursor: 1, new_events: 1, replayed_events: 0, has_more: false }
 
-async function setup(structuralEnabled = false) {
+async function setup(structuralEnabled = false, accountEnabled = false) {
   const auth = new NormalUserAuthRuntime({
     login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
     refresh: vi.fn(), logout: vi.fn(), me: vi.fn().mockResolvedValue({ id: USER, username: 'u',
@@ -45,9 +45,10 @@ async function setup(structuralEnabled = false) {
     uploadOnce: vi.fn(async () => { calls.push('upload_structure'); return 0 }),
     applyOnce: vi.fn(async () => { calls.push('apply_structure'); return { applied: 0, conflicts: 0, orphans: 0, blocked: [], listed: 0 } }),
   }
+  const account = { readOnce: vi.fn(async () => { calls.push('apply_account'); return { blocked: ['account_entity_codec_not_activated'], listed: 1, hasRemainingWork: false } }) }
   const cycle = new NoteSyncV3Cycle(auth, bindings as never, identity as never, keys as never,
-    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined)
-  return { structural, cycle, calls, capabilities, intents, note, resolution, metadata,
+    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined)
+  return { account, structural, cycle, calls, capabilities, intents, note, resolution, metadata,
     mode: (value: number) => { writerMode = value } }
 }
 
@@ -103,4 +104,14 @@ it('seals structural intents even when another bounded writer has remaining work
   const result = await h.cycle.runOnce('local', DEVICE)
   expect(result.hasRemainingWork).toBe(true)
   expect(h.structural.sealOnce).toHaveBeenCalledOnce()
+})
+
+
+it('runs the account reader before shared ACK and preserves its typed blocker',async()=>{
+  const h=await setup(false,true)
+  h.metadata.ackOnce.mockImplementationOnce(async()=>{ expect(h.calls.at(-1)).toBe('apply_account'); return {status:'no_progress',cursor:0} })
+  const result=await h.cycle.runOnce('local',DEVICE)
+  expect(result.blocked).toContain('account_entity_codec_not_activated')
+  expect(result.hasRemainingWork).toBe(true)
+  expect(result.ack).toEqual({status:'no_progress',cursor:0})
 })

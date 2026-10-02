@@ -9,6 +9,8 @@ on:
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
+      - 'frontend/src-tauri/src/account_sync.rs'
+      - 'frontend/src/crypto/account-object-v2.vectors.json'
       - 'frontend/src/cloud/__fixtures__/stageCodecV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json'
@@ -22,6 +24,7 @@ on:
       - 'tests/test_c9_sqlite_sync.py'
       - 'tests/test_c18_metadata_sqlite.py'
       - 'tests/test_c18_stage_sqlite.py'
+      - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -35,6 +38,8 @@ on:
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
+      - 'frontend/src-tauri/src/account_sync.rs'
+      - 'frontend/src/crypto/account-object-v2.vectors.json'
       - 'frontend/src/cloud/__fixtures__/stageCodecV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV2Resolution.json'
@@ -48,6 +53,7 @@ on:
       - 'tests/test_c9_sqlite_sync.py'
       - 'tests/test_c18_metadata_sqlite.py'
       - 'tests/test_c18_stage_sqlite.py'
+      - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -84,6 +90,7 @@ jobs:
             tests/test_c9_sqlite_sync.py \
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
+            tests/test_c18_account_sqlite.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \
@@ -132,6 +139,10 @@ jobs:
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc diagnostics
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc developer_
+
+      - name: Run Rust account transport and vector proof
+        shell: pwsh
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_sync
 
       - name: Check Rust SQLite substrate
         shell: pwsh

@@ -1,7 +1,7 @@
 import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import { invoke } from '@tauri-apps/api/core'
 import { encodeBase64Url } from '@/api/base64url'
-import type { V3PullResponse } from '@/api/encryptedSyncV3'
+import { isAccountItem, type V3PullResponse } from '@/api/encryptedSyncV3'
 import type { ProjectMetadataEvent } from '@/cloud/projectMetadataCodec'
 import type { ProjectMetadata } from '@/cloud/projectMetadataCodec'
 import type { CommitInboundPageResult } from './noteSyncInboxRepository'
@@ -107,13 +107,13 @@ export class SQLiteProjectMetadataMigrationRepository implements ProjectMetadata
     return invoke('commit_v3_sync_inbound_page', { command: {
       account_id: scope.account_id, canonical_user_id: scope.canonical_user_id, device_id: scope.device_id,
       expected_cursor: since, next_cursor: page.next_cursor, has_more: page.has_more,
-      items: page.items.map(({ event, object }) => ({
+      items: page.items.map(item => { const { event, object } = item; return ({
         event_id: event.event_id, server_sequence: event.server_sequence, source_device_id: event.device_id,
-        project_id: event.project_id, entity_id: event.entity_id, entity_type: event.entity_type,
+        ...(isAccountItem(item) ? { scope: item.event.scope, canonical_user_id: item.event.canonical_user_id } : { project_id: item.event.project_id }), entity_id: event.entity_id, entity_type: event.entity_type,
         operation: event.operation, revision: event.revision, updated_at: canonicalizeSyncTimestamp(event.updated_at), deleted_at: event.deleted_at === null ? null : canonicalizeSyncTimestamp(event.deleted_at),
         envelope: { crypto_version: object.crypto_version, aad_version: object.aad_version,
           nonce: encodeBase64Url(object.nonce), ciphertext: encodeBase64Url(object.ciphertext) },
-      })),
+      }) }),
     } })
   }
 }

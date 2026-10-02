@@ -1,3 +1,4 @@
+import { AccountObjectReader } from './accountObjectReader'
 import { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { KeyNotProvisionedError, RuntimeKeyContext, type AuthoritativeKeyContextLease } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
@@ -365,7 +366,7 @@ export class NoteSyncRuntime {
       new NoteSyncV2AckAdapter(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncAckRepository()),
     )
     const v3Cycle = new NoteSyncV3Cycle(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext,
-      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural)
+      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, new AccountObjectReader(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext))
     const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader, encryptedSyncV2Api, v3Cycle)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,

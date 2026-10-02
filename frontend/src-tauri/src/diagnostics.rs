@@ -58,7 +58,7 @@ const EVENT_CODES: &[&str] = &[
     "ack_result",
 ];
 const SAFE_CODES: &[&str] = &[
-    "unknown_error",
+    "account_entity_codec_not_activated", "account_scope_rejected", "decrypt_failed", "unknown_error",
     "Validation",
     "NotFound",
     "Database",

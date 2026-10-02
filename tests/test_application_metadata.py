@@ -120,6 +120,10 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        # This fixture reconstructs v6 from latest; remove migration-030 guards
+        # before old migrations rename the referenced generic inbox.
+        database.execute("DROP TRIGGER project_inbox_cross_scope_insert")
+        database.execute("DROP TABLE cloud_sync_account_inbox")
         database.execute("DROP TRIGGER notes_require_sync_intent_insert")
         database.execute("DROP TRIGGER notes_require_sync_intent_update")
         database.execute("DROP TRIGGER notes_require_sync_intent_delete")

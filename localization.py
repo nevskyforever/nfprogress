@@ -2963,3 +2963,20 @@ TRANSLATION_OVERRIDES['es']['Для синхронизации настроек 
 TRANSLATION_OVERRIDES['de']['Для синхронизации настроек подтвердите поддержку на всех устройствах, затем включите её для аккаунта.'] = 'Bestätigen Sie zur Synchronisierung der Einstellungen die Unterstützung auf allen Geräten und aktivieren Sie sie dann für das Konto.'
 TRANSLATION_OVERRIDES['fr']['Для синхронизации настроек подтвердите поддержку на всех устройствах, затем включите её для аккаунта.'] = 'Pour synchroniser les paramètres, confirmez leur prise en charge sur tous les appareils, puis activez-la pour le compte.'
 TRANSLATION_OVERRIDES['pt_BR']['Для синхронизации настроек подтвердите поддержку на всех устройствах, затем включите её для аккаунта.'] = 'Para sincronizar as configurações, confirme o suporte em todos os dispositivos e ative a sincronização para a conta.'
+
+# C18.4.04 extends the accepted cloud guide without retranslating its curated
+# metadata/Stage paragraphs. Catalog terminology remains explicit in every locale.
+_ACCOUNT_CATALOG_HELP_SOURCE = next(section['content'] for section in HELP_SECTIONS if section['key'] == 'cloud_project_metadata')
+_ACCOUNT_CATALOG_HELP_RUSSIAN = _ACCOUNT_CATALOG_HELP_SOURCE.splitlines()[-2]
+_ACCOUNT_CATALOG_HELP_PREVIOUS = _ACCOUNT_CATALOG_HELP_SOURCE.replace('\n' + _ACCOUNT_CATALOG_HELP_RUSSIAN, '')
+_ACCOUNT_CATALOG_HELP_PARAGRAPHS = {
+    'en': '<p>If the app says “These data are not supported yet”, the received data stay on this device after a restart. Sync does not acknowledge their processing until this part of the cloud is supported. Folders and the order of local projects remain local; their presence does not connect projects to the cloud.</p>',
+    'es': '<p>Si la aplicación indica «Estos datos aún no son compatibles», los datos recibidos se conservan en este dispositivo después de reiniciar. La sincronización no confirma su procesamiento hasta que se admita esta parte de la nube. Las carpetas y el orden de los proyectos locales siguen siendo locales; su presencia no conecta los proyectos a la nube.</p>',
+    'de': '<p>Wenn die App „Diese Daten werden noch nicht unterstützt“ anzeigt, bleiben die empfangenen Daten auch nach einem Neustart auf diesem Gerät erhalten. Die Synchronisierung bestätigt ihre Verarbeitung erst, wenn dieser Teil der Cloud unterstützt wird. Ordner und die Reihenfolge lokaler Projekte bleiben lokal. Dadurch werden keine Projekte mit der Cloud verbunden.</p>',
+    'fr': '<p>Si l’application indique « Ces données ne sont pas encore prises en charge », les données reçues restent sur cet appareil après un redémarrage. La synchronisation ne confirme pas leur traitement tant que cette partie du cloud n’est pas prise en charge. Les dossiers et l’ordre des projets locaux restent locaux ; leur présence ne connecte pas les projets au cloud.</p>',
+    'pt_BR': '<p>Se o aplicativo informar “Estes dados ainda não são compatíveis”, os dados recebidos permanecem neste dispositivo após a reinicialização. A sincronização não confirma seu processamento até que essa parte da nuvem seja compatível. As pastas e a ordem dos projetos locais continuam locais; sua presença não conecta projetos à nuvem.</p>',
+}
+for _language, _paragraph in _ACCOUNT_CATALOG_HELP_PARAGRAPHS.items():
+    _previous = TRANSLATION_OVERRIDES[_language].get(_ACCOUNT_CATALOG_HELP_PREVIOUS)
+    if _previous:
+        TRANSLATION_OVERRIDES[_language][_ACCOUNT_CATALOG_HELP_SOURCE] = _previous.replace('</body></html>', _paragraph + '\n</body></html>')

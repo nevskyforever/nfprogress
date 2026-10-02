@@ -20,6 +20,7 @@ mod game;
 mod mindmap;
 #[allow(dead_code)]
 mod note_sync;
+mod account_sync;
 mod note_sync_plaintext;
 #[allow(dead_code)]
 mod project_metadata_sync;
@@ -2481,11 +2482,22 @@ fn commit_note_sync_inbound_page(
 }
 
 #[tauri::command]
-fn commit_v3_sync_inbound_page(command: note_sync::CommitNoteSyncInboundPageCommand)
+fn commit_v3_sync_inbound_page(command: note_sync::CommitMixedSyncInboundPageCommand)
     -> Result<note_sync::CommitNoteSyncInboundPageResult, String> {
     let mut connection = open_notes_database(true)?;
     require_sqlite_notes_owner(&connection)?;
-    note_sync::commit_v3_sync_inbound_page(&mut connection, &command).map_err(|e|e.to_string())
+    note_sync::commit_mixed_sync_inbound_page(&mut connection, &command).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn list_received_account_objects(scope:project_metadata_sync::MetadataScope,limit:u32,after:i64)->Result<Vec<account_sync::ReceivedAccountItem>,String>{
+    let connection=metadata_connection(&scope)?;
+    account_sync::received(&connection,&scope,limit,after).map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn block_account_object(scope:project_metadata_sync::MetadataScope,event_id:String,nonce:Vec<u8>,ciphertext:Vec<u8>,code:String)->Result<(),String>{
+    let connection=metadata_connection(&scope)?;
+    account_sync::block(&connection,&scope,&event_id,&nonce,&ciphertext,&code).map_err(|e|e.to_string())
 }
 
 fn metadata_connection(scope:&project_metadata_sync::MetadataScope)->Result<rusqlite::Connection,String>{
@@ -5960,6 +5972,8 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
+            list_received_account_objects,
+            block_account_object,
             read_stage_structural_authority,
             begin_stage_structural_migration,
             prepare_stage_structural_decision,

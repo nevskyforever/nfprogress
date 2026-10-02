@@ -1,5 +1,5 @@
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
-import { encryptedSyncV3Api, type V3MetadataPushItem } from '@/api/encryptedSyncV3'
+import { encryptedSyncV3Api, isAccountItem, type V3MetadataPushItem } from '@/api/encryptedSyncV3'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { KeyNotProvisionedError, type RuntimeKeyContext } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
@@ -117,7 +117,7 @@ export class ProjectMetadataMigrationRuntime {
       for (const item of wire.items) {
         if (item.event.server_sequence <= sequence || item.event.server_sequence > wire.next_cursor) throw new TypeError('metadata_import_cursor')
         sequence = item.event.server_sequence
-        if (item.event.entity_type !== 'project_metadata' || item.event.project_id !== projectId) continue
+        if (isAccountItem(item) || item.event.entity_type !== 'project_metadata' || item.event.project_id !== projectId) continue
         const lease = this.keys.leaseForAccount(accountId)
         if (!lease) throw new KeyNotProvisionedError()
         const opened = await lease.use(amk => openProjectMetadataEvent(amk,

@@ -529,8 +529,63 @@ class V3SyncPullEvent(V3SyncEventEnvelope):
     server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
 
 
+ACCOUNT_ENTITY_TYPES = ('folder', 'folder_order', 'folder_membership', 'project_order')
+
+
+class AccountSyncEventEnvelope(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event_id: UUID
+    canonical_user_id: UUID
+    scope: Literal['account']
+    entity_id: str = Field(min_length=1)
+    entity_type: Literal['folder', 'folder_order', 'folder_membership', 'project_order']
+    operation: Literal['upsert', 'delete']
+    revision: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    @property
+    def project_id(self) -> None:
+        return None
+
+    @model_validator(mode='after')
+    def validate_account_descriptor(self) -> 'AccountSyncEventEnvelope':
+        if len(self.entity_id.encode('utf-8')) > 512:
+            raise ValueError('Account identity exceeds UTF-8 byte limit.')
+        if self.updated_at.utcoffset() is None or (self.deleted_at is not None and self.deleted_at.utcoffset() is None):
+            raise ValueError('Account timestamps require a timezone.')
+        if (self.operation == 'delete') != (self.deleted_at is not None):
+            raise ValueError('Invalid account tombstone.')
+        return self
+
+
+class AccountSyncPullEvent(AccountSyncEventEnvelope):
+    device_id: UUID
+    server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
+
+
+class AccountEncryptedPushItem(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event: AccountSyncEventEnvelope
+    object: ObjectEnvelopeDto
+
+    @model_validator(mode='after')
+    def validate_versions(self) -> 'AccountEncryptedPushItem':
+        if self.object.crypto_version != 2 or self.object.aad_version != 2:
+            raise ValueError('Account objects require version 2/2.')
+        return self
+
+
+class AccountEncryptedPushRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: Literal[3]
+    encrypted_sync_version: Literal[3]
+    device_id: UUID
+    items: list[AccountEncryptedPushItem] = Field(max_length=100)
+
+
 class V3EncryptedSyncPullItem(BaseModel):
-    event: V3SyncPullEvent
+    event: V3SyncPullEvent | AccountSyncPullEvent
     object: ObjectEnvelopeDto
 
 
