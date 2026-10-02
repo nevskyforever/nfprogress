@@ -1,3 +1,4 @@
+import { diagnostics } from '@/diagnostics/service'
 import type { AccountObjectReader } from './accountObjectReader'
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
@@ -43,7 +44,7 @@ export class NoteSyncV3Cycle {
     private readonly noteApplier: NoteSyncOrchestrator,
     private readonly metadata: ProjectMetadataMigrationRuntime,
     private readonly structural?: StageStructuralRuntime,
-    private readonly accountReader?: AccountObjectReader,
+    private readonly accountReader?: AccountObjectReader & Partial<Pick<import("./accountCatalogRuntime").AccountCatalogRuntime,"sealCatalog"|"uploadCatalog">>,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -96,6 +97,7 @@ export class NoteSyncV3Cycle {
     })) return result()
     await stage('seal_metadata', async () => { await mode(); hasRemainingWork ||= (await this.metadata.sealOnce(accountId, deviceId)) === 8 })
     if (this.structural) await stage('seal_structure', async () => { await mode(); const count = await this.structural!.sealOnce(accountId, deviceId); hasRemainingWork ||= count === 8 })
+    if(this.accountReader?.sealCatalog) await stage('seal_catalog',async()=>{await mode();hasRemainingWork ||= await this.accountReader!.sealCatalog!(accountId,deviceId)===8})
     if (abort) return result()
     // A lost upload response must not prevent the self echo from being pulled.
     await stage('upload_notes', async () => { await mode(); noteUploaded = (await this.noteUploader.uploadOnce(accountId)).uploaded })
@@ -106,6 +108,8 @@ export class NoteSyncV3Cycle {
     if (abort) return result()
     if (this.structural) await stage('upload_structure', async () => { await mode(); await this.structural!.uploadOnce(accountId, deviceId) })
     if (abort) return result()
+    if(this.accountReader?.uploadCatalog) await stage('upload_catalog',async()=>{await mode();await this.accountReader!.uploadCatalog!(accountId,deviceId)})
+    if(abort)return result()
     for (let page = 0; page < limits.maxPullPages; page += 1) {
       if (!await stage('pull_v3', async () => { await mode(); pulled.push(await this.metadata.pullOnce(accountId, deviceId)) })) return result()
       if (!pulled.at(-1)!.has_more) break
@@ -136,7 +140,7 @@ export class NoteSyncV3Cycle {
       blocked.push(...account.blocked)
       hasRemainingWork ||= account.hasRemainingWork || account.blocked.length > 0
     })) return result()
-    await stage('ack_v3', async () => { await mode(); ack = await this.metadata.ackOnce(accountId, deviceId); hasRemainingWork ||= ack.status === 'stale' })
+    await stage('ack_v3', async () => { await mode(); ack = await this.metadata.ackOnce(accountId, deviceId); hasRemainingWork ||= ack.status === 'stale'; diagnostics.record('sync','sync_cycle','ack_result',undefined,{status:ack.status,pending:blocked.length}) })
     return result()
   }
 }

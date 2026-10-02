@@ -69,6 +69,7 @@ function desktopStageCreate(payload: StageCreate): Record<string, unknown> {
 
 function desktopEntityPatch(payload: EntityUpdate): Record<string, unknown> {
   return {
+    ...((payload as ProjectUpdate).folder_id !== undefined ? { folderId: (payload as ProjectUpdate).folder_id } : {}),
     ...(payload.name !== undefined ? { name: payload.name } : {}),
     ...(payload.goal !== undefined ? { goal: payload.goal } : {}),
     ...(payload.infinite !== undefined ? { infinite: payload.infinite } : {}),
@@ -140,6 +141,8 @@ export const projectsApi = {
     if (desktopRuntime()) return invoke<void>('delete_project_folder', { folderId })
     return apiRequest<void>(`/api/projects/folders/${encodeURIComponent(folderId)}`, { method: 'DELETE' })
   },
+
+  reorderFolders(folderIds:string[]):Promise<void>{return invoke('reorder_project_folders',{folderIds})},
 
   reorder(projectIds: string[]): Promise<Project[]> {
     if (desktopRuntime()) return invoke<Project[]>('reorder_projects', { projectIds })

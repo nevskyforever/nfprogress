@@ -4,7 +4,7 @@ import { useLocaleStore } from '@/stores/locale'
 import { presentStatus } from '@/diagnostics/presentation'
 import type { Subsystem, Operation } from '@/diagnostics/events'
 import DiagnosticDetails from './DiagnosticDetails.vue'
-const props = defineProps<{ domain?: 'session' | 'project' | 'metadata' | 'structure' | 'error'; code: string; subsystem?: Subsystem; operation?: Operation; correlation?: string; detailCode?: string }>()
+const props = defineProps<{ domain?: 'session' | 'project' | 'metadata' | 'structure' | 'catalog' | 'error'; code: string; subsystem?: Subsystem; operation?: Operation; correlation?: string; detailCode?: string }>()
 const presentation = computed(() => presentStatus(props.domain ?? 'error', props.code))
 const t = useLocaleStore().translate
 </script>

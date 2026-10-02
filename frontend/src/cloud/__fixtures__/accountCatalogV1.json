@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "header": {
+    "account_id": "123e4567-e89b-42d3-a456-426614174000",
+    "scope": "account",
+    "device_id": "123e4567-e89b-42d3-a456-426614174001",
+    "entity_type": "folder",
+    "entity_id": "📁",
+    "event_id": "123e4567-e89b-42d3-a456-426614174002",
+    "operation": "create",
+    "parent_event_ids": [],
+    "revision": 1,
+    "generation": 1,
+    "updated_at": "2026-10-02T00:00:00.000000Z"
+  },
+  "payload": {
+    "name": "Work"
+  },
+  "dependencies": {
+    "folders": {},
+    "projects": {},
+    "memberships": {}
+  },
+  "deleted_at": null
+}

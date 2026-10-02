@@ -1,0 +1,13 @@
+import { flushPromises, mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import { describe, it, expect, vi } from 'vitest';
+import { useCloudSessionStore } from '@/stores/cloudSession';
+import Panel from './AccountCatalogAuthorityPanel.vue';
+import type { CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository';
+function setup(state: CatalogView['state']) { const pinia = createPinia(); setActivePinia(pinia); const cloud = useCloudSessionStore(); cloud.catalogAuthority = { state, blockers: [], project_names: {}, entities: [{ entity_type: 'folder', entity_id: 'F', tips: ['z', 'a'], branches: [], local: { name: 'Work' }, conflict: state === 'conflict' }] }; const begin = vi.spyOn(cloud, 'beginCatalog').mockResolvedValue(), inspect = vi.spyOn(cloud, 'inspectCatalog').mockResolvedValue(), decide = vi.spyOn(cloud, 'decideCatalog').mockResolvedValue(); const wrapper = mount(Panel, { global: { plugins: [pinia] } }); return { cloud, begin, inspect, decide, wrapper }; }
+describe('explicit account catalog UX', () => {
+    it.each(['catalog_local', 'captured', 'publication_pending', 'self_echo_pending', 'active', 'conflict', 'blocked'] as const)('opening %s cannot publish', state => { const h = setup(state); expect(h.begin).not.toHaveBeenCalled(); expect(h.inspect).not.toHaveBeenCalled(); expect(h.decide).not.toHaveBeenCalled(); expect(h.wrapper.attributes('data-catalog-state')).toBe(state); h.wrapper.unmount(); });
+    it('publishes only by explicit click', async () => { const h = setup('catalog_local'); await h.wrapper.findAll('button').find(b => b.text() === 'Опубликовать структуру проектов')!.trigger('click'); await flushPromises(); expect(h.begin).toHaveBeenCalledTimes(1); h.wrapper.unmount(); });
+    it('passes the complete sorted tips and local snapshot without raw JSON', async () => { const h = setup('conflict'); await h.wrapper.findAll('button').find(b => b.text() === 'Использовать вариант этого устройства')!.trigger('click'); await flushPromises(); expect(h.decide).toHaveBeenCalledWith({ entity_type: 'folder', entity_id: 'F', expected_tips: ['a', 'z'], expected_local: { name: 'Work' }, proposed: { name: 'Work' }, selected_event_id: null }); expect(h.wrapper.text()).not.toContain('parent_event_ids'); h.wrapper.unmount(); });
+    it('failed retry leaves a friendly recoverable error', async () => { const h = setup('blocked'); vi.spyOn(h.cloud, 'retry').mockRejectedValueOnce(new Error('private')); await h.wrapper.findAll('button').find(b => b.text() === 'Безопасно продолжить')!.trigger('click'); await flushPromises(); expect(h.wrapper.find('[role="alert"]').exists()).toBe(true); expect(h.wrapper.text()).not.toContain('private'); h.wrapper.unmount(); });
+});

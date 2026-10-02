@@ -10,6 +10,7 @@ on:
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
       - 'frontend/src-tauri/src/account_sync.rs'
+      - 'frontend/src-tauri/src/account_catalog.rs'
       - 'frontend/src/crypto/account-object-v2.vectors.json'
       - 'frontend/src/cloud/__fixtures__/stageCodecV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV1.json'
@@ -25,6 +26,7 @@ on:
       - 'tests/test_c18_metadata_sqlite.py'
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
+      - 'tests/test_c18_catalog_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -39,6 +41,7 @@ on:
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/stage_sync.rs'
       - 'frontend/src-tauri/src/account_sync.rs'
+      - 'frontend/src-tauri/src/account_catalog.rs'
       - 'frontend/src/crypto/account-object-v2.vectors.json'
       - 'frontend/src/cloud/__fixtures__/stageCodecV1.json'
       - 'frontend/src/cloud/__fixtures__/noteSyncPlaintextV1.json'
@@ -54,6 +57,7 @@ on:
       - 'tests/test_c18_metadata_sqlite.py'
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
+      - 'tests/test_c18_catalog_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -91,6 +95,7 @@ jobs:
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
+            tests/test_c18_catalog_sqlite.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \
@@ -147,3 +152,6 @@ jobs:
       - name: Check Rust SQLite substrate
         shell: pwsh
         run: cargo check --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Verify account catalog durable substrate
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc account_catalog

@@ -1,3 +1,4 @@
+import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
 import { diagnostics } from '@/diagnostics/service'
 import { safeError } from '@/diagnostics/events'
 import { presentStatus, technicalCode } from '@/diagnostics/presentation'
@@ -86,6 +87,9 @@ export interface CloudSessionRuntime {
   importRemoteProject(projectId: string, displayName: string, report?: CloudProjectBootstrapReporter): Promise<CloudProjectBootstrapProgress>
   setProjectPaused(projectId: string, paused: boolean): Promise<CloudRegistryReconciliation>
   retry(): Promise<NoteSyncProductionResult>
+  catalogAuthority?():Promise<CatalogView>
+  beginCatalogMigration?():Promise<CatalogView>
+  decideCatalog?(decision:CatalogDecision):Promise<string>
   projectStructuralAuthority(projectId: string): Promise<StructuralView>
   beginStageMigration(projectId: string): Promise<StructuralView>
   decideStructure(projectId: string, decision: StructuralDecision): Promise<string>
@@ -171,6 +175,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   const busy = ref(false)
   const projects = ref<CloudProjectView[]>([])
   const metadataTransportMode = ref<1 | 2 | 3 | null>(null)
+  const catalogAuthority=ref<CatalogView|null>(null)
   const structuralAuthority = ref<Record<string, StructuralView>>({})
   const metadataAuthority = ref<Record<string, MetadataAuthorityView>>({})
   const canRunCycle = ref(false)
@@ -189,6 +194,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     metadataTransportMode.value = null
     metadataAuthority.value = {}
     structuralAuthority.value = {}
+    catalogAuthority.value=null
     canRunCycle.value = false
   }
 
@@ -573,6 +579,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     await diagnostics.run('sync', 'retry', () => runCycle(() => requireRuntime().retry(), correlation), correlation)
   }
 
+  async function inspectCatalog():Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.catalogAuthority)throw new Error('catalog_runtime_unavailable');const view=await runtime.catalogAuthority();if(current(epoch))catalogAuthority.value=view}
+  async function beginCatalog():Promise<void>{await diagnostics.run('migrations','catalog_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginCatalogMigration)throw new Error('catalog_runtime_unavailable');await runtime.beginCatalogMigration();if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
+  async function decideCatalog(decision:CatalogDecision):Promise<void>{await diagnostics.run('projects','conflict_resolution',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.decideCatalog)throw new Error('catalog_runtime_unavailable');await runtime.decideCatalog(decision);if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
+
   async function inspectStructure(projectId: string): Promise<void> {
     const epoch = lifecycleEpoch
     const view = await requireRuntime().projectStructuralAuthority(projectId)
@@ -711,6 +721,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   return {
     supported, status, username, hasProvisionedKey, errorMessage, errorCode, blockedEvents, blockedEventCodes,
     hasRemainingWork, lastCycleAt, busy, authenticated, projects, canRunCycle,
+    catalogAuthority,inspectCatalog,beginCatalog,decideCatalog,
     metadataTransportMode, metadataAuthority, structuralAuthority, inspectStructure, beginStructure, decideStructure,
     projectBootstrapEnabled,
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,

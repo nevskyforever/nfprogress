@@ -192,3 +192,67 @@ Schema 030 preserves account identity, descriptors and exact v2 bytes in a separ
 Golden fixture covers tuple/info/key/AAD/nonce/plaintext/ciphertext. TypeScript is the production AEAD boundary; independent Node HKDF and native Rust test verifier check derivation bytes, and native persistence checks the same ciphertext fixture through restart. Rust does not implement production AEAD. C11 code/vectors remain unchanged; no dependency added.
 
 Actual catalog codecs, durable apply/conflict substrate, explicit migration/publication and normal writers belong to C18.4.05. Preserve folder + authenticated bound project → membership → project order, explicit binding only, local-only positions local, preserved concurrent conflict branches, and no silent membership deletion. Writer activation requires compatible readers and real durable apply/conflict ACK proof; authentication alone is insufficient. C18.5 and account game ledger remain out of scope.
+
+## C18.4.05 activated account catalog contract
+
+The frozen E classifications above are now implemented for `folder`, `folder_order`,
+`folder_membership`, and `project_order`. Account crypto remains exactly the accepted
+C18.4.04 2/2 namespace and vectors; project C11 is unchanged. The server validates
+only the closed opaque account descriptor and ciphertext transport.
+
+Codec v1 has the exact keys `version`, `header`, `payload`, `dependencies`,
+`deleted_at`. Header identifies authenticated account, literal `account` scope,
+source device, entity type/ID, event ID, operation, revision, generation, sorted
+unique parent IDs and canonical UTC update time. Genesis has no parents and
+revision/generation 1; update/delete has one parent; explicit resolution admits the
+complete current parent set, with max-parent revision/generation + 1. Native
+preparation checks full current tips and local snapshot in an IMMEDIATE transaction.
+An arriving stale resolution removes only its named parents; other branches remain.
+
+The existing uncompressed WORTA-C1 frame uses framing version 1, entity slots 4–7
+in the listed order, codec version 1 and compression ID 0; both u32 big-endian
+sizes equal canonical UTF-8 JSON bytes. Folder payload is `{name}` or a retained
+null tombstone. Membership payload is `{folder_id}` (null is removal). Both orders
+are `{ids}`. Dependencies are exact closed `folders` (folder IDs → authenticated
+heads), `projects` (project IDs → bootstrap ID and authenticated metadata event ID),
+and `memberships` (project IDs → authenticated relation heads). Full order sets
+and heads are validated; no local path, navigation state, arbitrary extension,
+local-only project ID or fake project slot is admitted.
+
+SQLite schema31 preserves all existing folder/member/order rows and account inbox
+bytes. One catalog stack stores retained source candidates, immutable snapshot and
+canonical events, immutable ciphertext after seal, receipts, tips, projections,
+apply ledger, local reconciliation candidates and full-tip decisions. Publication
+starts only with the Cloud action “Опубликовать структуру проектов”. Read, login,
+unlock, startup and pre-authority edits do not capture/publish a catalog. Each
+publication stage waits for dependency/self-echo proof. Sealed retries keep identity
+and bytes; subsequent edits become later causal intents. Imported device-local
+candidates remain available for an explicit decision.
+
+Only same-account explicitly bound projects with reconciled authenticated metadata
+lineage are eligible. Filtering local order L1,C1,L2,C2,L3 emits C1,C2. Applying a
+cloud order changes only cloud slots; local projects retain their positions. Mixed
+folder membership emits cloud relations only; local relations stay intact. New
+connections derive durable intents after metadata authority, so restart recovers the
+transition without registering any local-only project. Existing pause does not
+unbind or delete remotely. Local binding removal is guarded once catalog authority
+exists; remote deletion is not invented here.
+
+Folder tombstones never cascade. A live or unresolved relation—including a retained
+local-only membership—blocks destructive completion and ACK. Explicit moves/removal
+and a later retry can establish safe completion. Physical catalog history/folder
+cleanup is not activated. A common contiguous ACK step requires exact catalog
+inbox/event/frame/ciphertext/sequence/apply-ledger proof, or complete conflict
+preservation; supported authentication alone never advances it.
+
+Bounds: 16,384 folders and eligible project/relation/order entries; 120 Unicode
+scalars and 512 UTF-8 bytes per folder name, 512 bytes per identity; 64 parents/tips;
+4 MiB canonical JSON per frame; 131,072 catalog history events and 256 MiB retained
+frame/ciphertext history per account. Publication batches are 8; reader limits are
+1–32 items and 1–8 passes (default 8 × 4). The accepted global pull/ciphertext budgets
+still apply. Exceeding a bound preserves source/inbox/progress and produces a typed
+recoverable blocker; it cannot produce partial ACK. C18.7 owns future compression.
+
+C18.4 remains IN PROGRESS. C18.4.06 should review combined metadata/Stage/catalog
+integration, strict stale dependency blockers, destructive manifests/retention,
+mixed-sequence ACK and platform release qualification before any closure decision.

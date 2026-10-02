@@ -117,7 +117,20 @@ function parsePush(value: unknown, expected: readonly string[]): V3PushResponse 
   return result
 }
 
+export interface AccountPushItem { event: Omit<AccountDescriptor,'device_id'|'server_sequence'>; object: AccountObjectEnvelope }
+export function encodeAccountPush(deviceId:string,items:readonly AccountPushItem[]):string {
+  if (!UUID.test(deviceId)||!items.length||items.length>100) fail()
+  const wire=items.map(({event:e,object:o})=>{
+    if (!exact(e,['event_id','canonical_user_id','scope','entity_id','entity_type','operation','revision','updated_at','deleted_at']) || !UUID.test(e.event_id)||!UUID.test(e.canonical_user_id)||e.scope!=='account'||!ACCOUNT_ENTITY_TYPES.includes(e.entity_type)||!safe(e.revision,1)||!['upsert','delete'].includes(e.operation)||o.crypto_version!==2||o.aad_version!==2||o.nonce.length!==24||o.ciphertext.length<16||o.ciphertext.length>MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES) fail()
+    encodeAccountTuple({userId:e.canonical_user_id,scope:'account',entityId:e.entity_id,entityType:e.entity_type})
+    parseSyncTimestamp(e.updated_at); if(e.operation==='delete'){if(e.deleted_at===null)fail();parseSyncTimestamp(e.deleted_at!)}else if(e.deleted_at!==null)fail()
+    return {event:e,object:{crypto_version:2,aad_version:2,nonce:encodeBase64Url(o.nonce),ciphertext:encodeBase64Url(o.ciphertext)}}
+  })
+  if (new Set(items.map(i=>i.event.event_id)).size!==items.length||items.reduce((n,i)=>n+i.object.ciphertext.length,0)>MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) fail()
+  const body=JSON.stringify({protocol_version:3,encrypted_sync_version:3,device_id:deviceId,items:wire});if(new TextEncoder().encode(body).length>MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES)fail();return body
+}
 export const encryptedSyncV3Api = {
+  pushAccount:(token:string,deviceId:string,items:readonly AccountPushItem[]):Promise<V3PushResponse> => apiRequest<unknown>('/api/v3/sync/encrypted/account/push',{method:'POST',headers:headers(token),rawBody:encodeAccountPush(deviceId,items)}).then(value=>parsePush(value,items.map(i=>i.event.event_id))),
   readerReady: (token: string, deviceId: string): Promise<void> => {
     if (!UUID.test(deviceId)) fail()
     return apiRequest<void>('/api/v3/sync/encrypted/reader-ready', { method: 'POST', headers: headers(token), body: { device_id: deviceId, reader_transport_version: 3 } })

@@ -1,4 +1,4 @@
-//! Account transport preservation. There is deliberately no catalog apply/ACK writer.
+//! Account transport preservation; semantic apply and ACK proof live in account_catalog.
 use crate::note_sync::{
     decode_canonical_base64url, validate_pull_scope, CommitMixedSyncInboundPageCommand,
     EncryptedNoteSyncEnvelope, NoteSyncError,
@@ -97,6 +97,7 @@ pub(crate) struct ReceivedAccountItem {
     aad_version: i64,
     nonce: Vec<u8>,
     ciphertext: Vec<u8>,
+    source_device_id:String, operation:String, revision:i64, updated_at:String, deleted_at:Option<String>,
 }
 pub(crate) fn received(
     connection: &Connection,
@@ -114,7 +115,7 @@ pub(crate) fn received(
         &scope.device_id,
         &scope.canonical_user_id,
     )?;
-    let mut query = tx.prepare("SELECT event_id,server_sequence,canonical_user_id,scope,entity_id,entity_type,crypto_version,aad_version,nonce,ciphertext FROM cloud_sync_account_inbox WHERE account_id=?1 AND server_sequence>?2 ORDER BY server_sequence LIMIT ?3")?;
+    let mut query = tx.prepare("SELECT event_id,server_sequence,canonical_user_id,scope,entity_id,entity_type,crypto_version,aad_version,nonce,ciphertext,device_id,operation,sync_revision,updated_at,deleted_at FROM cloud_sync_account_inbox WHERE account_id=?1 AND server_sequence>?2 AND NOT EXISTS(SELECT 1 FROM cloud_catalog_apply_ledger l WHERE l.account_id=cloud_sync_account_inbox.account_id AND l.event_id=cloud_sync_account_inbox.event_id) ORDER BY server_sequence LIMIT ?3")?;
     let rows = query
         .query_map(rusqlite::params![scope.account_id, after, limit], |r| {
             Ok(ReceivedAccountItem {
@@ -128,6 +129,7 @@ pub(crate) fn received(
                 aad_version: r.get(7)?,
                 nonce: r.get(8)?,
                 ciphertext: r.get(9)?,
+                source_device_id:r.get(10)?,operation:r.get(11)?,revision:r.get(12)?,updated_at:r.get(13)?,deleted_at:r.get(14)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;
@@ -145,7 +147,7 @@ pub(crate) fn block(
 ) -> Result<(), NoteSyncError> {
     if !matches!(
         code,
-        "account_entity_codec_not_activated" | "decrypt_failed" | "account_scope_rejected"
+        "account_entity_codec_not_activated" | "decrypt_failed" | "account_scope_rejected" | "invalid_catalog_frame" | "catalog_dependency_missing" | "catalog_parent_unknown" | "catalog_membership_changed" | "catalog_project_unproven" | "catalog_folder_has_members" | "catalog_resource_limit" | "catalog_dependency_conflict" | "unsupported_catalog_source"
     ) {
         return Err(invalid());
     }
@@ -157,10 +159,11 @@ pub(crate) fn block(
         &scope.canonical_user_id,
     )?;
     let changed=tx.execute("UPDATE cloud_sync_account_inbox SET state='blocked',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND canonical_user_id=?4 AND nonce=?5 AND ciphertext=?6",
-        rusqlite::params![code,scope.account_id,event_id,scope.canonical_user_id,nonce,ciphertext])?;
+        rusqlite::params![if matches!(code,"decrypt_failed"|"account_scope_rejected"|"account_entity_codec_not_activated"){code}else{"account_scope_rejected"},scope.account_id,event_id,scope.canonical_user_id,nonce,ciphertext])?;
     if changed != 1 {
         return Err(invalid());
     }
+    tx.execute("INSERT INTO cloud_catalog_inbox_blockers VALUES(?1,?2,?3) ON CONFLICT(account_id,event_id) DO UPDATE SET code=excluded.code",rusqlite::params![scope.account_id,event_id,code])?;
     tx.commit()?;
     Ok(())
 }
@@ -284,7 +287,7 @@ mod tests {
             &row.event_id,
             &row.nonce,
             &row.ciphertext,
-            "account_entity_codec_not_activated",
+            "catalog_resource_limit",
         )
         .unwrap();
         drop(c);
@@ -301,7 +304,13 @@ mod tests {
             c.query_row("SELECT error_code FROM cloud_sync_account_inbox", [], |r| r
                 .get::<_, String>(0))
                 .unwrap(),
-            "account_entity_codec_not_activated"
+            "account_scope_rejected"
+        );
+        assert_eq!(
+            c.query_row("SELECT code FROM cloud_catalog_inbox_blockers", [], |r| r
+                .get::<_, String>(0))
+                .unwrap(),
+            "catalog_resource_limit"
         );
         assert_eq!(
             note_sync::prepare_note_sync_ack(

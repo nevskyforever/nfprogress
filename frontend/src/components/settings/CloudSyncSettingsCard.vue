@@ -6,6 +6,7 @@ import { cloudOutline, lockClosedOutline, syncOutline, warningOutline } from 'io
 import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import DiagnosticDetails from './DiagnosticDetails.vue'
 import FriendlyStatus from './FriendlyStatus.vue'
+import AccountCatalogAuthorityPanel from './AccountCatalogAuthorityPanel.vue'
 import StageStructuralAuthorityPanel from './StageStructuralAuthorityPanel.vue'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
@@ -219,6 +220,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="settings-card cloud-sync-card" aria-labelledby="cloud-sync-title">
+    <AccountCatalogAuthorityPanel v-if="cloud.hasProvisionedKey && !cloud.busy" />
     <div class="settings-card__heading">
       <h2 id="cloud-sync-title">{{ t('Облачная синхронизация заметок') }}</h2>
       <p>{{ t('Отдельный защищённый сеанс для заметок. Он не связан с фоновой синхронизацией документов.') }}</p>

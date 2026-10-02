@@ -21,6 +21,7 @@ mod mindmap;
 #[allow(dead_code)]
 mod note_sync;
 mod account_sync;
+mod account_catalog;
 mod note_sync_plaintext;
 #[allow(dead_code)]
 mod project_metadata_sync;
@@ -2490,6 +2491,23 @@ fn commit_v3_sync_inbound_page(command: note_sync::CommitMixedSyncInboundPageCom
 }
 
 #[tauri::command]
+fn read_account_catalog(scope:project_metadata_sync::MetadataScope)->Result<serde_json::Value,String>{let db=metadata_connection(&scope)?;account_catalog::authority(&db,&scope).map_err(|e|e.to_string())}
+#[tauri::command]
+fn begin_account_catalog(scope:project_metadata_sync::MetadataScope,now:String)->Result<serde_json::Value,String>{let mut db=metadata_connection(&scope)?;account_catalog::begin(&mut db,&scope,&now).map_err(|e|e.to_string())}
+#[tauri::command]
+fn decide_account_catalog(scope:project_metadata_sync::MetadataScope,decision:account_catalog::Decision,now:String)->Result<String,String>{let mut db=metadata_connection(&scope)?;account_catalog::decide(&mut db,&scope,&decision,&now).map_err(|e|e.to_string())}
+#[tauri::command]
+fn pending_account_catalog(scope:project_metadata_sync::MetadataScope,sealed:bool,now:String)->Result<Vec<serde_json::Value>,String>{let mut db=metadata_connection(&scope)?;account_catalog::reconcile_connections(&mut db,&scope,&now).map_err(|e|e.to_string())?;account_catalog::pending(&db,&scope,sealed).map_err(|e|e.to_string())}
+#[tauri::command]
+fn seal_account_catalog(scope:project_metadata_sync::MetadataScope,event_id:String,frame:Vec<u8>,nonce:Vec<u8>,ciphertext:Vec<u8>)->Result<(),String>{let mut db=metadata_connection(&scope)?;account_catalog::seal(&mut db,&scope,&event_id,&frame,&nonce,&ciphertext).map_err(|e|e.to_string())}
+#[tauri::command]
+fn receipt_account_catalog(scope:project_metadata_sync::MetadataScope,event_id:String,server_sequence:i64)->Result<(),String>{let mut db=metadata_connection(&scope)?;account_catalog::receipt(&mut db,&scope,&event_id,server_sequence).map_err(|e|e.to_string())}
+#[tauri::command]
+fn apply_account_catalog(scope:project_metadata_sync::MetadataScope,event_id:String,frame:Vec<u8>,nonce:Vec<u8>,ciphertext:Vec<u8>)->Result<String,String>{let mut db=metadata_connection(&scope)?;account_catalog::apply(&mut db,&scope,&event_id,&frame,&nonce,&ciphertext).map_err(|e|e.to_string())}
+#[tauri::command]
+fn reorder_project_folders(folder_ids:Vec<String>)->Result<(),String>{let mut db=open_projects_database()?;require_projects_owner(&db)?;let now:String=db.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%f000Z','now')",[],|r|r.get(0)).map_err(|e|e.to_string())?;if !account_catalog::normal(&mut db,"folder_order","folder_order",serde_json::json!({"ids":folder_ids}),&now).map_err(|e|e.to_string())?{return Err("catalog_authority_required".into())}Ok(())}
+
+#[tauri::command]
 fn list_received_account_objects(scope:project_metadata_sync::MetadataScope,limit:u32,after:i64)->Result<Vec<account_sync::ReceivedAccountItem>,String>{
     let connection=metadata_connection(&scope)?;
     account_sync::received(&connection,&scope,limit,after).map_err(|e|e.to_string())
@@ -3459,6 +3477,9 @@ struct EntityUpdateCommand {
     confirm_daily_goal_increase: bool,
 }
 
+// Preserve absent vs explicit null for the catalog remove-membership writer.
+fn deserialize_folder_patch<'de,D:serde::Deserializer<'de>>(d:D)->Result<Option<Option<String>>,D::Error>{Option::<String>::deserialize(d).map(Some)}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct ProjectUpdateCommand {
@@ -3475,6 +3496,7 @@ struct ProjectUpdateCommand {
     stages_enabled: Option<bool>,
     combine_stage_mindmaps: Option<bool>,
     cover_image: Option<String>,
+    #[serde(default, deserialize_with="deserialize_folder_patch")]
     folder_id: Option<Option<String>>,
 }
 
@@ -3681,6 +3703,18 @@ fn reorder_projects(project_ids: Vec<String>) -> Result<serde_json::Value, Strin
     for (position, project_id) in visible_positions.into_iter().zip(project_ids.iter()) {
         normalized[position] = project_id.clone();
     }
+    drop(repository);
+    let now:String=connection.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%f000Z','now')",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    let mut q=connection.prepare("SELECT b.project_id FROM cloud_sync_project_bindings b JOIN cloud_catalog_state c ON c.account_id=b.account_id").map_err(|e|e.to_string())?;
+    let bound=q.query_map([],|r|r.get::<_,String>(0)).map_err(|e|e.to_string())?.collect::<Result<Vec<_>,_>>().map_err(|e|e.to_string())?;drop(q);
+    let portable=normalized.iter().filter(|id|bound.contains(id)).cloned().collect::<Vec<_>>();
+    let captured=account_catalog::normal(&mut connection,"project_order","project_order",serde_json::json!({"ids":portable}),&now).map_err(|e|e.to_string())?;
+    if captured {
+        let old_cloud=existing.iter().filter(|id|bound.contains(id)).cloned().collect::<Vec<_>>();
+        let slots=normalized.iter().enumerate().filter_map(|(i,id)|bound.contains(id).then_some(i)).collect::<Vec<_>>();
+        for (slot,id) in slots.into_iter().zip(old_cloud){normalized[slot]=id;}
+    }
+    let mut repository=ProjectsRepository::new(&mut connection);
     repository
         .update_project_order(&normalized)
         .map_err(|error| error.to_string())?;
@@ -3965,6 +3999,7 @@ fn update_project(
             return Err("Папка не найдена.".to_string());
         }
     }
+    let old_folder=current.payload["folder_id"].clone();
     let mut payload = current.payload;
     let object = payload
         .as_object_mut()
@@ -4050,6 +4085,8 @@ fn update_project(
             |r| r.get::<_, String>(0),
         )
         .map_err(|e| e.to_string())?;
+    let catalog_captured=if let Some(folder)=folder_id.as_ref(){account_catalog::normal(&mut connection,"folder_membership",&project_id,serde_json::json!({"folder_id":folder}),&metadata_now).map_err(|e|e.to_string())?}else{false};
+    if catalog_captured {payload["folder_id"]=old_folder;}
     let captured = project_metadata_sync::capture_normal_edit(
         &mut connection,
         &project_id,
@@ -4057,13 +4094,14 @@ fn update_project(
         &metadata_now,
     )
     .map_err(|e| e.to_string())?;
+
     let mut repository = ProjectsRepository::new(&mut connection);
     if !captured {
         repository
             .update_project_payload(&project_id, &payload)
             .map_err(|error| error.to_string())?;
     }
-    if let Some(folder_id) = folder_id {
+    if let Some(folder_id) = folder_id.filter(|_| !catalog_captured) {
         repository
             .set_project_folder(&project_id, folder_id.as_deref())
             .map_err(|error| error.to_string())?;
@@ -4493,7 +4531,7 @@ fn list_project_folders() -> Result<Vec<serde_json::Value>, String> {
     let connection = open_projects_database()?;
     require_projects_owner(&connection)?;
     let mut statement = connection
-        .prepare("SELECT id,name FROM project_folders ORDER BY position,id")
+        .prepare("SELECT id,name FROM project_folders f WHERE NOT EXISTS(SELECT 1 FROM cloud_catalog_projection p WHERE p.entity_type='folder' AND p.entity_id=f.id AND p.deleted=1) ORDER BY position,id")
         .map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([], |row| {
@@ -4514,6 +4552,9 @@ fn create_project_folder(name: String) -> Result<serde_json::Value, String> {
         return Err("Название папки некорректно.".to_string());
     }
     let id = new_note_id()?;
+    let now:String=connection.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%f000Z','now')",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    if account_catalog::normal(&mut connection,"folder",&id,serde_json::json!({"name":name}),&now).map_err(|e|e.to_string())? {return Ok(serde_json::json!({"id":id,"name":name}))}
+
     let position: i64 = connection
         .query_row(
             "SELECT COALESCE(MAX(position),-1)+1 FROM project_folders",
@@ -4543,6 +4584,9 @@ fn update_project_folder(folder_id: String, name: String) -> Result<serde_json::
     if name.is_empty() || name.chars().count() > 120 {
         return Err("Название папки некорректно.".to_string());
     }
+
+    let now:String=connection.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%f000Z','now')",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    if account_catalog::normal(&mut connection,"folder",&folder_id,serde_json::json!({"name":name}),&now).map_err(|e|e.to_string())? {return Ok(serde_json::json!({"id":folder_id,"name":name}))}
     let changed = connection.execute("UPDATE project_folders SET name=?1,payload_json=json_set(payload_json,'$.name',?1) WHERE id=?2", rusqlite::params![name,folder_id]).map_err(|error| error.to_string())?;
     if changed != 1 {
         return Err("Папка не найдена.".to_string());
@@ -4554,6 +4598,9 @@ fn update_project_folder(folder_id: String, name: String) -> Result<serde_json::
 fn delete_project_folder(folder_id: String) -> Result<(), String> {
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+
+    let now:String=connection.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%f000Z','now')",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+    if account_catalog::normal(&mut connection,"folder",&folder_id,serde_json::Value::Null,&now).map_err(|e|e.to_string())? {return Ok(())}
     let tx = connection
         .transaction()
         .map_err(|error| error.to_string())?;
@@ -5023,6 +5070,14 @@ async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn account_catalog_membership_patch_distinguishes_absent_move_and_remove(){
+        let absent:super::ProjectUpdateCommand=serde_json::from_value(serde_json::json!({})).unwrap();
+        let remove:super::ProjectUpdateCommand=serde_json::from_value(serde_json::json!({"folderId":null})).unwrap();
+        let assign:super::ProjectUpdateCommand=serde_json::from_value(serde_json::json!({"folderId":"F"})).unwrap();
+        assert_eq!(absent.folder_id,None);assert_eq!(remove.folder_id,Some(None));assert_eq!(assign.folder_id,Some(Some("F".into())));
+    }
+
     #[cfg(target_os = "macos")]
     use std::io::Write;
     use std::fs;
@@ -5972,6 +6027,7 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
+            read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
             list_received_account_objects,
             block_account_object,
             read_stage_structural_authority,

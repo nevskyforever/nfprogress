@@ -6675,7 +6675,10 @@ fn contiguous_applied_ack_prefix(
             "SELECT EXISTS(SELECT 1 FROM cloud_sync_account_inbox WHERE account_id=?1 AND server_sequence=?2)",
             rusqlite::params![account_id, next], |row| row.get(0),
         )?;
-        if account_blocker { break; }
+        if account_blocker {
+            if !crate::account_catalog::ack_proven(transaction,account_id,next).map_err(|_|NoteSyncError::InvalidEnvelope("catalog ACK proof unavailable"))? { break; }
+            candidate=next; continue;
+        }
         let durable: Option<i64> = transaction.query_row(
             "SELECT CASE
                 WHEN inbox.entity_type IN ('stage','stage_order')

@@ -1,3 +1,4 @@
+import {frameCatalogEvent,sealCatalogEvent,openCatalogEvent,type CatalogEvent} from './accountCatalogCodec'
 // @vitest-environment node
 import { openProjectMetadataEvent, sealProjectMetadataEvent, encodeProjectMetadataEvent, type ProjectMetadataEvent } from './projectMetadataCodec'
 import { openStructuralEvent, sealStructuralEvent, frameStructuralEvent, type StructuralEvent } from './stageCodec'
@@ -46,9 +47,21 @@ interface MetadataSealRequest { action: 'metadata_seal'; payload: ProjectMetadat
 interface MetadataOpenRequest { action: 'metadata_open'; canonical_user_id: string; amk: number[]; item: OpenRequest['item'] }
 interface StructuralSealRequest { action: 'structural_seal'; payload: StructuralEvent; amk: number[] }
 interface StructuralOpenRequest { action: 'structural_open'; canonical_user_id: string; amk: number[]; item: { event: StructuralEvent['header']; object: OpenRequest['item']['object'] } }
-type BridgeRequest = StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
+interface CatalogSealRequest {action:'catalog_seal';payload:CatalogEvent;amk:number[]}
+interface CatalogOpenRequest {action:'catalog_open';canonical_user_id:string;amk:number[];item:{event:{entity_id:string;entity_type:string};object:OpenRequest['item']['object']}}
+type BridgeRequest = CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
+  if(request.action==='catalog_seal'){
+    const object=await sealCatalogEvent(asAccountMasterKey(Uint8Array.from(request.amk)),request.payload)
+    return {object:{crypto_version:2,aad_version:2,nonce:encodeBase64Url(object.nonce),ciphertext:encodeBase64Url(object.ciphertext)},nonce:Array.from(object.nonce),ciphertext:Array.from(object.ciphertext),frame:Array.from(frameCatalogEvent(request.payload))}
+  }
+  if(request.action==='catalog_open'){
+    const o=request.item.object,nonce=decodeBase64Url(o.nonce),ciphertext=decodeBase64Url(o.ciphertext)
+    if(o.crypto_version!==2||o.aad_version!==2)throw new TypeError('invalid_catalog_frame')
+    const decoded=await openCatalogEvent(asAccountMasterKey(Uint8Array.from(request.amk)),request.canonical_user_id,request.item.event.entity_id,request.item.event.entity_type,{crypto_version:2,aad_version:2,nonce,ciphertext})
+    return {decoded,nonce:Array.from(nonce),ciphertext:Array.from(ciphertext),frame:Array.from(frameCatalogEvent(decoded))}
+  }
   if (request.action === 'structural_seal') {
     const object = await sealStructuralEvent(asAccountMasterKey(Uint8Array.from(request.amk)), request.payload)
     return { object: resolutionEnvelopeWire(object), nonce: Array.from(object.nonce), ciphertext: Array.from(object.ciphertext), frame: Array.from(frameStructuralEvent(request.payload)) }

@@ -120,6 +120,9 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        database.execute("DROP TRIGGER catalog_binding_removal_guard")
+        for table in ("cloud_catalog_inbox_blockers","cloud_catalog_candidates","cloud_catalog_local_conflicts","cloud_catalog_decisions","cloud_catalog_apply_ledger","cloud_catalog_projection","cloud_catalog_tips","cloud_catalog_events","cloud_catalog_state"):
+            database.execute(f"DROP TABLE {table}")
         # This fixture reconstructs v6 from latest; remove migration-030 guards
         # before old migrations rename the referenced generic inbox.
         database.execute("DROP TRIGGER project_inbox_cross_scope_insert")

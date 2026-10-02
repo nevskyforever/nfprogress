@@ -574,6 +574,26 @@ fn receive_resolution(request: &Value) -> Value {
     json!({"result":result,"ack":ack})
 }
 
+fn catalog_bridge(request:&Value)->Value {
+    use crate::account_catalog as catalog;
+    let mut db=open_database(&database_path(request)).expect("catalog database");
+    let scope=crate::project_metadata_sync::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+    let now="2026-10-02T00:00:00.000000Z";
+    match required_string(request,"step") {
+      "begin"=>catalog::begin(&mut db,&scope,now).unwrap(),
+      "authority"=>catalog::authority(&db,&scope).unwrap(),
+      "pending"=>json!(catalog::pending(&db,&scope,request["sealed"].as_bool().unwrap_or(false)).unwrap()),
+      "normal"=>json!(catalog::normal(&mut db,required_string(request,"entity_type"),required_string(request,"entity_id"),request["payload"].clone(),now).unwrap()),
+      "decide"=>{let decision=serde_json::from_value(request["decision"].clone()).unwrap();json!(catalog::decide(&mut db,&scope,&decision,now).unwrap())},
+      "seal"=>{catalog::seal(&mut db,&scope,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)},
+      "receipt"=>{catalog::receipt(&mut db,&scope,required_string(request,"event_id"),required_i64(request,"server_sequence")).unwrap();json!(true)},
+      "persist"=>{let command=serde_json::from_value(request["command"].clone()).unwrap();json!(crate::note_sync::commit_mixed_sync_inbound_page(&mut db,&command).unwrap())},
+      "apply"=>{let opened=&request["opened"];json!(catalog::apply(&mut db,&scope,required_string(request,"event_id"),&bytes(opened,"frame"),&bytes(opened,"nonce"),&bytes(opened,"ciphertext")).unwrap())},
+      "ack"=>serde_json::to_value(prepare_note_sync_ack(&mut db,&PrepareNoteSyncAckCommand{account_id:scope.account_id,device_id:scope.device_id,canonical_user_id:scope.canonical_user_id}).unwrap()).unwrap(),
+      _=>panic!("unknown catalog bridge step")
+    }
+}
+
 fn structural_bridge(request:&Value)->Value {
     use crate::stage_sync as stages;
     let mut db=open_database(&database_path(request)).expect("structural database");
@@ -669,6 +689,7 @@ fn c15_headless_native_bridge() {
     let response = match required_string(&request, "action") {
         "metadata_authority" => metadata_authority_bridge(&request),
         "structural" => structural_bridge(&request),
+        "catalog" => catalog_bridge(&request),
         "provision" => provision(&request),
         "bootstrap_prepare" => bootstrap_prepare(&request),
         "bootstrap_prepare_capture" => bootstrap_prepare_capture(&request),

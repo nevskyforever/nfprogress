@@ -2964,19 +2964,196 @@ TRANSLATION_OVERRIDES['de']['Для синхронизации настроек 
 TRANSLATION_OVERRIDES['fr']['Для синхронизации настроек подтвердите поддержку на всех устройствах, затем включите её для аккаунта.'] = 'Pour synchroniser les paramètres, confirmez leur prise en charge sur tous les appareils, puis activez-la pour le compte.'
 TRANSLATION_OVERRIDES['pt_BR']['Для синхронизации настроек подтвердите поддержку на всех устройствах, затем включите её для аккаунта.'] = 'Para sincronizar as configurações, confirme o suporte em todos os dispositivos e ative a sincronização para a conta.'
 
-# C18.4.04 extends the accepted cloud guide without retranslating its curated
+# C18.4.05 extends the accepted cloud guide without retranslating its curated
 # metadata/Stage paragraphs. Catalog terminology remains explicit in every locale.
 _ACCOUNT_CATALOG_HELP_SOURCE = next(section['content'] for section in HELP_SECTIONS if section['key'] == 'cloud_project_metadata')
 _ACCOUNT_CATALOG_HELP_RUSSIAN = _ACCOUNT_CATALOG_HELP_SOURCE.splitlines()[-2]
 _ACCOUNT_CATALOG_HELP_PREVIOUS = _ACCOUNT_CATALOG_HELP_SOURCE.replace('\n' + _ACCOUNT_CATALOG_HELP_RUSSIAN, '')
-_ACCOUNT_CATALOG_HELP_PARAGRAPHS = {
-    'en': '<p>If the app says “These data are not supported yet”, the received data stay on this device after a restart. Sync does not acknowledge their processing until this part of the cloud is supported. Folders and the order of local projects remain local; their presence does not connect projects to the cloud.</p>',
-    'es': '<p>Si la aplicación indica «Estos datos aún no son compatibles», los datos recibidos se conservan en este dispositivo después de reiniciar. La sincronización no confirma su procesamiento hasta que se admita esta parte de la nube. Las carpetas y el orden de los proyectos locales siguen siendo locales; su presencia no conecta los proyectos a la nube.</p>',
-    'de': '<p>Wenn die App „Diese Daten werden noch nicht unterstützt“ anzeigt, bleiben die empfangenen Daten auch nach einem Neustart auf diesem Gerät erhalten. Die Synchronisierung bestätigt ihre Verarbeitung erst, wenn dieser Teil der Cloud unterstützt wird. Ordner und die Reihenfolge lokaler Projekte bleiben lokal. Dadurch werden keine Projekte mit der Cloud verbunden.</p>',
-    'fr': '<p>Si l’application indique « Ces données ne sont pas encore prises en charge », les données reçues restent sur cet appareil après un redémarrage. La synchronisation ne confirme pas leur traitement tant que cette partie du cloud n’est pas prise en charge. Les dossiers et l’ordre des projets locaux restent locaux ; leur présence ne connecte pas les projets au cloud.</p>',
-    'pt_BR': '<p>Se o aplicativo informar “Estes dados ainda não são compatíveis”, os dados recebidos permanecem neste dispositivo após a reinicialização. A sincronização não confirma seu processamento até que essa parte da nuvem seja compatível. As pastas e a ordem dos projetos locais continuam locais; sua presença não conecta projetos à nuvem.</p>',
-}
+_ACCOUNT_CATALOG_HELP_PARAGRAPHS = {'en': '<p>Folders, placement and the order of connected projects can sync between devices. In '
+       'cloud settings, click “Check project structure”, then explicitly choose “Publish project '
+       'structure”. Local projects, their positions and folder membership stay on this device and '
+       'are not connected to the cloud. A folder can contain both local and connected projects. If '
+       'changes happen at the same time, choose a final version; saved versions are retained. '
+       'Deleting a folder does not delete projects or remove their placement: first explicitly '
+       'move projects or remove them from the folder. An unfinished publication can safely '
+       'continue after a restart.</p>',
+ 'es': '<p>Las carpetas, la ubicación y el orden de los proyectos conectados pueden sincronizarse '
+       'entre dispositivos. En la configuración de la nube, pulse «Comprobar estructura de '
+       'proyectos» y elija explícitamente «Publicar estructura de proyectos». Los proyectos '
+       'locales, sus posiciones y sus carpetas permanecen en este dispositivo y no se conectan a '
+       'la nube. Una carpeta puede contener proyectos locales y conectados. Si hay cambios '
+       'simultáneos, elija una versión final; las versiones guardadas se conservan. Eliminar una '
+       'carpeta no elimina proyectos ni su ubicación: primero muévalos o retírelos explícitamente '
+       'de la carpeta. Una publicación pendiente puede continuar de forma segura después de '
+       'reiniciar.</p>',
+ 'de': '<p>Ordner, Zuordnung und Reihenfolge verbundener Projekte können zwischen Geräten '
+       'synchronisiert werden. Klicken Sie in den Cloud-Einstellungen auf „Projektstruktur prüfen“ '
+       'und wählen Sie ausdrücklich „Projektstruktur veröffentlichen“. Lokale Projekte, ihre '
+       'Positionen und Ordnerzuordnungen bleiben auf diesem Gerät und werden nicht mit der Cloud '
+       'verbunden. Ein Ordner kann lokale und verbundene Projekte enthalten. Wählen Sie bei '
+       'gleichzeitigen Änderungen eine endgültige Version; gespeicherte Versionen bleiben '
+       'erhalten. Das Löschen eines Ordners löscht keine Projekte und entfernt keine Zuordnungen: '
+       'Verschieben Sie die Projekte zuerst ausdrücklich oder entfernen Sie sie aus dem Ordner. '
+       'Eine ausstehende Veröffentlichung lässt sich nach einem Neustart sicher fortsetzen.</p>',
+ 'fr': '<p>Les dossiers, le classement et l’ordre des projets connectés peuvent être synchronisés '
+       'entre appareils. Dans les paramètres du cloud, cliquez sur « Vérifier la structure des '
+       'projets », puis choisissez explicitement « Publier la structure des projets ». Les projets '
+       'locaux, leurs positions et leur dossier restent sur cet appareil et ne sont pas connectés '
+       'au cloud. Un dossier peut contenir des projets locaux et connectés. En cas de '
+       'modifications simultanées, choisissez une version finale ; les versions enregistrées sont '
+       'conservées. Supprimer un dossier ne supprime aucun projet ni son classement : déplacez '
+       'd’abord explicitement les projets ou retirez-les du dossier. Une publication inachevée '
+       'peut reprendre sans risque après un redémarrage.</p>',
+ 'pt_BR': '<p>As pastas, a organização e a ordem dos projetos conectados podem ser sincronizadas '
+          'entre dispositivos. Nas configurações da nuvem, clique em “Verificar estrutura dos '
+          'projetos” e escolha explicitamente “Publicar estrutura dos projetos”. Os projetos '
+          'locais, suas posições e suas pastas permanecem neste dispositivo e não são conectados à '
+          'nuvem. Uma pasta pode conter projetos locais e conectados. Se houver alterações '
+          'simultâneas, escolha uma versão final; as versões salvas são preservadas. Excluir uma '
+          'pasta não exclui projetos nem remove sua organização: primeiro mova os projetos '
+          'explicitamente ou remova-os da pasta. Uma publicação inacabada pode continuar com '
+          'segurança após reiniciar.</p>'}
 for _language, _paragraph in _ACCOUNT_CATALOG_HELP_PARAGRAPHS.items():
     _previous = TRANSLATION_OVERRIDES[_language].get(_ACCOUNT_CATALOG_HELP_PREVIOUS)
     if _previous:
         TRANSLATION_OVERRIDES[_language][_ACCOUNT_CATALOG_HELP_SOURCE] = _previous.replace('</body></html>', _paragraph + '\n</body></html>')
+
+# C18.4.05 curated account catalog terminology.
+_CATALOG_UI_TRANSLATIONS = {'Структура проектов': ['Project structure',
+                        'Estructura de proyectos',
+                        'Projektstruktur',
+                        'Structure des projets',
+                        'Estrutura dos projetos'],
+ 'Местные проекты останутся на этом устройстве. Публикация структуры начинается только по вашему выбору.': ['Local '
+                                                                                                            'projects '
+                                                                                                            'stay '
+                                                                                                            'on '
+                                                                                                            'this '
+                                                                                                            'device. '
+                                                                                                            'Publishing '
+                                                                                                            'the '
+                                                                                                            'structure '
+                                                                                                            'starts '
+                                                                                                            'only '
+                                                                                                            'when '
+                                                                                                            'you '
+                                                                                                            'choose.',
+                                                                                                            'Los '
+                                                                                                            'proyectos '
+                                                                                                            'locales '
+                                                                                                            'permanecen '
+                                                                                                            'en '
+                                                                                                            'este '
+                                                                                                            'dispositivo. '
+                                                                                                            'La '
+                                                                                                            'publicación '
+                                                                                                            'de '
+                                                                                                            'la '
+                                                                                                            'estructura '
+                                                                                                            'solo '
+                                                                                                            'comienza '
+                                                                                                            'cuando '
+                                                                                                            'usted '
+                                                                                                            'lo '
+                                                                                                            'elige.',
+                                                                                                            'Lokale '
+                                                                                                            'Projekte '
+                                                                                                            'bleiben '
+                                                                                                            'auf '
+                                                                                                            'diesem '
+                                                                                                            'Gerät. '
+                                                                                                            'Die '
+                                                                                                            'Veröffentlichung '
+                                                                                                            'der '
+                                                                                                            'Struktur '
+                                                                                                            'beginnt '
+                                                                                                            'nur '
+                                                                                                            'auf '
+                                                                                                            'Ihre '
+                                                                                                            'Entscheidung.',
+                                                                                                            'Les '
+                                                                                                            'projets '
+                                                                                                            'locaux '
+                                                                                                            'restent '
+                                                                                                            'sur '
+                                                                                                            'cet '
+                                                                                                            'appareil. '
+                                                                                                            'La '
+                                                                                                            'publication '
+                                                                                                            'de '
+                                                                                                            'la '
+                                                                                                            'structure '
+                                                                                                            'commence '
+                                                                                                            'uniquement '
+                                                                                                            'à '
+                                                                                                            'votre '
+                                                                                                            'demande.',
+                                                                                                            'Os '
+                                                                                                            'projetos '
+                                                                                                            'locais '
+                                                                                                            'permanecem '
+                                                                                                            'neste '
+                                                                                                            'dispositivo. '
+                                                                                                            'A '
+                                                                                                            'publicação '
+                                                                                                            'da '
+                                                                                                            'estrutura '
+                                                                                                            'só '
+                                                                                                            'começa '
+                                                                                                            'quando '
+                                                                                                            'você '
+                                                                                                            'escolher.'],
+ 'Проверить структуру проектов': ['Check project structure',
+                                  'Comprobar estructura de proyectos',
+                                  'Projektstruktur prüfen',
+                                  'Vérifier la structure des projets',
+                                  'Verificar estrutura dos projetos'],
+ 'Опубликовать структуру проектов': ['Publish project structure',
+                                     'Publicar estructura de proyectos',
+                                     'Projektstruktur veröffentlichen',
+                                     'Publier la structure des projets',
+                                     'Publicar estrutura dos projetos'],
+ 'Папка была изменена одновременно на нескольких устройствах': ['The folder changed on several '
+                                                                'devices at the same time',
+                                                                'La carpeta se modificó '
+                                                                'simultáneamente en varios '
+                                                                'dispositivos',
+                                                                'Der Ordner wurde auf mehreren '
+                                                                'Geräten gleichzeitig geändert',
+                                                                'Le dossier a été modifié '
+                                                                'simultanément sur plusieurs '
+                                                                'appareils',
+                                                                'A pasta foi alterada ao mesmo '
+                                                                'tempo em vários dispositivos'],
+ 'Расположение по папкам отличается': ['Folder placement differs',
+                                       'La ubicación en las carpetas es diferente',
+                                       'Die Ordnerzuordnung unterscheidet sich',
+                                       'Le classement dans les dossiers diffère',
+                                       'A organização em pastas é diferente'],
+ 'Порядок проектов изменён на нескольких устройствах': ['Project order changed on several devices',
+                                                        'El orden de los proyectos cambió en '
+                                                        'varios dispositivos',
+                                                        'Die Projektreihenfolge wurde auf mehreren '
+                                                        'Geräten geändert',
+                                                        'L’ordre des projets a été modifié sur '
+                                                        'plusieurs appareils',
+                                                        'A ordem dos projetos foi alterada em '
+                                                        'vários dispositivos'],
+ 'Добавить папку в облачную структуру': ['Add folder to cloud structure',
+                                         'Añadir carpeta a la estructura de la nube',
+                                         'Ordner zur Cloud-Struktur hinzufügen',
+                                         'Ajouter le dossier à la structure du cloud',
+                                         'Adicionar pasta à estrutura da nuvem'],
+ 'Порядок папок': ['Folder order',
+                   'Orden de carpetas',
+                   'Ordnerreihenfolge',
+                   'Ordre des dossiers',
+                   'Ordem das pastas'],
+ 'Выше': ['Move up', 'Subir', 'Nach oben', 'Monter', 'Mover para cima'],
+ 'Ниже': ['Move down', 'Bajar', 'Nach unten', 'Descendre', 'Mover para baixo']}
+for _source, _values in _CATALOG_UI_TRANSLATIONS.items():
+    for _language, _value in zip(("en", "es", "de", "fr", "pt_BR"), _values):
+        TRANSLATION_OVERRIDES[_language][_source] = _value
+
+for _language, _value in zip(('en','es','de','fr','pt_BR'), ('Folder','Carpeta','Ordner','Dossier','Pasta')):
+    TRANSLATION_OVERRIDES[_language]['Папка'] = _value

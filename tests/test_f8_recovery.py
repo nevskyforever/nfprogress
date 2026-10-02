@@ -172,6 +172,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 28: "028_stage_structural_sync.sql",
                 29: "029_stage_structural_integration.sql",
                 30: "030_account_sync_inbox.sql",
+                31: "031_account_catalog.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

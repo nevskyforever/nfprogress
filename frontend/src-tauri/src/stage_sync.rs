@@ -174,7 +174,7 @@ fn validate(e: &Event) -> Result<(), Error> {
     Ok(())
 }
 // ECMAScript notation and UTF-16 key order match the TS canonical codec.
-fn canonical(v: &Value) -> Result<String, Error> {
+pub(crate) fn canonical(v: &Value) -> Result<String, Error> {
     match v {
         Value::Array(a) => Ok(format!(
             "[{}]",

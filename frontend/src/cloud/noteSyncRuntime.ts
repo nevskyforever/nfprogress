@@ -1,4 +1,5 @@
-import { AccountObjectReader } from './accountObjectReader'
+import { AccountCatalogRuntime } from './accountCatalogRuntime'
+import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
 import { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { KeyNotProvisionedError, RuntimeKeyContext, type AuthoritativeKeyContextLease } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
@@ -113,6 +114,7 @@ export class NoteSyncRuntime {
   private readonly router: ProductionRunner
   private readonly bootstrap: ProjectBootstrapGate
   private readonly structural: StageStructuralRuntime
+  private readonly catalog: AccountCatalogRuntime
   private readonly metadata: ProjectMetadataMigrationRuntime
   private flight: { readonly key: string, readonly promise: Promise<NoteSyncProductionResult> } | null = null
   private disposed = false
@@ -128,6 +130,7 @@ export class NoteSyncRuntime {
     this.bootstrap = dependencies.bootstrap ?? composition.bootstrap
     this.metadata = composition.metadata
     this.structural = composition.structural
+    this.catalog = composition.catalog
   }
 
   async login(username: string, password: string): Promise<NoteSyncRuntimeLoginResult> {
@@ -317,6 +320,10 @@ export class NoteSyncRuntime {
       kind, selectedEventId, proposed, expectedLocal, expectedTips)
   }
 
+  async catalogAuthority():Promise<CatalogView>{const context=this.auth.requireContext(),identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.catalog.inspectCatalog(identity.local_account_id,identity.device_id)}
+  async beginCatalogMigration():Promise<CatalogView>{const context=this.auth.requireContext(),identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.catalog.beginCatalog(identity.local_account_id,identity.device_id)}
+  async decideCatalog(decision:CatalogDecision):Promise<string>{const context=this.auth.requireContext(),identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.catalog.decideCatalog(identity.local_account_id,identity.device_id,decision)}
+
   async lock(): Promise<void> {
     this.assertNotDisposed()
     await this.keys.lock()
@@ -334,7 +341,7 @@ export class NoteSyncRuntime {
     await this.keys.dispose()
   }
 
-  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime, structural: StageStructuralRuntime } {
+  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime, structural: StageStructuralRuntime, catalog: AccountCatalogRuntime } {
     const intents = new SQLiteNoteSyncIntentRepository()
     const outbox = new SQLiteNoteSyncOutboxRepository()
     const inboxRepository = new SQLiteNoteSyncInboxRepository()
@@ -365,8 +372,9 @@ export class NoteSyncRuntime {
       productionOrchestrator,
       new NoteSyncV2AckAdapter(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncAckRepository()),
     )
+    const catalog=new AccountCatalogRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const v3Cycle = new NoteSyncV3Cycle(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext,
-      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, new AccountObjectReader(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext))
+      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog)
     const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader, encryptedSyncV2Api, v3Cycle)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,
@@ -378,7 +386,7 @@ export class NoteSyncRuntime {
         runOnce: (localAccountId, deviceId) => router.runOnce(localAccountId, deviceId),
       },
     )
-    return { router, bootstrap, metadata, structural }
+    return { router, bootstrap, metadata, structural, catalog }
   }
 
   private async provisionFor(context: AuthContextSnapshot): Promise<CloudIdentity> {
