@@ -751,6 +751,15 @@ fn dependencies_ready(db: &Connection, a: &str, e: &Event) -> Result<()> {
         if !valid {
             return Err(Error::Code("catalog_project_unproven"));
         }
+        // A retained metadata proof establishes lineage, not present authority.
+        // Membership cannot apply through an unresolved/tombstoned local project.
+        if metadata::authority_view(db, a, id)
+            .map_err(|_| Error::Code("catalog_project_unproven"))?
+            .state
+            != "active"
+        {
+            return Err(Error::Code("catalog_project_unproven"));
+        }
     }
     for (id, hs) in &d.memberships {
         proof_ready(db, a, "folder_membership", id, hs, false)?;
@@ -1879,6 +1888,172 @@ mod tests {
             &[0; 16]
         )
         .is_err());
+        drop(db);
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn account_catalog_membership_waits_for_reconciled_metadata_after_restart() {
+        let (mut db, path) = setup();
+        seed(&mut db);
+        migrate(&mut db);
+        let payload = json!({"folder_id":null});
+        let parent = event(
+            &db,
+            "a",
+            &tips(&db, "a", "folder_membership", "C1").unwrap()[0],
+        )
+        .unwrap()
+        .unwrap();
+        let e = make(
+            &scope(),
+            "folder_membership",
+            "C1",
+            payload.clone(),
+            vec![parent.header.event_id],
+            2,
+            2,
+            dependencies(&db, "a", "folder_membership", "C1", &payload).unwrap(),
+            NOW,
+            false,
+        )
+        .unwrap();
+        // An authenticated old metadata ledger is not current reconciled authority.
+        db.execute(
+            "UPDATE projects SET name='Unreconciled local rename' WHERE id='C1'",
+            [],
+        )
+        .unwrap();
+        assert_ne!(
+            metadata::authority_view(&db, "a", "C1").unwrap().state,
+            "active"
+        );
+        assert_eq!(arrival(&mut db, &e, 9), "catalog_project_unproven");
+        assert!(!ack_proven(&db, "a", 9).unwrap());
+        assert_eq!(
+            db.query_row(
+                "SELECT folder_id FROM project_folder_members WHERE project_id='C1'",
+                [],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            "F1"
+        );
+        drop(db);
+        let mut db = crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(
+            frame(&event(&db, "a", &e.header.event_id).unwrap().unwrap()).unwrap(),
+            frame(&e).unwrap()
+        );
+        db.execute("UPDATE projects SET name='C1' WHERE id='C1'", [])
+            .unwrap();
+        assert_eq!(
+            metadata::authority_view(&db, "a", "C1").unwrap().state,
+            "active"
+        );
+        assert_eq!(arrival(&mut db, &e, 9), "applied");
+        assert!(ack_proven(&db, "a", 9).unwrap());
+        drop(db);
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn account_catalog_audit_stale_dependency_cannot_resume_after_new_resolution() {
+        let (mut db, path) = setup();
+        seed(&mut db);
+        migrate(&mut db);
+        normal(
+            &mut db,
+            "folder_order",
+            "folder_order",
+            json!({"ids":["F2","F1"]}),
+            NOW,
+        )
+        .unwrap();
+        let pending_order: Event =
+            serde_json::from_value(pending(&db, &scope(), false).unwrap()[0]["event"].clone())
+                .unwrap();
+        let raw = frame(&pending_order).unwrap();
+        let cipher = vec![17u8; raw.len() + 16];
+        seal(
+            &mut db,
+            &scope(),
+            &pending_order.header.event_id,
+            &raw,
+            &[0; 24],
+            &cipher,
+        )
+        .unwrap();
+        // A different device renames F1 before this frozen order is uploaded.
+        let parent = event(&db, "a", &tips(&db, "a", "folder", "F1").unwrap()[0])
+            .unwrap()
+            .unwrap();
+        let mut peer = scope();
+        peer.device_id = id(500);
+        let rename = make(
+            &peer,
+            "folder",
+            "F1",
+            json!({"name":"Renamed"}),
+            vec![parent.header.event_id],
+            2,
+            2,
+            Dependencies::default(),
+            NOW,
+            false,
+        )
+        .unwrap();
+        assert_eq!(arrival(&mut db, &rename, 9), "applied");
+        assert_eq!(
+            arrival(&mut db, &pending_order, 10),
+            "catalog_membership_changed"
+        );
+        // This records an unresolved P1, not an acceptance of permanent blocking.
+        let expected_tips = tips(&db, "a", "folder_order", "folder_order").unwrap();
+        let d = Decision {
+            entity_type: "folder_order".into(),
+            entity_id: "folder_order".into(),
+            expected_tips: expected_tips.clone(),
+            expected_local: local(&db, "a", "folder_order", "folder_order").unwrap(),
+            selected_event_id: Some(expected_tips[0].clone()),
+            proposed: Value::Null,
+        };
+        let rid = decide(&mut db, &scope(), &d, NOW).unwrap();
+        let r = event(&db, "a", &rid).unwrap().unwrap();
+        assert_eq!(arrival(&mut db, &r, 11), "applied");
+        assert!(ack_proven(&db, "a", 11).unwrap());
+        drop(db);
+        let mut db = crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(
+            arrival(&mut db, &pending_order, 10),
+            "catalog_membership_changed"
+        );
+        assert!(!ack_proven(&db, "a", 10).unwrap());
+        let ack = crate::note_sync::prepare_note_sync_ack(
+            &mut db,
+            &crate::note_sync::PrepareNoteSyncAckCommand {
+                account_id: "a".into(),
+                canonical_user_id: USER.into(),
+                device_id: DEVICE.into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(ack.candidate_cursor, 9);
+        let stored: (Vec<u8>, Vec<u8>) = db
+            .query_row(
+                "SELECT nonce,ciphertext FROM cloud_catalog_events WHERE event_id=?1",
+                [&pending_order.header.event_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(stored, (vec![0; 24], cipher));
+        assert_eq!(
+            frame(
+                &event(&db, "a", &pending_order.header.event_id)
+                    .unwrap()
+                    .unwrap()
+            )
+            .unwrap(),
+            frame(&pending_order).unwrap()
+        );
         drop(db);
         std::fs::remove_file(path).unwrap();
     }

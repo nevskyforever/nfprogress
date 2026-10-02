@@ -14,9 +14,10 @@ from test_cloud_c18_authority_cross_runtime import provision, bootstrap, native,
 ROOT=Path(__file__).resolve().parents[1]
 
 def structural(tmp,path,identity,user,step,**values):
+    project_id = values.pop('project_id', PROJECT_ID)
     return _native_bridge(tmp,dict(action='structural',database_path=str(path),
         local_account_id=identity['local_account_id'],device_id=identity['device_id'],
-        canonical_user_id=user,project_id=PROJECT_ID,step=step,**values))
+        canonical_user_id=user,project_id=project_id,step=step,**values))
 
 
 def event(identity,user,boot,meta,entity='S1',parent=None,stage=None,order=None,heads=None):

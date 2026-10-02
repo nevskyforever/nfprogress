@@ -1483,3 +1483,81 @@ Test/checkpoint-only correction `504355f94bf217b9e78d939b9aecef526b670deb`:
 **Remaining boundaries / next slice:** strict stale dependency, unsupported-source and resource blockers intentionally preserve data and require explicit reconciliation/continued support. Binding removal cannot claim remote deletion. Physical folder/history cleanup and project/structural destructive child manifests remain outside this slice. Recommend **C18.4.06 — STRUCTURAL / ACCOUNT CATALOG INTEGRATION ACCEPTANCE**, reviewing the complete metadata+Stage+catalog graph, destructive/tombstone boundaries, mixed local/cloud and shared ACK, residual blockers, convergence and any remaining child/delete-manifest proof before C18.4 closure. Do not close C18.4 or C18 here.
 
 **Permanent release notes preserved:** registration remains CLOSED and opens only by an explicit owner decision, never automatically at PF6.0/RC. Stabilization/dogfooding precedes public release; no invented duration. Final C22/PF6.0 terminology/message audit remains required. C21 order remains local browser build → Tauri dependency audit → repaired browser adapters → stable local Web → VPS/production only afterward. No future-stage implementation here. Commit `feat(c18): activate encrypted account catalog`, push origin/6.0; after push stop without polling/watching Actions. Expected **Cloud backend tests; SQLite sync substrate tests**. **C18.4 IN PROGRESS; C18 IN PROGRESS; official progress77.0%.**
+
+## C18.4.05 — independent remote acceptance
+
+**C18.4.05 — REMOTELY ACCEPTED.** Implementation SHA `d95e4c0d8612783e13950bd1aac8cfded318b44b`.
+Owner-supplied independent evidence: [SQLite sync substrate tests 36992277299](https://github.com/nevskyforever/nfprogress/actions/runs/36992277299) — **SUCCESS** (Python SQLite and Rust SQLite/Windows both green);
+[Cloud backend tests 36992277357](https://github.com/nevskyforever/nfprogress/actions/runs/36992277357) — **SUCCESS** (Frontend admin and PostgreSQL cloud backend both green).
+This supersedes C18.4.05 CI-pending statements above. Codex did not query Actions.
+**C18.4 IN PROGRESS; C18 IN PROGRESS; official progress exactly77.0%.**
+
+## C18.4.06 — structural / account catalog integration acceptance
+
+**LOCAL AUDIT COMPLETE / C18.4 NOT CLOSED / NEW REMOTE CI PENDING.**
+Preflight: `/Users/romankisockin/Desktop/nfprogress/ts_migration`, branch `6.0`;
+HEAD == local origin/6.0 == required `d95e4c0d8612783e13950bd1aac8cfded318b44b`, clean worktree.
+No reset/clean/destructive checkout/restore; protected engine/game_data `.pyc` untouched.
+
+Auditable acceptance matrix A–R and production wiring are in
+[C18.4 integration acceptance](cloud/C18_4_INTEGRATION_ACCEPTANCE.md).
+Metadata, Stage, Stage order, account2/2 crypto, normal catalog graph, local-only/mixed
+projection, conflicts/full-tip/stale decisions, retention, atomicity, security,
+diagnostics and friendly UX have accepted baseline plus focused local evidence.
+Project metadata tombstone ACK proves preserved intent only, as accepted in C18.3.04;
+it authorizes no destructive cleanup. Stage tombstones remain child-manifest blocked.
+Future child cleanup/manifests are **DEFERRED BY FROZEN DESIGN**, not manufactured gaps.
+
+**P0: none found. P1-01: fixed locally.** Catalog previously admitted membership
+through an old metadata ledger when current metadata was unreconciled. The failing
+baseline regression returned `applied` instead of `catalog_project_unproven`.
+The bounded production fix requires current referenced metadata authority `active`
+inside catalog readiness/apply transactions. Reopen/reconciliation retries the same
+retained event and safely obtains apply/ACK proof. No codec/crypto/schema/UI text changed;
+existing help/friendly waiting messages remain accurate.
+
+**P1-02: UNRESOLVED — blocks C18.4 closure.** A sealed folder-order event O captures
+old F1/F2 heads; another device's ordinary F1 rename applies at sequence9; O arrives
+at10 and remains `catalog_membership_changed`. A new explicit full-tip resolution R
+applies at11, but after reopen/retry O still has no ledger, its exact nonce/ciphertext
+remain unchanged, and the real common ACK candidate stays9. The new audit test
+records this deficiency; green regression output is not a complete-acceptance claim.
+Static project-order proof-map/current membership equality has the analogous recovery
+boundary. Existing tip-only decisions cannot complete a dependency-blocked non-tip.
+Retained data and safe ACK prevent P0, but permanent loss of progress is required C18.4
+behavior missing, not a later-content deferment or harmless cap.
+
+Do not weaken ACK, mutate old ciphertext, or silently drop the old operation.
+Generic bounded ancestry/dependency reconciliation plus complete-preservation proof
+affects multiple catalog entities and deserves corrective **C18.4.07 — CATALOG STALE
+DEPENDENCY RECOVERY / SHARED ACK PROOF**. Stop integration closure work at the documented
+evidence; C18.5 is not started and is not recommended before this corrective slice.
+
+The accepted PG catalog scenario is extended, without duplicate account/bootstrap setup,
+to one real account with metadata → two Stages → Stage order and folder/order → membership
+→ project order on two separately reopened native SQLite devices. L1 exists only on A;
+catalog conflicts resolve explicitly; both server and local ACK cursors converge before
+the deliberate folder blocker; a subsequent Stage event applies on both devices while
+the mixed contiguous ACK correctly stops before the account blocker.
+
+Focused checks: **38 frontend PASS /8 files; 37 Rust PASS** (catalog9, metadata
+acceptance4, Stage20, account transport4); cargo check PASS; **64 Python SQLite PASS**;
+**one integrated PostgreSQL PASS, 0 skipped /99.49s**; affected Python syntax compiled
+in memory without bytecode; `git diff --check` PASS. No TS/Vue changes, so no redundant
+typecheck/build/browser run: independently accepted C18.4.05 results remain baseline
+evidence. This is a focused SQLite subset, not a new full CI-equivalent claim.
+Native new tests match existing Windows/Cloud catalog filters; PG modules are already
+mandatory in Cloud. Workflow triggers already cover the changed native file; no workflow
+change or timeout increase (PostgreSQL stays40 minutes).
+
+**P2:** full graphical native/Windows E2E and broader manual device runs remain release
+hardening at C22/C23/PF6.0. Preserve release gate unchanged: registration CLOSED until
+owner dogfoods/stabilizes, fixes release blockers, reviews diagnostics, performs the
+final terminology audit and critical manual tests, then explicitly decides to open it;
+PF6.0/RC never opens it automatically. C22/PF6.0 final terminology audit remains required.
+C21 remains local browser build → Tauri dependency audit → browser adapters → stable
+local Web → VPS/production. No telemetry, account game, C18.5 or destructive cleanup work.
+
+Publish a truthful bounded-fix/audit commit to origin/6.0, then stop without polling
+Actions. Expected **Cloud backend tests; SQLite sync substrate tests**. New remote CI
+**PENDING — not polled by Codex**. **C18.4 IN PROGRESS; C18 IN PROGRESS; official progress77.0%.**

@@ -10,16 +10,18 @@ from test_cloud_c18_authority_cross_runtime import provision, bootstrap, native,
 from test_cloud_c18_structural_cross_runtime import structural, event
 
 
-def publish_pending(client,tmp,token,path,identity,user,amk,lose_response=False):
-    for pending in structural(tmp,path,identity,user,'pending'):
+def publish_pending(client,tmp,token,path,identity,user,amk,lose_response=False,project_id=PROJECT_ID):
+    def scoped(step, **values):
+        return structural(tmp,path,identity,user,step,project_id=project_id,**values)
+    for pending in scoped('pending'):
         e=pending['event'];h=e['header']
         sealed=_crypto_bridge(tmp,dict(action='structural_seal',payload=e,amk=amk))
-        structural(tmp,path,identity,user,'seal',event_id=h['event_id'],frame=sealed['frame'],nonce=sealed['nonce'],ciphertext=sealed['ciphertext'])
-    pending=structural(tmp,path,identity,user,'pending',sealed=True)
+        scoped('seal',event_id=h['event_id'],frame=sealed['frame'],nonce=sealed['nonce'],ciphertext=sealed['ciphertext'])
+    pending=scoped('pending',sealed=True)
     for row in pending:
         e=row['event'];h=e['header']
         # Production sealed list survives native process restart and exact replay.
-        assert row in structural(tmp,path,identity,user,'pending',sealed=True)
+        assert row in scoped('pending',sealed=True)
         import base64
         b64=lambda value:base64.urlsafe_b64encode(bytes(value)).decode().rstrip('=')
         wire={k:h[k] for k in ('event_id','project_id','entity_id','entity_type','revision','updated_at')}
@@ -29,10 +31,10 @@ def publish_pending(client,tmp,token,path,identity,user,amk,lose_response=False)
         if lose_response:
             # Server persisted the object; local receipt is deliberately absent.
             replay=client.post('/api/v3/sync/encrypted/push',headers=_headers(token),json=body);assert replay.status_code==200 and replay.json()['results'][0]['duplicate']
-            assert row in structural(tmp,path,identity,user,'pending',sealed=True)
+            assert row in scoped('pending',sealed=True)
             receipt=replay.json()['results'][0]
         else:receipt=response.json()['results'][0]
-        structural(tmp,path,identity,user,'receipt',event_id=h['event_id'],server_sequence=receipt['server_sequence'],duplicate=receipt['duplicate'])
+        scoped('receipt',event_id=h['event_id'],server_sequence=receipt['server_sequence'],duplicate=receipt['duplicate'])
     return [row['event'] for row in pending]
 
 

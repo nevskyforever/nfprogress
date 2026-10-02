@@ -1,13 +1,16 @@
-"""One bounded real PG / production TS v2 / two file-backed native device proof."""
+"""One bounded metadata/Stage/catalog graph using real PG and two reopened native devices."""
 from __future__ import annotations
 import base64
 import json
 import os
 import sqlite3
+from copy import deepcopy
 from datetime import datetime, timezone
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
 from test_cloud_c15_headless_cross_runtime import _crypto_bridge, _native_bridge, _headers
 from test_cloud_c18_authority_cross_runtime import provision
+from test_cloud_c18_structural_cross_runtime import ROOT
+from test_cloud_c18_structural_integration import publish_pending
 
 NOW = '2026-10-02T00:00:00.000000Z'
 
@@ -55,10 +58,12 @@ def pull(tmp,client,token,path,identity,user,amk):
     native(tmp,path,identity,user,step='persist',command=dict(account_id=identity['local_account_id'],device_id=identity['device_id'],canonical_user_id=user,expected_cursor=cursor,next_cursor=page['next_cursor'],has_more=page['has_more'],items=rows))
     outcomes=[]
     for item in page['items']:
-        opened=_crypto_bridge(tmp,dict(action='catalog_open',canonical_user_id=user,amk=amk,item=item))
-        outcomes.append(native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened))
+        account=item['event'].get('scope')=='account'
+        opened=_crypto_bridge(tmp,dict(action='catalog_open' if account else 'structural_open',canonical_user_id=user,amk=amk,item=item))
+        route={} if account else dict(action='structural',project_id=item['event']['project_id'])
+        outcomes.append(native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened,**route))
         # Duplicate authenticated apply reopens again and produces the same proof.
-        assert native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened)==outcomes[-1]
+        assert native(tmp,path,identity,user,step='apply',event_id=item['event']['event_id'],opened=opened,**route)==outcomes[-1]
     return outcomes
 
 
@@ -101,6 +106,31 @@ def test_account_catalog_explicit_migration_two_native_devices_v2_postgresql(clo
             opened=_crypto_bridge(tmp_path,dict(action='metadata_open',canonical_user_id=user,amk=amk,item=item))
             native(tmp_path,path,i,user,action='metadata_authority',project_id=row['project_id'],step='receive',command=dict(account_id=i['local_account_id'],device_id=i['device_id'],canonical_user_id=user,expected_cursor=cursor,next_cursor=row['server_sequence'],has_more=False,items=[row]),opened=opened)
             cursor=row['server_sequence']
+    def stage(path, identity, step, **values):
+        return native(tmp_path,path,identity,user,action='structural',project_id='C1',step=step,**values)
+
+    # Extend the accepted catalog scenario with the missing complete structural
+    # graph, rather than repeating its expensive account/bootstrap setup.
+    portable_stage=json.loads((ROOT/'frontend/src/cloud/__fixtures__/stageCodecV1.json').read_text())['event']['stage']
+    with sqlite3.connect(a) as db:
+        for pos,sid in enumerate(('S1','S2')):
+            s=deepcopy(portable_stage);s['name']=sid
+            db.execute('INSERT INTO stages(id,project_id,name,goal,infinite,unit,status,created_at,payload_json) VALUES(?,?,?,?,?,?,?,?,?)',
+                (sid,'C1',s['name'],s['goal'],int(s['infinite']),s['unit'],s['status'],s['created_at'],json.dumps(s)))
+            db.execute('INSERT INTO stage_order VALUES(?,?,?)',(sid,'C1',pos))
+    assert stage(a,ia,'authority')['state']=='structural_local'
+    assert native(tmp_path,a,ia,user)['state']=='catalog_local'
+    stage(a,ia,'begin')
+    assert len(publish_pending(client,tmp_path,token,a,ia,user,amk,True,project_id='C1'))==2
+    for path,i in ((a,ia),(b,ib)):
+        assert pull(tmp_path,client,token,path,i,user,amk)==['applied','applied']
+        stage(path,i,'advance')
+    assert len(publish_pending(client,tmp_path,token,a,ia,user,amk,True,project_id='C1'))==1
+    for path,i in ((a,ia),(b,ib)):
+        assert pull(tmp_path,client,token,path,i,user,amk)==['applied']
+        assert stage(path,i,'authority')['state']=='active'
+        assert native(tmp_path,path,i,user)['state']=='catalog_local'
+
     with sqlite3.connect(a) as db:
         for pos,(f,n) in enumerate((('F1','Work'),('F2','Archive'))):db.execute('INSERT INTO project_folders VALUES(?,?,?,?)',(f,n,pos,json.dumps(dict(id=f,name=n))))
         for p,f in (('C1','F1'),('L1','F1'),('C2','F2')):db.execute('INSERT INTO project_folder_members VALUES(?,?)',(p,f))
@@ -131,15 +161,32 @@ def test_account_catalog_explicit_migration_two_native_devices_v2_postgresql(clo
         assert resolution['header']['parent_event_ids']==sorted(e['header']['event_id'] for e in edits)
         for path,i in ((a,ia),(b,ib)):
             pull(tmp_path,client,token,path,i,user,amk);assert native(tmp_path,path,i,user)['state']=='active'
+    # Both readers share one confirmed cursor after resolving catalog conflicts.
+    for path,i in ((a,ia),(b,ib)):
+        with sqlite3.connect(path) as db: latest=db.execute('SELECT pull_cursor FROM cloud_sync_state').fetchone()[0]
+        assert native(tmp_path,path,i,user,step='ack')['candidate_cursor']==latest
+        assert client.post('/api/v3/sync/encrypted/ack',headers=headers,json=dict(protocol_version=3,encrypted_sync_version=3,device_id=i['device_id'],cursor=latest)).status_code==204
+        committed=native(tmp_path,path,i,user,action='commit_ack',project_id='C1',expected_old_ack_cursor=0,acknowledged_cursor=latest)
+        assert committed['ack_cursor']==latest
+        with sqlite3.connect(path) as db:
+            assert db.execute("SELECT stage_id FROM stage_order WHERE project_id='C1' ORDER BY position").fetchall()==[('S1',),('S2',)]
+            assert db.execute("SELECT count(*) FROM projects WHERE id='L1'").fetchone()[0]==(1 if path==a else 0)
+
     assert native(tmp_path,a,ia,user,step='normal',entity_type='folder',entity_id='F2',payload=None)
     push(tmp_path,client,token,a,ia,user,amk,lost=True)
+    edited=deepcopy(portable_stage);edited['name']='Stage after account blocker'
+    stage(a,ia,'edit',stage_id='S1',proposed=edited)
+    assert len(publish_pending(client,tmp_path,token,a,ia,user,amk,True,project_id='C1'))==1
     for path,i in ((a,ia),(b,ib)):
-        assert pull(tmp_path,client,token,path,i,user,amk)==['catalog_folder_has_members']
+        assert pull(tmp_path,client,token,path,i,user,amk)==['catalog_folder_has_members','applied']
         assert native(tmp_path,path,i,user)['state']=='blocked'
         with sqlite3.connect(path) as db:
             assert db.execute("SELECT folder_id FROM project_folder_members WHERE project_id='C2'").fetchone()==('F2',)
             latest=db.execute('SELECT pull_cursor FROM cloud_sync_state').fetchone()[0]
-        assert native(tmp_path,path,i,user,step='ack')['candidate_cursor']==latest-1
+        assert native(tmp_path,path,i,user,step='ack')['candidate_cursor']==latest-2
+        assert stage(path,i,'authority')['state']=='active'
+        with sqlite3.connect(path) as db:
+            assert db.execute("SELECT name FROM stages WHERE id='S1'").fetchone()[0]=='Stage after account blocker'
     with sqlite3.connect(a) as db:
         assert db.execute("SELECT folder_id FROM project_folder_members WHERE project_id='L1'").fetchone()==('F1',)
         assert db.execute("SELECT project_id FROM project_order ORDER BY position").fetchall()==[('L1',),('C2',),('C1',)]
