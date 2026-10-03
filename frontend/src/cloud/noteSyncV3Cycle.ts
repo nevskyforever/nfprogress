@@ -21,6 +21,7 @@ export interface NoteSyncV3CycleResult {
   readonly noteUploaded: number
   readonly resolutionUploaded: number
   readonly metadataUploaded: number
+  readonly documentApply?: import("./documentSyncRuntime").DocumentApplyResult
   readonly mapApply?: import("./mapSyncRuntime").MapApplyResult
   readonly structuralApply?: MetadataApplyResult
   readonly pulled: readonly CommitInboundPageResult[]
@@ -49,6 +50,7 @@ export class NoteSyncV3Cycle {
     private readonly accountReader?: AccountObjectReader & Partial<Pick<import("./accountCatalogRuntime").AccountCatalogRuntime,"sealCatalog"|"uploadCatalog">>,
     private readonly contentNotes?: ContentNoteReader & Partial<Pick<import("./contentNoteRuntime").ContentNoteRuntime,"declareSupport"|"sealNotes"|"uploadNotes">>,
     private readonly maps?: import("./mapSyncRuntime").MapSyncRuntime,
+    private readonly documents?: import("./documentSyncRuntime").DocumentSyncRuntime,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -64,12 +66,13 @@ export class NoteSyncV3Cycle {
     const stages: string[] = [], pulled: CommitInboundPageResult[] = [], blocked: string[] = []
     const errors: Array<{ stage: string; code: string }> = []
     let noteUploaded = 0, resolutionUploaded = 0, metadataUploaded = 0, hasRemainingWork = false
+    let documentApply: import("./documentSyncRuntime").DocumentApplyResult | undefined
     let mapApply: import("./mapSyncRuntime").MapApplyResult | undefined
     let structuralApply: MetadataApplyResult | undefined
     let abort = false
     let noteApply: NoteSyncMixedInboxResult | undefined, metadataApply: MetadataApplyResult | undefined, ack: MetadataAckResult | undefined
     const result = (): NoteSyncV3CycleResult => ({ stages, noteUploaded, resolutionUploaded, metadataUploaded,
-      pulled, noteApply, metadataApply, structuralApply, mapApply, ack, blocked, errors, hasRemainingWork })
+      pulled, noteApply, metadataApply, structuralApply, mapApply, documentApply, ack, blocked, errors, hasRemainingWork })
     const stage = async (name: string, action: () => Promise<void>): Promise<boolean> => {
       stages.push(name)
       try { await action(); return true }
@@ -96,6 +99,7 @@ export class NoteSyncV3Cycle {
     })) return result()
     if (!await stage('register_device', async () => { await this.device.registerOnce(accountId, deviceId) })) return result()
     if(this.contentNotes?.declareSupport) await stage('declare_note_readers',async()=>{await this.contentNotes!.declareSupport!(accountId,deviceId)})
+    if(this.documents) await stage('declare_document_readers',async()=>{await this.documents!.declareSupport(accountId,deviceId)})
     if(this.maps) await stage('declare_map_readers',async()=>{await this.maps!.declareSupport(accountId,deviceId)})
     if (!await stage('seal_notes', async () => {
       await mode()
@@ -106,6 +110,7 @@ export class NoteSyncV3Cycle {
     if (this.structural) await stage('seal_structure', async () => { await mode(); const count = await this.structural!.sealOnce(accountId, deviceId); hasRemainingWork ||= count === 8 })
     if(this.accountReader?.sealCatalog) await stage('seal_catalog',async()=>{await mode();hasRemainingWork ||= await this.accountReader!.sealCatalog!(accountId,deviceId)===8})
     if(this.contentNotes?.sealNotes) await stage('seal_content_notes',async()=>{hasRemainingWork ||= await this.contentNotes!.sealNotes!(accountId,deviceId)===8})
+    if(this.documents) await stage('seal_documents',async()=>{const count=await this.documents!.sealDocuments(accountId,deviceId);hasRemainingWork ||= count===8})
     if(this.maps) await stage('seal_maps',async()=>{const count=await this.maps!.sealMaps(accountId,deviceId);hasRemainingWork ||= count===8})
     if (abort) return result()
     // A lost upload response must not prevent the self echo from being pulled.
@@ -120,6 +125,7 @@ export class NoteSyncV3Cycle {
     if(this.accountReader?.uploadCatalog) await stage('upload_catalog',async()=>{await mode();await this.accountReader!.uploadCatalog!(accountId,deviceId)})
     if(abort)return result()
     if(this.contentNotes?.uploadNotes) await stage('upload_content_notes',async()=>{await this.contentNotes!.uploadNotes!(accountId,deviceId)})
+    if(this.documents) await stage('upload_documents',async()=>{const count=await this.documents!.uploadDocuments(accountId,deviceId);hasRemainingWork ||= count===8})
     if(this.maps) await stage('upload_maps',async()=>{const count=await this.maps!.uploadMaps(accountId,deviceId);hasRemainingWork ||= count===8})
     for (let page = 0; page < limits.maxPullPages; page += 1) {
       if (!await stage('pull_v3', async () => { await mode(); pulled.push(await this.metadata.pullOnce(accountId, deviceId)) })) return result()
@@ -153,6 +159,7 @@ export class NoteSyncV3Cycle {
       hasRemainingWork ||= account.hasRemainingWork || account.blocked.length > 0
     })) return result()
     if(this.maps && !await stage('apply_maps',async()=>{mapApply=await this.maps!.readOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...mapApply.blocked);hasRemainingWork ||= mapApply.hasRemainingWork}))return result()
+    if(this.documents && !await stage('apply_documents',async()=>{await mode();documentApply=await this.documents!.readOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...documentApply.blocked);hasRemainingWork ||= documentApply.hasRemainingWork}))return result()
     await stage('ack_v3', async () => { await mode(); ack = await this.metadata.ackOnce(accountId, deviceId); hasRemainingWork ||= ack.status === 'stale'; diagnostics.record('sync','sync_cycle','ack_result',undefined,{status:ack.status,pending:blocked.length}) })
     return result()
   }

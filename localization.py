@@ -3198,3 +3198,13 @@ for _language, _title in {'en': 'Project and stage maps in the cloud', 'es': 'Ma
 
 for _language, _text in {"en":"This device’s map", "es":"Mapa de este dispositivo", "de":"Karte dieses Geräts", "fr":"Carte de cet appareil", "pt_BR":"Mapa deste dispositivo"}.items():
     TRANSLATION_OVERRIDES[_language]["Карта этого устройства"] = _text
+
+# Stable document publication/scope terminology across supported languages.
+for _language, _values in {
+    'en': ('Publish documents', 'Move document', 'Delete document'),
+    'es': ('Publicar documentos', 'Mover documento', 'Eliminar documento'),
+    'de': ('Dokumente veröffentlichen', 'Dokument verschieben', 'Dokument löschen'),
+    'fr': ('Publier les documents', 'Déplacer le document', 'Supprimer le document'),
+    'pt_BR': ('Publicar documentos', 'Mover documento', 'Excluir documento'),
+}.items():
+    TRANSLATION_OVERRIDES[_language].update(dict(zip(('Опубликовать документы', 'Перенести документ', 'Удалить документ'), _values)))

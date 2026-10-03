@@ -120,6 +120,11 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        # Remove schema35 document sidecars before reconstructing v6.
+        for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'document_%'").fetchall():
+            database.execute(f'DROP TRIGGER "{name}"')
+        for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'cloud_document_%'").fetchall():
+            database.execute(f'DROP TABLE "{name}"')
         # Remove schema34 map sidecars before reconstructing the older fixture.
         for table in ("cloud_map_combined_groups", "cloud_map_local_drafts", "cloud_map_import_decisions",
                       "cloud_map_decisions", "cloud_map_local_candidates", "cloud_map_apply_ledger",

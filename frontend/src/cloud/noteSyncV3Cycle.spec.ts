@@ -7,7 +7,7 @@ const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const PAGE = { committed_cursor: 1, new_events: 1, replayed_events: 0, has_more: false }
 
-async function setup(structuralEnabled = false, accountEnabled = false, contentEnabled = false, mapEnabled = false) {
+async function setup(structuralEnabled = false, accountEnabled = false, contentEnabled = false, mapEnabled = false, documentEnabled = false) {
   const auth = new NormalUserAuthRuntime({
     login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
     refresh: vi.fn(), logout: vi.fn(), me: vi.fn().mockResolvedValue({ id: USER, username: 'u',
@@ -54,9 +54,10 @@ async function setup(structuralEnabled = false, accountEnabled = false, contentE
     readOnce: vi.fn(async () => { calls.push('apply_maps'); return { blocked: [], listed: 1,
       applied: 1, conflicts: 0, hasRemainingWork: false } }),
   }
+  const documents={declareSupport:vi.fn(async()=>{calls.push('declare_documents')}),sealDocuments:vi.fn(async()=>{calls.push('seal_documents');return 0}),uploadDocuments:vi.fn(async()=>{calls.push('upload_documents');return 0}),readOnce:vi.fn(async()=>{calls.push('apply_documents');return {listed:1,applied:0,conflicts:0,blocked:['document_unsupported_extension'],hasRemainingWork:true}})}
   const cycle = new NoteSyncV3Cycle(auth, bindings as never, identity as never, keys as never,
-    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined, contentEnabled ? content as never : undefined, mapEnabled ? maps as never : undefined)
-  return { account, structural, maps, cycle, calls, capabilities, intents, note, resolution, metadata,
+    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined, contentEnabled ? content as never : undefined, mapEnabled ? maps as never : undefined, documentEnabled ? documents as never : undefined)
+  return { documents, account, structural, maps, cycle, calls, capabilities, intents, note, resolution, metadata,
     mode: (value: number) => { writerMode = value } }
 }
 
@@ -72,6 +73,7 @@ describe('mode-3 Note and metadata cycle', () => {
     expect(r.blocked).toContain('orphan');expect(r.hasRemainingWork).toBe(true)
     expect(r.stages.filter(s=>s.includes('content'))).toEqual(['apply_content_notes'])
   })
+  it('documents apply after dependencies and before contiguous ACK even after lost upload',async()=>{const h=await setup(true,true,true,true,true);h.documents.uploadDocuments.mockRejectedValueOnce(new Error('lost_response'));const r=await h.cycle.runOnce('local',DEVICE);expect(h.calls.indexOf('apply_structure')).toBeLessThan(h.calls.indexOf('apply_documents'));expect(h.calls.indexOf('apply_maps')).toBeLessThan(h.calls.indexOf('apply_documents'));expect(h.calls.indexOf('apply_documents')).toBeLessThan(h.calls.indexOf('ack'));expect(r.documentApply?.blocked).toEqual(['document_unsupported_extension']);expect(r.hasRemainingWork).toBe(true)})
   it('runs one bounded mixed cycle and ACKs only after both appliers', async () => {
     const h = await setup()
     const result = await h.cycle.runOnce('local', DEVICE)

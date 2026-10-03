@@ -1,3 +1,4 @@
+import type {DocumentAuthorityView,DocumentDecision} from '@/cloud/documentSyncRuntime'
 import type {MapAuthorityView,MapDecision} from '@/cloud/mapSyncRuntime'
 import type { ContentNoteConflict, ContentNoteMigrationView } from '@/cloud/contentNoteRuntime'
 import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
@@ -94,6 +95,11 @@ export interface CloudSessionRuntime {
   decideCatalog?(decision:CatalogDecision):Promise<string>
   projectMapAuthority?(projectId:string):Promise<MapAuthorityView>
   beginMapMigration?(projectId:string):Promise<MapAuthorityView>
+  projectDocumentAuthority?(projectId:string):Promise<DocumentAuthorityView>
+  beginDocumentMigration?(projectId:string):Promise<DocumentAuthorityView>
+  chooseDocumentVersion?(decision:DocumentDecision):Promise<void>
+  moveDocument?(projectId:string,id:string,stage:string|null,expected:unknown):Promise<void>
+  deleteDocument?(projectId:string,id:string,expected:unknown):Promise<void>
   chooseMapVersion?(decision:MapDecision,keepLocal?:boolean):Promise<void>
   projectNoteAuthority?(projectId:string):Promise<ContentNoteMigrationView>
   beginNoteMigration?(projectId:string):Promise<ContentNoteMigrationView>
@@ -203,6 +209,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     metadataTransportMode.value = null
     metadataAuthority.value = {}
     structuralAuthority.value = {}
+    documentAuthority.value = {}
     mapAuthority.value = {}
     noteAuthority.value = {}
     noteConflicts.value = {}
@@ -386,9 +393,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         }, correlation)
         if (current(epoch)) await refreshProjects()
         if (current(epoch) && result.transport_version === 3) {
+          const documentsChanged=(result.cycle.documentApply?.applied??0)+(result.cycle.documentApply?.conflicts??0)
+          if(documentsChanged>0)for(const projectId of Object.keys(documentAuthority.value)){if(!current(epoch))break;await inspectDocuments(projectId)}
           const mapsChanged=(result.cycle.mapApply?.applied??0)+(result.cycle.mapApply?.conflicts??0)
           if(mapsChanged>0)for(const projectId of Object.keys(mapAuthority.value)){if(!current(epoch))break;await inspectMaps(projectId)}
-          if(current(epoch)&&((result.cycle.metadataApply?.applied??0)+(result.cycle.structuralApply?.applied??0)+mapsChanged)>0)announceDataChange('projects')
+          if(current(epoch)&&((result.cycle.metadataApply?.applied??0)+(result.cycle.structuralApply?.applied??0)+mapsChanged+documentsChanged)>0)announceDataChange('projects')
         }
         applyCycle(result, epoch)
       } catch (error) {
@@ -600,6 +609,12 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function decideCatalog(decision:CatalogDecision):Promise<void>{await diagnostics.run('projects','conflict_resolution',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.decideCatalog)throw new Error('catalog_runtime_unavailable');await runtime.decideCatalog(decision);if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
 
   const noteConflicts=ref<Record<string,ContentNoteConflict[]>>({})
+  const documentAuthority=ref<Record<string,DocumentAuthorityView>>({})
+  async function inspectDocuments(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectDocumentAuthority)throw new Error('document_runtime_unavailable');const view=await runtime.projectDocumentAuthority(projectId);if(current(epoch))documentAuthority.value={...documentAuthority.value,[projectId]:view}}
+  async function beginDocuments(projectId:string):Promise<void>{await diagnostics.run('migrations','document_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginDocumentMigration)throw new Error('document_runtime_unavailable');await runtime.beginDocumentMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectDocuments(projectId)})}
+  async function chooseDocumentVersion(decision:DocumentDecision):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.chooseDocumentVersion)throw new Error('document_runtime_unavailable');await runtime.chooseDocumentVersion(decision);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectDocuments(decision.project_id);if(current(epoch))announceDataChange('projects')}
+  async function moveDocument(projectId:string,id:string,stage:string|null,expected:unknown):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.moveDocument)throw new Error('document_runtime_unavailable');await runtime.moveDocument(projectId,id,stage,expected);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectDocuments(projectId);if(current(epoch))announceDataChange('projects')}
+  async function deleteDocument(projectId:string,id:string,expected:unknown):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.deleteDocument)throw new Error('document_runtime_unavailable');await runtime.deleteDocument(projectId,id,expected);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectDocuments(projectId);if(current(epoch))announceDataChange('projects')}
   const mapAuthority=ref<Record<string,MapAuthorityView>>({})
   async function inspectMaps(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectMapAuthority)throw new Error('map_runtime_unavailable');const view=await runtime.projectMapAuthority(projectId);if(current(epoch))mapAuthority.value={...mapAuthority.value,[projectId]:view}}
   async function beginMaps(projectId:string):Promise<void>{await diagnostics.run('migrations','map_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginMapMigration)throw new Error('map_runtime_unavailable');await runtime.beginMapMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectMaps(projectId)})}
@@ -753,6 +768,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,
     bootstrapProject, importProject, resumeProject, pauseProject,
+    documentAuthority,inspectDocuments,beginDocuments,chooseDocumentVersion,moveDocument,deleteDocument,
     mapAuthority,inspectMaps,beginMaps,chooseMapVersion,
     noteAuthority,noteConflicts,inspectNotes,beginNotes,chooseNoteVersion,
     retry, inspectProjectMetadata, prepareMetadataTransport, declareMetadataReaderReady, cutoverMetadataTransport,

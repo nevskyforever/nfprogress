@@ -1,0 +1,9 @@
+import {mount,flushPromises} from '@vue/test-utils'
+import {createPinia,setActivePinia} from 'pinia'
+import {it,expect,vi} from 'vitest'
+import {useCloudSessionStore} from '@/stores/cloudSession'
+import {projectsApi} from '@/api/projects'
+import Panel from './DocumentAuthorityPanel.vue'
+function setup(){const pinia=createPinia();setActivePinia(pinia);const cloud=useCloudSessionStore();const begin=vi.spyOn(cloud,'beginDocuments').mockResolvedValue();const choose=vi.spyOn(cloud,'chooseDocumentVersion').mockResolvedValue();vi.spyOn(projectsApi,'get').mockResolvedValue({stages:[]} as never);const wrapper=mount(Panel,{props:{projectId:'p'},global:{plugins:[pinia],stubs:{EditorContent:true}}});return {cloud,begin,choose,wrapper}}
+it('opening never publishes and explicit action publishes only selected project',async()=>{const h=setup();expect(h.begin).not.toHaveBeenCalled();await h.wrapper.findAll('button').find(b=>b.text()==='Опубликовать документы')!.trigger('click');await flushPromises();expect(h.begin).toHaveBeenCalledWith('p');h.wrapper.unmount()})
+it('whole version choice carries exact visible tips/local and human-readable blocker',async()=>{const h=setup();const owner={entity_id:'doc',stage_id:null,state:'conflict',blocker:null,tips:['a','b'],local:null,versions:[{event_id:'a',revision:2,mutation:'delete',document:null},{event_id:'b',revision:2,mutation:'delete',document:null}]};h.cloud.documentAuthority.p={owners:[owner],blocker:'document_unsupported_extension'};await flushPromises();expect(h.wrapper.text()).toContain('Документ пока нельзя безопасно синхронизировать');await h.wrapper.findAll('button').find(b=>b.text()==='Использовать эту версию')!.trigger('click');await flushPromises();expect(h.choose).toHaveBeenCalledWith({project_id:'p',document_id:'doc',expected_tips:['a','b'],expected_local:null,selected_event_id:'a'});expect(h.wrapper.text()).not.toContain('content_json');h.wrapper.unmount()})

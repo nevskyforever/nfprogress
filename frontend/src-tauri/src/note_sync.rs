@@ -6709,6 +6709,8 @@ fn contiguous_applied_ack_prefix(
             if !crate::account_catalog::ack_proven(transaction,account_id,next).map_err(|_|NoteSyncError::InvalidEnvelope("catalog ACK proof unavailable"))? { break; }
             candidate=next; continue;
         }
+        let document:bool=transaction.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence=?2 AND entity_type='document')",rusqlite::params![account_id,next],|r|r.get(0))?;
+        if document {if !crate::document_sync::ack_proven(transaction,account_id,next)?{break}candidate=next;continue;}
         let map: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence=?2 AND entity_type='map')",rusqlite::params![account_id,next],|r|r.get(0))?;
         if map { if !crate::map_sync::ack_proven(transaction,account_id,next)? {break} candidate=next;continue; }
         let framed: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_inbox WHERE account_id=?1 AND server_sequence=?2 AND entity_type='note' AND operation='event')",rusqlite::params![account_id,next],|r|r.get(0))?;
@@ -7038,23 +7040,24 @@ fn commit_encrypted_sync_inbound_page(
             return Err(NoteSyncError::InvalidEnvelope("invalid inbound resolution"));
         }
         if allow_metadata {
-            if !matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order" | "map")
+            if !matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order" | "map" | "document")
                 || item.entity_type == "project_metadata" && (
                     item.entity_id != item.project_id || item.operation == "event") {
                 return Err(NoteSyncError::InvalidEnvelope("unsupported mode-3 entity"));
             }
-        } else if matches!(item.entity_type.as_str(), "project_metadata" | "stage" | "stage_order" | "map") || item.entity_type == "note" && item.operation == "event" {
+        } else if matches!(item.entity_type.as_str(), "project_metadata" | "stage" | "stage_order" | "map" | "document") || item.entity_type == "note" && item.operation == "event" {
             return Err(NoteSyncError::InvalidEnvelope("metadata requires mode-3 inbox"));
         }
         if item.entity_type == "map" && (item.operation != "event" || item.deleted_at.is_some()
             || !(item.entity_id == "project-map" || item.entity_id.starts_with("stage-map-") && item.entity_id.len()==74 && item.entity_id[10..].bytes().all(|b|b.is_ascii_digit()||(b'a'..=b'f').contains(&b)))) {
             return Err(NoteSyncError::InvalidEnvelope("invalid map descriptor"));
         }
+        if item.entity_type == "document" && (item.operation != "event" || item.deleted_at.is_some()) {return Err(NoteSyncError::InvalidEnvelope("invalid document descriptor"));}
         if item.entity_type == "stage_order" && (item.entity_id != "stage_order" || item.operation != "upsert")
             || item.entity_type == "stage" && !matches!(item.operation.as_str(), "upsert" | "delete") {
             return Err(NoteSyncError::InvalidEnvelope("unsupported structural descriptor"));
         }
-        if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order" | "map") && item.envelope.is_none() {
+        if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order" | "map" | "document") && item.envelope.is_none() {
             return Err(NoteSyncError::InvalidEnvelope("note object missing"));
         }
         if crate::account_sync::TYPES.contains(&item.entity_type.as_str()) { return Err(NoteSyncError::InvalidEnvelope("account object on project inbox")); }
@@ -7077,7 +7080,7 @@ fn commit_encrypted_sync_inbound_page(
             if exact_replay {
                 return Err(NoteSyncError::InvalidEnvelope("incomplete inbox replay"));
             }
-            let state = if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order" | "map") { "received" } else { "unknown_entity" };
+            let state = if matches!(item.entity_type.as_str(), "note" | "project_metadata" | "stage" | "stage_order" | "map" | "document") { "received" } else { "unknown_entity" };
             transaction.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,deleted_at,state,received_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
                 rusqlite::params![command.account_id,item.event_id,item.server_sequence,item.source_device_id,item.project_id,item.entity_id,item.entity_type,item.operation,item.revision,item.updated_at,item.deleted_at,state])?;
             new_events += 1;

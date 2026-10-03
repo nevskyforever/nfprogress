@@ -25,8 +25,8 @@ export const documentsApi: DocumentRepository = {
   get: (scope: DocumentScope) => currentPlatform() === 'tauri'
     ? nativeInvoke<ProjectDocument>('get_document', { scope: nativeScope(scope) })
     : apiRequest<ProjectDocument>(path(scope)),
-  save: (scope: DocumentScope, content: TiptapDocument) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('save_document', { command: { ...nativeScope(scope), content } })
+  save: (scope: DocumentScope, content: TiptapDocument, expectedHeads?: unknown) => currentPlatform() === 'tauri'
+    ? nativeInvoke<ProjectDocument>('save_document', { command: { ...nativeScope(scope), content, ...(expectedHeads===undefined?{}:{expectedHeads}) } })
     : apiRequest<ProjectDocument>(path(scope), { method: 'PUT', body: { content } }),
   link: (scope: DocumentScope, filePath: string) => currentPlatform() === 'tauri'
     ? nativeInvoke<ProjectDocument>('bind_document_file', { command: { ...nativeScope(scope), path: filePath } })
@@ -43,11 +43,11 @@ export const documentsApi: DocumentRepository = {
   external: (scope: DocumentScope) => currentPlatform() === 'tauri'
     ? nativeInvoke<{ state: string; content_base64?: string; hash?: string }>('read_document_external', { scope: nativeScope(scope) })
     : apiRequest<{ state: string; content_base64?: string; hash?: string }>(path(scope, '/external')),
-  acceptWord: (scope: DocumentScope, content: TiptapDocument, sourceHash: string) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('accept_document_external', { command: { ...nativeScope(scope), content, sourceHash } })
+  acceptWord: (scope: DocumentScope, content: TiptapDocument, sourceHash: string, expectedHeads?: unknown) => currentPlatform() === 'tauri'
+    ? nativeInvoke<ProjectDocument>('accept_document_external', { command: { ...nativeScope(scope), content, sourceHash, ...(expectedHeads===undefined?{}:{expectedHeads}) } })
     : apiRequest<ProjectDocument>(path(scope, '/accept-word'), { method: 'PUT', body: { content, source_hash: sourceHash } }),
-  recordProgress: (scope: DocumentScope, content?: TiptapDocument) => currentPlatform() === 'tauri'
-    ? nativeInvoke<DocumentProgressResult>('record_document_progress', { command: { ...nativeScope(scope), ...(content ? { content } : {}) } })
+  recordProgress: (scope: DocumentScope, content?: TiptapDocument, expectedHeads?: unknown) => currentPlatform() === 'tauri'
+    ? nativeInvoke<DocumentProgressResult>('record_document_progress', { command: { ...nativeScope(scope), ...(content ? { content } : {}), ...(expectedHeads===undefined?{}:{expectedHeads}) } })
     : apiRequest<DocumentProgressResult>(path(scope, '/progress'), {
       method: 'POST',
       ...(content ? { body: { content } } : {}),

@@ -621,6 +621,35 @@ fn map_bridge(request: &Value) -> Value {
     }
 }
 
+fn document_bridge(request:&Value)->Value {
+ use crate::{document_sync as docs,project_metadata_sync as metadata};
+ let path=database_path(request);let mut db=open_database(&path).unwrap();
+ let scope=metadata::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+ metadata::assert_runtime_scope(&db,&scope.account_id,&scope.canonical_user_id,&scope.device_id).unwrap();let p=required_string(request,"project_id");let now="2026-10-03T00:00:00.000000Z";
+ let id=request["document_id"].as_str().unwrap_or("");
+ match required_string(request,"step") {
+ "init"=>{crate::documents::migrate_legacy_documents(&mut db,path.parent().unwrap()).unwrap();json!(true)},
+ "begin"=>docs::begin(&mut db,&scope,p,now).unwrap(),"view"=>docs::view(&db,&scope,p).unwrap(),"expected"=>docs::expected(&db,p,id).unwrap(),
+ "pending"=>{docs::advance(&mut db,&scope.account_id,now).unwrap();json!(docs::pending(&db,&scope.account_id,&scope.device_id,request["sealed"].as_bool().unwrap_or(false)).unwrap())},
+ "seal"=>{docs::seal(&mut db,&scope.account_id,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)},
+ "receipt"=>{docs::receipt(&mut db,&scope.account_id,&scope.device_id,required_string(request,"event_id"),required_i64(request,"server_sequence"),request["duplicate"].as_bool().unwrap_or(false),now).unwrap();json!(true)},
+ "edit"=>{let tx=db.transaction().unwrap();let result=docs::normal(&tx,p,id,request["document"].clone(),request.get("expected"),now);match result{Ok(v)=>{tx.commit().unwrap();json!(v)},Err(e)=>json!({"error":e.to_string()})}},
+ "save"|"external"|"rename"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());let document_scope=json!({"projectId":p,"stageId":request["stage_id"],"expectedHeads":request["expected"]});
+  let mut command=document_scope;command["content"]=request["content"].clone();command["title"]=request["title"].clone();command["sourceHash"]=request["source_hash"].clone();let result=match required_string(request,"step"){
+  "save"=>{command.as_object_mut().unwrap().remove("title");command.as_object_mut().unwrap().remove("sourceHash");crate::documents::save_document(serde_json::from_value(command).unwrap())},
+  "rename"=>{command.as_object_mut().unwrap().remove("content");command.as_object_mut().unwrap().remove("sourceHash");crate::documents::rename_document(serde_json::from_value(command).unwrap())},
+  _=>{command.as_object_mut().unwrap().remove("title");crate::documents::accept_external(serde_json::from_value(command).unwrap())}};match result{Ok(v)=>v,Err(e)=>json!({"error":e})}},
+ "move"=>match docs::assert_project_scope(&db,&scope,p).and_then(|_|docs::move_scope(&mut db,p,id,request["stage_id"].as_str(),&request["expected"],now)){Ok(())=>json!(true),Err(e)=>json!({"error":e.to_string()})},
+ "delete"=>{let tx=db.transaction().unwrap();match docs::normal(&tx,p,id,Value::Null,request.get("expected"),now){Ok(v)=>{tx.commit().unwrap();json!(v)},Err(e)=>json!({"error":e.to_string()})}},
+ "decide"=>match docs::decide(&mut db,&scope,&serde_json::from_value(request["decision"].clone()).unwrap(),now){Ok(v)=>json!(v),Err(e)=>json!({"error":e.to_string()})},
+ "persist"=>{json!(crate::note_sync::commit_v3_sync_inbound_page(&mut db,&serde_json::from_value(request["command"].clone()).unwrap()).unwrap())},
+ "receive"=>{crate::note_sync::commit_v3_sync_inbound_page(&mut db,&serde_json::from_value(request["command"].clone()).unwrap()).unwrap();drop(db);let mut privileged=open_privileged_remote_apply_database(&path).unwrap();json!(docs::apply(&mut privileged,&scope,&bytes(&request["opened"],"frame"),&bytes(&request["opened"],"nonce"),&bytes(&request["opened"],"ciphertext")).unwrap())},
+ "apply"=>{drop(db);let mut privileged=open_privileged_remote_apply_database(&path).unwrap();match docs::apply(&mut privileged,&scope,&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")){Ok(v)=>json!(v),Err(e)=>json!({"error":e.to_string()})}},
+ "ack"=>json!(prepare_note_sync_ack(&mut db,&PrepareNoteSyncAckCommand{account_id:scope.account_id,device_id:scope.device_id,canonical_user_id:scope.canonical_user_id}).unwrap()),
+ _=>panic!("unknown document bridge step")
+ }
+}
+
 fn content_note_bridge(request:&Value)->Value {
     use crate::{content_note_writer as writer,project_metadata_sync as metadata};
     let path=database_path(request);let mut db=open_database(&path).unwrap();
@@ -746,6 +775,7 @@ fn c15_headless_native_bridge() {
         "metadata_authority" => metadata_authority_bridge(&request),
         "structural" => structural_bridge(&request),
         "content_note" => content_note_bridge(&request),
+        "document" => document_bridge(&request),
         "map" => map_bridge(&request),
         "catalog" => catalog_bridge(&request),
         "provision" => provision(&request),

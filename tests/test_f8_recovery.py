@@ -176,6 +176,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 32: "032_content_note_gate.sql",
                 33: "033_content_note_writers.sql",
                 34: "034_map_authority.sql",
+                35: "035_document_authority.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

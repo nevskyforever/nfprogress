@@ -93,6 +93,7 @@ describe('useDocumentSync', () => {
     expect(documentsApi.save).not.toHaveBeenCalled()
   })
 
+  it('retains editor lifetime CAS and draft on a stale connected save',async()=>{const heads={document_id:'doc',document:null,tips:['original']};const loaded={...documentResponse(),expected_heads:heads};vi.mocked(documentsApi.get).mockResolvedValue(loaded);vi.mocked(documentsApi.save).mockRejectedValue(new Error('document_stale_heads'));const wrapper=mount(defineComponent({setup(){return {sync:useDocumentSync({projectId:'project-id'})}},template:'<div />'}));await flushPromises();wrapper.vm.sync.setContent(editedDocument);await expect(wrapper.vm.sync.save()).rejects.toThrow('document_stale_heads');expect(documentsApi.save).toHaveBeenCalledWith({projectId:'project-id'},editedDocument,heads);expect(wrapper.vm.sync.content.value).toEqual(editedDocument);expect(wrapper.vm.sync.documentState.value?.expected_heads).toEqual(heads);wrapper.unmount()})
   it('keeps loaded non-empty content authoritative through unmount saving', async () => {
     const loadedDocument = documentResponse(editedDocument)
     vi.mocked(documentsApi.get).mockResolvedValue(loadedDocument)

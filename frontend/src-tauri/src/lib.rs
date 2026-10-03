@@ -25,6 +25,8 @@ mod account_catalog;
 mod note_sync_plaintext;
 mod content_note_sync;
 mod content_note_writer;
+mod document_codec;
+mod document_sync;
 mod map_codec;
 mod map_sync;
 #[allow(dead_code)]
@@ -2543,6 +2545,27 @@ fn map_sync_command(scope:project_metadata_sync::MetadataScope,request:map_sync:
             Import{decision,keep_local,now}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(map_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(map_sync::import_choice(&mut privileged,&scope,&decision,keep_local,&now)?))},
             Decide{decision,now}=>Ok(serde_json::json!(map_sync::decide(&mut db,&scope,&decision,&now)?)),
             Delete{project_id,stage_id,expected,now}=>{let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;map_sync::check_expected(&tx,&project_id,stage_id.as_deref(),false,Some(&expected),&now)?;if !map_sync::local_edit(&tx,&project_id,stage_id.as_deref(),&serde_json::Value::Null,None,&now)?{return Err(map_sync::Error::from("map_authority_required".to_string()))}tx.commit()?;Ok(serde_json::Value::Null)},
+        }
+    })();result.map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn document_sync_command(scope:project_metadata_sync::MetadataScope,request:document_sync::Request)->Result<serde_json::Value,String>{
+    let mut db=metadata_connection(&scope)?;
+    use document_sync::Request::*;
+    let result=(||->Result<serde_json::Value,document_sync::Error>{
+        match request {
+            View{project_id}=>document_sync::view(&db,&scope,&project_id),
+            Begin{project_id,now}=>document_sync::begin(&mut db,&scope,&project_id,&now),
+            Pending{sealed,now}=>{document_sync::advance(&mut db,&scope.account_id,&now)?;Ok(serde_json::json!(document_sync::pending(&db,&scope.account_id,&scope.device_id,sealed)?))},
+            Seal{event_id,frame,nonce,ciphertext}=>{document_sync::seal(&mut db,&scope.account_id,&event_id,&frame,&nonce,&ciphertext)?;Ok(serde_json::Value::Null)},
+            Receipt{event_id,server_sequence,duplicate,now}=>{document_sync::receipt(&mut db,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now)?;Ok(serde_json::Value::Null)},
+            Block{event_id,nonce,ciphertext,code}=>{if !matches!(code.as_str(),"invalid_document_payload"|"decrypt_failed"|"document_codec_unsupported"|"document_resource_limit"|"document_unsupported_extension"|"document_unsupported_structure"|"document_scope_mismatch"){return Err(document_sync::Error::from("invalid_document_blocker".to_string()))}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='document' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext])?;Ok(serde_json::Value::Null)},
+            Received{after,limit}=>Ok(serde_json::json!(document_sync::received(&db,&scope.account_id,after,limit)?)),
+            Apply{frame,nonce,ciphertext}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(document_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(document_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext)?))},
+            Decide{decision,now}=>Ok(serde_json::json!(document_sync::decide(&mut db,&scope,&decision,&now)?)),
+            Move{project_id,document_id,stage_id,expected,now}=>{document_sync::assert_project_scope(&db,&scope,&project_id)?;document_sync::move_scope(&mut db,&project_id,&document_id,stage_id.as_deref(),&expected,&now)?;Ok(serde_json::Value::Null)},
+            Delete{project_id,document_id,expected,now}=>{document_sync::assert_project_scope(&db,&scope,&project_id)?;let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;if !document_sync::normal(&tx,&project_id,&document_id,serde_json::Value::Null,Some(&expected),&now)?{return Err(document_sync::Error::from("document_authority_required".to_string()))}tx.commit()?;Ok(serde_json::Value::Null)},
         }
     })();result.map_err(|e|e.to_string())
 }
@@ -6140,7 +6163,7 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
-            map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
+            document_sync_command,map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
             list_received_account_objects,
             block_account_object,
             read_stage_structural_authority,

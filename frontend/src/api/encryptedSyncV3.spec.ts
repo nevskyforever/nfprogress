@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { encodeV3MapPush, encodeV3MetadataPush, parseV3Pull } from './encryptedSyncV3'
+import { encodeV3DocumentPush, encodeV3MapPush, encodeV3MetadataPush, parseV3Pull } from './encryptedSyncV3'
 
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const EVENT = '123e4567-e89b-42d3-a456-426614174010'
@@ -10,6 +10,7 @@ const descriptor = { event_id: EVENT, device_id: DEVICE, server_sequence: 1, pro
   entity_type: 'project_metadata' as const, operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }
 
 describe('mode-3 metadata transport boundary', () => {
+  it('document writer uses opaque stable identity and cannot mix Note/Map/metadata descriptors',()=>{const event={event_id:EVENT,project_id:'project',entity_id:'stable-document',entity_type:'document' as const,operation:'event' as const,revision:1,updated_at:NOW,deleted_at:null};const body=JSON.parse(encodeV3DocumentPush(DEVICE,[{event,object}]));expect(parseV3Pull({protocol_version:3,encrypted_sync_version:3,items:[{event:{...event,device_id:DEVICE,server_sequence:1},object:body.items[0].object}],next_cursor:1,has_more:false},0,8).items[0]!.event.entity_type).toBe('document');for(const change of [{entity_type:'map'},{entity_type:'note'},{operation:'upsert'},{deleted_at:NOW},{title:'plaintext'}])expect(()=>encodeV3DocumentPush(DEVICE,[{event:{...event,...change} as never,object}])).toThrow();expect(()=>encodeV3MapPush(DEVICE,[{event,object}])).toThrow();expect(()=>encodeV3MetadataPush(DEVICE,[{event,object}])).toThrow()})
   it('admits only opaque owning-map descriptors on the separate map writer', () => {
     for (const entity_id of ['project-map', 'stage-map-' + 'a'.repeat(64)]) {
       const event = {event_id:EVENT,project_id:'project',entity_id,entity_type:'map' as const,

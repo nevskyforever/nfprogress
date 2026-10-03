@@ -687,3 +687,99 @@ rename ancestry and blocked shared ACK with later legacy Note and missing-parent
 retry. Native regressions also cover derived Note crash rollback, unsupported
 annotation evidence, local-only exclusion, post-sealing draft survival and late C.
 Existing Note ordinary-v1/resolution-v2/codec8 histories and C11 bytes remain valid.
+
+
+## C18.5.04 — Document authority (codec10)
+
+Document admission is explicit per connected project («Опубликовать документы»).
+Viewing, login, discovery and a background sync cycle never capture legacy local
+manuscripts. SQLite `documents` is the source after its existing one-time
+`documents_json_migration` reports complete. Unresolved recovery orphans are kept
+verbatim, never assigned an owner by guess, and block complete project sync.
+
+The portable v1 document has exactly `id`, `project_id`, `stage_id`, `title`,
+`content_json`, `content_format`, `created_at`, `extensions`. Format is
+`tiptap-json/v1`; creation time is nullable canonical UTC. Title, whole Tiptap
+body and scope travel as one immutable version. Document ID is permanent across
+same-project Project→Stage, Stage→Stage and Stage→Project moves. The occupied
+scope is never overwritten. Cross-project moves are rejected. Bindings, local
+revision, external hashes, paths, source IDs and file contents outside accepted
+canonical Tiptap are not portable. Word/Scrivener files stay user-owned.
+
+Frame: `WORTA-C1`, frame1, codec10/version1, compression0, identical big-endian
+payload and decoded lengths. Body is canonical UTF-8 JSON. Ordinary events are
+create/update/delete; resolution covers the exact full tip set and uses maximum
+parent revision + 1. Delete is a retained causal tombstone. Generic transport uses
+`document` / `event`, a null outer `deleted_at`, existing C11 project-object v1
+AAD with the stable document identity. C11, codec8 and codec9 are unchanged.
+
+The authenticated header freezes account, source device, project, Stage (or
+null), bootstrap, accepted metadata reference and live Stage references. Project
+scope needs accepted metadata authority. Stage scope also needs a proven live
+Stage in this project; accepted rename ancestry remains valid. Missing, foreign,
+fabricated, conflicted or tombstoned Stage dependencies wait without ACK. Scope
+moves also validate the old owner dependency; no relation is partially changed.
+
+Codec nodes match the current editor: doc, paragraph, heading1–6, text, lists,
+listItem, blockquote, codeBlock, hardBreak, horizontalRule. Marks: bold, italic,
+strike, underline, code, link, textStyle, highlight, subscript, superscript.
+The checked attribute names are frozen in `documentCodecV1.contract.json`.
+Blocks cannot contain inline content in the wrong place; lists require listItems,
+listItems start with paragraphs, codeBlock contains unmarked text, and unknown
+nodes/marks/fields are rejected. Extensions allowlist is **empty**: `{}` is
+admissible; `legacy_flag` and every nonempty unsupported extension remain local
+verbatim with `document_unsupported_extension`. Ordinary edits and remote lossy
+replacements cannot drop this evidence. Extension admission needs a new explicit
+versioned codec decision.
+
+Bounds: canonical frame 8 MiB; 50,000 Tiptap nodes/marks; Tiptap depth60;
+text1 MiB UTF-8; each attribute string2 KiB; title4 KiB; identity512 bytes;
+64 parents and 64 Stage dependencies; causal traversal4,096 events. Sealing,
+upload and deferred-writer scan process at most8 events per invocation. Default
+apply cycle is8×4 events, hard maximum32×8, with bounded parser depth160 before
+recursive canonicalization. Oversized/unsupported encrypted evidence remains in
+the generic inbox and blocks the contiguous ACK prefix.
+
+Reader gate requires every registered account device to declare frame1,
+codec10/version1, reader1 and compression0 support (plus existing Note reader and
+mode3 prerequisites). Server push and old-reader pull enforce this gate. Backend
+migration `c18_document_readers` stores only capability columns and refuses
+history-destroying downgrade. Server stores ciphertext and opaque descriptors;
+there is no plaintext document API/table.
+
+Forward-only schema35 stores explicit project consent, immutable captures and
+frames, event states/tips/projection, candidates, decisions, drafts, blockers and
+exact apply ledger. It reuses encrypted inbox/outbox/object storage. Lifecycle:
+local → captured → publication_pending → self_echo_pending → active, with
+conflict/blocked states. Once sealed, retries keep event ID, parents, revision,
+frame, nonce and ciphertext exactly. Lost receipts reconcile by authenticated
+self echo. Subsequent edits are durable drafts until the preceding event echoes.
+
+Production save, rename, scope move, explicit accepted Word import and delete
+require the editor's exact source snapshot and causal heads. Content and heads
+are read in one SQLite snapshot. Word acceptance rereads the selected file and
+checks both hash and parsed content before the canonical writer; binding updates
+share its transaction. A new connected document must first be saved before
+creating an external binding. Local-only documents retain their old operations.
+`record_document_progress` keeps existing local progress semantics.
+
+Remote apply is one privately authorized native transaction for authenticated
+inbox/object, dependency proof, complete version/history, relation/projection,
+all causal tips, migration state, apply ledger and inbox result. Collisions and
+incomplete dependencies keep the encrypted event without any projection change
+or ledger success. Conflicts preserve complete edit/move/delete versions; no
+Tiptap or field merge and no timestamp winner. Stale choices retain evidence;
+late branches after resolution remain visible. Shared ACK requires exact matching
+account/event/sequence/entity/descriptor/nonce/ciphertext and applied or
+conflict-preserved evidence; later successful objects cannot bypass a blocker.
+
+The Vue settings panel publishes explicitly, explains blockers, previews complete
+retained documents read-only, and offers full-version choice and same-project
+scope moves. Diagnostics contain allowlisted codes/counts only. Help and all six
+locales describe publication, file boundaries, scope restrictions and conflicts.
+Progress/Game cloud authority, compression, pruning, telemetry and C21 deployment
+remain out of scope.
+
+The 60-level Tiptap ceiling also fits the accepted generic SQLite JSON reader on
+reopen. Oversized local raw sources are captured as immutable local recovery
+evidence with a typed resource blocker; they never become cloud frames.

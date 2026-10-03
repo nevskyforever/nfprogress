@@ -56,7 +56,7 @@ export function useDocumentSync(scope: DocumentScope) {
       // explicit save passes its own snapshot, captured from the editor when
       // the user initiated the action.
       const snapshot = requestedSnapshot ?? copyContent(content.value)
-      documentState.value = await documentsApi.save(scope, snapshot)
+      documentState.value = await (documentState.value?.expected_heads===undefined?documentsApi.save(scope,snapshot):documentsApi.save(scope,snapshot,documentState.value.expected_heads))
       await writeLinkedWord(snapshot)
       if (announce) announceDataChange('projects')
       status.value = 'Сохранено'
@@ -69,7 +69,7 @@ export function useDocumentSync(scope: DocumentScope) {
     // visible when the user pressed the button.
     const snapshot = copyContent(requestedContent)
     return enqueuePersistence(async () => {
-      const result = await documentsApi.recordProgress(scope, snapshot)
+      const result = await (documentState.value?.expected_heads===undefined?documentsApi.recordProgress(scope,snapshot):documentsApi.recordProgress(scope,snapshot,documentState.value.expected_heads))
       if (result.document) documentState.value = result.document
       await writeLinkedWord(snapshot)
       status.value = 'Сохранено'
@@ -103,7 +103,7 @@ export function useDocumentSync(scope: DocumentScope) {
   }
   async function acknowledgeExternal(next: TiptapDocument, hash: string) {
     setContent(next)
-    documentState.value = await documentsApi.acceptWord(scope, next, hash)
+    documentState.value = await (documentState.value?.expected_heads===undefined?documentsApi.acceptWord(scope,next,hash):documentsApi.acceptWord(scope,next,hash,documentState.value.expected_heads))
     announceDataChange('projects')
     status.value = 'Изменения Word импортированы'
   }

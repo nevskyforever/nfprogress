@@ -5,7 +5,7 @@
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 CORRECTION LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 REMOTELY ACCEPTED / C18.5.04 LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Последнее закрытие:** C18.4 независимо закрыт для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac`; SQLite `37004006923` и Cloud `37004006914` — **SUCCESS**, все четыре jobs. Последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
@@ -2097,7 +2097,7 @@ Independent verification supplied by GPT: SQLite workflow `37107105194` —
 **SUCCESS**, Python and Rust/Windows jobs green, including
 `Verify map codec and durable authority`. Cloud workflow `37107105174`:
 Frontend admin **SUCCESS**, PostgreSQL **FAILURE** in mandatory no-skip acceptance
-(`1 failed, 38 passed`). C18.5.03 is **NOT remotely accepted**.
+(`1 failed, 38 passed`). At correction preparation time C18.5.03 was **NOT remotely accepted**; this historical status is superseded by the independent acceptance below.
 
 Exact failing test:
 `tests/test_cloud_c18_authority_cross_runtime.py::test_metadata_migration_import_mismatch_and_concurrent_rename`.
@@ -2137,3 +2137,72 @@ Remote CI will not be polled by Codex. Expected workflows: Cloud backend tests;
 SQLite sync substrate tests. C18.5 and C18 remain **IN PROGRESS**, official progress
 **77.0%**. All permanent release/terminology/C21 rules remain unchanged.
 No C18.5.04, Documents/Progress/Game, compression, C11 or codec8 changes.
+
+
+### C18.5.03 independent remote acceptance; C18.5.04 started
+
+**C18.5.03 — REMOTELY ACCEPTED**. Implementation
+`6b3b19f860a87b9ecf2f4e3ecd835adbb3587833`: SQLite `37107105194` SUCCESS
+(Python and Rust/Windows). Initial Cloud `37107105174`: Frontend SUCCESS,
+PostgreSQL fixture initialization FAILURE as recorded above. Correction
+`6f5ed95f1fb479cce3b3d246179068b918a525f0`: Cloud `37111787798` SUCCESS,
+including mandatory ACK/multi-device acceptance, focused API, frontend,
+typecheck/build. No correction SQLite run was required: production/native/schema
+are identical to the accepted implementation. Independent results supplied by GPT.
+
+C18.5.04 DOCUMENT AUTHORITY / SCOPE MOVE / EXTENSION BLOCKERS started from clean
+branch6.0 HEAD/origin `6f5ed95f1fb479cce3b3d246179068b918a525f0`.
+C18.5/C18 **IN PROGRESS**, official progress **77.0%**. No C18.5.05/C18.6 work.
+
+
+### C18.5.04 — local implementation and acceptance
+
+Status: **LOCAL COMPLETE / REMOTE CI PENDING**. Implementation SHA is the commit
+containing this checkpoint (reported as the published SHA in the task result).
+C18.5 and C18 remain **IN PROGRESS**; official progress remains exactly **77.0%**.
+Permanent public release registration remains CLOSED pending C22/PF6.0 owner
+stabilization; final terminology audit and C21 local-Web-first rule preserved.
+
+Codec10/version1, frame1, compression0. Frozen portable fields:
+`id/project_id/stage_id/title/content_json/content_format/created_at/extensions`.
+Stable Document ID survives all supported same-project scope moves; cross-project
+moves and occupied target scope are rejected. Current editor Tiptap nodes/marks
+are strictly checked; frame8 MiB, 50k nodes, depth60, text1 MiB, attribute2 KiB,
+64 parents/dependencies, causal proof4096, bounded cycle default8×4/hard32×8.
+Empty extensions only. Unsupported extensions and migration orphan evidence are
+retained verbatim locally and cannot become lossy cloud documents.
+
+Schema35 and Alembic `c18_document_readers`; explicit project consent and reader
+gate for all registered devices. Existing legacy migration marker respected;
+SQLite documents are capture source. Durable captured/publication/self-echo/
+active/conflict/blocked states, exact sealed retry and lost-response recovery.
+Production editor/title/move/delete/accepted-Word writers use snapshot+heads CAS.
+Paths/bindings remain local; file proposal revalidated; delete retains history and
+external files. Atomic private native apply and exact contiguous shared ACK.
+
+Acceptance: real PostgreSQL16 + two file-backed SQLite devices + production
+TS C11/native codec10; Project/Stage publication/import, ordinary edits on A/B,
+three move directions, collisions, concurrent edit/move/move/delete branches,
+full-tip resolution and stale choice, Word import/file retention, lost upload
+response and third-device reader gate. Server plaintext inspection passed.
+Native negatives cover unsupported extensions/reopen/lossy replacement,
+orphan/incomplete migration, foreign scope/object/replay, missing parents,
+fabricated/tombstoned Stage, collision rollback and blocked contiguous ACK.
+Cross-language Project/Stage/delete fixtures match. Focused tests and known
+platform limitations are recorded in the final task result. No Actions polling
+is authorized after push; independent remote acceptance remains required.
+
+Final local validation: schema35 fresh/every prefix/populated34/reopen **36 PASS**;
+affected Python SQLite/metadata/recovery **261 PASS**; help/localization/C9
+**72 PASS** (one native macOS Help bridge test deselected after process abort
+in this headless environment). Five non-Russian locales: **0 missing strings**;
+existing translations unchanged. TypeScript/Vue focused integration **55 PASS**;
+Chromium production Document panel with isolated store **PASS**; typecheck and
+frontend build **PASS** (existing bundle warnings only). Rust codec/authority
+**9 PASS**, document compatibility **10 PASS**, Note/shared-ACK **165 PASS**,
+SQLite **29 PASS**, diagnostics **5 PASS**, cargo check **PASS**. PostgreSQL
+capability/migration **3 PASS**, final production two-device acceptance **1 PASS,
+0 skips**, now including frozen Stage-reference rename ancestry and Stage
+tombstone edit/move blockers. Shared backend/auth/migration affected pass:
+**41 PASS** after focused Alembic-head expectation repair. Diff check **PASS**;
+protected bytecode, C11, codec8/9, Progress/Game/compression untouched.

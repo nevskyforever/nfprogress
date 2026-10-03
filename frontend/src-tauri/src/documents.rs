@@ -42,6 +42,8 @@ pub struct DocumentScope {
     pub project_id: String,
     #[serde(default)]
     pub stage_id: Option<String>,
+    #[serde(default)]
+    pub expected_heads:Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,6 +53,8 @@ pub struct DocumentSaveCommand {
     #[serde(default)]
     pub stage_id: Option<String>,
     pub content: Value,
+    #[serde(default)]
+    pub expected_heads: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +64,8 @@ pub struct DocumentRenameCommand {
     #[serde(default)]
     pub stage_id: Option<String>,
     pub title: String,
+    #[serde(default)]
+    pub expected_heads: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -88,6 +94,8 @@ pub struct DocumentExternalAcceptCommand {
     pub stage_id: Option<String>,
     pub content: Value,
     pub source_hash: String,
+    #[serde(default)]
+    pub expected_heads: Option<Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,6 +125,8 @@ pub struct DocumentProgressCommand {
     pub stage_id: Option<String>,
     #[serde(default)]
     pub content: Option<Value>,
+    #[serde(default)]
+    pub expected_heads: Option<Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -201,17 +211,9 @@ fn document_id_for_scope(
     stage_id: Option<&str>,
 ) -> Result<String, String> {
     let scope = scope_key(project_id, stage_id);
-    connection
-        .query_row(
-            "SELECT id FROM documents WHERE scope_key=?1",
-            [scope],
-            |row| row.get(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())
-        .map(|value: Option<String>| {
-            value.unwrap_or_else(|| stable_id(&scope_key(project_id, stage_id)))
-        })
+    let existing:Option<String>=connection.query_row("SELECT id FROM documents WHERE scope_key=?1",[scope.as_str()],|r|r.get(0)).optional().map_err(|e|e.to_string())?;
+    if let Some(id)=existing{return Ok(id)}
+    let base=stable_id(&scope);for generation in 0..4096 {let candidate=if generation==0{base.clone()}else{format!("{base}-{generation}")};let occupied:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM documents WHERE id=?1 AND scope_key!=?2)",params![candidate,scope],|r|r.get(0)).map_err(|e|e.to_string())?;if !occupied{return Ok(candidate)}}Err("document_identity_collision".into())
 }
 
 fn validate_content(content: &Value) -> Result<(), String> {
@@ -316,6 +318,12 @@ fn document_row(
     project_id: &str,
     stage_id: Option<&str>,
 ) -> Result<Option<Value>, String> {
+    if connection.is_autocommit(){
+        connection.execute_batch("BEGIN DEFERRED").map_err(|e|e.to_string())?;
+        let result=document_row(connection,project_id,stage_id);
+        connection.execute_batch(if result.is_ok(){"COMMIT"}else{"ROLLBACK"}).map_err(|e|e.to_string())?;
+        return result;
+    }
     let scope = scope_key(project_id, stage_id);
     let row = connection
         .query_row(
@@ -388,6 +396,7 @@ fn document_row(
         .unwrap_or(Value::Null);
     Ok(Some(serde_json::json!({
         "document_id": id,
+        "expected_heads": crate::document_sync::expected(connection,project_id,&id).map_err(|e|e.to_string())?,
         "project_id": project_id,
         "stage_id": stage_id,
         "title": title,
@@ -459,21 +468,13 @@ pub fn list_documents() -> Result<Vec<Value>, String> {
 
 pub fn get_document(scope: DocumentScope) -> Result<Value, String> {
     let (connection, _) = open()?;
+    connection.execute_batch("BEGIN DEFERRED").map_err(|e|e.to_string())?;
     let (_, payload) = validate_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
-    Ok(
-        document_row(&connection, &scope.project_id, scope.stage_id.as_deref())?.unwrap_or_else(
-            || {
-                new_document_value(
-                    &scope.project_id,
-                    scope.stage_id.as_deref(),
-                    payload
-                        .get("name")
-                        .and_then(Value::as_str)
-                        .unwrap_or("Текст"),
-                )
-            },
-        ),
-    )
+    let mut document=document_row(&connection,&scope.project_id,scope.stage_id.as_deref())?.unwrap_or_else(||new_document_value(&scope.project_id,scope.stage_id.as_deref(),payload.get("name").and_then(Value::as_str).unwrap_or("Текст")));
+    if !document["exists"].as_bool().unwrap_or(false){document["document_id"]=serde_json::json!(document_id_for_scope(&connection,&scope.project_id,scope.stage_id.as_deref())?);}
+    document["expected_heads"]=crate::document_sync::expected(&connection,&scope.project_id,document["document_id"].as_str().unwrap()).map_err(|e|e.to_string())?;
+    connection.execute_batch("COMMIT").map_err(|e|e.to_string())?;
+    Ok(document)
 }
 
 pub fn save_document(command: DocumentSaveCommand) -> Result<Value, String> {
@@ -498,6 +499,13 @@ pub fn save_document(command: DocumentSaveCommand) -> Result<Value, String> {
     let tx = connection
         .transaction()
         .map_err(|error| error.to_string())?;
+    let mut canonical = crate::document_sync::source(&tx,&command.project_id,&document_id).map_err(|e|e.to_string())?;
+    if canonical.is_null(){canonical=serde_json::json!({"id":document_id,"project_id":command.project_id,"stage_id":command.stage_id,"title":title,"content_json":command.content,"content_format":"tiptap-json/v1","created_at":crate::document_sync::timestamp(&timestamp).map_err(|e|e.to_string())?,"extensions":{}})}else{canonical["content_json"]=command.content.clone();}
+    if let Some(created)=canonical["created_at"].as_str(){canonical["created_at"]=serde_json::json!(crate::document_sync::timestamp(created).map_err(|e|e.to_string())?);}
+    if crate::document_sync::normal(&tx,&command.project_id,&document_id,canonical,command.expected_heads.as_ref(),&timestamp).map_err(|e|e.to_string())? {
+        tx.commit().map_err(|e|e.to_string())?;
+        return document_row(&connection,&command.project_id,command.stage_id.as_deref())?.ok_or_else(||"document_missing".to_string());
+    }
     tx.execute(
         "INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,'tiptap-json/v1',?7,?7,0,'{}') ON CONFLICT(scope_key) DO UPDATE SET content_json=excluded.content_json,updated_at=excluded.updated_at,revision=documents.revision+1,title=excluded.title",
         params![document_id, scope, command.project_id, command.stage_id, title, command.content.to_string(), timestamp],
@@ -521,7 +529,8 @@ pub fn record_document_progress(command: DocumentProgressCommand) -> Result<Valu
             project_id: command.project_id.clone(),
             stage_id: command.stage_id.clone(),
             content,
-        })?;
+        expected_heads: command.expected_heads.clone(),
+})?;
     }
     let (mut connection, _) = open()?;
     let (_, payload) = validate_scope(
@@ -587,6 +596,12 @@ pub fn rename_document(command: DocumentRenameCommand) -> Result<Value, String> 
         &command.project_id,
         command.stage_id.as_deref(),
     )?;
+    let document_id=document_id_for_scope(&connection,&command.project_id,command.stage_id.as_deref())?;
+    let tx=connection.transaction().map_err(|e|e.to_string())?;
+    let mut canonical=crate::document_sync::source(&tx,&command.project_id,&document_id).map_err(|e|e.to_string())?;
+    if !canonical.is_null(){canonical["title"]=serde_json::json!(command.title.trim());}
+    if crate::document_sync::normal(&tx,&command.project_id,&document_id,canonical,command.expected_heads.as_ref(),&now()).map_err(|e|e.to_string())? {tx.commit().map_err(|e|e.to_string())?;return document_row(&connection,&command.project_id,command.stage_id.as_deref())?.ok_or_else(||"document_missing".into())}
+    tx.commit().map_err(|e|e.to_string())?;
     let changed = connection
         .execute(
             "UPDATE documents SET title=?,updated_at=?,revision=revision+1 WHERE scope_key=?",
@@ -611,6 +626,9 @@ pub fn rename_document(command: DocumentRenameCommand) -> Result<Value, String> 
 pub fn delete_document(scope: DocumentScope) -> Result<(), String> {
     let (mut connection, _) = open()?;
     validate_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
+    let id=document_id_for_scope(&connection,&scope.project_id,scope.stage_id.as_deref())?;
+    let tx=connection.transaction().map_err(|e|e.to_string())?;
+    if crate::document_sync::normal(&tx,&scope.project_id,&id,Value::Null,scope.expected_heads.as_ref(),&now()).map_err(|e|e.to_string())?{tx.commit().map_err(|e|e.to_string())?;return Ok(())}tx.commit().map_err(|e|e.to_string())?;
     let key = scope_key(&scope.project_id, scope.stage_id.as_deref());
     connection.execute("DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE scope_key=?)", [&key]).map_err(|error| error.to_string())?;
     connection
@@ -638,6 +656,7 @@ pub fn move_project_document_to_stage(project_id: &str, stage_id: &str) -> Resul
     {
         return Ok(());
     }
+    if connection.query_row("SELECT EXISTS(SELECT 1 FROM cloud_document_migrations WHERE entity_id=?)",[&source_document_id],|r|r.get::<_,bool>(0)).map_err(|e|e.to_string())?{return Ok(())}
     let target_scope = scope_key(project_id, Some(stage_id));
     let target: Option<(String, String, Option<String>)> = connection
         .query_row(
@@ -650,35 +669,19 @@ pub fn move_project_document_to_stage(project_id: &str, stage_id: &str) -> Resul
     let tx = connection
         .transaction()
         .map_err(|error| error.to_string())?;
-    if let Some((target_id, target_content, target_path)) = target {
-        if symbols(&parse_content(target_content)?) > 0 || target_path.is_some() {
-            tx.execute(
-                "DELETE FROM document_bindings WHERE document_id=?",
-                [source_document_id.as_str()],
-            )
-            .map_err(|error| error.to_string())?;
-            tx.execute(
-                "DELETE FROM documents WHERE id=?",
-                [source_document_id.as_str()],
-            )
-            .map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-            return Ok(());
-        }
-        tx.execute(
-            "DELETE FROM document_bindings WHERE document_id=?",
-            [target_id.as_str()],
-        )
-        .map_err(|error| error.to_string())?;
-        tx.execute("DELETE FROM documents WHERE id=?", [target_id.as_str()])
-            .map_err(|error| error.to_string())?;
-    }
+    if target.is_some() {return Err("document_scope_occupied".into())}
     tx.execute(
         "UPDATE documents SET scope_key=?,stage_id=? WHERE id=?",
         params![target_scope, stage_id, source_document_id],
     )
     .map_err(|error| error.to_string())?;
     tx.commit().map_err(|error| error.to_string())
+}
+
+fn require_existing_connected_binding_document(db:&rusqlite::Connection,p:&str,id:&str)->Result<(),String>{
+ let connected:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM cloud_document_project_consent WHERE project_id=?1)",[p],|r|r.get(0)).map_err(|e|e.to_string())?;
+ let exists:bool=db.query_row("SELECT EXISTS(SELECT 1 FROM documents WHERE id=?1)",[id],|r|r.get(0)).map_err(|e|e.to_string())?;
+ if connected&&!exists{return Err("document_binding_requires_saved_document".into())}Ok(())
 }
 
 pub fn bind_document_file(command: DocumentFileCommand) -> Result<Value, String> {
@@ -703,6 +706,7 @@ pub fn bind_document_file(command: DocumentFileCommand) -> Result<Value, String>
         &command.project_id,
         command.stage_id.as_deref(),
     )?;
+    require_existing_connected_binding_document(&connection,&command.project_id,&document_id)?;
     let timestamp = now();
     let tx = connection
         .transaction()
@@ -855,7 +859,24 @@ pub fn accept_external(command: DocumentExternalAcceptCommand) -> Result<Value, 
         &command.project_id,
         command.stage_id.as_deref(),
     )?;
+    let connected: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM cloud_document_migrations WHERE project_id=?1 AND entity_id=?2 UNION SELECT 1 FROM cloud_document_project_consent WHERE project_id=?1)", params![command.project_id, document_id], |r|r.get(0)).map_err(|e|e.to_string())?;
+    if connected {
+        let binding: Option<(String,String)> = connection.query_row("SELECT binding_type,external_path FROM document_bindings WHERE document_id=?1", [&document_id], |r|Ok((r.get(0)?,r.get(1)?))).optional().map_err(|e|e.to_string())?;
+        let Some((kind,path))=binding else{return Err("document_external_proposal_stale".into())};
+        if kind!="word" {return Err("document_external_proposal_stale".into())}
+        let fresh=read_stable_source(Path::new(&path))?;
+        if fresh.hash!=command.source_hash || parse_docx(&fresh.bytes)?.0!=command.content {return Err("document_external_proposal_stale".into())}
+    }
     let timestamp = now();
+    let tx=connection.transaction().map_err(|e|e.to_string())?;
+    let mut canonical=crate::document_sync::source(&tx,&command.project_id,&document_id).map_err(|e|e.to_string())?;
+    if !canonical.is_null(){canonical["content_json"]=command.content.clone();}
+    if crate::document_sync::normal(&tx,&command.project_id,&document_id,canonical,command.expected_heads.as_ref(),&timestamp).map_err(|e|e.to_string())? {
+        tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_hash=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),last_synced_at=?,sync_state='synced',expected_external_hash=? WHERE document_id=?",params![command.source_hash,command.source_hash,document_id,timestamp,command.source_hash,document_id]).map_err(|e|e.to_string())?;
+        tx.commit().map_err(|e|e.to_string())?;
+        return document_row(&connection,&command.project_id,command.stage_id.as_deref())?.ok_or_else(||"document_missing".into());
+    }
+    tx.commit().map_err(|e|e.to_string())?;
     connection
         .execute(
             "UPDATE documents SET content_json=?,updated_at=?,revision=revision+1 WHERE id=?",
@@ -1007,6 +1028,7 @@ pub fn configure_scrivener_binding(
     let (_, payload) = validate_scope(&connection, project_id, stage_id)?;
     let scope = scope_key(project_id, stage_id);
     let document_id = document_id_for_scope(&connection, project_id, stage_id)?;
+    require_existing_connected_binding_document(&connection,project_id,&document_id)?;
     let timestamp = now();
     let tx = connection
         .transaction()
@@ -1535,7 +1557,7 @@ pub fn run_project_syncs(project_id: String) -> Result<SyncBatchResult, String> 
     run_all_sync_filtered(Some(&project_id))
 }
 
-fn migrate_legacy_documents(
+pub(crate) fn migrate_legacy_documents(
     connection: &mut rusqlite::Connection,
     root: &Path,
 ) -> Result<(), String> {
@@ -2527,7 +2549,8 @@ mod tests {
                 project_id: "rich-project".into(),
                 stage_id: None,
                 content: content.clone(),
-            })?;
+            expected_heads: None,
+})?;
             let document_id = saved["document_id"].as_str().unwrap().to_string();
             assert_eq!(saved["content"], content);
             assert_eq!(saved["content_format"], "tiptap-json/v1");
@@ -2552,7 +2575,8 @@ mod tests {
             let loaded = get_document(DocumentScope {
                 project_id: "rich-project".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(loaded["content"], content);
             assert_eq!(loaded["document_id"], document_id);
             assert_eq!(loaded["content_format"], "tiptap-json/v1");
@@ -2602,7 +2626,8 @@ mod tests {
         let result = get_document(DocumentScope {
             project_id: "legacy".into(),
             stage_id: None,
-        });
+        expected_heads: None,
+});
 
         if let Some(previous_root) = previous_root {
             std::env::set_var("NFPROGRESS_DATA_DIR", previous_root);
@@ -2743,7 +2768,8 @@ mod tests {
                 project_id: "p1".into(),
                 stage_id: None,
                 content: content.clone(),
-            })?;
+            expected_heads: None,
+})?;
             bind_document_file(DocumentFileCommand {
                 project_id: "p1".into(),
                 stage_id: None,
@@ -2753,7 +2779,8 @@ mod tests {
             let external = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
 
             assert_eq!(written["sync_state"], "synced");
             let written_hash = written["last_synced_hash"]
@@ -2775,7 +2802,8 @@ mod tests {
             let changed = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             let observed_hash = changed
                 .hash
                 .clone()
@@ -2786,7 +2814,8 @@ mod tests {
             let pending = get_document(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(pending["last_external_hash"], observed_hash);
             assert_eq!(pending["last_synced_hash"], written_hash);
 
@@ -2796,7 +2825,8 @@ mod tests {
             let repeated = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(repeated.state, "external_changed");
             assert!(repeated.content_base64.is_some());
             Ok(())
@@ -2855,7 +2885,8 @@ mod tests {
                 project_id: "p1".into(),
                 stage_id: None,
                 content: initial.clone(),
-            })?;
+            expected_heads: None,
+})?;
             bind_document_file(DocumentFileCommand {
                 project_id: "p1".into(),
                 stage_id: None,
@@ -2870,12 +2901,14 @@ mod tests {
                     "type":"doc",
                     "content":[{"type":"paragraph","content":[{"type":"text","text":"local edit"}]}]
                 }),
-            })?;
+            expected_heads: None,
+})?;
             fs::write(&word_path, build_docx(&accepted)?).map_err(|error| error.to_string())?;
             let conflict = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(conflict.state, "conflict");
             let accepted_hash = conflict
                 .hash
@@ -2885,7 +2918,8 @@ mod tests {
                 stage_id: None,
                 content: accepted.clone(),
                 source_hash: accepted_hash.clone(),
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(resolved["content"], accepted);
             assert_eq!(resolved["last_synced_hash"], accepted_hash);
 
@@ -2897,14 +2931,16 @@ mod tests {
             let reopened = get_document(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(reopened["content"], accepted);
             assert_eq!(reopened["last_synced_hash"], accepted_hash);
             assert_eq!(reopened["sync_state"], "synced");
             let unchanged_word = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
-            })?;
+            expected_heads: None,
+})?;
             assert_eq!(unchanged_word.state, "synced");
             assert!(unchanged_word.hash.is_none());
 
