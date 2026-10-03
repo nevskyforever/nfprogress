@@ -489,14 +489,22 @@ class V3EncryptedSyncAckRequest(BaseModel):
     cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER, strict=True)
 
 
+def is_map_entity_id(entity_id: str) -> bool:
+    return entity_id == 'project-map' or re.fullmatch(r'stage-map-[0-9a-f]{64}', entity_id) is not None
+
+
 class V3SyncEventEnvelope(V2SyncEventEnvelope):
     operation: Literal['upsert', 'delete', 'resolution', 'event']
-    entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order']
+    entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order', 'map']
 
     @model_validator(mode='after')
     def validate_metadata_scope(self) -> 'V3SyncEventEnvelope':
-        if self.operation == 'event' and self.entity_type != 'note':
-            raise ValueError('Framed operation requires Note entity.')
+        if self.operation == 'event' and self.entity_type not in ('note', 'map'):
+            raise ValueError('Framed operation requires Note or map entity.')
+        if self.entity_type == 'map' and (
+                self.operation != 'event' or self.deleted_at is not None or
+                not is_map_entity_id(self.entity_id)):
+            raise ValueError('Map requires its framed owning-map identity.')
         if self.entity_type == 'project_metadata' and self.entity_id != self.project_id:
             raise ValueError('Project metadata entity ID must equal project ID.')
         if self.entity_type == 'stage_order' and (self.entity_id != 'stage_order' or self.operation != 'upsert'):
@@ -691,3 +699,21 @@ class ContentNoteCapabilityGate(BaseModel):
     model_config = ConfigDict(extra='forbid')
     ready: bool
     missing_devices: int = Field(ge=0)
+
+
+class MapReaderCapabilities(BaseModel):
+    """Independent map-format evidence under the accepted SyncDevice model."""
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    frame_version: Literal[0, 1]
+    codec_id: Literal[9]
+    codec_version: Literal[0, 1]
+    reader_version: Literal[0, 1]
+    compression_zero: bool = Field(strict=True)
+
+    @field_validator('frame_version', 'codec_id', 'codec_version', 'reader_version', mode='before')
+    @classmethod
+    def strict_version(cls, value):
+        if type(value) is not int:
+            raise ValueError('Reader version must be an integer')
+        return value

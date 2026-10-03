@@ -20,7 +20,7 @@ from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsR
 from .schemas import (ENCRYPTED_SYNC_VERSION, MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES,
                       MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES, SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION,
                       EncryptedSyncPushItem, SyncEventEnvelope, V2EncryptedSyncPushItem,
-                      V2SyncEventEnvelope, decode_canonical_base64url)
+                      V2SyncEventEnvelope, decode_canonical_base64url, is_map_entity_id)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -453,6 +453,33 @@ class SyncService:
             session.rollback()
             raise
 
+    @classmethod
+    def map_reader_ready(cls, device) -> bool:
+        return (cls.content_note_reader_ready(device) and device.map_frame_version == 1
+                and device.map_codec_version == 1 and device.map_reader_version == 1
+                and device.map_compression_zero)
+
+    def map_gate(self, session: Session, user_id: object) -> tuple[bool, int]:
+        devices = session.scalars(select(SyncDevice).where(SyncDevice.user_id == user_id)).all()
+        missing = sum(not self.map_reader_ready(device) for device in devices)
+        mode, _ = self.capabilities(session, user_id)
+        return bool(devices) and missing == 0 and mode == 3, missing
+
+    def declare_map_reader(self, session: Session, user_id: object, request) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, request.device_id)
+                device.map_frame_version = request.frame_version
+                device.map_codec_version = request.codec_version
+                device.map_reader_version = request.reader_version
+                device.map_compression_zero = request.compression_zero
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
     def cutover_to_v3(self, session: Session, user_id: object, expected_cutover_epoch: int) -> tuple[int, int]:
         try:
             session.commit()
@@ -546,9 +573,11 @@ class SyncService:
                 raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported account object version.', 422)
             return
         allowed_operations = ('upsert', 'delete', 'resolution', 'event') if transport_version == 3 else ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
-        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order') if transport_version == 3 else ('note',)
+        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order', 'map') if transport_version == 3 else ('note',)
         if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
-                or (item.event.operation == 'event' and item.event.entity_type != 'note')
+                or (item.event.operation == 'event' and item.event.entity_type not in ('note', 'map'))
+                or (item.event.entity_type == 'map' and (item.event.operation != 'event'
+                    or item.event.deleted_at is not None or not is_map_entity_id(item.event.entity_id)))
                 or (item.event.entity_type == 'project_metadata'
                     and item.event.entity_id != item.event.project_id)
                 or (item.event.entity_type == 'stage' and item.event.operation not in ('upsert', 'delete'))
@@ -589,6 +618,8 @@ class SyncService:
                 # Its request schema admits Notes only; metadata uses v3.
                 if not (transport_version == 2 and state.writer_transport_version == 3):
                     self._require_transport_mode(state, transport_version)
+                if any(item.event.entity_type == 'map' for item in items) and not self.map_gate(session, user_id)[0]:
+                    raise SyncProtocolError('map_readers_not_ready', 'Registered devices must support map readers.', 409)
                 if any(item.event.entity_type == 'note' and item.event.operation == 'event' for item in items):
                     if not self.content_note_gate(session, user_id)[0]:
                         raise SyncProtocolError('content_note_readers_not_ready', 'Registered devices must support Note readers.', 409)
@@ -711,6 +742,11 @@ class SyncService:
                 SyncEvent.user_id == user_id, SyncEvent.entity_type == 'note', SyncEvent.operation == 'event').limit(1))
             if emitted is not None:
                 raise SyncProtocolError('content_note_reader_required', 'This device must support Note readers.', 409)
+        if transport_version == 3 and not self.map_reader_ready(device):
+            emitted = session.scalar(select(SyncEvent.event_id).where(
+                SyncEvent.user_id == user_id, SyncEvent.entity_type == 'map').limit(1))
+            if emitted is not None:
+                raise SyncProtocolError('map_reader_required', 'This device must support map readers.', 409)
         descriptors = self._sync.pull_encrypted_descriptors(session, user_id, since, limit)
         selected_descriptors: list[EncryptedPullDescriptor] = []
         ciphertext_total = 0
@@ -767,9 +803,11 @@ class SyncService:
                 if event.entity_type not in ACCOUNT_ENTITY_TYPES or event.operation not in ('upsert', 'delete') or encrypted is None or encrypted.crypto_version != 2 or encrypted.aad_version != 2:
                     raise SyncProtocolError('encrypted_sync_event_incomplete', 'Invalid account object.', 409)
                 continue
-            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order')
+            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order', 'map')
                     or event.operation not in ('upsert', 'delete', 'resolution', 'event')
-                    or (event.operation == 'event' and event.entity_type != 'note')
+                    or (event.operation == 'event' and event.entity_type not in ('note', 'map'))
+                    or (event.entity_type == 'map' and (event.operation != 'event'
+                        or event.deleted_at is not None or not is_map_entity_id(event.entity_id)))
                     or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)
                     or (event.entity_type == 'stage' and event.operation not in ('upsert', 'delete'))
                     or (event.entity_type == 'stage_order' and (event.entity_id != 'stage_order' or event.operation != 'upsert'))):

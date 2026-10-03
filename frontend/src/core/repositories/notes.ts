@@ -17,6 +17,6 @@ export interface NotesRepository {
   delete(scope: NotesScope, noteId: string): Promise<void>
   reorder(scope: NotesScope, noteIds: string[]): Promise<NoteOrderResponse>
   mindMap(scope: NotesScope): Promise<MindMapResponse>
-  saveMindMap(scope: NotesScope, data: JsonObject): Promise<MindMapResponse>
+  saveMindMap(scope: NotesScope, data: JsonObject, expectedHeads?: JsonObject): Promise<MindMapResponse>
   importXMind(scope: NotesScope, file: File): Promise<XMindImportResponse>
 }

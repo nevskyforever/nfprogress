@@ -6,6 +6,9 @@ on:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/map_sync.rs'
+      - 'frontend/src-tauri/src/map_codec.rs'
+      - 'frontend/src/cloud/__fixtures__/mapCodecV1.json'
       - 'frontend/src-tauri/src/content_note_sync.rs'
       - 'frontend/src-tauri/src/content_note_writer.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
@@ -31,6 +34,7 @@ on:
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
       - 'tests/test_c18_content_note_sqlite.py'
+      - 'tests/test_c18_map_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -41,6 +45,9 @@ on:
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
+      - 'frontend/src-tauri/src/map_sync.rs'
+      - 'frontend/src-tauri/src/map_codec.rs'
+      - 'frontend/src/cloud/__fixtures__/mapCodecV1.json'
       - 'frontend/src-tauri/src/content_note_sync.rs'
       - 'frontend/src-tauri/src/content_note_writer.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
@@ -66,6 +73,7 @@ on:
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
       - 'tests/test_c18_content_note_sqlite.py'
+      - 'tests/test_c18_map_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -103,7 +111,7 @@ jobs:
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
-            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py \
+            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \
@@ -166,3 +174,10 @@ jobs:
 
       - name: Verify content Note durable readers and writers
         run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc content_note
+
+      - name: Verify map codec and durable authority
+        shell: pwsh
+        run: |
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc map_codec
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc map_sync

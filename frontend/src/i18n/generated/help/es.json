@@ -202,7 +202,7 @@
   },
   {
     "children": [],
-    "content": "<html><body>\n<h2>Notas de proyectos y etapas en la nube</h2>\n<p>Publique las notas de texto del proyecto y las notas de etapas con «Publicar notas» en la configuración de la nube. Todos los dispositivos registrados de la cuenta deben confirmar la compatibilidad con este formato. Después de la confirmación verificada, editar y eliminar crea cambios cifrados. Las notas HTML del proyecto conservan su historial. Las notas de mapas mentales permanecen locales. Una nota de etapa requiere una etapa vigente y acordada; eliminar una etapa no elimina sus notas. Los conflictos conservan ambas versiones: revise el texto y elija explícitamente una versión. Si los datos cambian durante la elección, actualice el estado y vuelva a elegir. Un envío sin respuesta se puede repetir de forma segura después de reiniciar.</p>\n</body></html>",
+    "content": "<html><body>\n<h2>Notas de proyectos y etapas en la nube</h2>\n<p>Publique las notas de texto del proyecto y las notas de etapas con «Publicar notas» en la configuración de la nube. Todos los dispositivos registrados de la cuenta deben confirmar la compatibilidad con este formato. Después de la confirmación verificada, editar y eliminar crea cambios cifrados. Las notas HTML del proyecto conservan su historial. Las notas de mapas mentales se publican con sus mapas mediante «Publicar mapas». Una nota de etapa requiere una etapa vigente y acordada; eliminar una etapa no elimina sus notas. Los conflictos conservan ambas versiones: revise el texto y elija explícitamente una versión. Si los datos cambian durante la elección, actualice el estado y vuelva a elegir. Un envío sin respuesta se puede repetir de forma segura después de reiniciar.</p>\n</body></html>",
     "key": "cloud_note_sync",
     "title": "Notas de proyectos y etapas en la nube"
   },
@@ -217,5 +217,11 @@
     "content": "<html><body>\n<h2>Atajos de teclado</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> abrir la creación de proyectos.</li>\n<li><b>Ctrl+H / Command+H:</b> abrir la ayuda.</li>\n<li><b>Ctrl+S / Command+S:</b> abrir la sincronización del proyecto o etapa seleccionados.</li>\n<li><b>Ctrl+E / Command+E:</b> editar el proyecto o etapa seleccionados.</li>\n<li><b>Delete:</b> eliminar el proyecto o etapa seleccionados tras la confirmación.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> ir a las estadísticas.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> completar el proyecto o etapa seleccionados.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archivar el proyecto seleccionado.</li>\n</ul>\n<p>En la ayuda, Ctrl+F o Command+F lleva el foco a la búsqueda. Los atajos no se interceptan al escribir en un campo, editor o lista desplegable.</p>\n<p>Todos los elementos interactivos son accesibles con el teclado en el orden habitual de Tab. Enter o la barra espaciadora activa el botón seleccionado, y Escape cierra los diálogos y menús compatibles.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Atajos de teclado"
+  },
+  {
+    "children": [],
+    "content": "<html><body>\n<h2>Mapas de proyectos y etapas en la nube</h2>\n<p>Elija «Publicar mapas» en la configuración de la nube para un proyecto conectado. Abrir un proyecto, iniciar sesión y sincronizar no publica mapas automáticamente. Todos los dispositivos registrados deben admitir mapas. Cada mapa del proyecto y de etapa tiene su propio historial. El texto, título, lista de tareas, etiquetas, color, fijación, archivo y orden de notas vinculadas se envían con el mapa. Las notas normales conservan su historial separado. El mapa combinado muestra mapas separados: actualícelo antes de guardar si cambia una versión visible. Los conflictos conservan versiones completas de mapas y notas; revíselas y elija una. El mapa local de otro dispositivo se conserva hasta una elección explícita. Una etapa sin resolver o eliminada bloquea la aplicación. Las extensiones no compatibles no se publican. Un envío guardado se puede repetir tras reiniciar.</p>\n</body></html>",
+    "key": "cloud_map_sync",
+    "title": "Mapas de proyectos y etapas en la nube"
   }
 ]

@@ -120,6 +120,14 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        # Remove schema34 map sidecars before reconstructing the older fixture.
+        for table in ("cloud_map_combined_groups", "cloud_map_local_drafts", "cloud_map_import_decisions",
+                      "cloud_map_decisions", "cloud_map_local_candidates", "cloud_map_apply_ledger",
+                      "cloud_map_projection", "cloud_map_tips", "cloud_map_events", "cloud_map_candidates",
+                      "cloud_map_migrations"):
+            database.execute(f"DROP TABLE {table}")
+        for name in ("map_object_immutable", "map_object_retained", "map_outbox_immutable", "map_projects_write_guard", "map_stages_write_guard", "map_notes_insert_guard", "map_notes_update_guard", "map_notes_delete_guard"):
+            database.execute(f"DROP TRIGGER {name}")
         # Reconstruct v6 without any migration-033 writer sidecars or guards.
         database.execute("DROP TRIGGER content_note_route_immutable")
         for table in ("cloud_content_note_import_decisions", "cloud_content_note_local_candidates",

@@ -1,3 +1,4 @@
+import type {MapAuthorityView,MapDecision} from '@/cloud/mapSyncRuntime'
 import type { ContentNoteConflict, ContentNoteMigrationView } from '@/cloud/contentNoteRuntime'
 import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
 import { diagnostics } from '@/diagnostics/service'
@@ -91,6 +92,9 @@ export interface CloudSessionRuntime {
   catalogAuthority?():Promise<CatalogView>
   beginCatalogMigration?():Promise<CatalogView>
   decideCatalog?(decision:CatalogDecision):Promise<string>
+  projectMapAuthority?(projectId:string):Promise<MapAuthorityView>
+  beginMapMigration?(projectId:string):Promise<MapAuthorityView>
+  chooseMapVersion?(decision:MapDecision,keepLocal?:boolean):Promise<void>
   projectNoteAuthority?(projectId:string):Promise<ContentNoteMigrationView>
   beginNoteMigration?(projectId:string):Promise<ContentNoteMigrationView>
   noteConflicts?(projectId:string):Promise<ContentNoteConflict[]>
@@ -199,6 +203,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     metadataTransportMode.value = null
     metadataAuthority.value = {}
     structuralAuthority.value = {}
+    mapAuthority.value = {}
     noteAuthority.value = {}
     noteConflicts.value = {}
     catalogAuthority.value=null
@@ -380,7 +385,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
           return result
         }, correlation)
         if (current(epoch)) await refreshProjects()
-        if (current(epoch) && result.transport_version === 3 && ((result.cycle.metadataApply?.applied ?? 0) + (result.cycle.structuralApply?.applied ?? 0)) > 0) announceDataChange('projects')
+        if (current(epoch) && result.transport_version === 3) {
+          const mapsChanged=(result.cycle.mapApply?.applied??0)+(result.cycle.mapApply?.conflicts??0)
+          if(mapsChanged>0)for(const projectId of Object.keys(mapAuthority.value)){if(!current(epoch))break;await inspectMaps(projectId)}
+          if(current(epoch)&&((result.cycle.metadataApply?.applied??0)+(result.cycle.structuralApply?.applied??0)+mapsChanged)>0)announceDataChange('projects')
+        }
         applyCycle(result, epoch)
       } catch (error) {
         setFailure(error, epoch)
@@ -591,6 +600,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function decideCatalog(decision:CatalogDecision):Promise<void>{await diagnostics.run('projects','conflict_resolution',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.decideCatalog)throw new Error('catalog_runtime_unavailable');await runtime.decideCatalog(decision);if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
 
   const noteConflicts=ref<Record<string,ContentNoteConflict[]>>({})
+  const mapAuthority=ref<Record<string,MapAuthorityView>>({})
+  async function inspectMaps(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectMapAuthority)throw new Error('map_runtime_unavailable');const view=await runtime.projectMapAuthority(projectId);if(current(epoch))mapAuthority.value={...mapAuthority.value,[projectId]:view}}
+  async function beginMaps(projectId:string):Promise<void>{await diagnostics.run('migrations','map_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginMapMigration)throw new Error('map_runtime_unavailable');await runtime.beginMapMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectMaps(projectId)})}
+  async function chooseMapVersion(decision:MapDecision,keepLocal?:boolean):Promise<void>{await diagnostics.run('sync','map_resolution',async()=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.chooseMapVersion)throw new Error('map_runtime_unavailable');await runtime.chooseMapVersion(decision,keepLocal);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectMaps(decision.project_id);if(current(epoch))announceDataChange('projects')})}
   const noteAuthority=ref<Record<string,ContentNoteMigrationView>>({})
   async function inspectNotes(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectNoteAuthority)throw new Error('content_note_runtime_unavailable');const view=await runtime.projectNoteAuthority(projectId);if(current(epoch)){noteAuthority.value={...noteAuthority.value,[projectId]:view};if(runtime.noteConflicts){const groups=await runtime.noteConflicts(projectId);if(current(epoch))noteConflicts.value={...noteConflicts.value,[projectId]:groups}}}}
   async function chooseNoteVersion(projectId:string,decision:ContentNoteConflict,selected:string):Promise<void>{const runtime=requireRuntime();if(!runtime.chooseNoteVersion)throw new Error('content_note_runtime_unavailable');await diagnostics.run('sync','conflict_resolution',async()=>{const epoch=lifecycleEpoch;await runtime.chooseNoteVersion!(projectId,decision,selected);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectNotes(projectId);if(current(epoch))announceDataChange('projects')})}
@@ -740,6 +753,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,
     bootstrapProject, importProject, resumeProject, pauseProject,
+    mapAuthority,inspectMaps,beginMaps,chooseMapVersion,
     noteAuthority,noteConflicts,inspectNotes,beginNotes,chooseNoteVersion,
     retry, inspectProjectMetadata, prepareMetadataTransport, declareMetadataReaderReady, cutoverMetadataTransport,
     beginMetadataMigration, adoptMetadata, decideMetadata, lock, logout, dispose,

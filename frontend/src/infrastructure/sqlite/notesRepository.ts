@@ -50,12 +50,13 @@ export class SQLiteNotesRepository implements NotesRepository {
     return invoke<MindMapResponse>('load_map', nativeScope(scope))
   }
 
-  async saveMindMap(scope: NotesScope, data: JsonObject): Promise<MindMapResponse> {
+  async saveMindMap(scope: NotesScope, data: JsonObject, expectedHeads?: JsonObject): Promise<MindMapResponse> {
     const normalized = normalizeMindMapData(data)
     if (!normalized) throw new Error('Редактор вернул повреждённые данные карты.')
     return invoke<MindMapResponse>('save_map', {
       ...nativeScope(scope),
       data: normalized,
+      ...(expectedHeads?{expectedHeads}:{}),
     })
   }
 

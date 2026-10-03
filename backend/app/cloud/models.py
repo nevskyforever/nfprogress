@@ -159,6 +159,9 @@ class SyncDevice(Base):
         CheckConstraint('note_codec_version IN (0, 1)', name='ck_sync_devices_note_codec_version'),
         CheckConstraint('note_ordinary_reader_version IN (0, 1)', name='ck_sync_devices_note_ordinary_reader_version'),
         CheckConstraint('note_resolution_reader_version IN (0, 2)', name='ck_sync_devices_note_resolution_reader_version'),
+        CheckConstraint('map_frame_version IN (0, 1)', name='ck_sync_devices_map_frame_version'),
+        CheckConstraint('map_codec_version IN (0, 1)', name='ck_sync_devices_map_codec_version'),
+        CheckConstraint('map_reader_version IN (0, 1)', name='ck_sync_devices_map_reader_version'),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -174,6 +177,10 @@ class SyncDevice(Base):
     note_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     note_ordinary_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     note_resolution_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    map_frame_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    map_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    map_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    map_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
 
 
 

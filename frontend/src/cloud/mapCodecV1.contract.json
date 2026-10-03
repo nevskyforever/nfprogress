@@ -1,0 +1,138 @@
+{
+  "codec": 9,
+  "version": 1,
+  "frame": 1,
+  "compression": 0,
+  "limits": {
+    "frame_bytes": 8388608,
+    "nodes": 50000,
+    "depth": 512,
+    "references": 50000,
+    "annotations": 50000,
+    "topic_chars": 300000,
+    "id_bytes": 512,
+    "parents": 64,
+    "dependencies": 64
+  },
+  "fields": {
+    "map": [
+      "nodeData",
+      "arrows",
+      "summaries",
+      "freeNodes",
+      "nfprogressFloatingItems",
+      "nfprogressFloatingLinks",
+      "direction",
+      "theme",
+      "compact",
+      "meta"
+    ],
+    "node": [
+      "id",
+      "topic",
+      "children",
+      "root",
+      "expanded",
+      "direction",
+      "style",
+      "tags",
+      "icons",
+      "hyperLink",
+      "image",
+      "branchColor",
+      "position",
+      "nfprogressFreeRoot",
+      "nfprogressNote"
+    ],
+    "style": [
+      "color",
+      "background",
+      "backgroundColor",
+      "fontSize",
+      "fontWeight",
+      "fontFamily",
+      "fontStyle",
+      "textDecoration",
+      "border",
+      "borderRadius",
+      "padding",
+      "width",
+      "lineHeight",
+      "stroke",
+      "strokeWidth",
+      "fill",
+      "labelColor",
+      "strokeDasharray",
+      "strokeLinecap",
+      "opacity"
+    ],
+    "position": [
+      "x",
+      "y"
+    ],
+    "image": [
+      "url",
+      "width",
+      "height",
+      "fit"
+    ],
+    "arrow": [
+      "id",
+      "from",
+      "to",
+      "label",
+      "style",
+      "delta1",
+      "delta2",
+      "bidirectional"
+    ],
+    "summary": [
+      "id",
+      "parent",
+      "start",
+      "end",
+      "label",
+      "style",
+      "nfprogressFreeSelf"
+    ],
+    "floating": [
+      "id",
+      "kind",
+      "text",
+      "x",
+      "y",
+      "parentId"
+    ],
+    "link": [
+      "id",
+      "fromType",
+      "from",
+      "toType",
+      "to"
+    ],
+    "theme": [
+      "name",
+      "type",
+      "palette",
+      "cssVar"
+    ],
+    "meta": [],
+    "annotation": [
+      "note_id",
+      "title",
+      "checklist",
+      "tags",
+      "color",
+      "pinned",
+      "archived",
+      "sort_order",
+      "metadata",
+      "created_at"
+    ],
+    "checklist": [
+      "id",
+      "text",
+      "checked"
+    ]
+  }
+}

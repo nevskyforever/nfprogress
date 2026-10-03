@@ -28,6 +28,7 @@ const LEGACY: &[&str] = &[
     "updated_at",
     "notes_updated_at",
     "mindmap_updated_at",
+    "map_note_annotations",
     "today_goal",
     "planning_date",
     "plan_daily_goal",

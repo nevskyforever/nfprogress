@@ -583,3 +583,107 @@ C18.5 and C18 remain IN PROGRESS at exactly77.0%. Remaining C18.5 scope:
 maps/derived annotations, documents, progress and game ledgers. Registration
 remains CLOSED pending owner dogfooding/stabilization and explicit decision;
 C22/PF6.0 terminology audit and C21 local-Web-first order remain mandatory.
+
+## C18.5.03 working contract — codec and capability foundation
+
+Implementation is IN PROGRESS. The following foundation does not yet activate
+production map publication, migration, writers or remote apply.
+
+Codec 9/version 1 uses the existing `WORTA-C1` frame version 1, compression 0,
+and unchanged C11 crypto/AAD 1/1. Its complete plaintext is
+`{version,header,mutation,map,deleted_at}`. The strict header includes canonical
+account/device/event/bootstrap IDs, project and nullable Stage identity, exact
+metadata and Stage dependency event IDs, sorted causal parents, revision,
+generation, operation and timestamp. An upsert carries
+`map:{data,annotations}`; a delete retains its encrypted tombstone timestamp.
+Project map entity ID is `project-map`. Stage entity ID is `stage-map-` followed
+by lowercase SHA-256 of the exact Stage ID UTF-8. These identities are scoped by
+Project in the established C11 tuple. Combined maps have no cloud identity.
+
+The TS/native field allowlist and resource contract are shared in
+`frontend/src/cloud/mapCodecV1.contract.json`. Frame size including its 20-byte
+header is at most 8 MiB; aggregate canonical UTF-8 is counted before recursive
+serialization. The existing editor's bounds remain 50,000 nodes, depth 512 and
+300,000 Unicode scalar values per topic. IDs are bounded by 512 UTF-8 bytes,
+references and annotations by 50,000, causal parents and Stage dependencies by
+64. Native deep parsing has both a lexical nesting bound and a bounded 16 MiB
+worker stack. Fractional coordinates and UTF-16 key ordering match ECMAScript
+canonical JSON; unsupported fields are rejected without normalization or loss.
+
+Native free Note nodes and legacy floating Notes are validated together. A
+duplicate stable node ID represents one logical Note only when its text agrees.
+Every logical Note needs one map-owned annotation with stable Note ID, title,
+checklist, tags, color, pin/archive flags, order, metadata and creation timestamp.
+Nonempty opaque editor/Note metadata and unlisted extensions currently return
+`map_unsupported_extension`; migration must retain their source and expose that
+blocker. Parent links between floating nodes must be acyclic; ordinary graph
+arrows may cycle. Cross-map graph references and missing annotation targets are
+rejected. Production capture and projection reject cross-owner Note ID collisions with retained source evidence.
+
+Alembic head `c18_map_readers` adds normalized map frame/codec/reader versions
+and compression-zero support to the established account-owned `SyncDevice`.
+The authenticated `/api/v3/sync/encrypted/map-reader-capabilities` route declares
+only the caller account's registered device. Publication requires mode 3 and
+complete map evidence from every registered account device, in addition to
+accepted ordinary/resolution/codec8 Note support. A Note-capable third device
+with no map evidence blocks maps. An incomplete reader cannot pull retained map
+history. Maps use opaque operation `event`; plaintext content and mutation stay
+encrypted. Downgrade is refused while retained map history exists.
+
+SQLite34 is the production map authority substrate. Immutable candidates/events,
+full causal tips, map projection, exact apply ledger, local candidates/decisions,
+deferred drafts and local combined group evidence use the established C18 patterns.
+Encrypted objects, outbox, inbox, upload receipts and shared sequence remain in the
+existing transport tables. No derived Note has a separate event, writer or ACK.
+
+Publication is explicit per selected connected project and captures all existing
+owners in one transaction. Capability declaration and every read path are consent
+free: they never capture. Ordinary Project/Stage and linked Note writers after
+admission freeze full maps, preserve sealed frames and retain later drafts. Native
+strict validation runs before renderer normalization may discard malformed nodes.
+Only verified self echo activates publication and recovers a lost upload receipt.
+Local-only projects and unsupported annotations/extensions are excluded safely.
+
+A scoped existing private map-event authorization covers one exact whole-owner
+projection plan. The same remote transaction writes owner tree/annotations and all
+linked Note rows/removals, causal history/tips/projection, immutable apply receipt,
+inbox/conflict state and self-echo upload receipt. No synthetic Note capability,
+intent or ACK is created. Fault injection before derived Note write rolls back
+all of these effects; a map event has no partially successful Note projection.
+
+Conflicts preserve full authenticated map versions and original local candidates.
+A decision compares the complete rendered tip set and local source, selects a full
+cloud or local version and creates resolution at max(parent revision)+1. Late
+branches remove only covered ancestors, so C after R(A,B) yields R+C. An authenticated
+remote resolution can replace a local accepted parent branch, but cannot overwrite
+an unpublished local map that differs from every parent. Exact frozen replay and
+restart never create new genesis, mutate ciphertext or duplicate Note authority.
+
+Combined maps remain views. Rendered CAS contains each owner map/annotations/tips
+plus metadata/Stage heads; the editor keeps that snapshot throughout its lifetime
+and updates it only after a successful save. Any stale owner rejects the complete
+local save. Every owner draft/outbox/projection and immutable local group record is
+in the same transaction. Source owner maps validate before normalization; the
+combined wrapper itself is never encrypted or assigned a cloud entity identity.
+
+Dependency admission consumes existing metadata/bootstrap authority and accepted
+live Stage ancestry. Rename descendants may cover the captured Stage reference;
+unresolved/deleted Stages block children. Map deletes carry encrypted tombstones
+and atomically remove only that owner's linked Note projections. Exact map apply
+receipts participate in the established contiguous shared ACK. A blocked map at N
+prevents ACK crossing N+1, even if a later independent Note has already applied.
+
+The mode3 cycle declares readers, seals/uploads maps, retries bounded received maps
+after metadata/Stage/catalog apply, then prepares the common ACK. Blocked first map
+pages do not starve later owners. The server stores only opaque descriptors/C11
+objects. Diagnostics retain only allowed codes/counts; map and Note text, paths,
+annotations, credentials and payload JSON are excluded from diagnostics.
+
+Mandatory CI runs PostgreSQL + production TS C11 + two file-backed native SQLite
+acceptance, including third Note-only reader gate, explicit capture, annotations,
+restart/exact replay/lost receipt, preexisting B candidate, ordinary map/Note writes,
+concurrent maps, full-tip decisions, combined multi-owner rollback/stale CAS, Stage
+rename ancestry and blocked shared ACK with later legacy Note and missing-parent
+retry. Native regressions also cover derived Note crash rollback, unsupported
+annotation evidence, local-only exclusion, post-sealing draft survival and late C.
+Existing Note ordinary-v1/resolution-v2/codec8 histories and C11 bytes remain valid.

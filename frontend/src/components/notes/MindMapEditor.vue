@@ -4,6 +4,7 @@ import { IonIcon, IonSpinner } from '@ionic/vue'
 import { locateOutline, saveOutline } from 'ionicons/icons'
 
 import { apiErrorMessage } from '@/api/client'
+import {presentStatus} from '@/diagnostics/presentation'
 import {
   mindMapBridge,
   parseMindMapData,
@@ -15,7 +16,7 @@ import type { JsonObject, MindMapResponse, NotesScope, XMindImportResponse } fro
 
 const props = defineProps<{
   map: MindMapResponse
-  persist: (data: JsonObject, scope: NotesScope) => Promise<MindMapResponse>
+  persist: (data: JsonObject, scope: NotesScope, expectedHeads?: JsonObject) => Promise<MindMapResponse>
   importXMind: (file: File, scope: NotesScope) => Promise<XMindImportResponse>
   focusNodeId?: string | null
 }>()
@@ -40,6 +41,7 @@ let pollTimer: number | null = null
 let pendingData: JsonObject | null = null
 let saveLoopRunning = false
 let initialized = false
+let renderedHeads = props.map.expected_heads ? JSON.parse(JSON.stringify(props.map.expected_heads)) as JsonObject : undefined
 let lastSavedSerialized = props.map.data ? JSON.stringify(props.map.data) : ''
 const persistenceScope: NotesScope = {
   projectId: props.map.project_id,
@@ -160,14 +162,17 @@ async function flushSaves(): Promise<void> {
       pendingData = null
       statusMessage.value = t('Сохраняем карту…')
       try {
-        const result = await props.persist(current, persistenceScope)
+        const result = await props.persist(current, persistenceScope, renderedHeads)
         lastSavedSerialized = JSON.stringify(result.data ?? current)
+        renderedHeads = result.expected_heads ? JSON.parse(JSON.stringify(result.expected_heads)) as JsonObject : undefined
         emit('saved', result)
         statusMessage.value = pendingData
           ? t('Сохраняем карту…')
           : t('Все изменения сохранены.')
       } catch (reason) {
-        errorMessage.value = apiErrorMessage(reason)
+        const code=typeof reason==='string'?reason:reason instanceof Error?reason.message:''
+        if(code.startsWith('map_')){const status=presentStatus('error',code);errorMessage.value=`${t(status.description)} ${t(status.action)}`}
+        else errorMessage.value = apiErrorMessage(reason)
         statusMessage.value = t('Карта не сохранена.')
       }
     }

@@ -73,6 +73,7 @@ export interface NoteOrderResponse {
 }
 
 export interface MindMapResponse {
+  expected_heads?: JsonObject
   project_id: string
   stage_id: string | null
   name: string

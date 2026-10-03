@@ -25,6 +25,8 @@ mod account_catalog;
 mod note_sync_plaintext;
 mod content_note_sync;
 mod content_note_writer;
+mod map_codec;
+mod map_sync;
 #[allow(dead_code)]
 mod project_metadata_sync;
 mod stage_sync;
@@ -1434,10 +1436,10 @@ fn split_combined_map(
                     })
                     .collect(),
             );
-            stage_maps.insert(stage.id.clone(), mindmap::normalize(existing)?);
+            stage_maps.insert(stage.id.clone(), existing);
         }
     }
-    Ok((mindmap::normalize(project_map)?, stage_maps))
+    Ok((project_map, stage_maps))
 }
 
 fn map_writable(project_status: &str, stage_status: Option<&str>) -> Result<(), String> {
@@ -1687,6 +1689,7 @@ fn reconcile_loaded_map_view_in_connection(
         .transaction()
         .map_err(|error| error.to_string())?;
     if combined {
+        if !map_sync::admitted(&tx, project_id, None).map_err(|e|e.to_string())? {
         if let Some(map) = stored_map(&project.payload)
             .map(mindmap::normalize)
             .transpose()?
@@ -1695,7 +1698,9 @@ fn reconcile_loaded_map_view_in_connection(
                 update_stored_map(&tx, project_id, None, &map, &now, true)?;
             }
         }
+        }
         for stage in &stages {
+            if map_sync::admitted(&tx, project_id, Some(&stage.id)).map_err(|e|e.to_string())? { continue; }
             if let Some(map) = stored_map(&stage.payload)
                 .map(mindmap::normalize)
                 .transpose()?
@@ -1715,12 +1720,14 @@ fn reconcile_loaded_map_view_in_connection(
         } else {
             (stored_map(&project.payload), None)
         };
+        if !map_sync::admitted(&tx, project_id, owner_stage_id).map_err(|e|e.to_string())? {
         if let Some(map) = map.map(mindmap::normalize).transpose()? {
             if reconcile_map_notes(&tx, project_id, owner_stage_id, &map, &now)? {
                 update_stored_map(&tx, project_id, owner_stage_id, &map, &now, true)?;
             }
         }
     }
+        }
     tx.commit().map_err(|error| error.to_string())
 }
 
@@ -1728,6 +1735,8 @@ fn map_response(project_id: String, stage_id: Option<String>) -> Result<serde_js
     reconcile_loaded_map_view(&project_id, stage_id.as_deref())?;
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+    // Keep rendered owners and CAS evidence in one read snapshot.
+    connection.execute_batch("BEGIN DEFERRED").map_err(|e| e.to_string())?;
     let repository = ProjectsRepository::new(&mut connection);
     let project = repository
         .get_project(&project_id)
@@ -1776,8 +1785,10 @@ fn map_response(project_id: String, stage_id: Option<String>) -> Result<serde_js
             stage.status == "завершен"
                 && !mindmap::has_content(stored_map(&stage.payload).as_ref(), &stage.name)
         });
+    let expected_heads=map_sync::expected(&connection,&project_id,stage_id.as_deref(),combined).map_err(|e|e.to_string())?;
+    connection.execute_batch("COMMIT").map_err(|e| e.to_string())?;
     Ok(
-        serde_json::json!({"project_id": project_id, "stage_id": stage_id, "name": name, "data": data, "combined": combined, "read_only": status == "завершен", "has_empty_completed_stage_map": empty_completed, "notes": notes}),
+        serde_json::json!({"expected_heads":expected_heads,"project_id": project_id, "stage_id": stage_id, "name": name, "data": data, "combined": combined, "read_only": status == "завершен", "has_empty_completed_stage_map": empty_completed, "notes": notes}),
     )
 }
 
@@ -1838,33 +1849,42 @@ fn save_map_in_connection(
             .and_then(|value| value.as_bool())
             .unwrap_or(false)
         && !stages.is_empty();
+    map_sync::check_expected(&tx, &command.project_id, command.stage_id.as_deref(), combined, command.expected_heads.as_ref(), &now).map_err(|e|e.to_string())?;
     if combined {
-        let (project_map, stage_maps) = split_combined_map(&project, &stages, normalized)?;
-        let changed = reconcile_map_notes(&tx, &command.project_id, None, &project_map, &now)?;
-        update_stored_map(&tx, &command.project_id, None, &project_map, &now, changed)?;
+        let (project_map, stage_maps) = split_combined_map(&project, &stages, &command.data)?;
+        if !map_sync::local_edit(&tx,&command.project_id,None,&project_map,None,&now).map_err(|e|e.to_string())? {
+            let project_map = mindmap::normalize(project_map)?;
+            let changed = reconcile_map_notes(&tx, &command.project_id, None, &project_map, &now)?;
+            update_stored_map(&tx, &command.project_id, None, &project_map, &now, changed)?;
+        }
         for stage in &stages {
             if let Some(stage_map) = stage_maps.get(&stage.id) {
                 if stage.status == "завершен" {
                     continue;
                 }
+                if map_sync::local_edit(&tx,&command.project_id,Some(&stage.id),stage_map,None,&now).map_err(|e|e.to_string())? {continue}
+                let stage_map = mindmap::normalize(stage_map.clone())?;
                 let changed = reconcile_map_notes(
                     &tx,
                     &command.project_id,
                     Some(&stage.id),
-                    stage_map,
+                    &stage_map,
                     &now,
                 )?;
                 update_stored_map(
                     &tx,
                     &command.project_id,
                     Some(&stage.id),
-                    stage_map,
+                    &stage_map,
                     &now,
                     changed,
                 )?;
             }
         }
     } else {
+        if map_sync::local_edit(&tx,&command.project_id,command.stage_id.as_deref(),&command.data,None,&now).map_err(|e|e.to_string())? {
+            return tx.commit().map_err(|e|e.to_string());
+        }
         let changed = reconcile_map_notes(
             &tx,
             &command.project_id,
@@ -2507,6 +2527,27 @@ fn commit_v3_sync_inbound_page(command: note_sync::CommitMixedSyncInboundPageCom
 }
 
 #[tauri::command]
+fn map_sync_command(scope:project_metadata_sync::MetadataScope,request:map_sync::Request)->Result<serde_json::Value,String>{
+    let mut db=metadata_connection(&scope)?;
+    use map_sync::Request::*;
+    let result=(||->Result<serde_json::Value,map_sync::Error>{
+        match request {
+            View{project_id}=>map_sync::view(&db,&scope,&project_id),
+            Begin{project_id,now}=>map_sync::begin(&mut db,&scope,&project_id,&now),
+            Pending{sealed,now}=>{map_sync::advance(&mut db,&scope.account_id,&now)?;Ok(serde_json::json!(map_sync::pending(&db,&scope.account_id,&scope.device_id,sealed)?))},
+            Seal{event_id,frame,nonce,ciphertext}=>{map_sync::seal(&mut db,&scope.account_id,&event_id,&frame,&nonce,&ciphertext)?;Ok(serde_json::Value::Null)},
+            Receipt{event_id,server_sequence,duplicate,now}=>{map_sync::receipt(&mut db,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now)?;Ok(serde_json::Value::Null)},
+            Block{event_id,nonce,ciphertext,code}=>{if !matches!(code.as_str(),"invalid_map_payload"|"decrypt_failed"){return Err(map_sync::Error::from("invalid_map_blocker".to_string()))}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='map' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext])?;Ok(serde_json::Value::Null)},
+            Received{after,limit}=>Ok(serde_json::json!(map_sync::received(&db,&scope.account_id,after,limit)?)),
+            Apply{frame,nonce,ciphertext}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(map_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(map_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext)?))},
+            Import{decision,keep_local,now}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(map_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(map_sync::import_choice(&mut privileged,&scope,&decision,keep_local,&now)?))},
+            Decide{decision,now}=>Ok(serde_json::json!(map_sync::decide(&mut db,&scope,&decision,&now)?)),
+            Delete{project_id,stage_id,expected,now}=>{let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;map_sync::check_expected(&tx,&project_id,stage_id.as_deref(),false,Some(&expected),&now)?;if !map_sync::local_edit(&tx,&project_id,stage_id.as_deref(),&serde_json::Value::Null,None,&now)?{return Err(map_sync::Error::from("map_authority_required".to_string()))}tx.commit()?;Ok(serde_json::Value::Null)},
+        }
+    })();result.map_err(|e|e.to_string())
+}
+
+#[tauri::command]
 fn read_account_catalog(scope:project_metadata_sync::MetadataScope)->Result<serde_json::Value,String>{let db=metadata_connection(&scope)?;account_catalog::authority(&db,&scope).map_err(|e|e.to_string())}
 #[tauri::command]
 fn begin_account_catalog(scope:project_metadata_sync::MetadataScope,now:String)->Result<serde_json::Value,String>{let mut db=metadata_connection(&scope)?;account_catalog::begin(&mut db,&scope,&now).map_err(|e|e.to_string())}
@@ -2981,6 +3022,16 @@ fn update_note_in_connection(
         serde_json::Value::String(now.clone()),
     );
     let snapshot = note.to_string();
+    if note["source_type"]=="mindmap" {
+        let owner_raw:String=if let Some(stage)=note_stage_id.as_deref(){transaction.query_row("SELECT payload_json FROM stages WHERE project_id=?1 AND id=?2",rusqlite::params![project_id,stage],|r|r.get(0))}else{transaction.query_row("SELECT payload_json FROM projects WHERE id=?1",[project_id],|r|r.get(0))}.map_err(|e|e.to_string())?;
+        let owner:serde_json::Value=serde_json::from_str(&owner_raw).map_err(|e|e.to_string())?;
+        let map=stored_map(&owner).ok_or("map_note_link_invalid")?;
+        let updated=mindmap::set_note_text(&map,map_node_id.as_deref().ok_or("map_note_link_invalid")?,note["content"].as_str().unwrap_or("")).ok_or("map_note_link_invalid")?;
+        if map_sync::local_edit(&transaction,project_id,note_stage_id.as_deref(),&updated,Some(&note),&now).map_err(|e|e.to_string())? {
+            let raw:String=transaction.query_row("SELECT payload_json FROM notes WHERE id=?1",[&raw_id],|r|r.get(0)).map_err(|e|e.to_string())?;
+            transaction.commit().map_err(|e|e.to_string())?;return Ok(raw);
+        }
+    }
     prepare_direct_note_intent(
         &transaction,
         project_id,
@@ -3121,6 +3172,9 @@ fn delete_note_in_connection(
             .ok_or_else(|| "Связанная карта больше не существует.".to_string())?;
         let updated_map = mindmap::remove_note(&map, node_id)
             .ok_or_else(|| "Связанная заметка карты больше не существует.".to_string())?;
+        if map_sync::local_edit(&transaction,project_id,note_stage_id.as_deref(),&updated_map,None,&now).map_err(|e|e.to_string())? {
+            transaction.commit().map_err(|e|e.to_string())?;return Ok(());
+        }
         update_stored_map(
             &transaction,
             project_id,
@@ -3200,6 +3254,12 @@ fn reorder_notes_in_connection(
                 "updated_at".to_string(),
                 serde_json::Value::String(now.clone()),
             );
+            if note["source_type"] == "mindmap" {
+                let map = map_sync::owner_data(&transaction, project_id, note_stage_id.as_deref())
+                    .map_err(|e| e.to_string())?;
+                if map_sync::local_edit(&transaction, project_id, note_stage_id.as_deref(), &map, Some(&note), &now)
+                    .map_err(|e| e.to_string())? { continue; }
+            }
             let snapshot = note.to_string();
             prepare_direct_note_intent(
                 &transaction,
@@ -3583,6 +3643,8 @@ struct MapCommand {
     #[serde(default)]
     stage_id: Option<String>,
     data: serde_json::Value,
+    #[serde(default)]
+    expected_heads: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -6078,7 +6140,7 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
-            read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
+            map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
             list_received_account_objects,
             block_account_object,
             read_stage_structural_authority,

@@ -10,11 +10,12 @@ const fail = (): never => { throw new TypeError('invalid_encrypted_sync_v3') }
 const exact = (value: unknown, names: readonly string[]): boolean => typeof value === 'object' && value !== null
   && !Array.isArray(value) && Object.keys(value).length === names.length && names.every(name => Object.prototype.hasOwnProperty.call(value, name))
 const safe = (value: unknown, minimum: number): value is number => Number.isSafeInteger(value) && (value as number) >= minimum
+const mapId = (value: string): boolean => value === 'project-map' || /^stage-map-[0-9a-f]{64}$/.test(value)
 const headers = (token: string) => new Headers({ Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' })
 
 export interface V3Descriptor {
   event_id: string; device_id: string; server_sequence: number; project_id: string; entity_id: string
-  entity_type: 'note' | 'project_metadata' | 'stage' | 'stage_order'; operation: 'upsert' | 'delete' | 'resolution' | 'event'
+  entity_type: 'note' | 'project_metadata' | 'stage' | 'stage_order' | 'map'; operation: 'upsert' | 'delete' | 'resolution' | 'event'
   revision: number; updated_at: string; deleted_at: string | null
 }
 export interface AccountDescriptor {
@@ -54,8 +55,9 @@ export function parseV3Pull(value: unknown, since: number, limit: number): V3Pul
     if (!UUID.test(e.event_id) || !UUID.test(e.device_id) || ids.has(e.event_id)
       || !account && (typeof e.project_id !== 'string' || !e.project_id || e.project_id.length > 512)
       || typeof e.entity_id !== 'string' || !e.entity_id || e.entity_id.length > 512
-      || !account && !['note', 'project_metadata', 'stage', 'stage_order'].includes(e.entity_type) || !['upsert', 'delete', 'resolution', 'event'].includes(e.operation)
-      || e.operation === 'event' && e.entity_type !== 'note'
+      || !account && !['note', 'project_metadata', 'stage', 'stage_order', 'map'].includes(e.entity_type) || !['upsert', 'delete', 'resolution', 'event'].includes(e.operation)
+      || e.operation === 'event' && !['note', 'map'].includes(e.entity_type)
+      || e.entity_type === 'map' && (e.operation !== 'event' || e.deleted_at !== null || !mapId(e.entity_id))
       || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
       || e.entity_type === 'stage_order' && (e.entity_id !== 'stage_order' || e.operation !== 'upsert')
       || e.entity_type === 'stage' && e.operation === 'resolution'
@@ -77,18 +79,25 @@ export function parseV3Pull(value: unknown, since: number, limit: number): V3Pul
 }
 
 export function encodeV3MetadataPush(deviceId: string, items: readonly V3MetadataPushItem[]): string {
+  return encodeV3ProjectPush(deviceId, items, false)
+}
+export function encodeV3MapPush(deviceId: string, items: readonly V3MetadataPushItem[]): string {
+  return encodeV3ProjectPush(deviceId, items, true)
+}
+function encodeV3ProjectPush(deviceId: string, items: readonly V3MetadataPushItem[], maps: boolean): string {
   if (!UUID.test(deviceId) || !items.length || items.length > 100) fail()
   let total = 0
   const ids = new Set<string>()
   const wire = items.map(item => {
     const e = item.event
     if (!exact(e, ['event_id', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at'])
-      || !UUID.test(e.event_id) || ids.has(e.event_id) || !['project_metadata', 'stage', 'stage_order'].includes(e.entity_type)
+      || !UUID.test(e.event_id) || ids.has(e.event_id) || !(maps ? e.entity_type === 'map' : ['project_metadata', 'stage', 'stage_order'].includes(e.entity_type))
+      || maps && (e.operation !== 'event' || !mapId(e.entity_id) || e.deleted_at !== null)
       || e.entity_type === 'project_metadata' && e.entity_id !== e.project_id
       || e.entity_type === 'stage_order' && (e.entity_id !== 'stage_order' || e.operation !== 'upsert')
       || e.entity_type === 'stage' && e.operation === 'resolution'
       || !e.entity_id || e.entity_id.length > 512 || !e.project_id || e.project_id.length > 512
-      || !['upsert', 'delete', 'resolution'].includes(e.operation) || !safe(e.revision, e.operation === 'resolution' ? 2 : 1)
+      || !(maps ? e.operation === 'event' : ['upsert', 'delete', 'resolution'].includes(e.operation)) || !safe(e.revision, e.operation === 'resolution' ? 2 : 1)
       || typeof e.updated_at !== 'string' || (e.operation === 'delete' ? typeof e.deleted_at !== 'string' : e.deleted_at !== null)
       || item.object.crypto_version !== 1 || item.object.aad_version !== 1
       || item.object.nonce.length !== 24 || item.object.ciphertext.length < 16) fail()
@@ -131,6 +140,17 @@ export function encodeAccountPush(deviceId:string,items:readonly AccountPushItem
   const body=JSON.stringify({protocol_version:3,encrypted_sync_version:3,device_id:deviceId,items:wire});if(new TextEncoder().encode(body).length>MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES)fail();return body
 }
 export const encryptedSyncV3Api = {
+  mapReaderCapabilities:(token:string,deviceId:string,support:{frame_version:1;codec_id:9;codec_version:1;reader_version:1;compression_zero:true}):Promise<void>=>{
+    if(!UUID.test(deviceId))fail()
+    return apiRequest('/api/v3/sync/encrypted/map-reader-capabilities',{method:'PUT',headers:headers(token),body:{device_id:deviceId,...support}})
+  },
+  mapReaderGate:(token:string):Promise<{ready:boolean;missing_devices:number}>=>apiRequest<unknown>('/api/v3/sync/encrypted/map-reader-capabilities',{headers:headers(token)}).then(value=>{
+    if(!exact(value,['ready','missing_devices']))fail()
+    const result=value as {ready:boolean;missing_devices:number}
+    if(typeof result.ready!=='boolean'||!safe(result.missing_devices,0))fail()
+    return result
+  }),
+  pushMaps:(token:string,deviceId:string,items:readonly V3MetadataPushItem[]):Promise<V3PushResponse>=>apiRequest<unknown>('/api/v3/sync/encrypted/push',{method:'POST',headers:headers(token),rawBody:encodeV3MapPush(deviceId,items)}).then(value=>parsePush(value,items.map(i=>i.event.event_id))),
   noteReaderCapabilities:(token:string,deviceId:string,support:{reader_transport_version:3;frame_version:1;codec8_version:1;compression_zero:true;ordinary_reader_version:1;resolution_reader_version:2}):Promise<void>=>{
     if(!UUID.test(deviceId))fail()
     return apiRequest('/api/v3/sync/encrypted/note-reader-capabilities',{method:'PUT',headers:headers(token),body:{device_id:deviceId,...support}})

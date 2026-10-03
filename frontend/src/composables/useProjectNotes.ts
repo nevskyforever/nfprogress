@@ -134,8 +134,10 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
   async function saveMindMap(
     data: JsonObject,
     requestedScope: NotesScope = scope.value,
+    expectedHeads?: JsonObject,
   ): Promise<MindMapResponse> {
-    const result = await repository.saveMindMap(requestedScope, data)
+    const expected=expectedHeads
+    const result = expected?await repository.saveMindMap(requestedScope, data, expected):await repository.saveMindMap(requestedScope, data)
     const stillCurrent =
       projectId.value === requestedScope.projectId &&
       stageId.value === (requestedScope.stageId ?? null)

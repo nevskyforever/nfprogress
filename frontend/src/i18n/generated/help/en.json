@@ -202,7 +202,7 @@
   },
   {
     "children": [],
-    "content": "<html><body>\n<h2>Project and stage notes in the cloud</h2>\n<p>Publish plain project notes and stage notes separately using “Publish notes” in cloud settings. All registered devices in the account must confirm support for this format before publication. After verified confirmation, ordinary editing and deletion create encrypted changes. HTML project notes retain their existing cloud history. Mind-map notes stay local. Stage notes require an agreed, live stage; deleting a stage does not delete its notes. Conflicts preserve both versions: review the text and explicitly choose a version. If data changes during your choice, refresh the state and choose again. Sending without a response can safely be retried after restarting.</p>\n</body></html>",
+    "content": "<html><body>\n<h2>Project and stage notes in the cloud</h2>\n<p>Publish plain project notes and stage notes separately using “Publish notes” in cloud settings. All registered devices in the account must confirm support for this format before publication. After verified confirmation, ordinary editing and deletion create encrypted changes. HTML project notes retain their existing cloud history. Mind-map notes are published with their maps using the separate “Publish maps” action. Stage notes require an agreed, live stage; deleting a stage does not delete its notes. Conflicts preserve both versions: review the text and explicitly choose a version. If data changes during your choice, refresh the state and choose again. Sending without a response can safely be retried after restarting.</p>\n</body></html>",
     "key": "cloud_note_sync",
     "title": "Project and stage notes in the cloud"
   },
@@ -217,5 +217,11 @@
     "content": "<html><body>\n<h2>Keyboard shortcuts</h2>\n<ul>\n<li><b>Ctrl+N / Command+N:</b> open project creation.</li>\n<li><b>Ctrl+H / Command+H:</b> open Help.</li>\n<li><b>Ctrl+S / Command+S:</b> open synchronization for the selected project or stage.</li>\n<li><b>Ctrl+E / Command+E:</b> edit the selected project or stage.</li>\n<li><b>Delete:</b> delete the selected project or stage after confirmation.</li>\n<li><b>Ctrl+Shift+S / Command+Shift+S:</b> go to statistics.</li>\n<li><b>Ctrl+Shift+C / Command+Shift+C:</b> complete the selected project or stage.</li>\n<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archive the selected project.</li>\n</ul>\n<p>In Help, Ctrl+F or Command+F moves focus to search. Shortcuts are not intercepted while typing in a field, editor, or drop-down list.</p>\n<p>All interactive elements are available from the keyboard in the normal Tab order. Enter or Space activates the selected button, and Escape closes supported dialogs and menus.</p>\n</body></html>",
     "key": "shortcuts",
     "title": "Hotkeys"
+  },
+  {
+    "children": [],
+    "content": "<html><body>\n<h2>Project and stage maps in the cloud</h2>\n<p>Choose “Publish maps” in cloud settings for a connected project. Opening a project, signing in and synchronizing do not publish maps automatically. All registered devices must support maps. Project maps and each stage map have separate histories. Linked note text, title, checklist, tags, color, pinning, archive and order travel with the map. Ordinary notes retain their separate history. A combined map is a view of separate maps: refresh before saving if any displayed version changes. Conflicts preserve complete map and note versions; review them and choose a version. Another device’s local map is preserved until an explicit choice. An unresolved or deleted stage blocks map application. Unsupported extensions are not published. A saved upload can safely be retried after restarting.</p>\n</body></html>",
+    "key": "cloud_map_sync",
+    "title": "Project and stage maps in the cloud"
   }
 ]

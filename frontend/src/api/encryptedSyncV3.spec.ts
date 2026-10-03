@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { encodeV3MetadataPush, parseV3Pull } from './encryptedSyncV3'
+import { encodeV3MapPush, encodeV3MetadataPush, parseV3Pull } from './encryptedSyncV3'
 
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const EVENT = '123e4567-e89b-42d3-a456-426614174010'
@@ -10,6 +10,26 @@ const descriptor = { event_id: EVENT, device_id: DEVICE, server_sequence: 1, pro
   entity_type: 'project_metadata' as const, operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }
 
 describe('mode-3 metadata transport boundary', () => {
+  it('admits only opaque owning-map descriptors on the separate map writer', () => {
+    for (const entity_id of ['project-map', 'stage-map-' + 'a'.repeat(64)]) {
+      const event = {event_id:EVENT,project_id:'project',entity_id,entity_type:'map' as const,
+        operation:'event' as const,revision:1,updated_at:NOW,deleted_at:null}
+      const wire = JSON.parse(encodeV3MapPush(DEVICE,[{event,object}]))
+      const page = {protocol_version:3,encrypted_sync_version:3,items:[{
+        event:{...event,device_id:DEVICE,server_sequence:1},object:wire.items[0].object
+      }],next_cursor:1,has_more:false}
+      expect(parseV3Pull(page,0,10).items[0]!.event.entity_type).toBe('map')
+      expect(() => encodeV3MetadataPush(DEVICE,[{event,object}])).toThrow()
+      for (const change of [{entity_id:'combined-map'},{operation:'upsert'},
+        {deleted_at:NOW},{entity_type:'note'},{entity_id:'stage-map-'+'A'.repeat(64)}]) {
+        const invalid = {...event,...change}
+        expect(() => encodeV3MapPush(DEVICE,[{event:invalid,object}] as never)).toThrow()
+        if (change.entity_type !== 'note') expect(() => parseV3Pull({...page,items:[{
+          event:{...invalid,device_id:DEVICE,server_sequence:1},object:wire.items[0].object
+        }]},0,10)).toThrow()
+      }
+    }
+  })
   it('retains metadata publication and exact project scope', () => {
     const event = { event_id: EVENT, project_id: 'project', entity_id: 'project', entity_type: 'project_metadata' as const,
       operation: 'upsert' as const, revision: 1, updated_at: NOW, deleted_at: null }

@@ -1,11 +1,11 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 2 октября 2026 года.\
+**Дата:** 3 октября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Последнее закрытие:** C18.4 независимо закрыт для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac`; SQLite `37004006923` и Cloud `37004006914` — **SUCCESS**, все четыре jobs. Последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
@@ -1975,3 +1975,116 @@ Registration CLOSED until explicit owner decision after dogfooding/stabilization
 C22/PF6.0 final terminology audit and C21 local browser → Tauri audit → adapters →
 stable local Web → VPS order preserved. Next recommendation only:
 C18.5.03 — MAP AUTHORITY / DERIVED NOTE ANNOTATIONS / ATOMIC APPLY.
+
+
+## C18.5.02 — independent remote acceptance
+
+Owner-supplied independent verification for implementation
+`33f0e1cdd0be7f8f3a216fc7635005160562f26d`:
+
+- SQLite sync substrate [37057286547](https://github.com/nevskyforever/nfprogress/actions/runs/37057286547): SUCCESS; Python SQLite and Rust Windows jobs SUCCESS.
+- Cloud backend [37057286590](https://github.com/nevskyforever/nfprogress/actions/runs/37057286590): SUCCESS; Frontend admin and PostgreSQL jobs SUCCESS.
+
+**C18.5.02 — REMOTELY ACCEPTED.** C18.5/C18 remain IN PROGRESS;
+official progress exactly77.0%. Codex did not poll Actions.
+
+C18.5.03 preflight: cwd `/Users/romankisockin/Desktop/nfprogress/ts_migration`,
+branch6.0, clean HEAD == local origin/6.0 ==
+`33f0e1cdd0be7f8f3a216fc7635005160562f26d`.
+Project/Stage maps become separate canonical authorities; combined view stays
+derived. Map-derived Note text and annotations belong to the map, with atomic
+local projection and no independent Note event/ACK. Implementation in progress.
+Registration/terminology/C21 gates and all accepted C11/Note contracts preserved.
+
+### C18.5.03 retained foundation and completed production authority (not remote acceptance)
+
+Implemented codec9/version1/frame1/compression0 TS/native foundation with three
+shared frame vectors, fractional-coordinate canonicalization, 8 MiB aggregate
+UTF-8 budget, existing depth512/node50,000 limits, extension/reference/identity
+blockers and floating-parent cycle rejection. Added separate map descriptor/API
+helpers and normalized account-wide map reader evidence at Alembic head
+`c18_map_readers`. Real isolated PostgreSQL checks cover a third Note-capable but
+map-incapable device, exact opaque replay, reader downgrade, populated prior-head
+upgrade/repeat upgrade and retained-history downgrade refusal.
+
+Fixed the proven existing native map Note text edit regression: legacy floating
+Notes work without `freeNodes`; matching native/legacy twins receive the same
+text. This creates no independent Note event or additional canonical authority.
+
+Verified during this continuation: PostgreSQL18 focused checks, frontend12
+codec/transport checks, native5 codec checks and native6 mindmap checks; TypeScript
+typecheck, frontend production build, cargo check and `git diff --check` passed.
+Production map authority is locally complete on forward-only SQLite schema34.
+All earlier partial work was preserved. The continuation started at HEAD ==
+local origin/6.0 == `33f0e1cdd0be7f8f3a216fc7635005160562f26d`, with the deliberately
+dirty authorized C18.5.03 worktree. Protected Python bytecode remains untouched.
+
+- Explicit **Опубликовать карты** atomically captures Project and each Stage owner,
+  exact event/dependencies/parents/frame, immutable source and Note annotation
+  evidence. Opening, login, unlocking, reader declaration and background sync do
+  not capture maps. Absent migration is displayed as local without creating rows.
+- Per-owner captured/publication_pending/self_echo_pending/active/conflict/blocked
+  state survives restart. Candidates/events/ciphertext/decisions/apply receipts
+  are retained. Ordinary writes freeze complete new maps; later edits are durable
+  drafts, never mutations of sealed history. Verified self echo activates authority
+  and recovers lost HTTP receipts with exact descriptor/ciphertext replay.
+- Map-owned linked Note text/title/checklist/tags/color/pin/archive/order/metadata
+  and creation time migrate once by verified map/node/Note identity. Ambiguous
+  links, global Note-ID collisions and unsupported extensions block capture with
+  original evidence intact. Canonical timestamps/numbers do not lose source evidence.
+  Project HTML v1/resolution-v2 and codec8 Notes retain their established authority.
+- Native Project/Stage saves and linked Note text/annotation/delete/reorder writers
+  produce map history only. SQLite Note rows are projections; there are no separate
+  derived-Note events, outboxes, apply receipts or ACK units. Strict writers validate
+  original data before renderer normalization can discard malformed nodes.
+- One existing private remote-apply transaction covers map/tree/annotations,
+  derived Note creation/update/removal, history/tips/projection, local candidate,
+  inbox/conflict/apply receipt and own upload recovery. Fault injection proves full
+  rollback; no Note capability or synthetic Note history authorizes map projection.
+- Full-tip whole-map conflicts preserve all versions and dirty/preexisting local
+  candidates. Decisions bind exact rendered tips and full local CAS; resolution uses
+  max(parent revision)+1. Cloud or local versions are selected explicitly. A late C
+  after R(A,B) retains R+C. Stale decisions retain evidence and publish nothing.
+- Metadata/bootstrap ownership and live Stage ancestry are rechecked. Stage rename
+  ancestry is accepted; Stage tombstones block children without deleting maps/Notes.
+  Map tombstones remove only that owner's derived Note projections atomically.
+- Combined view has no cloud entity. Editor lifetime CAS includes every displayed
+  owner, local data/annotations, map and metadata/Stage heads. All owners/drafts/
+  outboxes/group evidence commit together; any stale owner or failed final write
+  rolls back the entire local group. Background refresh cannot replace rendered CAS.
+- Maps share the established contiguous sequence and ACK with metadata/Stages/
+  catalog/Notes. Exact immutable map receipts prove ACK eligibility; blocked N
+  prevents N+1 crossing, while later independent events may apply. B's existing
+  local map is retained and requires explicit reconciliation. Unbound/local-only
+  projects are excluded from map publication.
+- Local-only privacy-safe diagnostics and friendly explicit publication/conflict
+  UI are wired into the mode3 runtime. Help and RU/EN/ES/DE/FR/PT_BR catalogs describe
+  map ownership, capability blockers, replay and combined-save restrictions.
+
+Validation during continuation:
+- Mandatory real PostgreSQL16 + production TS C11 + two file-backed native SQLite
+  map acceptance PASS, no skips: Project/Stage/annotations, Note-only third-device
+  gate, exact retry/lost receipt/restart, second-device local reconciliation,
+  concurrent maps/full-tip resolution, linked Note edits/deletion, combined group
+  rollback/stale CAS, Stage rename ancestry, missing parent retry and blocked shared
+  ACK with a later independent legacy Note. Final map/gate/codec8 acceptance: 5 PASS.
+- Python SQLite CI-equivalent: **291 PASS**, including fresh/prefix0..33/populated33
+  schema34 upgrades, reopen, existing data/trigger preservation and recovery/API.
+- Native map authority: **7 PASS**; map codec5; SQLite29; Note sync165; binding10;
+  repository5; metadata19; Stage20; diagnostics5; developer5; account transport4;
+  catalog14; content Note15. cargo check PASS. Windows is wired into remote CI.
+- Affected frontend: **88 PASS** in 12 files, including editor-CAS and map-cycle
+  change reporting/ACK ordering/lost-upload recovery; typecheck/build
+  PASS. Chromium explicit publication/full-tip selection PASS. Help/localization:
+  30 PASS, all five translated languages have zero missing strings. Fixture and
+  C11 cross-identity foundation checks remain green. `git diff --check` PASS.
+
+CI now requires map schema/native/codec/runtime/UI tests and real map acceptance
+without skips. Remote CI remains **PENDING — not polled by Codex**; expected
+workflows: Cloud backend tests; SQLite sync substrate tests. Independent GPT remote
+verification remains required. C18.5/C18 IN PROGRESS, official progress **77.0%**;
+C18.4 CLOSED. Release registration gate, owner stabilization decision, terminology
+C22/PF6.0 and C21 local-Web-first rules remain unchanged. Documents/Progress/Game,
+compression, telemetry and C18.6+/C21 implementation are outside this slice.
+Next recommended slice after independent acceptance:
+C18.5.04 — DOCUMENT AUTHORITY / SCOPE MOVE / EXTENSION BLOCKERS.

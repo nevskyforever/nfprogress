@@ -386,19 +386,26 @@ pub fn set_note_text(value: &Value, node_id: &str, text: &str) -> Option<Value> 
         }
         false
     }
-    if native(map.get_mut("freeNodes")?.as_array_mut()?, node_id, &clean) {
-        return Some(map);
-    }
-    let items = map.get_mut("nfprogressFloatingItems")?.as_array_mut()?;
-    for item in items {
-        if item.get("id").and_then(Value::as_str) == Some(node_id)
-            && item.get("kind").and_then(Value::as_str) == Some("note")
-        {
-            item["text"] = Value::String(clean);
-            return Some(map);
+    let mut changed = map
+        .get_mut("freeNodes")
+        .and_then(Value::as_array_mut)
+        .is_some_and(|nodes| native(nodes, node_id, &clean));
+    if let Some(items) = map
+        .get_mut("nfprogressFloatingItems")
+        .and_then(Value::as_array_mut)
+    {
+        for item in items {
+            if item.get("id").and_then(Value::as_str) == Some(node_id)
+                && item.get("kind").and_then(Value::as_str) == Some("note")
+            {
+                // Both editor representations can describe one logical Note.
+                // Keep their text identical instead of leaving a stale twin.
+                item["text"] = Value::String(clean.clone());
+                changed = true;
+            }
         }
     }
-    None
+    changed.then_some(map)
 }
 
 fn collect_node_ids(value: &Value, ids: &mut HashSet<String>) {
@@ -869,6 +876,19 @@ mod tests {
             .as_array()
             .unwrap()
             .is_empty());
+    }
+    #[test]
+    fn legacy_note_text_edit_without_free_nodes_and_identical_twin() {
+        let mut value = serde_json::json!({"nodeData":{"id":"root","topic":"Root","children":[]},
+            "nfprogressFloatingItems":[{"id":"note","kind":"note","text":"Old","x":10,"y":20}]});
+        let updated = set_note_text(&value, "note", "New").unwrap();
+        assert_eq!(extract_notes(&updated), vec![("note".into(), "New".into())]);
+        value["freeNodes"] =
+            serde_json::json!([{"id":"note","topic":"Old","children":[],"nfprogressNote":true}]);
+        let updated = set_note_text(&value, "note", "New").unwrap();
+        assert_eq!(updated["freeNodes"][0]["topic"], "New");
+        assert_eq!(updated["nfprogressFloatingItems"][0]["text"], "New");
+        assert_eq!(extract_notes(&updated), vec![("note".into(), "New".into())]);
     }
 
     #[test]

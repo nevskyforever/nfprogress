@@ -1,3 +1,4 @@
+import {MapSyncRuntime,type MapAuthorityView,type MapDecision} from './mapSyncRuntime'
 import { ContentNoteRuntime, type ContentNoteConflict, type ContentNoteMigrationView } from './contentNoteRuntime'
 import { AccountCatalogRuntime } from './accountCatalogRuntime'
 import type { CatalogDecision,CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository'
@@ -115,6 +116,7 @@ export class NoteSyncRuntime {
   private readonly router: ProductionRunner
   private readonly bootstrap: ProjectBootstrapGate
   private readonly contentNotes: ContentNoteRuntime
+  private readonly maps: MapSyncRuntime
   private readonly structural: StageStructuralRuntime
   private readonly catalog: AccountCatalogRuntime
   private readonly metadata: ProjectMetadataMigrationRuntime
@@ -131,6 +133,7 @@ export class NoteSyncRuntime {
     this.router = composition.router
     this.bootstrap = dependencies.bootstrap ?? composition.bootstrap
     this.metadata = composition.metadata
+    this.maps = composition.maps
     this.structural = composition.structural
     this.contentNotes = composition.contentNotes
     this.catalog = composition.catalog
@@ -260,6 +263,9 @@ export class NoteSyncRuntime {
   }
 
   /** Explicit per-project candidate and genesis decision; no automatic publication. */
+  async projectMapAuthority(projectId:string):Promise<MapAuthorityView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.maps.viewMaps(identity.local_account_id,identity.device_id,projectId)}
+  async beginMapMigration(projectId:string):Promise<MapAuthorityView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.maps.beginMaps(identity.local_account_id,identity.device_id,projectId)}
+  async chooseMapVersion(decision:MapDecision,keepLocal?:boolean):Promise<void>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);await this.maps.chooseMap(identity.local_account_id,identity.device_id,decision,keepLocal)}
   async projectNoteAuthority(projectId:string):Promise<ContentNoteMigrationView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.contentNotes.viewNotes(identity.local_account_id,identity.device_id,projectId)}
   async beginNoteMigration(projectId:string):Promise<ContentNoteMigrationView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.contentNotes.beginNotes(identity.local_account_id,identity.device_id,projectId)}
 
@@ -350,7 +356,7 @@ export class NoteSyncRuntime {
     await this.keys.dispose()
   }
 
-  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime, structural: StageStructuralRuntime, catalog: AccountCatalogRuntime, contentNotes: ContentNoteRuntime } {
+  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime, structural: StageStructuralRuntime, catalog: AccountCatalogRuntime, contentNotes: ContentNoteRuntime, maps: MapSyncRuntime } {
     const intents = new SQLiteNoteSyncIntentRepository()
     const outbox = new SQLiteNoteSyncOutboxRepository()
     const inboxRepository = new SQLiteNoteSyncInboxRepository()
@@ -372,6 +378,7 @@ export class NoteSyncRuntime {
     const v2Uploader = new NoteSyncV2Uploader(this.auth, this.bindings, this.identityRepository, outbox)
     const metadata = new ProjectMetadataMigrationRuntime(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext)
     const contentNotes = new ContentNoteRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
+    const maps = new MapSyncRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const structural = new StageStructuralRuntime(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext)
     const resolutionUploader = new NoteSyncResolutionUploader(this.auth, this.bindings, this.identityRepository, new SQLiteNoteSyncResolutionUploadRepository())
     const v2Cycle = dependencies.v2Cycle ?? new NoteSyncV2Cycle(
@@ -384,7 +391,7 @@ export class NoteSyncRuntime {
     )
     const catalog=new AccountCatalogRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const v3Cycle = new NoteSyncV3Cycle(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext,
-      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog, contentNotes)
+      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog, contentNotes, maps)
     const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader, encryptedSyncV2Api, v3Cycle)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,
@@ -396,7 +403,7 @@ export class NoteSyncRuntime {
         runOnce: (localAccountId, deviceId) => router.runOnce(localAccountId, deviceId),
       },
     )
-    return { router, bootstrap, metadata, structural, catalog, contentNotes }
+    return { router, bootstrap, metadata, structural, catalog, contentNotes, maps }
   }
 
   private async provisionFor(context: AuthContextSnapshot): Promise<CloudIdentity> {

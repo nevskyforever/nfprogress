@@ -594,6 +594,33 @@ fn catalog_bridge(request:&Value)->Value {
     }
 }
 
+fn map_bridge(request: &Value) -> Value {
+    use crate::{map_sync as maps, project_metadata_sync as metadata};
+    let path=database_path(request); let mut db=open_database(&path).unwrap();
+    let scope=metadata::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+    metadata::assert_runtime_scope(&db,&scope.account_id,&scope.canonical_user_id,&scope.device_id).unwrap();
+    let p=required_string(request,"project_id"); let now="2026-10-03T00:00:00.000000Z";
+    match required_string(request,"step") {
+        "begin"=>maps::begin(&mut db,&scope,p,now).unwrap(),
+        "view"=>maps::view(&db,&scope,p).unwrap(),
+        "combined"=>{let repo=crate::project_repository::ProjectsRepository::new(&mut db);let project=repo.get_project(p).unwrap().unwrap();let stages=repo.list_stages(p).unwrap();let data=crate::compose_combined_map(&project,&stages).unwrap();drop(repo);json!({"data":data,"expected":maps::expected(&db,p,None,true).unwrap()})},
+        "expected"=>maps::expected(&db,p,request["stage_id"].as_str(),request["combined"].as_bool().unwrap_or(false)).unwrap(),
+        "pending"=>{maps::advance(&mut db,&scope.account_id,now).unwrap();json!(maps::pending(&db,&scope.account_id,&scope.device_id,request["sealed"].as_bool().unwrap_or(false)).unwrap())},
+        "seal"=>{maps::seal(&mut db,&scope.account_id,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)},
+        "receipt"=>{maps::receipt(&mut db,&scope.account_id,&scope.device_id,required_string(request,"event_id"),required_i64(request,"server_sequence"),request["duplicate"].as_bool().unwrap_or(false),now).unwrap();json!(true)},
+        "edit"=>{let command=crate::MapCommand{project_id:p.into(),stage_id:request["stage_id"].as_str().map(str::to_string),data:request["data"].clone(),expected_heads:request.get("expected").cloned()};let data=crate::mindmap::normalize(command.data.clone()).unwrap();match crate::save_map_in_connection(&mut db,&command,&data){Ok(())=>json!(true),Err(code)=>json!({"error":code})}},
+        "note_edit"=>json!(crate::update_note_in_connection(&mut db,p,required_string(request,"note_id"),&request["patch"],request["stage_id"].as_str()).unwrap()),
+        "note_delete"=>{crate::delete_note_in_connection(&mut db,p,required_string(request,"note_id"),request["stage_id"].as_str()).unwrap();json!(true)},
+        "note_order"=>{let ids:Vec<String>=serde_json::from_value(request["note_ids"].clone()).unwrap();crate::reorder_notes_in_connection(&mut db,p,&ids,request["stage_id"].as_str()).unwrap();json!(true)},
+        "decide"=>{let d=serde_json::from_value(request["decision"].clone()).unwrap();match maps::decide(&mut db,&scope,&d,now){Ok(id)=>json!(id),Err(e)=>json!({"error":e.to_string()})}},
+        "import"=>{let d=serde_json::from_value(request["decision"].clone()).unwrap();drop(db);let mut db=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();json!(maps::import_choice(&mut db,&scope,&d,request["keep_local"].as_bool().unwrap_or(false),now).unwrap())},
+        "receive"=>{let cmd:CommitNoteSyncInboundPageCommand=serde_json::from_value(request["command"].clone()).unwrap();crate::note_sync::commit_v3_sync_inbound_page(&mut db,&cmd).unwrap();let opened=&request["opened"];drop(db);let mut db=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();match maps::apply(&mut db,&scope,&bytes(opened,"frame"),&bytes(opened,"nonce"),&bytes(opened,"ciphertext")){Ok(result)=>json!(result),Err(e)=>json!({"error":e.to_string()})}},
+        "apply"=>{let opened=&request["opened"];drop(db);let mut db=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();json!(maps::apply(&mut db,&scope,&bytes(opened,"frame"),&bytes(opened,"nonce"),&bytes(opened,"ciphertext")).unwrap())},
+        "ack"=>json!(prepare_note_sync_ack(&mut db,&PrepareNoteSyncAckCommand{account_id:scope.account_id,device_id:scope.device_id,canonical_user_id:scope.canonical_user_id}).unwrap()),
+        _=>panic!("unknown map bridge step")
+    }
+}
+
 fn content_note_bridge(request:&Value)->Value {
     use crate::{content_note_writer as writer,project_metadata_sync as metadata};
     let path=database_path(request);let mut db=open_database(&path).unwrap();
@@ -719,6 +746,7 @@ fn c15_headless_native_bridge() {
         "metadata_authority" => metadata_authority_bridge(&request),
         "structural" => structural_bridge(&request),
         "content_note" => content_note_bridge(&request),
+        "map" => map_bridge(&request),
         "catalog" => catalog_bridge(&request),
         "provision" => provision(&request),
         "bootstrap_prepare" => bootstrap_prepare(&request),

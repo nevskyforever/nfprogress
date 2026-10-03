@@ -23,7 +23,7 @@ async function choose(group:ContentNoteConflict,selected:string){
 <template>
   <section class="note-authority">
     <h4>{{ t('Синхронизация заметок') }}</h4>
-    <p>{{ t('Простые заметки проекта и заметки этапов публикуются только по вашему действию. Заметки интеллект-карт пока остаются на этом устройстве.') }}</p>
+    <p>{{ t('Простые заметки проекта и заметки этапов публикуются только по вашему действию. Заметки интеллект-карт публикуются вместе с картами.') }}</p>
     <button class="nf-button nf-button--secondary" :disabled="pending||cloud.busy" @click="action(false)">{{ t('Проверить состояние') }}</button>
     <FriendlyStatus v-if="view" :code="view.state==='content_local'?'structural_local':view.state" domain="structure" subsystem="sync" />
     <button class="nf-button" :disabled="pending||cloud.busy" @click="action(true)">{{ t('Опубликовать заметки') }}</button>

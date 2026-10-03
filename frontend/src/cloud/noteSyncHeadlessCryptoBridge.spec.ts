@@ -1,3 +1,4 @@
+import {unframeMapEvent,frameMapEvent} from './mapCodec'
 import {unframeContentNote,frameContentNote} from './contentNoteCodec'
 import {frameCatalogEvent,sealCatalogEvent,openCatalogEvent,type CatalogEvent} from './accountCatalogCodec'
 // @vitest-environment node
@@ -52,9 +53,25 @@ interface CatalogSealRequest {action:'catalog_seal';payload:CatalogEvent;amk:num
 interface CatalogOpenRequest {action:'catalog_open';canonical_user_id:string;amk:number[];item:{event:{entity_id:string;entity_type:string};object:OpenRequest['item']['object']}}
 interface ContentSealRequest{action:'content_note_seal';frame:number[];amk:number[]}
 interface ContentOpenRequest{action:'content_note_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
-type BridgeRequest = ContentSealRequest | ContentOpenRequest | CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
+interface MapEventSealRequest{action:'map_event_seal';payload:import('./mapCodec').MapEvent;amk:number[]}
+interface MapSealRequest{action:'map_seal';frame:number[];amk:number[]}
+interface MapOpenRequest{action:'map_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
+type BridgeRequest = MapEventSealRequest | MapSealRequest | MapOpenRequest | ContentSealRequest | ContentOpenRequest | CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
+  if(request.action==='map_event_seal'){return execute({action:'map_seal',frame:[...await frameMapEvent(request.payload)],amk:request.amk})}
+  if(request.action==='map_seal'){
+    const frame=Uint8Array.from(request.frame),e=await unframeMapEvent(frame),h=e.header
+    expect([...await frameMapEvent(e)]).toEqual(request.frame)
+    const o=await encryptObjectBytes(asAccountMasterKey(Uint8Array.from(request.amk)),{userId:h.account_id,projectId:h.project_id,entityType:'map',entityId:h.entity_id},frame)
+    return {object:resolutionEnvelopeWire(o),nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
+  }
+  if(request.action==='map_open'){
+    const e=request.item.event,o=encryptedSyncObjectFromWire(request.item.object)
+    const frame=await decryptObjectBytes(asAccountMasterKey(Uint8Array.from(request.amk)),{userId:request.canonical_user_id,projectId:e.project_id,entityType:'map',entityId:e.entity_id},o)
+    const decoded=await unframeMapEvent(frame);expect(decoded.header.event_id).toBe(e.event_id)
+    return {decoded,nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
+  }
   if(request.action==='content_note_seal'){
     const frame=new Uint8Array(request.frame),event=unframeContentNote(frame),h=event.event.header
     expect([...frameContentNote(event)]).toEqual(request.frame)
