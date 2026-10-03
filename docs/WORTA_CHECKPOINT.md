@@ -2157,8 +2157,10 @@ C18.5/C18 **IN PROGRESS**, official progress **77.0%**. No C18.5.05/C18.6 work.
 
 ### C18.5.04 — local implementation and acceptance
 
-Status: **LOCAL COMPLETE / REMOTE CI PENDING**. Implementation SHA is the commit
-containing this checkpoint (reported as the published SHA in the task result).
+Status: **LOCAL COMPLETE / REMOTE CI PENDING**. Implementation SHA:
+`cb120044763ba4e57094d561ebbbac86b83cc418`
+(`feat(c18): activate encrypted document sync`). This checkpoint-only follow-up
+records the exact validated implementation; published SHA is reported in the task result.
 C18.5 and C18 remain **IN PROGRESS**; official progress remains exactly **77.0%**.
 Permanent public release registration remains CLOSED pending C22/PF6.0 owner
 stabilization; final terminology audit and C21 local-Web-first rule preserved.
