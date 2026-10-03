@@ -2343,3 +2343,61 @@ Remote CI is pending independent verification of the published SHA; Codex must n
 poll Actions after push. Expected workflows: Cloud backend tests; SQLite sync
 substrate tests. Remaining C18.5 work: **C18.5.06 PROJECT / ACCOUNT GAME ACTION
 LEDGERS / REWARD ONCE**; recommended only, not implemented in this slice.
+
+
+### C18.5.05 — remote CI correction
+
+Original published implementation: `fad87fc4111fe120de100094f5afdd1825bcfbd3`.
+It is **NOT REMOTELY ACCEPTED**. The stored, completed logs were inspected before
+editing and both failures were reproduced locally against this clean baseline.
+
+SQLite run `37140312168` — **FAILURE**: Python SQLite substrate **SUCCESS**;
+`Rust SQLite substrate` failed at `Run local diagnostics and developer streak
+regression filters` (the diagnostics/developer regression step). Exact failing test:
+`diagnostics::tests::diagnostics_frontend_and_native_allowlists_match`,
+`src/diagnostics.rs:583`, `assertion left == right failed`. Frontend operations
+started with the six Progress operations; native operations placed the same six
+values after `note_migration`. All 36 values were identical as a set. Runtime
+validation uses operation strings and allowlist membership, not ordinal identity.
+Classification: cross-runtime allowlist ordering mismatch; not Windows-specific,
+not a privacy failure, not a game/reward or SQLite schema defect. The frontend list
+now follows the native ordered contract; the strict equality assertion is retained.
+No allowlisted values or privacy filters changed. SQLite push/pull-request filters
+now include `frontend/src/diagnostics/events.ts`, which this Rust test includes
+at compile time, so the correction triggers the required workflow.
+
+Cloud run `37140312183` — **FAILURE**: Frontend admin **SUCCESS**. Stored logs prove
+`Run mandatory sync ACK and multi-device backend acceptance without skips` completed
+with **46 PASS**, including Progress acceptance, before the later failure.
+`PostgreSQL cloud backend` then failed at `Run focused cloud and legacy API tests`:
+`tests/test_cloud_auth.py::test_c2_schema_and_repeated_head_upgrade`, line289,
+`assert 'c18_progress_readers' == 'c18_document_readers'`; the rest had **193 PASS**.
+The test calls `upgrade(..., 'head')` and correctly reaches the new Progress head,
+but retained the previous Document-head literal. Classification: stale migration-head
+expectation. Only that exact expected literal was updated. Repeated upgrade,
+C2-prefix downgrade/reupgrade and all table assertions remain intact. Alembic has
+exactly one head `c18_progress_readers`, directly after `c18_document_readers`.
+No migration, schema36 rollback/renumber or schema37 was introduced.
+
+Local validation: both exact failing tests independently pass. One bounded native
+CI-step equivalent on macOS: diagnostics **5 PASS**, developer/streak **5 PASS**,
+Progress codec/authority/local reward boundary **9 PASS**, cargo check **PASS**.
+Frontend diagnostic privacy/retention/export **20 PASS** and typecheck **PASS**.
+Schema36 fresh/every-prefix/populated35/reopen **37 PASS**. The single bounded local
+Cloud focused-step equivalent, plus mandatory Progress acceptance: **197 PASS,
+zero skips**; affected Python syntax and final diff check **PASS**.
+No tests were skipped, ignored or removed; no assertions or privacy checks weakened.
+Protected engine/game_data bytecode remains unchanged. Codec11/frame/compression
+**11/1/1/0**, causal authority, derived totals/order/statistics, Stage dependencies,
+conflict/rebase/correction/tombstone, remote reward boundary, exact ciphertext retry,
+self echo and shared ACK remain unchanged; no C11/codec8/9/10, Game cloud authority,
+compression or telemetry changes.
+
+**C18.5.05 = LOCAL CORRECTION COMPLETE / REMOTE CI PENDING**.
+C18.5 and C18 remain **IN PROGRESS**, official progress exactly **77.0%**.
+Manual public-registration release gate, post-PF6.0/RC dogfooding/stabilization,
+final user-facing terminology audit and C21 local-Web-first order remain unchanged.
+After correction push, remote CI remains pending independent verification and Codex
+must not poll Actions. Expected workflows: Cloud backend tests; SQLite sync substrate
+tests. Next slice only after remote acceptance: **C18.5.06 PROJECT / ACCOUNT GAME
+ACTION LEDGERS / REWARD ONCE**; not started by this correction.
