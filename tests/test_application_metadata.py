@@ -120,6 +120,11 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        # Remove schema36 progress sidecars before reconstructing v6.
+        for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND (name LIKE 'progress_%' OR name LIKE 'cloud_progress_%' OR name LIKE 'projects_progress_%' OR name LIKE 'stages_progress_%')").fetchall():
+            database.execute(f'DROP TRIGGER "{name}"')
+        for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'cloud_progress_%'").fetchall():
+            database.execute(f'DROP TABLE "{name}"')
         # Remove schema35 document sidecars before reconstructing v6.
         for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'document_%'").fetchall():
             database.execute(f'DROP TRIGGER "{name}"')

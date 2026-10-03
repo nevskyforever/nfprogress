@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 35;
+pub const CURRENT_SCHEMA_VERSION: i64 = 36;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -540,7 +540,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 35] = [
+const MIGRATIONS: [(i64, &str); 36] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -622,6 +622,7 @@ const MIGRATIONS: [(i64, &str); 35] = [
     (33, include_str!("../../../nfprogress/core/sqlite/migrations/033_content_note_writers.sql")),
     (34, include_str!("../../../nfprogress/core/sqlite/migrations/034_map_authority.sql")),
     (35, include_str!("../../../nfprogress/core/sqlite/migrations/035_document_authority.sql")),
+    (36, include_str!("../../../nfprogress/core/sqlite/migrations/036_progress_authority.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
@@ -819,6 +820,10 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "cloud_sync_note_resolution_upload_receipts",
         "cloud_sync_note_applied_resolutions",
         "cloud_sync_note_applied_resolution_parents",
+        "cloud_progress_migrations","cloud_progress_candidates","cloud_progress_events",
+        "cloud_progress_tips","cloud_progress_projection","cloud_progress_apply_ledger",
+        "cloud_progress_local_candidates","cloud_progress_decisions","cloud_progress_capture_cursor",
+        "cloud_progress_write_intents",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(

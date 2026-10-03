@@ -507,6 +507,33 @@ class SyncService:
             session.rollback()
             raise
 
+    @classmethod
+    def progress_reader_ready(cls, device) -> bool:
+        return (cls.document_reader_ready(device) and cls.map_reader_ready(device) and device.progress_frame_version == 1
+                and device.progress_codec_version == 1 and device.progress_reader_version == 1
+                and device.progress_compression_zero)
+
+    def progress_gate(self, session: Session, user_id: object) -> tuple[bool, int]:
+        devices = session.scalars(select(SyncDevice).where(SyncDevice.user_id == user_id)).all()
+        missing = sum(not self.progress_reader_ready(device) for device in devices)
+        mode, _ = self.capabilities(session, user_id)
+        return bool(devices) and missing == 0 and mode == 3, missing
+
+    def declare_progress_reader(self, session: Session, user_id: object, request) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, request.device_id)
+                device.progress_frame_version = request.frame_version
+                device.progress_codec_version = request.codec_version
+                device.progress_reader_version = request.reader_version
+                device.progress_compression_zero = request.compression_zero
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
     def cutover_to_v3(self, session: Session, user_id: object, expected_cutover_epoch: int) -> tuple[int, int]:
         try:
             session.commit()
@@ -600,12 +627,12 @@ class SyncService:
                 raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported account object version.', 422)
             return
         allowed_operations = ('upsert', 'delete', 'resolution', 'event') if transport_version == 3 else ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
-        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document') if transport_version == 3 else ('note',)
+        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress') if transport_version == 3 else ('note',)
         if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
-                or (item.event.operation == 'event' and item.event.entity_type not in ('note', 'map', 'document'))
+                or (item.event.operation == 'event' and item.event.entity_type not in ('note', 'map', 'document', 'progress'))
                 or (item.event.entity_type == 'map' and (item.event.operation != 'event'
                     or item.event.deleted_at is not None or not is_map_entity_id(item.event.entity_id)))
-                or (item.event.entity_type == 'document' and (item.event.operation != 'event' or item.event.deleted_at is not None))
+                or (item.event.entity_type in ('document', 'progress') and (item.event.operation != 'event' or item.event.deleted_at is not None))
                 or (item.event.entity_type == 'project_metadata'
                     and item.event.entity_id != item.event.project_id)
                 or (item.event.entity_type == 'stage' and item.event.operation not in ('upsert', 'delete'))
@@ -646,8 +673,10 @@ class SyncService:
                 # Its request schema admits Notes only; metadata uses v3.
                 if not (transport_version == 2 and state.writer_transport_version == 3):
                     self._require_transport_mode(state, transport_version)
-                if any(item.event.entity_type == 'document' for item in items) and not self.document_gate(session, user_id)[0]:
+                if any(item.event.entity_type in ('document', 'progress') for item in items) and not self.document_gate(session, user_id)[0]:
                     raise SyncProtocolError('document_readers_not_ready', 'Registered devices must support document readers.', 409)
+                if any(item.event.entity_type == 'progress' for item in items) and not self.progress_gate(session, user_id)[0]:
+                    raise SyncProtocolError('progress_readers_not_ready', 'Registered devices must support progress readers.', 409)
                 if any(item.event.entity_type == 'map' for item in items) and not self.map_gate(session, user_id)[0]:
                     raise SyncProtocolError('map_readers_not_ready', 'Registered devices must support map readers.', 409)
                 if any(item.event.entity_type == 'note' and item.event.operation == 'event' for item in items):
@@ -782,6 +811,11 @@ class SyncService:
                 SyncEvent.user_id == user_id, SyncEvent.entity_type == 'document').limit(1))
             if emitted is not None:
                 raise SyncProtocolError('document_reader_required', 'This device must support document readers.', 409)
+        if transport_version == 3 and not self.progress_reader_ready(device):
+            emitted = session.scalar(select(SyncEvent.event_id).where(
+                SyncEvent.user_id == user_id, SyncEvent.entity_type == 'progress').limit(1))
+            if emitted is not None:
+                raise SyncProtocolError('progress_reader_required', 'This device must support progress readers.', 409)
         descriptors = self._sync.pull_encrypted_descriptors(session, user_id, since, limit)
         selected_descriptors: list[EncryptedPullDescriptor] = []
         ciphertext_total = 0
@@ -838,12 +872,12 @@ class SyncService:
                 if event.entity_type not in ACCOUNT_ENTITY_TYPES or event.operation not in ('upsert', 'delete') or encrypted is None or encrypted.crypto_version != 2 or encrypted.aad_version != 2:
                     raise SyncProtocolError('encrypted_sync_event_incomplete', 'Invalid account object.', 409)
                 continue
-            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document')
+            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress')
                     or event.operation not in ('upsert', 'delete', 'resolution', 'event')
-                    or (event.operation == 'event' and event.entity_type not in ('note', 'map', 'document'))
+                    or (event.operation == 'event' and event.entity_type not in ('note', 'map', 'document', 'progress'))
                     or (event.entity_type == 'map' and (event.operation != 'event'
                         or event.deleted_at is not None or not is_map_entity_id(event.entity_id)))
-                    or (event.entity_type == 'document' and (event.operation != 'event' or event.deleted_at is not None))
+                    or (event.entity_type in ('document', 'progress') and (event.operation != 'event' or event.deleted_at is not None))
                     or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)
                     or (event.entity_type == 'stage' and event.operation not in ('upsert', 'delete'))
                     or (event.entity_type == 'stage_order' and (event.entity_id != 'stage_order' or event.operation != 'upsert'))):

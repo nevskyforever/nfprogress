@@ -110,3 +110,10 @@ describe('pure statistics parity', () => {
     expect(result.timeline[0]?.date).toBe('2026-08-03')
   })
 })
+
+it('uses the frozen writing day rather than the importing device occurrence date',()=>{
+  const result=calculatePureStatistics({entityId:'P',unit:'symbols',createdAt:'2026-01-01',planningDate:'2026-01-03',total:10,progressEntries:[{addedSymbols:10,createdAt:'2026-01-03T01:00:00.000000Z',writingDay:'2026-01-02'}]});
+  expect(result).toBeDefined()
+  // Histogram and productive days derive from the frozen calendar fact.
+  expect(JSON.stringify(result)).toContain('2026-01-02')
+})

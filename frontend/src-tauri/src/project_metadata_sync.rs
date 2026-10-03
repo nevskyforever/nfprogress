@@ -809,6 +809,10 @@ pub(crate) fn write_visible_metadata(
         |r| r.get(0),
     )?;
     let mut payload: Value = serde_json::from_str(&raw).map_err(|_| MetadataError::Invalid)?;
+    if ["unit","goal","infinite"].iter().any(|key|payload[*key]!=metadata[*key]){
+        let pending:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM cloud_progress_events WHERE project_id=?1 AND state IN ('unsealed','sealed'))",[project],|r|r.get(0))?;
+        if pending{return Err(MetadataError::Conflict)}
+    }
     let object = payload.as_object_mut().ok_or(MetadataError::Invalid)?;
     for key in FIELDS {
         object.insert(key.into(), metadata[key].clone());

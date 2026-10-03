@@ -5,7 +5,7 @@
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 REMOTELY ACCEPTED / C18.5.04 LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 REMOTELY ACCEPTED / C18.5.04 REMOTELY ACCEPTED / C18.5.05 IN PROGRESS**.\
 **Последнее закрытие:** C18.4 независимо закрыт для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac`; SQLite `37004006923` и Cloud `37004006914` — **SUCCESS**, все четыре jobs. Последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
@@ -2208,3 +2208,138 @@ capability/migration **3 PASS**, final production two-device acceptance **1 PASS
 tombstone edit/move blockers. Shared backend/auth/migration affected pass:
 **41 PASS** after focused Alembic-head expectation repair. Diff check **PASS**;
 protected bytecode, C11, codec8/9, Progress/Game/compression untouched.
+
+### C18.5.04 independent remote acceptance; C18.5.05 started
+
+Independent acceptance: implementation `cb120044763ba4e57094d561ebbbac86b83cc418`,
+published/checkpoint SHA `ef89ff728b1daf179037d61f35042f8c59cc0c2f`.
+SQLite sync substrate run `37124209205` — SUCCESS. Cloud backend run
+`37124209225` — SUCCESS, including PostgreSQL, native document codec/authority,
+mandatory ACK/multi-device acceptance, focused APIs, frontend and typecheck/build.
+**C18.5.04 — REMOTELY ACCEPTED** (supersedes its local/pending record above).
+
+C18.5.05 started from clean branch `6.0`; HEAD and origin/6.0 both matched
+`ef89ff728b1daf179037d61f35042f8c59cc0c2f`. C18.5 and C18 remain IN PROGRESS;
+official progress remains exactly77.0%. Game authority is outside this slice.
+
+
+### C18.5.05 — causal Progress authority and local acceptance
+
+Status: **LOCAL COMPLETE / REMOTE CI PENDING**. Started from
+`ef89ff728b1daf179037d61f35042f8c59cc0c2f` on branch `6.0`.
+C18.5 and C18 remain **IN PROGRESS**, official progress exactly **77.0%**.
+Public release registration remains CLOSED pending C22/PF6.0 owner stabilization;
+final terminology audit and C21 local-Web-first rule preserved.
+
+Progress uses codec **11/version1**, frame1, compression0 and unchanged production
+C11 encryption. Codec8 Note, codec9 Map and codec10 Document contracts and historical
+readers remain unchanged. The canonical action fields are
+`entry_id/new_total/delta/unit/occurred_at/writing_time/writing_day`.
+Amounts are physical **symbols**, fixed signed decimal strings with six places;
+absolute totals and genesis bases are nonnegative. Stable entry identity is retained
+for original facts; event IDs identify immutable causal operations. Chain scope is
+`(account, project, project)` or `(account, project, stage:<stable Stage ID>)`.
+Project and Stage chains have separate genesis, parents, tips and projections.
+
+Legacy capture follows relational `progress_order`, never timestamps. Base is the
+first absolute symbols minus its delta; an empty nonzero history has an explicit
+base without a fabricated writing action. Every step must agree within the frozen
+one-micro-symbol compatibility tolerance; final displayed total must agree with the
+existing unit conversion. IDs, timestamps, physical columns, missing order,
+unsupported extensions and ambiguous mixed root/Stage histories fail closed and
+retain immutable raw evidence. Genesis carries a frozen count/final-total coverage
+proof; 256-fact migration batches resume from a durable cursor. Partial migration
+never replaces the complete current history or exposes a partial derived total.
+The native 600-fact acceptance reopens between 256/256/88 batches.
+
+Historical unit is portable and never rewritten after metadata changes. Unknown
+legacy display-unit provenance is recorded as symbols using its existing physical
+symbol fields. Current projections use existing ceil page rounding and half-even
+0.1 author-list rounding. On an ordinary append across a recorded unit change, its
+proven base is the previous immutable absolute symbols projected through the existing
+new-unit display rounding and converted back to symbols; this preserves the user's
+visible action delta without inventing an adjustment action. The action unit is
+checked against referenced authenticated historical metadata/Stage frames. Accepted
+old facts remain readable after metadata renames or later unit changes. Rebase copies
+explicit physical action deltas and preserves original historical unit/time/day.
+
+Occurrence time uses the accepted strict UTC timestamp contract. Legacy naive time
+with unknown original zone remains in `writing_time` verbatim, with no fabricated
+UTC value. `writing_day` is an admitted versioned historical fact: current logical-day
+rules depend on local timezone and the user's mutable start-day setting, so future
+recomputation from UTC alone would change history. New writers freeze the existing
+local logical-day rule at action time; legacy records retain their original date or
+validated saved day. Projections retain the occurrence timestamp and expose the
+frozen day separately; today/statistics group by it. `source_method` is excluded from
+portable authority; local document bindings/domain-event provenance retain it.
+
+SQLite schema **36**; backend Alembic **c18_progress_readers** after
+`c18_document_readers`. All registered devices must advertise transport3 and the
+accepted Note/Map/Document/Progress readers before publication; reader declaration
+never captures data. Backend blocks both publication and unsupported-device pull
+once Progress exists. Explicit connected-project publication alone captures history;
+local-only projects never acquire a cloud binding. Durable captured/publication/
+self-echo/active/conflict/blocked states retain source, exact frame, ciphertext,
+receipts, decisions, branches and second-device local candidates across restarts.
+
+Ordinary manual, in-app document and external Word writers use the same causal
+Progress writer. Entry, derived rows, head and immutable outbox intent commit in one
+immediate transaction; manual writes prove cached expected heads. Document source
+hash/revision dedup and the local ProgressAdded event share that transaction. Remote
+apply authenticates scope/object/dependencies and privately commits facts, derived
+rows/order/scalars, head, inbox disposition and apply ledger atomically. Lost upload
+responses recover through exact ciphertext retry or authenticated self echo.
+Resolution only becomes authority after authenticated self echo.
+
+Concurrent absolute totals preserve full independent branches; no automatic delta
+sum and no timestamp winner. Explicit selection names all current tips. Explicit
+rebase creates fresh IDs and preserves source action order. Correction/tombstone
+must cover exactly the affected descendants with fresh facts; originals remain
+immutable. Stale tips or changed local snapshots reject the decision. Independent
+row scope moves, scalar overrides and order changes are guarded. `progress_order`
+is solely a selected-chain projection: global compatibility positions stay contiguous,
+per-scope order follows causality; gap compaction preserves other scopes' relative
+order. Root history accepted before introducing Stages is retained, while current
+Project totals derive from Stage totals and root ordinary writes are blocked.
+
+Current total, percent, remaining, added_progress, today and statistics are derived
+from selected facts plus current metadata, and can be rebuilt without publishing
+scalars. Shared ACK requires exact Progress apply-ledger/object/inbox evidence.
+Waiting or unsupported facts retain bytes and block the contiguous prefix; fully
+preserved conflicts are ACK eligible. PostgreSQL acceptance proves missing-parent
+Progress N blocks ACK while Document N+1 applies, then resumes after the parent.
+
+Game remains local: one domain event for a successful local ordinary action; remote
+import, replay, self echo, migration, resolution and rebuild produce zero game events.
+Stable Progress entry IDs and existing document source IDs remain available for the
+future explicit reward-once ledger. No Game cloud authority or completion/reward
+synthesis is introduced. No compression or telemetry.
+
+Frozen bounds: frame8 MiB, identity512 UTF-8 bytes, parents/dependencies64,
+chain/DAG65536 facts/events, combined parent work2×65536, operation/descendants1024,
+migration batch256, capture64 MiB, pending cycle8 events/2048 facts, absolute amount
+1e12 symbols. Invalid/oversized/unproven events preserve evidence, do not partially
+project and do not ACK. Cross-language Project/Stage/rebase fixtures and wrong-codec/
+identity negatives pass. Diagnostics contain allowlisted codes/counts only.
+
+Local evidence: PostgreSQL16 + two file-backed native SQLite devices + production
+TS C11 proves Project/Stage genesis/import, concurrent A/B/B2, rebase, descendant
+repair, derived rebuild, manual/document/Word writers, source dedup, reward boundary,
+reader revoke, replay/lost-response and shared blocked prefix. Progress gate/schema/
+acceptance **3 PASS, zero skips**. Earlier affected backend pass **25 PASS**, with two
+obsolete Alembic expectations repaired and independently rechecked **2 PASS**.
+Schema36 fresh/all0..35 prefixes/populated35/reopen **37 PASS**; affected SQLite CI
+pass **364 PASS**, two fixture expectations repaired and rechecked **2 PASS**.
+Native Progress/codec/production commands **9 PASS**; retained native SQLite18,
+Document7, Note77 tests passed. Frontend focused acceptance **49 PASS**, additional
+statistics/mapper26 and codec/runtime8 checks passed; typecheck/build **PASS**
+(existing bundle warnings). Production Vue panel Chromium flow **PASS** using
+isolated stores. Help/localization **29 PASS**; one existing native macOS Help bridge
+case deselected after its known headless abort. All five non-Russian catalogs have
+**0 missing strings**. Cargo check **PASS** (existing warnings). Protected engine/
+game_data bytecode unchanged. Final full diff audit and diff check **PASS**.
+
+Remote CI is pending independent verification of the published SHA; Codex must not
+poll Actions after push. Expected workflows: Cloud backend tests; SQLite sync
+substrate tests. Remaining C18.5 work: **C18.5.06 PROJECT / ACCOUNT GAME ACTION
+LEDGERS / REWARD ONCE**; recommended only, not implemented in this slice.

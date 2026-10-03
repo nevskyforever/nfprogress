@@ -1,3 +1,4 @@
+import {ProgressSyncRuntime,type ProgressAuthorityView,type ProgressDecision} from './progressSyncRuntime'
 import {DocumentSyncRuntime,type DocumentAuthorityView,type DocumentDecision} from './documentSyncRuntime'
 import {MapSyncRuntime,type MapAuthorityView,type MapDecision} from './mapSyncRuntime'
 import { ContentNoteRuntime, type ContentNoteConflict, type ContentNoteMigrationView } from './contentNoteRuntime'
@@ -117,6 +118,7 @@ export class NoteSyncRuntime {
   private readonly router: ProductionRunner
   private readonly bootstrap: ProjectBootstrapGate
   private readonly contentNotes: ContentNoteRuntime
+  private readonly progress: ProgressSyncRuntime
   private readonly documents: DocumentSyncRuntime
   private readonly maps: MapSyncRuntime
   private readonly structural: StageStructuralRuntime
@@ -135,6 +137,7 @@ export class NoteSyncRuntime {
     this.router = composition.router
     this.bootstrap = dependencies.bootstrap ?? composition.bootstrap
     this.metadata = composition.metadata
+    this.progress=composition.progress
     this.documents=composition.documents
     this.maps = composition.maps
     this.structural = composition.structural
@@ -266,6 +269,9 @@ export class NoteSyncRuntime {
   }
 
   /** Explicit per-project candidate and genesis decision; no automatic publication. */
+  async projectProgressAuthority(projectId:string):Promise<ProgressAuthorityView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.progress.viewProgress(identity.local_account_id,identity.device_id,projectId)}
+  async beginProgressMigration(projectId:string):Promise<ProgressAuthorityView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.progress.beginProgress(identity.local_account_id,identity.device_id,projectId)}
+  async chooseProgressHistory(decision:ProgressDecision):Promise<void>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);await this.progress.chooseProgress(identity.local_account_id,identity.device_id,decision)}
   async moveDocument(projectId:string,id:string,stage:string|null,expected:unknown):Promise<void>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);await this.documents.moveDocument(identity.local_account_id,identity.device_id,projectId,id,stage,expected)}
   async deleteDocument(projectId:string,id:string,expected:unknown):Promise<void>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);await this.documents.deleteDocument(identity.local_account_id,identity.device_id,projectId,id,expected)}
   async projectDocumentAuthority(projectId:string):Promise<DocumentAuthorityView>{const context=this.auth.requireContext();const identity=await this.readFor(context);this.assertUnlocked(context,identity);return this.documents.viewDocuments(identity.local_account_id,identity.device_id,projectId)}
@@ -364,7 +370,7 @@ export class NoteSyncRuntime {
     await this.keys.dispose()
   }
 
-  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime, structural: StageStructuralRuntime, catalog: AccountCatalogRuntime, contentNotes: ContentNoteRuntime, maps: MapSyncRuntime, documents: DocumentSyncRuntime } {
+  private composeSync(dependencies: NoteSyncRuntimeDependencies): { router: ProductionRunner, bootstrap: ProjectBootstrapGate, metadata: ProjectMetadataMigrationRuntime, structural: StageStructuralRuntime, catalog: AccountCatalogRuntime, contentNotes: ContentNoteRuntime, maps: MapSyncRuntime, documents: DocumentSyncRuntime, progress: ProgressSyncRuntime } {
     const intents = new SQLiteNoteSyncIntentRepository()
     const outbox = new SQLiteNoteSyncOutboxRepository()
     const inboxRepository = new SQLiteNoteSyncInboxRepository()
@@ -386,6 +392,7 @@ export class NoteSyncRuntime {
     const v2Uploader = new NoteSyncV2Uploader(this.auth, this.bindings, this.identityRepository, outbox)
     const metadata = new ProjectMetadataMigrationRuntime(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext)
     const contentNotes = new ContentNoteRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
+    const progress = new ProgressSyncRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const documents = new DocumentSyncRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const maps = new MapSyncRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const structural = new StageStructuralRuntime(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext)
@@ -400,7 +407,7 @@ export class NoteSyncRuntime {
     )
     const catalog=new AccountCatalogRuntime(this.auth,this.bindings,this.identityRepository,this.keys as RuntimeKeyContext)
     const v3Cycle = new NoteSyncV3Cycle(this.auth, this.bindings, this.identityRepository, this.keys as RuntimeKeyContext,
-      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog, contentNotes, maps, documents)
+      deviceAck, intents, v2Uploader, resolutionUploader, productionOrchestrator, metadata, structural, catalog, contentNotes, maps, documents, progress)
     const router = dependencies.router ?? new NoteSyncTransportRouter(this.auth, orchestrator, v2Cycle, uploader, v2Uploader, encryptedSyncV2Api, v3Cycle)
     const bootstrap = new CloudProjectBootstrapCoordinator(
       this.auth,
@@ -412,7 +419,7 @@ export class NoteSyncRuntime {
         runOnce: (localAccountId, deviceId) => router.runOnce(localAccountId, deviceId),
       },
     )
-    return { router, bootstrap, metadata, structural, catalog, contentNotes, maps, documents }
+    return { router, bootstrap, metadata, structural, catalog, contentNotes, maps, documents, progress }
   }
 
   private async provisionFor(context: AuthContextSnapshot): Promise<CloudIdentity> {

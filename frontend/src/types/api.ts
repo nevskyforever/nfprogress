@@ -14,6 +14,7 @@ export type ProjectSort = (typeof PROJECT_SORTS)[number]
 export type WorkMethod = 'manual' | 'sync' | 'app'
 
 export interface ProgressEntry {
+  writing_day?: string
   id: string
   new_total: number
   new_total_symbols: number
@@ -24,6 +25,7 @@ export interface ProgressEntry {
 }
 
 export interface Project {
+  progress_heads?: string[]
   id: string
   name: string
   goal: number | null
@@ -117,6 +119,7 @@ export interface ProjectListQuery {
 }
 
 export interface ProgressCreate {
+  expected_heads?: string[]
   new_total: number
   stage_id?: string | null
 }

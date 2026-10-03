@@ -10,6 +10,7 @@ export interface ManualProgressInput {
   projectId: string
   stageId?: string | null
   newTotal: number
+  expectedHeads?: string[]
 }
 
 export interface RemoveProgressInput {

@@ -1,3 +1,4 @@
+import type {ProgressAuthorityView,ProgressDecision} from '@/cloud/progressSyncRuntime'
 import type {DocumentAuthorityView,DocumentDecision} from '@/cloud/documentSyncRuntime'
 import type {MapAuthorityView,MapDecision} from '@/cloud/mapSyncRuntime'
 import type { ContentNoteConflict, ContentNoteMigrationView } from '@/cloud/contentNoteRuntime'
@@ -78,6 +79,10 @@ interface LocalProjectSummary {
 }
 
 export interface CloudSessionRuntime {
+  projectProgressAuthority?(projectId:string):Promise<ProgressAuthorityView>
+  beginProgressMigration?(projectId:string):Promise<ProgressAuthorityView>
+  chooseProgressHistory?(decision:ProgressDecision):Promise<void>
+
   login(username: string, password: string): Promise<{ context: { username: string } }>
   cryptoRecord(): Promise<CurrentUserCryptoRecord>
   beginCryptoProvisioning(encryptionPassword: string): Promise<PendingAccountCryptoProvisioning>
@@ -209,6 +214,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     metadataTransportMode.value = null
     metadataAuthority.value = {}
     structuralAuthority.value = {}
+    progressAuthority.value = {}
     documentAuthority.value = {}
     mapAuthority.value = {}
     noteAuthority.value = {}
@@ -393,11 +399,13 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         }, correlation)
         if (current(epoch)) await refreshProjects()
         if (current(epoch) && result.transport_version === 3) {
+          const progressChanged=(result.cycle.progressApply?.applied??0)+(result.cycle.progressApply?.conflicts??0)
+          if(progressChanged>0)for(const projectId of Object.keys(progressAuthority.value)){if(!current(epoch))break;await inspectProgress(projectId)}
           const documentsChanged=(result.cycle.documentApply?.applied??0)+(result.cycle.documentApply?.conflicts??0)
           if(documentsChanged>0)for(const projectId of Object.keys(documentAuthority.value)){if(!current(epoch))break;await inspectDocuments(projectId)}
           const mapsChanged=(result.cycle.mapApply?.applied??0)+(result.cycle.mapApply?.conflicts??0)
           if(mapsChanged>0)for(const projectId of Object.keys(mapAuthority.value)){if(!current(epoch))break;await inspectMaps(projectId)}
-          if(current(epoch)&&((result.cycle.metadataApply?.applied??0)+(result.cycle.structuralApply?.applied??0)+mapsChanged+documentsChanged)>0)announceDataChange('projects')
+          if(current(epoch)&&((result.cycle.metadataApply?.applied??0)+(result.cycle.structuralApply?.applied??0)+mapsChanged+documentsChanged+progressChanged)>0)announceDataChange('projects')
         }
         applyCycle(result, epoch)
       } catch (error) {
@@ -609,6 +617,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function decideCatalog(decision:CatalogDecision):Promise<void>{await diagnostics.run('projects','conflict_resolution',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.decideCatalog)throw new Error('catalog_runtime_unavailable');await runtime.decideCatalog(decision);if(!current(epoch))return;await retry(correlation);if(!current(epoch))return;await inspectCatalog();announceDataChange('projects')})}
 
   const noteConflicts=ref<Record<string,ContentNoteConflict[]>>({})
+  const progressAuthority=ref<Record<string,ProgressAuthorityView>>({})
+  async function inspectProgress(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectProgressAuthority)throw new Error('progress_runtime_unavailable');const view=await runtime.projectProgressAuthority(projectId);if(current(epoch))progressAuthority.value={...progressAuthority.value,[projectId]:view}}
+  async function beginProgress(projectId:string):Promise<void>{await diagnostics.run('migrations','progress_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginProgressMigration)throw new Error('progress_runtime_unavailable');await runtime.beginProgressMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectProgress(projectId)})}
+  async function chooseProgressHistory(decision:ProgressDecision):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.chooseProgressHistory)throw new Error('progress_runtime_unavailable');await runtime.chooseProgressHistory(decision);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectProgress(decision.project_id);if(current(epoch))announceDataChange('projects')}
   const documentAuthority=ref<Record<string,DocumentAuthorityView>>({})
   async function inspectDocuments(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectDocumentAuthority)throw new Error('document_runtime_unavailable');const view=await runtime.projectDocumentAuthority(projectId);if(current(epoch))documentAuthority.value={...documentAuthority.value,[projectId]:view}}
   async function beginDocuments(projectId:string):Promise<void>{await diagnostics.run('migrations','document_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginDocumentMigration)throw new Error('document_runtime_unavailable');await runtime.beginDocumentMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectDocuments(projectId)})}
@@ -768,6 +780,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,
     bootstrapProject, importProject, resumeProject, pauseProject,
+    progressAuthority,inspectProgress,beginProgress,chooseProgressHistory,
     documentAuthority,inspectDocuments,beginDocuments,chooseDocumentVersion,moveDocument,deleteDocument,
     mapAuthority,inspectMaps,beginMaps,chooseMapVersion,
     noteAuthority,noteConflicts,inspectNotes,beginNotes,chooseNoteVersion,

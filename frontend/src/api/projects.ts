@@ -92,15 +92,12 @@ function symbolsToUnit(symbols: number, unit: Project['unit']): number {
   return unit === 'symbols' ? value : unit === 'author_list' ? Math.round(value * 10) / 10 : Math.ceil(value)
 }
 
-function nativeTodaySummary(projects: Project[]): TodaySummary {
-  const date = new Date().toISOString().slice(0, 10)
+async function nativeTodaySummary(projects: Project[]): Promise<TodaySummary> {
+  const date = await invoke<string>('get_current_writing_day')
   const summaries = projects.flatMap((project) => {
-    const entries = [
-      ...project.progress_entries,
-      ...project.stages.flatMap((stage) => stage.progress_entries),
-    ]
+    const entries = project.stages.length ? project.stages.flatMap(stage=>stage.progress_entries) : project.progress_entries
     const symbols = entries
-      .filter((entry) => entry.created_at.startsWith(date))
+      .filter((entry) => (entry.writing_day ?? entry.created_at.slice(0,10)) === date)
       .reduce((total, entry) => total + entry.added_symbols, 0)
     return symbols > 0 ? [{
       id: project.id, name: project.name, symbols,
@@ -255,9 +252,9 @@ export const projectsApi = {
 
   recordProgress(projectId: string, payload: ProgressCreate): Promise<ProgressResult> {
     if (desktopRuntime()) {
-      return invoke<ProgressResult>(payload.stage_id ? 'add_stage_progress' : 'add_project_progress', {
-        projectId, ...(payload.stage_id ? { stageId: payload.stage_id } : {}), newTotal: payload.new_total,
-      })
+      return invoke<ProgressResult>(payload.stage_id ? 'add_stage_progress' : 'add_project_progress', { command: {
+        projectId, ...(payload.stage_id ? { stageId: payload.stage_id } : {}), newTotal: payload.new_total, ...(payload.expected_heads===undefined?{}:{expectedHeads:payload.expected_heads}),
+      } })
     }
     return apiRequest<ProgressResult>(`${projectPath(projectId)}/progress`, {
       method: 'POST',

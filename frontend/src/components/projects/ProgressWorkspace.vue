@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { IonIcon, IonSpinner } from '@ionic/vue'
 import { addCircleOutline, chevronDownOutline, layersOutline, trashOutline } from 'ionicons/icons'
 
+import FriendlyStatus from '@/components/settings/FriendlyStatus.vue'
 import { useLocaleStore } from '@/stores/locale'
 import { normalizeProgressTotal } from '@/core/progress/calculations'
 import type { ProgressCreate, ProgressEntry, Project } from '@/types/api'
@@ -81,7 +82,7 @@ async function record(): Promise<void> {
     validationSummary.value?.focus()
     return
   }
-  emit('record', { new_total: total, stage_id: selectedStageId.value ?? null })
+  emit('record', { new_total: total, stage_id: selectedStageId.value ?? null,...(selectedEntity.value.progress_heads===undefined?{}:{expected_heads:[...selectedEntity.value.progress_heads]}) })
 }
 
 function requestRemove(entry: ProgressEntry): void {
@@ -169,6 +170,7 @@ watch(
         <p v-if="validationError" ref="validationSummary" class="feedback-error" role="alert" tabindex="-1">
           {{ validationError }}
         </p>
+        <FriendlyStatus v-else-if="error?.startsWith('progress_')" :code="error" subsystem="sync" />
         <p v-else-if="error" class="feedback-error" role="alert">{{ error }}</p>
         <p v-else-if="success" class="feedback-success">{{ success }}</p>
       </div>

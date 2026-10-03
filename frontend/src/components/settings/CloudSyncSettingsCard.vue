@@ -10,6 +10,7 @@ import AccountCatalogAuthorityPanel from './AccountCatalogAuthorityPanel.vue'
 import ContentNoteAuthorityPanel from './ContentNoteAuthorityPanel.vue'
 import MapAuthorityPanel from './MapAuthorityPanel.vue'
 import DocumentAuthorityPanel from './DocumentAuthorityPanel.vue'
+import ProgressAuthorityPanel from './ProgressAuthorityPanel.vue'
 import StageStructuralAuthorityPanel from './StageStructuralAuthorityPanel.vue'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
@@ -368,6 +369,7 @@ onBeforeUnmount(() => {
             <button class="nf-button" type="button" :disabled="cloud.busy" @click="resumeProject(project.projectId)">{{ t('Возобновить') }}</button>
           </div>
           <MapAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
+<ProgressAuthorityPanel v-if="project.status !== 'local_only'" :project-id="project.projectId" />
 <DocumentAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
           <ContentNoteAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />
           <StageStructuralAuthorityPanel v-if="project.origin !== 'remote' && project.status !== 'local_only'" :project-id="project.projectId" />

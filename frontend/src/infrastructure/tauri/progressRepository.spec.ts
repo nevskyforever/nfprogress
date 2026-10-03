@@ -13,17 +13,17 @@ describe('TauriProgressRepository', () => {
     const repository = new TauriProgressRepository()
 
     await repository.add({ kind: 'manual', projectId: 'p/1', newTotal: 10 })
-    expect(invoke).toHaveBeenLastCalledWith('add_project_progress', {
+    expect(invoke).toHaveBeenLastCalledWith('add_project_progress', { command: {
       projectId: 'p/1',
       newTotal: 10,
-    })
+    } })
 
     await repository.add({ kind: 'manual', projectId: 'p/1', stageId: 's/1', newTotal: 12 })
-    expect(invoke).toHaveBeenLastCalledWith('add_stage_progress', {
+    expect(invoke).toHaveBeenLastCalledWith('add_stage_progress', { command: {
       projectId: 'p/1',
       stageId: 's/1',
       newTotal: 12,
-    })
+    } })
   })
 
   it('passes stable entry identity and optional stage to the delete command', async () => {

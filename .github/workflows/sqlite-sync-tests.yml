@@ -9,6 +9,12 @@ on:
       - 'frontend/src-tauri/src/map_sync.rs'
       - 'frontend/src-tauri/src/document_codec.rs'
       - 'frontend/src-tauri/src/document_sync.rs'
+      - 'frontend/src-tauri/src/progress_codec.rs'
+      - 'frontend/src-tauri/src/progress_sync.rs'
+      - 'frontend/src/cloud/progressCodecV1.contract.json'
+      - 'frontend/src/cloud/progressCodec.ts'
+      - 'frontend/src/cloud/progressSyncRuntime.ts'
+      - 'frontend/src/cloud/__fixtures__/progressCodecV1.json'
       - 'frontend/src-tauri/src/documents.rs'
       - 'frontend/src-tauri/src/map_codec.rs'
       - 'frontend/src/cloud/__fixtures__/mapCodecV1.json'
@@ -41,6 +47,7 @@ on:
       - 'tests/test_c18_content_note_sqlite.py'
       - 'tests/test_c18_map_sqlite.py'
       - 'tests/test_c18_document_sqlite.py'
+      - 'tests/test_c18_progress_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -54,6 +61,12 @@ on:
       - 'frontend/src-tauri/src/map_sync.rs'
       - 'frontend/src-tauri/src/document_codec.rs'
       - 'frontend/src-tauri/src/document_sync.rs'
+      - 'frontend/src-tauri/src/progress_codec.rs'
+      - 'frontend/src-tauri/src/progress_sync.rs'
+      - 'frontend/src/cloud/progressCodecV1.contract.json'
+      - 'frontend/src/cloud/progressCodec.ts'
+      - 'frontend/src/cloud/progressSyncRuntime.ts'
+      - 'frontend/src/cloud/__fixtures__/progressCodecV1.json'
       - 'frontend/src-tauri/src/documents.rs'
       - 'frontend/src-tauri/src/map_codec.rs'
       - 'frontend/src/cloud/__fixtures__/mapCodecV1.json'
@@ -86,6 +99,7 @@ on:
       - 'tests/test_c18_content_note_sqlite.py'
       - 'tests/test_c18_map_sqlite.py'
       - 'tests/test_c18_document_sqlite.py'
+      - 'tests/test_c18_progress_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -123,7 +137,7 @@ jobs:
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
-            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py \
+            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \
@@ -200,4 +214,10 @@ jobs:
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc document_codec
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc document_sync
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Native progress codec and authority
+        shell: pwsh
+        run: |
+          cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc progress_
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

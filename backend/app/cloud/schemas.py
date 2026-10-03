@@ -495,18 +495,18 @@ def is_map_entity_id(entity_id: str) -> bool:
 
 class V3SyncEventEnvelope(V2SyncEventEnvelope):
     operation: Literal['upsert', 'delete', 'resolution', 'event']
-    entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order', 'map', 'document']
+    entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress']
 
     @model_validator(mode='after')
     def validate_metadata_scope(self) -> 'V3SyncEventEnvelope':
-        if self.operation == 'event' and self.entity_type not in ('note', 'map', 'document'):
-            raise ValueError('Framed operation requires Note, map or document entity.')
+        if self.operation == 'event' and self.entity_type not in ('note', 'map', 'document', 'progress'):
+            raise ValueError('Framed operation requires a Note, map, document or progress entity.')
         if self.entity_type == 'map' and (
                 self.operation != 'event' or self.deleted_at is not None or
                 not is_map_entity_id(self.entity_id)):
             raise ValueError('Map requires its framed owning-map identity.')
-        if self.entity_type == 'document' and (self.operation != 'event' or self.deleted_at is not None):
-            raise ValueError('Document requires a framed stable identity.')
+        if self.entity_type in ('document', 'progress') and (self.operation != 'event' or self.deleted_at is not None):
+            raise ValueError('Document and progress require framed stable identities.')
         if self.entity_type == 'project_metadata' and self.entity_id != self.project_id:
             raise ValueError('Project metadata entity ID must equal project ID.')
         if self.entity_type == 'stage_order' and (self.entity_id != 'stage_order' or self.operation != 'upsert'):
@@ -727,6 +727,23 @@ class DocumentReaderCapabilities(BaseModel):
     device_id: UUID
     frame_version: Literal[0, 1]
     codec_id: Literal[10]
+    codec_version: Literal[0, 1]
+    reader_version: Literal[0, 1]
+    compression_zero: bool = Field(strict=True)
+
+    @field_validator('frame_version', 'codec_id', 'codec_version', 'reader_version', mode='before')
+    @classmethod
+    def strict_version(cls, value):
+        if type(value) is not int:
+            raise ValueError('Reader version must be an integer')
+        return value
+
+class ProgressReaderCapabilities(BaseModel):
+    """Independent project-object reader evidence under the accepted SyncDevice model."""
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    frame_version: Literal[0, 1]
+    codec_id: Literal[11]
     codec_version: Literal[0, 1]
     reader_version: Literal[0, 1]
     compression_zero: bool = Field(strict=True)

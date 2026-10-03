@@ -14,12 +14,12 @@ def test_map_every_prefix_upgrade_reopen(version, tmp_path):
     db.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
     db.execute('INSERT INTO schema_info VALUES(?)', (version,))
     db.commit()
-    assert apply_migrations(db) == 35
+    assert apply_migrations(db) == 36
     assert db.execute('SELECT count(*) FROM cloud_map_events').fetchone() == (0,)
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
     db.close()
     db = sqlite3.connect(path)
-    assert apply_migrations(db) == 35
+    assert apply_migrations(db) == 36
     db.close()
 
 
@@ -39,12 +39,12 @@ def test_map_populated33_preserves_all_tables(tmp_path, monkeypatch):
     tables = [row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='schema_info'")]
     before = {table: db.execute(f'SELECT * FROM "{table}"').fetchall() for table in tables}
     db.commit()
-    assert apply_migrations(db) == 35
+    assert apply_migrations(db) == 36
     for table, rows in before.items():
         assert db.execute(f'SELECT * FROM "{table}"').fetchall() == rows
     db.close()
     db = sqlite3.connect(path)
-    assert apply_migrations(db) == 35
+    assert apply_migrations(db) == 36
     for table, rows in before.items():
         assert db.execute(f'SELECT * FROM "{table}"').fetchall() == rows
     db.close()

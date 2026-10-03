@@ -1,6 +1,7 @@
 import type { ProgressUnit } from '@/core/projects/types'
 
 export interface StatisticsProgressEntry {
+  writingDay?: string
   addedSymbols: number
   createdAt: string
 }

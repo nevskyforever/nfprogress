@@ -621,6 +621,29 @@ fn map_bridge(request: &Value) -> Value {
     }
 }
 
+fn progress_bridge(request:&Value)->Value {
+ use crate::{progress_sync as progress,project_metadata_sync as metadata};
+ let path=database_path(request);let mut db=open_database(&path).unwrap();
+ let scope=metadata::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+ metadata::assert_runtime_scope(&db,&scope.account_id,&scope.canonical_user_id,&scope.device_id).unwrap();let p=required_string(request,"project_id");let now="2026-10-03T00:00:00.000000Z";
+ let result=(||->Result<Value,String>{Ok(match required_string(request,"step") {
+ "writing_day"=>json!(crate::streaks::logical_writing_day(&db)?),
+ "begin"=>{progress::capture(&mut db,&scope,p,now)?;progress::view(&db,&scope,p)?},"view"=>progress::view(&db,&scope,p)?,
+ "pending"=>{progress::continue_capture(&mut db,&scope.account_id,now)?;json!(progress::pending(&db,&scope.account_id,&scope.device_id,request["sealed"].as_bool().unwrap_or(false))?)},
+ "seal"=>{progress::seal(&mut db,&scope.account_id,&scope.device_id,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext"))?;json!(true)},
+ "receipt"=>{progress::receipt(&mut db,&scope.account_id,&scope.device_id,required_string(request,"event_id"),required_i64(request,"server_sequence"),request["duplicate"].as_bool().unwrap_or(false),now)?;json!(true)},
+ "manual"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());let expected:Vec<String>=serde_json::from_value(request["expected"].clone()).map_err(|_|"test_expected".to_string())?;crate::add_progress_sqlite(p.into(),request["stage_id"].as_str().map(str::to_string),request["total"].as_f64().ok_or("test_total")?,Some(expected))?},
+ "document_progress"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());crate::documents::record_document_progress(crate::documents::DocumentProgressCommand{project_id:p.into(),stage_id:request["stage_id"].as_str().map(str::to_string),content:None,expected_heads:None})?},
+ "external_sync"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());serde_json::to_value(crate::documents::run_sync(crate::documents::SyncScopeCommand{project_id:p.into(),stage_id:request["stage_id"].as_str().map(str::to_string)})?).map_err(|_|"test_sync_result")?},
+ "append"=>{let tx=db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|_|"test_storage".to_string())?;let expected:Vec<String>=serde_json::from_value(request["expected"].clone()).map_err(|_|"test_expected".to_string())?;let v=progress::normal(&tx,p,request["stage_id"].as_str(),&request["entry"],Some(&expected),now)?;tx.commit().map_err(|_|"test_storage".to_string())?;json!(v)},
+ "decide"=>json!(progress::decide(&mut db,&scope,&serde_json::from_value(request["decision"].clone()).map_err(|_|"test_decision".to_string())?,now)?),
+ "receive"=>{crate::note_sync::commit_v3_sync_inbound_page(&mut db,&serde_json::from_value(request["command"].clone()).unwrap()).map_err(|e|e.to_string())?;drop(db);let mut privileged=open_privileged_remote_apply_database(&path).map_err(|e|e.to_string())?;json!(progress::apply(&mut privileged,&scope,&bytes(&request["opened"],"frame"),&bytes(&request["opened"],"nonce"),&bytes(&request["opened"],"ciphertext"))?)},
+ "apply"=>{drop(db);let mut privileged=open_privileged_remote_apply_database(&path).map_err(|e|e.to_string())?;json!(progress::apply(&mut privileged,&scope,&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext"))?)},
+ "rebuild"=>{drop(db);let mut privileged=open_privileged_remote_apply_database(&path).map_err(|e|e.to_string())?;progress::rebuild(&mut privileged,&scope,p,request["stage_id"].as_str())?;json!(true)},
+ "ack"=>json!(prepare_note_sync_ack(&mut db,&PrepareNoteSyncAckCommand{account_id:scope.account_id,device_id:scope.device_id,canonical_user_id:scope.canonical_user_id}).map_err(|e|e.to_string())?),
+ _=>return Err("test_unknown_progress_step".into())})})();match result{Ok(v)=>v,Err(error)=>json!({"error":error})}
+}
+
 fn document_bridge(request:&Value)->Value {
  use crate::{document_sync as docs,project_metadata_sync as metadata};
  let path=database_path(request);let mut db=open_database(&path).unwrap();
@@ -776,6 +799,7 @@ fn c15_headless_native_bridge() {
         "structural" => structural_bridge(&request),
         "content_note" => content_note_bridge(&request),
         "document" => document_bridge(&request),
+        "progress" => progress_bridge(&request),
         "map" => map_bridge(&request),
         "catalog" => catalog_bridge(&request),
         "provision" => provision(&request),

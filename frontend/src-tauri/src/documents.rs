@@ -3061,8 +3061,9 @@ fn record_sync_progress(
     source_hash: &str,
     created_at: &str,
 ) -> Result<(Value, Value), String> {
-    let document_id = document_id_for_scope(&connection, project_id, stage_id)?;
-    let last: Option<String> = connection
+    let tx=connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e|e.to_string())?;
+    let document_id = document_id_for_scope(&tx, project_id, stage_id)?;
+    let last: Option<String> = tx
         .query_row(
             "SELECT last_external_hash FROM document_bindings WHERE document_id=?",
             [document_id.as_str()],
@@ -3072,9 +3073,9 @@ fn record_sync_progress(
         .map_err(|e| e.to_string())?
         .flatten();
     if last.as_deref() == Some(source_hash) {
-        return Ok((crate::project_payload(connection, project_id)?, Value::Null));
+        tx.commit().map_err(|e|e.to_string())?;return Ok((crate::project_payload(connection, project_id)?, Value::Null));
     }
-    let (entity_id, payload, _) = project_entity(connection, project_id, stage_id)?;
+    let (entity_id, payload, _) = project_entity(&tx, project_id, stage_id)?;
     let previous = payload.get("total").and_then(Value::as_f64).unwrap_or(0.0);
     let unit = payload
         .get("unit")
@@ -3089,8 +3090,8 @@ fn record_sync_progress(
     };
     let delta = (total - previous) * factor;
     if delta.abs() < 0.009 {
-        connection.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,sync_state='synced' WHERE document_id=?",params![source_hash,now(),document_id]).map_err(|e|e.to_string())?;
-        return Ok((crate::project_payload(connection, project_id)?, Value::Null));
+        tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,sync_state='synced' WHERE document_id=?",params![source_hash,now(),document_id]).map_err(|e|e.to_string())?;
+        tx.commit().map_err(|e|e.to_string())?;return Ok((crate::project_payload(connection, project_id)?, Value::Null));
     }
     let entry_id = crate::new_note_id()?;
     let goal = payload.get("goal").and_then(Value::as_f64).unwrap_or(0.0);
@@ -3111,12 +3112,15 @@ fn record_sync_progress(
     next["progress_entries"] = Value::Array(entries);
     next["total"] = total.into();
     next["updated_at"] = created_at.into();
-    let tx = connection.transaction().map_err(|e| e.to_string())?;
+
     let table = if stage_id.is_some() {
         "stages"
     } else {
         "projects"
     };
+    let heads=crate::progress_sync::local_heads(&tx,project_id,stage_id)?;
+    let handled=crate::progress_sync::normal(&tx,project_id,stage_id,&entry,heads.as_deref(),created_at)?;
+    if !handled {
     tx.execute("INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?,?,?,?,?,?,?)",params![entry_id,project_id,stage_id,created_at,delta,added_progress,entry.to_string()]).map_err(|e|e.to_string())?;
     let pos: i64 = tx
         .query_row(
@@ -3137,6 +3141,7 @@ fn record_sync_progress(
     .map_err(|e| e.to_string())?;
     if stage_id.is_some() {
         crate::refresh_project_totals_in_transaction(&tx, project_id)?
+    }
     }
     tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,delta_symbols,context_json,created_at) VALUES(?,'ProgressAdded',?,?,?,?,?,?)",params![format!("sync-progress:{document_id}:{source_hash}"),project_id,stage_id,entry_id,delta,serde_json::json!({"source":"trusted_document_sync","version":1,"key":format!("document:{}:{}",project_id,stage_id.unwrap_or("project"))}).to_string(),created_at]).map_err(|e|e.to_string())?;
     tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),sync_state='synced',expected_external_hash=? WHERE document_id=?",params![source_hash,now(),document_id,source_hash,document_id]).map_err(|e|e.to_string())?;

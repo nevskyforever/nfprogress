@@ -273,6 +273,7 @@ export const useProjectsStore = defineStore('projects', () => {
         projectId,
         stageId: payload.stage_id,
         newTotal: payload.new_total,
+        ...(payload.expected_heads===undefined?{}:{expectedHeads:payload.expected_heads}),
       })
       storeProject(result.project)
       announceDataChange('projects')

@@ -165,6 +165,9 @@ class SyncDevice(Base):
         CheckConstraint('document_frame_version IN (0, 1)', name='ck_sync_devices_document_frame_version'),
         CheckConstraint('document_codec_version IN (0, 1)', name='ck_sync_devices_document_codec_version'),
         CheckConstraint('document_reader_version IN (0, 1)', name='ck_sync_devices_document_reader_version'),
+        CheckConstraint('progress_frame_version IN (0, 1)', name='ck_sync_devices_progress_frame_version'),
+        CheckConstraint('progress_codec_version IN (0, 1)', name='ck_sync_devices_progress_codec_version'),
+        CheckConstraint('progress_reader_version IN (0, 1)', name='ck_sync_devices_progress_reader_version'),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -188,6 +191,10 @@ class SyncDevice(Base):
     document_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     document_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     document_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
+    progress_frame_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    progress_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    progress_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    progress_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
 
 
 

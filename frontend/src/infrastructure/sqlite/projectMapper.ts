@@ -52,6 +52,7 @@ function stringOr(value: unknown, fallback: string | null): string | null {
 function progressEntry(row: SqliteProgressRow): ProgressEntry {
   const payload = objectPayload(row.payload_json)
   return {
+    writing_day: typeof payload.writing_day === 'string' ? payload.writing_day : undefined,
     id: row.id,
     new_total: numberOr(payload.new_total, 0),
     new_total_symbols: numberOr(payload.new_total_symbols, 0),

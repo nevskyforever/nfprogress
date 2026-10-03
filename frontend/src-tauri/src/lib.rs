@@ -27,6 +27,8 @@ mod content_note_sync;
 mod content_note_writer;
 mod document_codec;
 mod document_sync;
+mod progress_codec;
+mod progress_sync;
 mod map_codec;
 mod map_sync;
 #[allow(dead_code)]
@@ -729,6 +731,15 @@ fn project_payload(
     connection: &mut rusqlite::Connection,
     project_id: &str,
 ) -> Result<serde_json::Value, String> {
+    // Refresh derived rows from immutable facts after metadata/rule changes.
+    // This does not capture or publish any local history.
+    let scopes:Vec<(String,String,String,Option<String>)>={
+        let mut stmt=connection.prepare("SELECT m.account_id,b.canonical_user_id,s.device_id,m.stage_id FROM cloud_progress_migrations m JOIN cloud_account_bindings b ON b.local_account_id=m.account_id JOIN cloud_sync_state s ON s.account_id=m.account_id WHERE m.project_id=?1 AND m.lifecycle='active'").map_err(|_|"progress_storage_unavailable")?;
+        let rows=stmt.query_map([project_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(|_|"progress_storage_unavailable")?.collect::<rusqlite::Result<Vec<_>>>().map_err(|_|"progress_storage_unavailable")?;rows
+    };
+    if !scopes.is_empty(){let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"progress_storage_unavailable")?;
+        for(account_id,canonical_user_id,device_id,stage_id)in scopes{let scope=project_metadata_sync::MetadataScope{account_id,canonical_user_id,device_id};match progress_sync::rebuild(&mut privileged,&scope,project_id,stage_id.as_deref()){Ok(())=>{},Err(code)if code=="progress_publication_pending"=>{},Err(code)=>return Err(code)}}
+    }
     let mut repository = ProjectsRepository::new(connection);
     let project = repository
         .get_project(project_id)
@@ -742,6 +753,7 @@ fn project_payload(
         .into_iter()
         .map(|stage| {
             let mut value = stage.payload;
+            value["id"]=serde_json::json!(stage.id);
             let entries = repository
                 .list_progress(project_id, Some(&stage.id))
                 .map_err(|error| error.to_string())?;
@@ -761,6 +773,9 @@ fn project_payload(
             .collect(),
     );
     payload["stages"] = serde_json::Value::Array(stages_payload);
+    drop(repository);
+    if let Some(heads)=progress_sync::local_heads(connection,project_id,None)?{payload["progress_heads"]=serde_json::json!(heads);}
+    if let Some(stages)=payload["stages"].as_array_mut(){for stage in stages{let id=stage["id"].as_str().ok_or("progress_scope_mismatch")?.to_string();if let Some(heads)=progress_sync::local_heads(connection,project_id,Some(&id))?{stage["progress_heads"]=serde_json::json!(heads);}}}
     Ok(payload)
 }
 
@@ -841,6 +856,8 @@ fn refresh_project_totals_in_transaction(
         .and_then(serde_json::Value::as_array)
         .is_some_and(|items| !items.is_empty())
         .into();
+    payload["remaining"]=if infinite{serde_json::Value::Null}else{serde_json::json!((goal.unwrap_or(total)-total).max(0.0))};
+    payload["added_today"]=serde_json::json!(payload["stages"].as_array().unwrap().iter().map(|s|s["added_today"].as_f64().unwrap_or(0.0)).sum::<f64>());
     payload["total"] = total.into();
     payload["progress"] = if infinite || goal.unwrap_or(0.0) <= 0.0 {
         0.0.into()
@@ -2550,6 +2567,28 @@ fn map_sync_command(scope:project_metadata_sync::MetadataScope,request:map_sync:
 }
 
 #[tauri::command]
+fn get_current_writing_day()->Result<String,String>{let db=open_projects_database()?;streaks::logical_writing_day(&db)}
+
+#[tauri::command]
+fn progress_sync_command(scope:project_metadata_sync::MetadataScope,request:progress_sync::Request)->Result<serde_json::Value,String>{
+    let mut db=open_projects_database()?;require_projects_owner(&db)?;
+    project_metadata_sync::assert_runtime_scope(&db,&scope.account_id,&scope.canonical_user_id,&scope.device_id).map_err(|_|"progress_scope_mismatch")?;
+    use progress_sync::Request::*;
+    match request{
+        View{project_id}=>progress_sync::view(&db,&scope,&project_id),
+        Begin{project_id,now}=>{progress_sync::capture(&mut db,&scope,&project_id,&now)?;progress_sync::view(&db,&scope,&project_id)},
+        Pending{sealed,now}=>{progress_sync::continue_capture(&mut db,&scope.account_id,&now)?;Ok(serde_json::json!(progress_sync::pending(&db,&scope.account_id,&scope.device_id,sealed)?))},
+        Seal{event_id,frame,nonce,ciphertext}=>{progress_sync::seal(&mut db,&scope.account_id,&scope.device_id,&event_id,&frame,&nonce,&ciphertext)?;Ok(serde_json::Value::Null)},
+        Receipt{event_id,server_sequence,duplicate,now}=>{progress_sync::receipt(&mut db,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now)?;Ok(serde_json::Value::Null)},
+        Received{after,limit}=>Ok(serde_json::json!(progress_sync::received(&db,&scope.account_id,after,limit)?)),
+        Apply{frame,nonce,ciphertext}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"progress_storage_unavailable")?;Ok(serde_json::json!(progress_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext)?))},
+        Decide{decision,now}=>Ok(serde_json::json!(progress_sync::decide(&mut db,&scope,&decision,&now)?)),
+        Rebuild{project_id,stage_id}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"progress_storage_unavailable")?;progress_sync::rebuild(&mut privileged,&scope,&project_id,stage_id.as_deref())?;Ok(serde_json::Value::Null)},
+        Block{event_id,nonce,ciphertext,code}=>{if !matches!(code.as_str(),"invalid_progress_payload"|"decrypt_failed"|"progress_codec_unsupported"|"progress_resource_limit"|"progress_scope_mismatch"){return Err("invalid_progress_blocker".into())}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='progress' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext]).map_err(|_|"progress_storage_unavailable")?;Ok(serde_json::Value::Null)},
+    }
+}
+
+#[tauri::command]
 fn document_sync_command(scope:project_metadata_sync::MetadataScope,request:document_sync::Request)->Result<serde_json::Value,String>{
     let mut db=metadata_connection(&scope)?;
     use document_sync::Request::*;
@@ -3522,6 +3561,8 @@ impl<'de> Deserialize<'de> for MetadataDeadline {
 struct AddProjectProgressCommand {
     project_id: String,
     new_total: f64,
+    #[serde(default)]
+    expected_heads: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -3530,6 +3571,8 @@ struct AddStageProgressCommand {
     project_id: String,
     stage_id: String,
     new_total: f64,
+    #[serde(default)]
+    expected_heads: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -4756,7 +4799,7 @@ fn delete_project_folder(folder_id: String) -> Result<(), String> {
 #[tauri::command]
 fn add_project_progress(command: AddProjectProgressCommand) -> Result<serde_json::Value, String> {
     validate_progress_command(&command.project_id, command.new_total, None)?;
-    add_progress_sqlite(command.project_id, None, command.new_total)
+    add_progress_sqlite(command.project_id, None, command.new_total, command.expected_heads)
 }
 
 #[tauri::command]
@@ -4770,6 +4813,7 @@ fn add_stage_progress(command: AddStageProgressCommand) -> Result<serde_json::Va
         command.project_id,
         Some(command.stage_id),
         command.new_total,
+        command.expected_heads,
     )
 }
 
@@ -4794,6 +4838,7 @@ fn add_progress_sqlite(
     project_id: String,
     stage_id: Option<String>,
     submitted_total: f64,
+    expected_heads: Option<Vec<String>>,
 ) -> Result<serde_json::Value, String> {
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
@@ -4884,8 +4929,11 @@ fn add_progress_sqlite(
     payload["updated_at"] = now.clone().into();
     drop(repository);
     let tx = connection
-        .transaction()
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .map_err(|error| error.to_string())?;
+    if stage_id.is_none()&&tx.query_row("SELECT EXISTS(SELECT 1 FROM stages WHERE project_id=?1)",[&project_id],|r|r.get::<_,bool>(0)).map_err(|e|e.to_string())?{return Err("Выберите этап для записи прогресса.".into())}
+    let handled=progress_sync::normal(&tx,&project_id,stage_id.as_deref(),&entry,expected_heads.as_deref(),&now)?;
+    if !handled {
     tx.execute("INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?1,?2,?3,?4,?5,?6,?7)", rusqlite::params![entry_id, project_id, stage_id, now, delta, added_progress, entry.to_string()]).map_err(|error| error.to_string())?;
     let position: i64 = tx
         .query_row(
@@ -4908,6 +4956,7 @@ fn add_progress_sqlite(
     if stage_id.is_some() {
         refresh_project_totals_in_transaction(&tx, &project_id)?;
     }
+    }
     let game_key = stage_id
         .as_deref()
         .map(|stage| format!("stage:{project_id}:{stage}"))
@@ -4927,6 +4976,7 @@ fn delete_progress_sqlite(
 ) -> Result<serde_json::Value, String> {
     let mut connection = open_projects_database()?;
     require_projects_owner(&connection)?;
+    if progress_sync::local_heads(&connection,&project_id,stage_id.as_deref())?.is_some(){return Err("progress_descendant_rebase_required".into())}
     let now = now_from_database(&connection)?;
     let mut repository = ProjectsRepository::new(&mut connection);
     let project = repository
@@ -6123,6 +6173,7 @@ pub fn run() {
             add_stage_progress,
             delete_progress,
             get_settings,
+            get_current_writing_day,
             set_settings,
             list_notes,
             get_note,
@@ -6163,7 +6214,7 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
-            document_sync_command,map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
+            progress_sync_command,document_sync_command,map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
             list_received_account_objects,
             block_account_object,
             read_stage_structural_authority,

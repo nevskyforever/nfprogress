@@ -1,11 +1,11 @@
-"""Forward-only document substrate upgrades every accepted prefix without data loss."""
+"""Forward-only progress substrate upgrades every accepted prefix without data loss."""
 import sqlite3
 import pytest
 from nfprogress.core.sqlite.schema import apply_migrations, MIGRATIONS_DIR
 
-@pytest.mark.parametrize('version', range(35))
-def test_document_every_prefix_upgrade_reopen(version, tmp_path):
-    path = tmp_path / 'document.db'
+@pytest.mark.parametrize('version', range(36))
+def test_progress_every_prefix_upgrade_reopen(version, tmp_path):
+    path = tmp_path / 'progress.db'
     db = sqlite3.connect(path)
     db.create_function('note_sync_remote_apply_authorized', 1, lambda _: 0)
     db.execute("CREATE TABLE domain_events(event_id TEXT PRIMARY KEY,event_type TEXT NOT NULL,project_id TEXT NOT NULL,stage_id TEXT,progress_id TEXT,effective_date TEXT,delta_symbols REAL,context_json TEXT NOT NULL,created_at TEXT NOT NULL,processed_at TEXT,consumer TEXT NOT NULL DEFAULT 'game',version INTEGER NOT NULL DEFAULT 1)")
@@ -15,7 +15,7 @@ def test_document_every_prefix_upgrade_reopen(version, tmp_path):
     db.execute('INSERT INTO schema_info VALUES(?)', (version,))
     db.commit()
     assert apply_migrations(db) == 36
-    assert db.execute('SELECT count(*) FROM cloud_document_events').fetchone() == (0,)
+    assert db.execute('SELECT count(*) FROM cloud_progress_events').fetchone() == (0,)
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
     db.close()
     db = sqlite3.connect(path)
@@ -23,13 +23,13 @@ def test_document_every_prefix_upgrade_reopen(version, tmp_path):
     db.close()
 
 
-def test_document_populated34_preserves_all_tables(tmp_path, monkeypatch):
+def test_progress_populated35_preserves_all_tables(tmp_path, monkeypatch):
     import nfprogress.core.sqlite.schema as schema
     path = tmp_path / 'upgrade.db'
     db = sqlite3.connect(path)
     with monkeypatch.context() as patch:
-        patch.setattr(schema, 'CURRENT_SCHEMA_VERSION', 34)
-        assert apply_migrations(db) == 34
+        patch.setattr(schema, 'CURRENT_SCHEMA_VERSION', 35)
+        assert apply_migrations(db) == 35
     db.execute("INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES('P','Local',1,'symbols','active','{\"mindmap\":{\"nodeData\":{\"id\":\"root\",\"topic\":\"retained\",\"children\":[]}}}')")
     db.execute("INSERT INTO project_order VALUES('P',0)")
     db.execute("INSERT INTO stages(id,project_id,name,infinite,unit,status,payload_json) VALUES('S','P','Stage',1,'symbols','active','{}')")

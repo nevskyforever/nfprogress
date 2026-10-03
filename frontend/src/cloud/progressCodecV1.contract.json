@@ -1,0 +1,37 @@
+{
+  "codec": 11,
+  "version": 1,
+  "frame": 1,
+  "compression": 0,
+  "limits": {
+    "frame_bytes": 8388608,
+    "parents": 64,
+    "dependencies": 64,
+    "chain_entries": 65536,
+    "operation_entries": 1024,
+    "migration_batch": 256,
+    "identity_bytes": 512,
+    "amount_symbols": "1000000000000.000000",
+    "legacy_compatibility_micro_symbols": 1,
+    "capture_bytes": 67108864,
+    "cycle_events": 8,
+    "cycle_facts": 2048
+  },
+  "units": {
+    "symbols": 1,
+    "A4": 1800,
+    "author_list": 40000,
+    "ficbook_pages": 4500
+  },
+  "operations": [
+    "genesis",
+    "append",
+    "select",
+    "rebase",
+    "correct",
+    "tombstone",
+    "migrate",
+    "adopt_local"
+  ],
+  "append_base_rule": "Prior absolute symbols; when recorded unit changes, derive the visible preceding total with existing engine rounding, then convert it to symbols. Authenticate the action unit against referenced metadata. Preserve older facts unchanged."
+}

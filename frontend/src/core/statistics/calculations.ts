@@ -26,7 +26,7 @@ function daysInclusive(start: string | null, end: string): number {
 export function calculatePureStatistics(input: StatisticsInput): PureStatistics {
   const symbolsByDay = new Map<string, number>()
   for (const entry of input.progressEntries) {
-    const date = datePart(entry.createdAt)
+    const date = datePart(entry.writingDay ?? entry.createdAt)
     if (!date || !Number.isFinite(entry.addedSymbols)) continue
     symbolsByDay.set(date, (symbolsByDay.get(date) ?? 0) + entry.addedSymbols)
   }

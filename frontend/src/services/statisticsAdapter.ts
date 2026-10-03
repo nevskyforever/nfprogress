@@ -20,6 +20,7 @@ function inputFor(project: Project, stageId?: string): StatisticsInput {
     progressEntries: entries.map((entry) => ({
       addedSymbols: entry.added_symbols,
       createdAt: entry.created_at,
+      writingDay: entry.writing_day,
     })),
   }
 }
