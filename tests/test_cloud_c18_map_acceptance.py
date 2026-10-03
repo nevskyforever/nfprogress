@@ -4,6 +4,8 @@ import json, os, sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
+import pytest
+from nfprogress.core.sqlite.connection import register_remote_apply_authorization_guard
 from test_cloud_auth import cloud_client, migrated_database, create_user, login
 from test_cloud_c18_content_note_gate import capabilities
 from test_cloud_c18_map_gate import map_capabilities
@@ -127,6 +129,18 @@ def test_maps_explicit_migration_annotation_writers_conflicts_two_devices(cloud_
         n=json.loads(db.execute('SELECT payload_json FROM notes WHERE id=?',(note_id,)).fetchone()[0])
         assert n['title']=='Portable map annotation' and n['tags']==['alpha'] and n['pinned'] and n['archived'] and n['checklist'][0]['checked']
         assert db.execute('SELECT COUNT(*) FROM cloud_map_local_candidates').fetchone()[0]==1
+    # An ordinary initialized connection cannot gain private remote-apply rights.
+    with sqlite3.connect(b) as db:
+        register_remote_apply_authorization_guard(db)
+        assert db.execute("SELECT note_sync_remote_apply_authorized(?)", ('untrusted',)).fetchone() == (0,)
+        original_map = db.execute('SELECT payload_json FROM projects WHERE id=?', (PROJECT_ID,)).fetchone()[0]
+        original_note = db.execute('SELECT payload_json FROM notes WHERE id=?', (note_id,)).fetchone()[0]
+        with pytest.raises(sqlite3.IntegrityError, match='map_mutation_requires_matching_intent'):
+            db.execute("UPDATE projects SET payload_json=json_set(payload_json,'$.mindmap.nodeData.topic','unauthorized') WHERE id=?", (PROJECT_ID,))
+        with pytest.raises(sqlite3.IntegrityError, match='derived_note_requires_owning_map_intent'):
+            db.execute('DELETE FROM notes WHERE id=?', (note_id,))
+        assert db.execute('SELECT payload_json FROM projects WHERE id=?', (PROJECT_ID,)).fetchone()[0] == original_map
+        assert db.execute('SELECT payload_json FROM notes WHERE id=?', (note_id,)).fetchone()[0] == original_note
     # Ordinary map and derived Note writers both produce complete maps only.
     old_expected=maps(tmp_path,a,ia,user,'expected',stage_id='S1')
     for path,identity,text in ((a,ia,'A branch'),(b,ib,'B branch')):

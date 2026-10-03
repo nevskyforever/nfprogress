@@ -5,7 +5,7 @@
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 CORRECTION LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Последнее закрытие:** C18.4 независимо закрыт для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac`; SQLite `37004006923` и Cloud `37004006914` — **SUCCESS**, все четыре jobs. Последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
@@ -2088,3 +2088,52 @@ C22/PF6.0 and C21 local-Web-first rules remain unchanged. Documents/Progress/Gam
 compression, telemetry and C18.6+/C21 implementation are outside this slice.
 Next recommended slice after independent acceptance:
 C18.5.04 — DOCUMENT AUTHORITY / SCOPE MOVE / EXTENSION BLOCKERS.
+
+
+### C18.5.03 remote CI harness correction — independent result and local repair
+
+Implementation SHA: `6b3b19f860a87b9ecf2f4e3ecd835adbb3587833`.
+Independent verification supplied by GPT: SQLite workflow `37107105194` —
+**SUCCESS**, Python and Rust/Windows jobs green, including
+`Verify map codec and durable authority`. Cloud workflow `37107105174`:
+Frontend admin **SUCCESS**, PostgreSQL **FAILURE** in mandatory no-skip acceptance
+(`1 failed, 38 passed`). C18.5.03 is **NOT remotely accepted**.
+
+Exact failing test:
+`tests/test_cloud_c18_authority_cross_runtime.py::test_metadata_migration_import_mismatch_and_concurrent_rename`.
+Exact error: `sqlite3.OperationalError: no such function: note_sync_remote_apply_authorized`.
+Classification: **CI/test-fixture connection initialization regression**.
+Schema34's persistent map UPDATE guards resolve the connection-scoped C15.7B UDF
+while preparing ordinary SQL, even before map activation. The historical fixture
+opened raw Python SQLite and performed a Project UPDATE without initialization.
+
+Minimal test-only correction: call the existing
+`register_remote_apply_authorization_guard(db)` before that fixture UPDATE.
+It always returns **0**, matching ordinary production Python/native connections;
+no remote capability or authorization rows are created. Production initialization
+already installs the fail-closed function; **no production defect found and no
+production code changed**. Schema34, triggers and map/Note/ACK authority unchanged.
+
+Neighboring mandatory raw SQLite writes audited: remaining Project/Stage INSERTs
+have no applicable UDF-bearing INSERT guard; ordinary Note INSERT fixtures already
+register the fail-closed function. Read-only connections and isolated crash-trigger
+DDL require no change. No broad helper/suite refactor.
+
+Real two-device map acceptance additionally checks the ordinary initialized
+connection's UDF returns 0 and rejects both an active Project map UPDATE and
+its derived Note DELETE with the expected guards, preserving both payloads.
+Original failure reproduced locally; exact corrected test **1 PASS** against
+isolated PostgreSQL + file-backed native SQLite. One bounded mandatory Cloud
+CI-equivalent PostgreSQL acceptance pass: **39 PASS, 0 skips** (533.18 seconds),
+including metadata, maps, content Notes and the new fail-closed assertions.
+Changed Python files parse successfully; `git diff --check` PASS. Protected
+engine/game_data `.pyc` files untouched. Frontend/Rust not rerun: no code changed
+and original independent SQLite/Windows and frontend jobs are green.
+
+Correction status: **C18.5.03 CORRECTION — LOCAL COMPLETE / REMOTE CI PENDING**
+after correction commit/push. Remote acceptance requires independent verification
+of the new SHA.
+Remote CI will not be polled by Codex. Expected workflows: Cloud backend tests;
+SQLite sync substrate tests. C18.5 and C18 remain **IN PROGRESS**, official progress
+**77.0%**. All permanent release/terminology/C21 rules remain unchanged.
+No C18.5.04, Documents/Progress/Game, compression, C11 or codec8 changes.

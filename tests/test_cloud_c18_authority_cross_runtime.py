@@ -6,6 +6,8 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
+from nfprogress.core.sqlite.connection import register_remote_apply_authorization_guard
+
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
 from test_cloud_c15_headless_cross_runtime import PROJECT_ID, _crypto_bridge, _headers, _native_bridge
 
@@ -73,6 +75,7 @@ def test_metadata_migration_import_mismatch_and_concurrent_rename(cloud_client, 
     user = str(create_user(engine)); token = login(client).json()['access_token']; headers = _headers(token)
     a, ia = provision(tmp_path, 'A', user, True)
     with sqlite3.connect(a) as db:
+        register_remote_apply_authorization_guard(db)
         db.execute("UPDATE projects SET goal=1234.0,infinite=0,payload_json=json_set(payload_json,'$.personal_goal',200.0)")
     b, ib = provision(tmp_path, 'B', user, False)
     c, ic = provision(tmp_path, 'C-legacy-shell', user, False)
