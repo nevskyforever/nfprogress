@@ -644,6 +644,40 @@ fn progress_bridge(request:&Value)->Value {
  _=>return Err("test_unknown_progress_step".into())})})();match result{Ok(v)=>v,Err(error)=>json!({"error":error})}
 }
 
+fn game_bridge(request:&Value)->Value {
+    let path=database_path(request);let mut db=open_database(&path).unwrap();
+    // Ordinary completion refreshes Progress through the app's profile path.
+    // Pin that path to this isolated device, as the ordinary Progress bridge does.
+    std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());
+    let scope=crate::project_metadata_sync::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+    let result=(||->Result<Value,String>{match required_string(request,"step") {
+        "init"=>{
+            let source=if request["source"].is_object(){request["source"].clone()}else{json!({"gamer":serde_json::from_str::<Value>(include_str!("../../src/cloud/__fixtures__/gameLegacyDefaultsV1.json")).unwrap()})};
+            db.execute("UPDATE storage_ownership SET owner='sqlite' WHERE subsystem='game'",[]).map_err(|e|e.to_string())?;
+            db.execute("INSERT INTO game_state(id,schema_version,payload_json,updated_at) VALUES(1,2,?1,'2026-10-04T00:00:00.000000Z') ON CONFLICT(id) DO UPDATE SET payload_json=excluded.payload_json",[source.to_string()]).map_err(|e|e.to_string())?;Ok(json!(true))
+        },
+        "process"=>Ok(json!(crate::game::process_pending_events(&mut db,100)?)),
+        "state"=>{let raw:String=db.query_row("SELECT payload_json FROM game_state WHERE id=1",[],|r|r.get(0)).map_err(|e|e.to_string())?;serde_json::from_str(&raw).map_err(|_|"test_game_json".into())},
+        "complete"=>{let p=required_string(request,"project_id").to_string();if let Some(s)=request["stage_id"].as_str(){crate::complete_stage_sqlite(&mut db,crate::StageIdCommand{project_id:p,stage_id:s.into()})}else{crate::complete_project_sqlite(&mut db,crate::ProjectIdCommand{project_id:p})}},
+        "inventory"=>serde_json::to_value(crate::game::GameApplicationService::inventory_sqlite(&mut db,required_string(request,"category").into(),required_string(request,"item_id").into(),required_i64(request,"count"),required_string(request,"operation")).map_err(|e|e.to_string())?).map_err(|e|e.to_string()),
+        "receive"=>{crate::note_sync::commit_mixed_sync_inbound_page(&mut db,&serde_json::from_value(request["command"].clone()).map_err(|_|"test_game_inbox")?).map_err(|e|e.to_string())?;Ok(json!(true))},
+        "note_apply"=>{
+            let row=&request["event"];let opened=&request["opened"];
+            drop(db);let mut privileged=open_privileged_remote_apply_database(&path).map_err(|e|e.to_string())?;
+            let result=crate::note_sync::apply_verified_received_note_ipc(&mut privileged,crate::note_sync::ApplyVerifiedReceivedNoteIpcCommand{
+                account_id:scope.account_id,canonical_user_id:scope.canonical_user_id,pulling_device_id:scope.device_id,
+                event_id:required_string(row,"event_id").into(),server_sequence:required_i64(row,"server_sequence"),source_device_id:required_string(row,"device_id").into(),
+                crypto_version:required_i64(opened,"crypto_version"),aad_version:required_i64(opened,"aad_version"),nonce:bytes(opened,"nonce"),ciphertext:bytes(opened,"ciphertext"),plaintext:bytes(opened,"plaintext")
+            }).map_err(|e|e.to_string())?;Ok(json!(result))
+        },
+        "command"=>{
+            drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());
+            crate::game_sync_command(scope,serde_json::from_value(request["request"].clone()).map_err(|_|"test_game_command")?)
+        },
+        _=>Err("test_game_step".into()),
+    }})();match result{Ok(v)=>v,Err(error)=>json!({"error":error})}
+}
+
 fn document_bridge(request:&Value)->Value {
  use crate::{document_sync as docs,project_metadata_sync as metadata};
  let path=database_path(request);let mut db=open_database(&path).unwrap();
@@ -800,6 +834,7 @@ fn c15_headless_native_bridge() {
         "content_note" => content_note_bridge(&request),
         "document" => document_bridge(&request),
         "progress" => progress_bridge(&request),
+        "game" => game_bridge(&request),
         "map" => map_bridge(&request),
         "catalog" => catalog_bridge(&request),
         "provision" => provision(&request),

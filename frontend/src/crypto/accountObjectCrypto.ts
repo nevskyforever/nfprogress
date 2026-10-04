@@ -3,7 +3,7 @@ import { CryptoError } from './errors'
 import { getSodium } from './sodium'
 import type { AccountMasterKey } from './types'
 
-export const ACCOUNT_ENTITY_TYPES = ['folder', 'folder_order', 'folder_membership', 'project_order'] as const
+export const ACCOUNT_ENTITY_TYPES = ['folder', 'folder_order', 'folder_membership', 'project_order', 'account_game'] as const
 export type AccountEntityType = typeof ACCOUNT_ENTITY_TYPES[number]
 export interface AccountObjectContext { userId: string; scope: 'account'; entityId: string; entityType: string }
 export interface AccountObjectEnvelope { crypto_version: 2; aad_version: 2; nonce: Uint8Array; ciphertext: Uint8Array }

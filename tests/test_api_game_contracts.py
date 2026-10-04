@@ -29,6 +29,9 @@ def test_openapi_exposes_game_state_catalog_and_command_models(tmp_path):
     assert _response_schema(openapi, '/api/game/catalog')['$ref'].endswith(
         '/GameCatalogResponse',
     )
+    assert _response_schema(openapi, '/api/game/developer')['$ref'].endswith(
+        '/DeveloperModeResponse',
+    )
     assert _response_schema(openapi, '/api/game/notifications')['$ref'].endswith(
         '/GameNotificationsResponse',
     )
@@ -50,6 +53,7 @@ def test_openapi_exposes_game_state_catalog_and_command_models(tmp_path):
         and path not in {
             '/api/game/state',
             '/api/game/catalog',
+            '/api/game/developer',
             '/api/game/notifications',
             '/api/game/notifications/{notification_id}/read',
             '/api/game/notifications/read-all',

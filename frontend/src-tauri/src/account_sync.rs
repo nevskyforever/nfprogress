@@ -6,11 +6,12 @@ use crate::note_sync::{
 use rusqlite::{Connection, Transaction};
 use serde::{Deserialize, Serialize};
 
-pub(crate) const TYPES: [&str; 4] = [
+pub(crate) const TYPES: [&str; 5] = [
     "folder",
     "folder_order",
     "folder_membership",
     "project_order",
+    "account_game",
 ];
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -54,6 +55,8 @@ pub(crate) fn preserve(
         || item.entity_id.is_empty()
         || item.entity_id.len() > 512
         || !matches!(item.operation.as_str(), "upsert" | "delete")
+        || item.entity_type == "account_game" && (item.operation != "upsert"
+            || item.deleted_at.is_some() || item.entity_id != format!("game:{}",item.event_id))
         || !(1..=9_007_199_254_740_991).contains(&item.revision)
         || (item.operation == "delete") != item.deleted_at.is_some()
         || !valid_uuid(&item.event_id)
@@ -115,7 +118,7 @@ pub(crate) fn received(
         &scope.device_id,
         &scope.canonical_user_id,
     )?;
-    let mut query = tx.prepare("SELECT event_id,server_sequence,canonical_user_id,scope,entity_id,entity_type,crypto_version,aad_version,nonce,ciphertext,device_id,operation,sync_revision,updated_at,deleted_at FROM cloud_sync_account_inbox WHERE account_id=?1 AND server_sequence>?2 AND NOT EXISTS(SELECT 1 FROM cloud_catalog_apply_ledger l WHERE l.account_id=cloud_sync_account_inbox.account_id AND l.event_id=cloud_sync_account_inbox.event_id) ORDER BY server_sequence LIMIT ?3")?;
+    let mut query = tx.prepare("SELECT event_id,server_sequence,canonical_user_id,scope,entity_id,entity_type,crypto_version,aad_version,nonce,ciphertext,device_id,operation,sync_revision,updated_at,deleted_at FROM cloud_sync_account_inbox WHERE account_id=?1 AND entity_type IN ('folder','folder_order','folder_membership','project_order') AND server_sequence>?2 AND NOT EXISTS(SELECT 1 FROM cloud_catalog_apply_ledger l WHERE l.account_id=cloud_sync_account_inbox.account_id AND l.event_id=cloud_sync_account_inbox.event_id) ORDER BY server_sequence LIMIT ?3")?;
     let rows = query
         .query_map(rusqlite::params![scope.account_id, after, limit], |r| {
             Ok(ReceivedAccountItem {

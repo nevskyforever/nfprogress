@@ -198,6 +198,8 @@ fn snapshot_database(source: &Path, destination: &Path) -> Result<(), String> {
 
 fn strip_developer_metadata(database: &Path) -> Result<(), String> {
     let connection = Connection::open(database).map_err(|error| error.to_string())?;
+    crate::sqlite::register_fail_closed_remote_apply_guard(&connection)
+        .map_err(|error|error.to_string())?;
     let raw = connection
         .query_row(
             "SELECT payload_json FROM game_state WHERE id=1",

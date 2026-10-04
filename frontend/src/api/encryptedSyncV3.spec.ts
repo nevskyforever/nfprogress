@@ -77,3 +77,23 @@ it('accepts exact mixed account descriptors and rejects cross-scope/version fram
   for(const change of [{scope:'project'},{project_id:'fake'},{entity_type:'note'},{canonical_user_id:'other'},{entity_id:'😀'.repeat(129)}]) expect(()=>parseV3Pull({...page,items:[{event:{...event,...change},object}]},0,1)).toThrow()
   for(const change of [{crypto_version:1},{aad_version:1}]) expect(()=>parseV3Pull({...page,items:[{event,object:{...object,...change}}]},0,1)).toThrow()
 })
+
+it('routes immutable project and account Game envelopes without accepting cross-domain descriptors',async()=>{
+  const {encodeV3GamePush,encodeAccountPush}=await import('./encryptedSyncV3')
+  for(const entity_id of [`game:project:${EVENT}`,`game:stage:S1:${EVENT}`]){
+    const event={event_id:EVENT,project_id:'project',entity_id,entity_type:'project_game' as const,operation:'event' as const,revision:1,updated_at:NOW,deleted_at:null}
+    const wire=JSON.parse(encodeV3GamePush(DEVICE,[{event,object}]))
+    expect(parseV3Pull({protocol_version:3,encrypted_sync_version:3,items:[{event:{...event,device_id:DEVICE,server_sequence:1},object:wire.items[0].object}],next_cursor:1,has_more:false},0,8).items[0]!.event.entity_type).toBe('project_game')
+    for(const change of [{entity_id:`game:project:${DEVICE}`},{operation:'upsert'},{operation:'delete',deleted_at:NOW},{entity_type:'progress'},{amount:999}])expect(()=>encodeV3GamePush(DEVICE,[{event:{...event,...change} as never,object}])).toThrow()
+    expect(()=>encodeV3MetadataPush(DEVICE,[{event,object}])).toThrow()
+  }
+  const event={event_id:EVENT,canonical_user_id:DEVICE,scope:'account' as const,entity_id:`game:${EVENT}`,entity_type:'account_game' as const,operation:'upsert' as const,revision:1,updated_at:NOW,deleted_at:null}
+  const envelope={...object,crypto_version:2 as const,aad_version:2 as const}
+  const wire=JSON.parse(encodeAccountPush(DEVICE,[{event,object:envelope}]))
+  const page={protocol_version:3,encrypted_sync_version:3,items:[{event:{...event,device_id:DEVICE,server_sequence:1},object:wire.items[0].object}],next_cursor:1,has_more:false}
+  expect(parseV3Pull(page,0,8).items[0]!.event.entity_type).toBe('account_game')
+  for(const change of [{entity_id:`game:${DEVICE}`},{operation:'delete',deleted_at:NOW},{scope:'project'},{coins:999}]){
+    expect(()=>encodeAccountPush(DEVICE,[{event:{...event,...change} as never,object:envelope}])).toThrow()
+    expect(()=>parseV3Pull({...page,items:[{...page.items[0],event:{...page.items[0]!.event,...change}}]},0,8)).toThrow()
+  }
+})

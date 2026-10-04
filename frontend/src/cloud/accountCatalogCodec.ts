@@ -1,7 +1,9 @@
 import { canonical, timestamp } from './projectMetadataCodec';
-import { ACCOUNT_ENTITY_TYPES, decryptAccountObject, encryptAccountObject, type AccountObjectEnvelope } from '@/crypto/accountObjectCrypto';
+import { decryptAccountObject, encryptAccountObject, type AccountObjectEnvelope } from '@/crypto/accountObjectCrypto';
 import type { AccountMasterKey } from '@/crypto';
-export type CatalogType = typeof ACCOUNT_ENTITY_TYPES[number];
+/** Catalog allocation is frozen independently of future account entity types. */
+export const CATALOG_CODEC_IDS = { folder: 4, folder_order: 5, folder_membership: 6, project_order: 7 } as const;
+export type CatalogType = keyof typeof CATALOG_CODEC_IDS;
 export const CATALOG_LIMITS = { entities: 16384, parents: 64, bytes: 4 * 1024 * 1024 } as const;
 export interface CatalogHeader {
     account_id: string;
@@ -52,7 +54,7 @@ export function validateCatalogEvent(v: unknown): asserts v is CatalogEvent {
     const h = v.header, d = v.dependencies;
     if (!exact(h, ['account_id', 'scope', 'device_id', 'entity_type', 'entity_id', 'event_id', 'operation', 'parent_event_ids', 'revision', 'generation', 'updated_at']) || h.scope !== 'account'
         || !['account_id', 'device_id', 'event_id'].every(k => typeof h[k] === 'string' && UUID.test(h[k] as string)) || !text(h.entity_id)
-        || !ACCOUNT_ENTITY_TYPES.includes(h.entity_type as CatalogType) || !['create', 'update', 'delete', 'resolution'].includes(String(h.operation))
+        || !Object.hasOwn(CATALOG_CODEC_IDS, String(h.entity_type)) || !['create', 'update', 'delete', 'resolution'].includes(String(h.operation))
         || !Number.isSafeInteger(h.revision) || (h.revision as number) < 1 || !Number.isSafeInteger(h.generation) || (h.generation as number) < 1 || !timestamp(h.updated_at)
         || !heads(h.parent_event_ids, true) || h.parent_event_ids.includes(h.event_id as string)
         || (h.operation === 'create' ? h.parent_event_ids.length !== 0 || h.revision !== 1 || h.generation !== 1 : !h.parent_event_ids.length || (h.revision as number) < 2 || (h.generation as number) < 2))
@@ -93,7 +95,7 @@ export function frameCatalogEvent(e: CatalogEvent): Uint8Array {
         fail();
     const frame = new Uint8Array(20 + bytes.length);
     frame.set(magic);
-    frame.set([1, 4 + ACCOUNT_ENTITY_TYPES.indexOf(e.header.entity_type), 1, 0], 8);
+    frame.set([1, CATALOG_CODEC_IDS[e.header.entity_type], 1, 0], 8);
     const view = new DataView(frame.buffer);
     view.setUint32(12, bytes.length);
     view.setUint32(16, bytes.length);
@@ -114,7 +116,7 @@ export function unframeCatalogEvent(frame: Uint8Array): CatalogEvent {
         fail();
     }
     validateCatalogEvent(v);
-    if (frame[9] !== 4 + ACCOUNT_ENTITY_TYPES.indexOf(v.header.entity_type) || canonical(v) !== dec.decode(frame.subarray(20)))
+    if (frame[9] !== CATALOG_CODEC_IDS[v.header.entity_type] || canonical(v) !== dec.decode(frame.subarray(20)))
         fail();
     return v;
 }

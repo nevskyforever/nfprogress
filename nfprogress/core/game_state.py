@@ -310,6 +310,14 @@ class SQLiteGameRepository:
         payload.update(_game_payload(gamer or self.read_gamer(db), data))
         self._write_payload(payload, db)
 
+    def record_game_developer_override(self, gamer: legacy_game.Gamer) -> None:
+        """Keep first local debug provenance even after test mode is switched off."""
+        with self.transaction() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO cloud_game_local_restrictions VALUES(?,?,?)",
+                ('game_developer_state_restricted', _dump(encode_gamer(gamer)), _game_now()),
+            )
+
     def _write_payload(self, payload: Mapping[str, Any], db: Any | None = None) -> None:
         encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False, sort_keys=True)
         if db is not None:
@@ -465,6 +473,7 @@ class GameEventConsumer:
                 (max(1, int(limit)),),
             ).fetchall()
             for row in rows:
+                db.execute('SAVEPOINT game_domain_action')
                 try:
                     payload = json.loads(row['context_json'])
                     if not isinstance(payload, dict):
@@ -472,14 +481,21 @@ class GameEventConsumer:
                     if int(row['version'] or 1) != GAME_EVENT_CONTEXT_VERSION:
                         raise ValueError(f"unsupported event version: {row['version']}")
                     state = self.repository.read_payload(db)
-                    state = self.rules.apply(state, row, payload)
+                    from nfprogress.core.sqlite.game_sync_writer import recorded, capture_local
+                    if not recorded(db, row):
+                        before = json.loads(json.dumps(state, ensure_ascii=False, allow_nan=False))
+                        state = self.rules.apply(state, row, payload)
+                        capture_local(db, row, payload, before, state)
                     self.repository._write_payload(state, db)
                     db.execute(
                         "UPDATE domain_events SET processed_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'), status='processed', last_error=NULL WHERE event_id=? AND processed_at IS NULL",
                         (row['event_id'],),
                     )
+                    db.execute('RELEASE game_domain_action')
                     processed += 1
                 except Exception as error:
+                    db.execute('ROLLBACK TO game_domain_action')
+                    db.execute('RELEASE game_domain_action')
                     attempt = int(row['attempt_count'] or 0) + 1
                     poison = attempt >= 3
                     db.execute(

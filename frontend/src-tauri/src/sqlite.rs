@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 36;
+pub const CURRENT_SCHEMA_VERSION: i64 = 37;
 
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
@@ -540,7 +540,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 36] = [
+const MIGRATIONS: [(i64, &str); 37] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -623,6 +623,7 @@ const MIGRATIONS: [(i64, &str); 36] = [
     (34, include_str!("../../../nfprogress/core/sqlite/migrations/034_map_authority.sql")),
     (35, include_str!("../../../nfprogress/core/sqlite/migrations/035_document_authority.sql")),
     (36, include_str!("../../../nfprogress/core/sqlite/migrations/036_progress_authority.sql")),
+    (37, include_str!("../../../nfprogress/core/sqlite/migrations/037_game_action_ledgers.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {

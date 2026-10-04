@@ -41,6 +41,9 @@ pub struct Chain {
     migration: Option<(usize, i128)>,
 }
 impl Chain {
+    pub(crate) fn migration_complete(&self) -> bool {
+        self.migration.is_none()
+    }
     pub fn total(&self) -> Result<i128> {
         self.entries
             .last()

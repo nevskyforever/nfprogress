@@ -22,6 +22,7 @@ export interface NoteSyncV3CycleResult {
   readonly resolutionUploaded: number
   readonly metadataUploaded: number
   readonly progressApply?: import("./progressSyncRuntime").ProgressApplyResult
+  readonly gameApply?: import("./gameSyncRuntime").GameApplyResult
   readonly documentApply?: import("./documentSyncRuntime").DocumentApplyResult
   readonly mapApply?: import("./mapSyncRuntime").MapApplyResult
   readonly structuralApply?: MetadataApplyResult
@@ -53,6 +54,7 @@ export class NoteSyncV3Cycle {
     private readonly maps?: import("./mapSyncRuntime").MapSyncRuntime,
     private readonly documents?: import("./documentSyncRuntime").DocumentSyncRuntime,
     private readonly progress?: import("./progressSyncRuntime").ProgressSyncRuntime,
+    private readonly game?: import("./gameSyncRuntime").GameSyncRuntime,
   ) {}
 
   async runOnce(accountId: string, deviceId: string, options: NoteSyncOrchestratorOptions = {}): Promise<NoteSyncV3CycleResult> {
@@ -69,13 +71,15 @@ export class NoteSyncV3Cycle {
     const errors: Array<{ stage: string; code: string }> = []
     let noteUploaded = 0, resolutionUploaded = 0, metadataUploaded = 0, hasRemainingWork = false
     let progressApply: import("./progressSyncRuntime").ProgressApplyResult | undefined
+    let gameApply: import("./gameSyncRuntime").GameApplyResult | undefined
+    let gameAvailable=false
     let documentApply: import("./documentSyncRuntime").DocumentApplyResult | undefined
     let mapApply: import("./mapSyncRuntime").MapApplyResult | undefined
     let structuralApply: MetadataApplyResult | undefined
     let abort = false
     let noteApply: NoteSyncMixedInboxResult | undefined, metadataApply: MetadataApplyResult | undefined, ack: MetadataAckResult | undefined
     const result = (): NoteSyncV3CycleResult => ({ stages, noteUploaded, resolutionUploaded, metadataUploaded,
-      pulled, noteApply, metadataApply, structuralApply, mapApply, documentApply, progressApply, ack, blocked, errors, hasRemainingWork })
+      pulled, noteApply, metadataApply, structuralApply, mapApply, documentApply, progressApply, gameApply, ack, blocked, errors, hasRemainingWork })
     const stage = async (name: string, action: () => Promise<void>): Promise<boolean> => {
       stages.push(name)
       try { await action(); return true }
@@ -103,6 +107,7 @@ export class NoteSyncV3Cycle {
     if (!await stage('register_device', async () => { await this.device.registerOnce(accountId, deviceId) })) return result()
     if(this.contentNotes?.declareSupport) await stage('declare_note_readers',async()=>{await this.contentNotes!.declareSupport!(accountId,deviceId)})
     if(this.progress) await stage('declare_progress_readers',async()=>{await this.progress!.declareSupport(accountId,deviceId)})
+    if(this.game)await stage('declare_game_readers',async()=>{gameAvailable=await this.game!.gameReaderAvailable(accountId,deviceId);if(gameAvailable)await this.game!.declareGameSupport(accountId,deviceId)})
     if(this.documents) await stage('declare_document_readers',async()=>{await this.documents!.declareSupport(accountId,deviceId)})
     if(this.maps) await stage('declare_map_readers',async()=>{await this.maps!.declareSupport(accountId,deviceId)})
     if (!await stage('seal_notes', async () => {
@@ -115,6 +120,7 @@ export class NoteSyncV3Cycle {
     if(this.accountReader?.sealCatalog) await stage('seal_catalog',async()=>{await mode();hasRemainingWork ||= await this.accountReader!.sealCatalog!(accountId,deviceId)===8})
     if(this.contentNotes?.sealNotes) await stage('seal_content_notes',async()=>{hasRemainingWork ||= await this.contentNotes!.sealNotes!(accountId,deviceId)===8})
     if(this.progress) await stage('seal_progress',async()=>{const count=await this.progress!.sealProgress(accountId,deviceId);hasRemainingWork ||= count===8})
+    if(gameAvailable)await stage('seal_game',async()=>{const count=await this.game!.sealGame(accountId,deviceId);hasRemainingWork ||= count===8})
     if(this.documents) await stage('seal_documents',async()=>{const count=await this.documents!.sealDocuments(accountId,deviceId);hasRemainingWork ||= count===8})
     if(this.maps) await stage('seal_maps',async()=>{const count=await this.maps!.sealMaps(accountId,deviceId);hasRemainingWork ||= count===8})
     if (abort) return result()
@@ -131,6 +137,7 @@ export class NoteSyncV3Cycle {
     if(abort)return result()
     if(this.contentNotes?.uploadNotes) await stage('upload_content_notes',async()=>{await this.contentNotes!.uploadNotes!(accountId,deviceId)})
     if(this.progress) await stage('upload_progress',async()=>{const count=await this.progress!.uploadProgress(accountId,deviceId);hasRemainingWork ||= count===8})
+    if(gameAvailable)await stage('upload_game',async()=>{const count=await this.game!.uploadGame(accountId,deviceId);hasRemainingWork ||= count===8})
     if(this.documents) await stage('upload_documents',async()=>{const count=await this.documents!.uploadDocuments(accountId,deviceId);hasRemainingWork ||= count===8})
     if(this.maps) await stage('upload_maps',async()=>{const count=await this.maps!.uploadMaps(accountId,deviceId);hasRemainingWork ||= count===8})
     for (let page = 0; page < limits.maxPullPages; page += 1) {
@@ -167,6 +174,7 @@ export class NoteSyncV3Cycle {
     if(this.maps && !await stage('apply_maps',async()=>{mapApply=await this.maps!.readOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...mapApply.blocked);hasRemainingWork ||= mapApply.hasRemainingWork}))return result()
     if(this.documents && !await stage('apply_documents',async()=>{await mode();documentApply=await this.documents!.readOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...documentApply.blocked);hasRemainingWork ||= documentApply.hasRemainingWork}))return result()
     if(this.progress && !await stage('apply_progress',async()=>{await mode();progressApply=await this.progress!.readOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...progressApply.blocked);hasRemainingWork ||= progressApply.hasRemainingWork}))return result()
+    if(gameAvailable&&!await stage('apply_game',async()=>{await mode();gameApply=await this.game!.readGameOnce(accountId,deviceId,limits.applyLimit,limits.maxApplyPasses);blocked.push(...gameApply.blocked);hasRemainingWork ||= gameApply.hasRemainingWork}))return result()
     await stage('ack_v3', async () => { await mode(); ack = await this.metadata.ackOnce(accountId, deviceId); hasRemainingWork ||= ack.status === 'stale'; diagnostics.record('sync','sync_cycle','ack_result',undefined,{status:ack.status,pending:blocked.length}) })
     return result()
   }

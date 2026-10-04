@@ -1,4 +1,6 @@
 import {frameProgressEvent,unframeProgressEvent} from './progressCodec'
+import {frameGameEvent,unframeGameEvent} from './gameCodec'
+import {encryptAccountObject,decryptAccountObject} from '@/crypto/accountObjectCrypto'
 import {unframeDocumentEvent,frameDocumentEvent} from './documentCodec'
 import {unframeMapEvent,frameMapEvent} from './mapCodec'
 import {unframeContentNote,frameContentNote} from './contentNoteCodec'
@@ -64,9 +66,26 @@ interface MapOpenRequest{action:'map_open';canonical_user_id:string;amk:number[]
 interface ProgressEventSealRequest{action:'progress_event_seal';payload:import('./progressCodec').ProgressEvent;amk:number[]}
 interface ProgressSealRequest{action:'progress_seal';frame:number[];amk:number[]}
 interface ProgressOpenRequest{action:'progress_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
-type BridgeRequest = ProgressEventSealRequest | ProgressSealRequest | ProgressOpenRequest | DocumentEventSealRequest | DocumentSealRequest | DocumentOpenRequest | MapEventSealRequest | MapSealRequest | MapOpenRequest | ContentSealRequest | ContentOpenRequest | CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
+interface GameSealRequest{action:'game_seal';scope:'project'|'account';frame:number[];amk:number[]}
+interface GameOpenRequest{action:'game_open';scope:'project'|'account';canonical_user_id:string;amk:number[];item:{event:{event_id:string;device_id:string;project_id?:string;canonical_user_id?:string;entity_id:string;entity_type:string};object:OpenRequest['item']['object']}}
+type BridgeRequest = GameSealRequest | GameOpenRequest | ProgressEventSealRequest | ProgressSealRequest | ProgressOpenRequest | DocumentEventSealRequest | DocumentSealRequest | DocumentOpenRequest | MapEventSealRequest | MapSealRequest | MapOpenRequest | ContentSealRequest | ContentOpenRequest | CatalogSealRequest | CatalogOpenRequest | StructuralSealRequest | StructuralOpenRequest | MetadataSealRequest | MetadataOpenRequest | SealRequest | OpenRequest | ResolutionEncodeRequest | ResolutionSealRequest | ResolutionOpenRequest | SealIntentRequest
 
 async function execute(request: BridgeRequest): Promise<Record<string, unknown>> {
+  if(request.action==='game_seal'){
+    const frame=Uint8Array.from(request.frame),e=unframeGameEvent(frame,request.scope),h=e.header
+    expect([...frameGameEvent(e)]).toEqual(request.frame)
+    const amk=asAccountMasterKey(Uint8Array.from(request.amk))
+    const o=h.scope==='project'?await encryptObjectBytes(amk,{userId:h.account_id,projectId:h.project_id,entityType:'project_game',entityId:h.entity_id},frame):await encryptAccountObject(amk,{userId:h.account_id,scope:'account',entityType:'account_game',entityId:h.entity_id},frame)
+    return {object:{crypto_version:o.crypto_version,aad_version:o.aad_version,nonce:encodeBase64Url(o.nonce),ciphertext:encodeBase64Url(o.ciphertext)},nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
+  }
+  if(request.action==='game_open'){
+    const d=request.item.event,wire=request.item.object,nonce=decodeBase64Url(wire.nonce),ciphertext=decodeBase64Url(wire.ciphertext),amk=asAccountMasterKey(Uint8Array.from(request.amk))
+    expect(wire.crypto_version).toBe(request.scope==='project'?1:2);expect(wire.aad_version).toBe(wire.crypto_version)
+    const frame=request.scope==='project'?await decryptObjectBytes(amk,{userId:request.canonical_user_id,projectId:d.project_id!,entityType:'project_game',entityId:d.entity_id},{crypto_version:1,aad_version:1,nonce,ciphertext}):await decryptAccountObject(amk,{userId:request.canonical_user_id,scope:'account',entityType:'account_game',entityId:d.entity_id},{crypto_version:2,aad_version:2,nonce,ciphertext})
+    const decoded=unframeGameEvent(frame,request.scope);expect(decoded.header.event_id).toBe(d.event_id);expect(decoded.header.account_id).toBe(request.canonical_user_id);expect(decoded.header.device_id).toBe(d.device_id);expect(decoded.header.entity_id).toBe(d.entity_id)
+    if(decoded.header.scope==='project')expect(decoded.header.project_id).toBe(d.project_id);else expect(d.canonical_user_id).toBe(request.canonical_user_id)
+    return {decoded,nonce:[...nonce],ciphertext:[...ciphertext],frame:[...frame]}
+  }
   if(request.action==='document_event_seal'){return execute({action:'document_seal',frame:[...await frameDocumentEvent(request.payload)],amk:request.amk})}
   if(request.action==='progress_event_seal'){return execute({action:'progress_seal',frame:[...await frameProgressEvent(request.payload)],amk:request.amk})}
   if(request.action==='progress_seal'){

@@ -212,6 +212,13 @@ class PickleRepository:
             return SQLiteNotesRepository(self.base_dir)
         return None
 
+    def record_game_developer_override(self, gamer: Any) -> None:
+        """Debug provenance stays local and follows the SQLite Game owner."""
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.GAME) == StorageOwner.SQLITE:
+            from nfprogress.core.game_state import SQLiteGameRepository
+            SQLiteGameRepository(self.base_dir).record_game_developer_override(gamer)
+
     def write_gamer(self, gamer: Any) -> None:
         """Atomically write a game-state object without changing its format."""
         from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem

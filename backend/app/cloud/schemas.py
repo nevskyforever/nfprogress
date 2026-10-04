@@ -495,18 +495,20 @@ def is_map_entity_id(entity_id: str) -> bool:
 
 class V3SyncEventEnvelope(V2SyncEventEnvelope):
     operation: Literal['upsert', 'delete', 'resolution', 'event']
-    entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress']
+    entity_type: Literal['note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress', 'project_game']
 
     @model_validator(mode='after')
     def validate_metadata_scope(self) -> 'V3SyncEventEnvelope':
-        if self.operation == 'event' and self.entity_type not in ('note', 'map', 'document', 'progress'):
+        if self.operation == 'event' and self.entity_type not in ('note', 'map', 'document', 'progress', 'project_game'):
             raise ValueError('Framed operation requires a Note, map, document or progress entity.')
         if self.entity_type == 'map' and (
                 self.operation != 'event' or self.deleted_at is not None or
                 not is_map_entity_id(self.entity_id)):
             raise ValueError('Map requires its framed owning-map identity.')
-        if self.entity_type in ('document', 'progress') and (self.operation != 'event' or self.deleted_at is not None):
+        if self.entity_type in ('document', 'progress', 'project_game') and (self.operation != 'event' or self.deleted_at is not None):
             raise ValueError('Document and progress require framed stable identities.')
+        if self.entity_type == 'project_game' and (not self.entity_id.startswith('game:') or not self.entity_id.endswith(f':{self.event_id}')):
+            raise ValueError('Game requires its immutable action identity.')
         if self.entity_type == 'project_metadata' and self.entity_id != self.project_id:
             raise ValueError('Project metadata entity ID must equal project ID.')
         if self.entity_type == 'stage_order' and (self.entity_id != 'stage_order' or self.operation != 'upsert'):
@@ -542,7 +544,7 @@ class V3SyncPullEvent(V3SyncEventEnvelope):
     server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
 
 
-ACCOUNT_ENTITY_TYPES = ('folder', 'folder_order', 'folder_membership', 'project_order')
+ACCOUNT_ENTITY_TYPES = ('folder', 'folder_order', 'folder_membership', 'project_order', 'account_game')
 
 
 class AccountSyncEventEnvelope(BaseModel):
@@ -551,7 +553,7 @@ class AccountSyncEventEnvelope(BaseModel):
     canonical_user_id: UUID
     scope: Literal['account']
     entity_id: str = Field(min_length=1)
-    entity_type: Literal['folder', 'folder_order', 'folder_membership', 'project_order']
+    entity_type: Literal['folder', 'folder_order', 'folder_membership', 'project_order', 'account_game']
     operation: Literal['upsert', 'delete']
     revision: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
     updated_at: datetime
@@ -569,6 +571,8 @@ class AccountSyncEventEnvelope(BaseModel):
             raise ValueError('Account timestamps require a timezone.')
         if (self.operation == 'delete') != (self.deleted_at is not None):
             raise ValueError('Invalid account tombstone.')
+        if self.entity_type == 'account_game' and (self.operation != 'upsert' or self.entity_id != f'game:{self.event_id}'):
+            raise ValueError('Account Game requires its immutable action identity.')
         return self
 
 
@@ -754,3 +758,31 @@ class ProgressReaderCapabilities(BaseModel):
         if type(value) is not int:
             raise ValueError('Reader version must be an integer')
         return value
+
+
+class ProjectGameReaderSupport(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    frame_version: Literal[0, 1]
+    codec_id: Literal[12]
+    codec_version: Literal[0, 1]
+    reader_version: Literal[0, 1]
+    compression_zero: bool = Field(strict=True)
+
+    @field_validator('frame_version', 'codec_id', 'codec_version', 'reader_version', mode='before')
+    @classmethod
+    def strict_version(cls, value):
+        if type(value) is not int:
+            raise ValueError('Reader version must be an integer')
+        return value
+
+
+class AccountGameReaderSupport(ProjectGameReaderSupport):
+    codec_id: Literal[13]
+
+
+class GameReaderCapabilities(BaseModel):
+    """Both Game domains are required; Progress dependencies are checked separately."""
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    project: ProjectGameReaderSupport
+    account: AccountGameReaderSupport

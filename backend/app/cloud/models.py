@@ -168,6 +168,12 @@ class SyncDevice(Base):
         CheckConstraint('progress_frame_version IN (0, 1)', name='ck_sync_devices_progress_frame_version'),
         CheckConstraint('progress_codec_version IN (0, 1)', name='ck_sync_devices_progress_codec_version'),
         CheckConstraint('progress_reader_version IN (0, 1)', name='ck_sync_devices_progress_reader_version'),
+        CheckConstraint('project_game_frame_version IN (0, 1)', name='ck_sync_devices_project_game_frame_version'),
+        CheckConstraint('project_game_codec_version IN (0, 1)', name='ck_sync_devices_project_game_codec_version'),
+        CheckConstraint('project_game_reader_version IN (0, 1)', name='ck_sync_devices_project_game_reader_version'),
+        CheckConstraint('account_game_frame_version IN (0, 1)', name='ck_sync_devices_account_game_frame_version'),
+        CheckConstraint('account_game_codec_version IN (0, 1)', name='ck_sync_devices_account_game_codec_version'),
+        CheckConstraint('account_game_reader_version IN (0, 1)', name='ck_sync_devices_account_game_reader_version'),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -195,6 +201,14 @@ class SyncDevice(Base):
     progress_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     progress_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     progress_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
+    project_game_frame_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    project_game_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    project_game_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    project_game_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
+    account_game_frame_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    account_game_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    account_game_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
+    account_game_compression_zero: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
 
 
 
@@ -221,7 +235,7 @@ class SyncEvent(Base):
         CheckConstraint('revision >= 1', name='ck_sync_events_revision_positive'),
         CheckConstraint('server_sequence > 0', name='ck_sync_events_sequence_positive'),
         CheckConstraint("(operation = 'delete' AND deleted_at IS NOT NULL) OR (operation != 'delete' AND deleted_at IS NULL)", name='ck_sync_events_tombstone'),
-        CheckConstraint("(project_id IS NULL AND entity_type IN ('folder','folder_order','folder_membership','project_order')) OR (project_id IS NOT NULL AND entity_type NOT IN ('folder','folder_order','folder_membership','project_order'))", name='ck_sync_events_scope'),
+        CheckConstraint("(project_id IS NULL AND entity_type IN ('folder','folder_order','folder_membership','project_order','account_game')) OR (project_id IS NOT NULL AND entity_type NOT IN ('folder','folder_order','folder_membership','project_order','account_game'))", name='ck_sync_events_scope'),
         UniqueConstraint('user_id', 'server_sequence', name='uq_sync_events_user_sequence'),
     )
 

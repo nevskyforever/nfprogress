@@ -1,0 +1,1992 @@
+{
+  "level": 1,
+  "exp": 0,
+  "coins": 0.0,
+  "inflation": 1.0,
+  "health": 100,
+  "max_health": 100,
+  "cf": {
+    "coins": {
+      "value": 1.0,
+      "base_value": 1.0,
+      "name": "Монеты",
+      "description": "Коэффициент награды монетами. За 100 символов вы получите {coins_per_100} монет."
+    },
+    "exp": {
+      "value": 1.0,
+      "base_value": 1.0,
+      "name": "Опыт",
+      "description": "Коэффициент награды опытом. За 100 символов вы получите {exp_per_100} опыта."
+    },
+    "health_recovery": {
+      "value": 0.0,
+      "base_value": 0.0,
+      "name": "Восстановление",
+      "description": "Коэффициент восстановления здоровья. Сейчас восстанавливает {health_recovery_per_hour:g} здоровья в час."
+    }
+  },
+  "skills": {
+    "productivity": 0,
+    "profitability": 0,
+    "endurance": 0
+  },
+  "available_skill_points": 0,
+  "skill_points_awarded_for_level": 1,
+  "items": {},
+  "custom_awards": [],
+  "custom_awards_inventory": {},
+  "bank_account": {
+    "__type__": "game_data.BankAccount",
+    "fields": {
+      "credit": null,
+      "deposit": null,
+      "credit_score": 600,
+      "credit_history": [],
+      "deposit_history": [],
+      "overdue_days_total": 0
+    }
+  },
+  "last_lose_global_streak_damage": null,
+  "last_bonus_dates": {},
+  "api_streak_reward_days": {},
+  "complete_bonus_projects": [],
+  "buffs": [],
+  "debuffs": [],
+  "quests": [
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "reach_level_2",
+        "name": "Первые шаги",
+        "description": "Достигните 2 уровня.",
+        "reward_coins": 50,
+        "reward_exp": 500,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье познания",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.015 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.015,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 1,
+        "status": "available",
+        "quest_func": "reach_level_2",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "save_100_coins",
+        "name": "Финансовая подушка",
+        "description": "Накопите 100 монет на балансе.",
+        "reward_coins": 25,
+        "reward_exp": 300,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье познания",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: монеты",
+              "description": "Постоянный бонус к коэффициенту монет за экономические и коллекционные квесты. +0.015 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "coins",
+              "value": 0.015,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 1,
+        "status": "available",
+        "quest_func": "save_100_coins",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "keep_health_potion",
+        "name": "Аптечка автора",
+        "description": "Получите или купите любое зелье здоровья и держите его в инвентаре.",
+        "reward_coins": 75,
+        "reward_exp": 750,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак заботы о здоровье",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 2,
+        "status": "available",
+        "quest_func": "keep_health_potion",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "restore_full_health",
+        "name": "Полное восстановление",
+        "description": "Восстановите здоровье до 100.",
+        "reward_coins": 60,
+        "reward_exp": 600,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Заморозка",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: восстановление",
+              "description": "Постоянный бонус к восстановлению здоровья за квесты дисциплины и устойчивости. +0.02 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "health_recovery",
+              "value": 0.02,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 2,
+        "status": "available",
+        "quest_func": "restore_full_health",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "activate_positive_buff",
+        "name": "Подготовка к рывку",
+        "description": "Получите любой положительный эффект от предмета или зелья.",
+        "reward_coins": 120,
+        "reward_exp": 1200,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье доходности",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: восстановление",
+              "description": "Постоянный бонус к восстановлению здоровья за квесты дисциплины и устойчивости. +0.02 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "health_recovery",
+              "value": 0.02,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 2,
+        "status": "available",
+        "quest_func": "activate_positive_buff",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "own_freeze_item",
+        "name": "Запасной день",
+        "description": "Получите предмет \"Заморозка\" в инвентарь.",
+        "reward_coins": 150,
+        "reward_exp": 1500,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак дисциплины",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 3,
+        "status": "available",
+        "quest_func": "own_freeze_item",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "open_bank_deposit",
+        "name": "Первые инвестиции",
+        "description": "Откройте вклад в банке.",
+        "reward_coins": 200,
+        "reward_exp": 2000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Банковский жетон",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 3,
+        "status": "available",
+        "quest_func": "open_bank_deposit",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "keep_no_credit_with_500_coins",
+        "name": "Без долгов",
+        "description": "Накопите 500 монет и не имейте активного кредита.",
+        "reward_coins": 250,
+        "reward_exp": 2500,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Заморозка",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: монеты",
+              "description": "Постоянный бонус к коэффициенту монет за экономические и коллекционные квесты. +0.03 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "coins",
+              "value": 0.03,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 4,
+        "status": "available",
+        "quest_func": "keep_no_credit_with_500_coins",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "collect_2000_exp",
+        "name": "Стабильная практика",
+        "description": "Накопите 2000 опыта на текущем уровне.",
+        "reward_coins": 300,
+        "reward_exp": 3000,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Заморозка",
+            "count": 2
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.035 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.035,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 5,
+        "status": "available",
+        "quest_func": "collect_2000_exp",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "collect_five_items",
+        "name": "Коллекционер",
+        "description": "Соберите в инвентаре суммарно 5 предметов, зелий или наград.",
+        "reward_coins": 400,
+        "reward_exp": 4000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак коллекционера",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 6,
+        "status": "available",
+        "quest_func": "collect_five_items",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_notes_7_days_any_text",
+        "name": "Неделя записей",
+        "description": "Добавляйте записи не меньше 7 дней подряд в один текст или этап.",
+        "reward_coins": 500,
+        "reward_exp": 5000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак недельной практики",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 2,
+        "status": "available",
+        "quest_func": "write_notes_7_days_any_text",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_text_in_14_days",
+        "name": "Спринт за две недели",
+        "description": "Завершите текст или этап не позже чем через 14 дней после его создания.",
+        "reward_coins": 700,
+        "reward_exp": 7000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак быстрого финала",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 3,
+        "status": "available",
+        "quest_func": "finish_text_in_14_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "no_freeze_7_days",
+        "name": "Неделя без заморозки",
+        "description": "После старта квеста продержитесь 7 дней без использования заморозки в текстах или этапах.",
+        "reward_coins": 450,
+        "reward_exp": 4500,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак теплого стрика",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 3,
+        "status": "available",
+        "quest_func": "no_freeze_7_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_10000_symbols_in_text",
+        "name": "Десять тысяч",
+        "description": "Напишите 10000 символов в одном тексте или этапе.",
+        "reward_coins": 800,
+        "reward_exp": 8000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Малое зелье здоровья",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.03 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.03,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 4,
+        "status": "available",
+        "quest_func": "write_10000_symbols_in_text",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_text_with_no_freezes",
+        "name": "Чистый финиш",
+        "description": "Завершите текст или этап, не использовав в нём ни одной заморозки.",
+        "reward_coins": 900,
+        "reward_exp": 9000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак чистого финиша",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 5,
+        "status": "available",
+        "quest_func": "finish_text_with_no_freezes",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_notes_14_days_any_text",
+        "name": "Две недели без провала",
+        "description": "Добавляйте записи 14 дней подряд в один текст или этап.",
+        "reward_coins": 1200,
+        "reward_exp": 12000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак двух недель",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 6,
+        "status": "available",
+        "quest_func": "write_notes_14_days_any_text",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "no_freeze_14_days",
+        "name": "Без льда",
+        "description": "После старта квеста продержитесь 14 дней без использования заморозки в текстах или этапах.",
+        "reward_coins": 1100,
+        "reward_exp": 11000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак без льда",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 6,
+        "status": "available",
+        "quest_func": "no_freeze_14_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_30000_symbols_total",
+        "name": "Большой объём",
+        "description": "Накопите 30000 написанных символов суммарно по всем текстам и этапам.",
+        "reward_coins": 1500,
+        "reward_exp": 15000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Малое зелье здоровья",
+            "count": 2
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.045 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.045,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 7,
+        "status": "available",
+        "quest_func": "write_30000_symbols_total",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_2000_symbols_on_3_days",
+        "name": "Три глубоких дня",
+        "description": "Напишите не меньше 2000 символов в каждый из 3 разных дней.",
+        "reward_coins": 1600,
+        "reward_exp": 16000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глубоких дней",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 7,
+        "status": "available",
+        "quest_func": "write_2000_symbols_on_3_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_three_texts",
+        "name": "Три финала",
+        "description": "Завершите 3 разных текста или этапа.",
+        "reward_coins": 2200,
+        "reward_exp": 22000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак трех финалов",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 8,
+        "status": "available",
+        "quest_func": "finish_three_texts",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_long_text_50000",
+        "name": "Большая форма",
+        "description": "Завершите текст или этап объёмом не меньше 50000 символов.",
+        "reward_coins": 2600,
+        "reward_exp": 26000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак большой формы",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 8,
+        "status": "available",
+        "quest_func": "finish_long_text_50000",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "complete_text_with_21_day_streak",
+        "name": "Финиш марафонца",
+        "description": "Завершите текст или этап со стриком не меньше 21 дня.",
+        "reward_coins": 3200,
+        "reward_exp": 32000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак марафонца",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 9,
+        "status": "available",
+        "quest_func": "complete_text_with_21_day_streak",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "two_texts_with_7_day_streaks",
+        "name": "Две линии огня",
+        "description": "Доведите стрик до 7 дней минимум в двух разных текстах или этапах.",
+        "reward_coins": 3000,
+        "reward_exp": 30000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак двух линий",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 9,
+        "status": "available",
+        "quest_func": "two_texts_with_7_day_streaks",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "save_5000_coins_no_credit",
+        "name": "Крепкая экономика",
+        "description": "Накопите 5000 монет и не имейте активного кредита.",
+        "reward_coins": 3500,
+        "reward_exp": 35000,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Заморозка",
+            "count": 3
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: монеты",
+              "description": "Постоянный бонус к коэффициенту монет за экономические и коллекционные квесты. +0.06 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "coins",
+              "value": 0.06,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 10,
+        "status": "available",
+        "quest_func": "save_5000_coins_no_credit",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "collect_ten_awards",
+        "name": "Зал славы",
+        "description": "Соберите суммарно 10 наград в инвентаре.",
+        "reward_coins": 4000,
+        "reward_exp": 40000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак зала славы",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 10,
+        "status": "available",
+        "quest_func": "collect_ten_awards",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_1000_symbols_today",
+        "name": "Тысяча за день",
+        "description": "Напишите не меньше 1000 символов за один день в одном тексте или этапе.",
+        "reward_coins": 180,
+        "reward_exp": 1800,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье познания",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.02 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.02,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 2,
+        "status": "available",
+        "quest_func": "write_1000_symbols_today",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "keep_three_active_projects",
+        "name": "Три фронта",
+        "description": "Держите 3 активных текста или этапа одновременно.",
+        "reward_coins": 350,
+        "reward_exp": 3500,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак трех фронтов",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 3,
+        "status": "available",
+        "quest_func": "keep_three_active_projects",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_short_text_5000",
+        "name": "Короткая победа",
+        "description": "Завершите текст или этап объёмом от 5000 до 15000 символов.",
+        "reward_coins": 650,
+        "reward_exp": 6500,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак короткой победы",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 4,
+        "status": "available",
+        "quest_func": "finish_short_text_5000",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_5000_symbols_in_week",
+        "name": "Плотная неделя",
+        "description": "Напишите суммарно 5000 символов за последние 7 дней.",
+        "reward_coins": 900,
+        "reward_exp": 9000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье познания",
+            "count": 2
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.035 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.035,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 5,
+        "status": "available",
+        "quest_func": "write_5000_symbols_in_week",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_1000_symbols_on_5_days",
+        "name": "Пять сильных дней",
+        "description": "Напишите не меньше 1000 символов в каждый из 5 разных дней.",
+        "reward_coins": 1400,
+        "reward_exp": 14000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак пяти сильных дней",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 6,
+        "status": "available",
+        "quest_func": "write_1000_symbols_on_5_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_30_notes_in_one_text",
+        "name": "Дневник рукописи",
+        "description": "Добавьте 30 записей с положительным приростом в один текст или этап.",
+        "reward_coins": 1800,
+        "reward_exp": 18000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак дневника рукописи",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 7,
+        "status": "available",
+        "quest_func": "write_30_notes_in_one_text",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "keep_deposit_1000_coins",
+        "name": "Серьёзный вклад",
+        "description": "Держите активный банковский вклад на сумму не меньше 1000 монет.",
+        "reward_coins": 2000,
+        "reward_exp": 20000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак серьезного вклада",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 7,
+        "status": "available",
+        "quest_func": "keep_deposit_1000_coins",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "return_deposit_with_profit",
+        "name": "Проценты получены",
+        "description": "Закройте вклад в срок и получите проценты.",
+        "reward_coins": 2800,
+        "reward_exp": 28000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак умного вклада",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 8,
+        "status": "available",
+        "quest_func": "return_deposit_with_profit",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_five_texts",
+        "name": "Пять завершений",
+        "description": "Завершите 5 разных текстов или этапов.",
+        "reward_coins": 5200,
+        "reward_exp": 52000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак пяти завершений",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 11,
+        "status": "available",
+        "quest_func": "finish_five_texts",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_100000_symbols_total",
+        "name": "Сто тысяч",
+        "description": "Накопите 100000 написанных символов суммарно по всем текстам и этапам.",
+        "reward_coins": 7000,
+        "reward_exp": 70000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак ста тысяч",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 12,
+        "status": "available",
+        "quest_func": "write_100000_symbols_total",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_150000_symbols_total",
+        "name": "Полторы сотни тысяч",
+        "description": "Накопите 150000 написанных символов во всех текстах и этапах.",
+        "reward_coins": 9000,
+        "reward_exp": 90000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Суточное зелье познания",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.06 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.06,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 10,
+        "status": "available",
+        "quest_func": "write_150000_symbols_total",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_seven_texts",
+        "name": "Семь рукописей",
+        "description": "Завершите 7 разных текстов или этапов.",
+        "reward_coins": 10500,
+        "reward_exp": 105000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак семи рукописей",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 11,
+        "status": "available",
+        "quest_func": "finish_seven_texts",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_5000_symbols_today",
+        "name": "День высокой концентрации",
+        "description": "Напишите 5000 символов за один день в одном тексте или этапе.",
+        "reward_coins": 12000,
+        "reward_exp": 120000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье просвещения",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 12,
+        "status": "available",
+        "quest_func": "write_5000_symbols_today",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_45_days",
+        "name": "Полтора глобальных месяца",
+        "description": "Продержите глобальный стрик 45 дней.",
+        "reward_coins": 13500,
+        "reward_exp": 135000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак полутора месяцев",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 13,
+        "status": "available",
+        "quest_func": "global_streak_45_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_10000_symbols_in_week",
+        "name": "Неделя большого темпа",
+        "description": "Напишите суммарно 10000 символов за последние 7 дней.",
+        "reward_coins": 15000,
+        "reward_exp": 150000,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Заморозка",
+            "count": 2
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 14,
+        "status": "available",
+        "quest_func": "write_10000_symbols_in_week",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "no_freeze_30_days",
+        "name": "Месяц без льда",
+        "description": "После старта квеста продержитесь 30 дней без заморозки в текстах или этапах.",
+        "reward_coins": 16500,
+        "reward_exp": 165000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак месяца без льда",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 15,
+        "status": "available",
+        "quest_func": "no_freeze_30_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "save_20000_coins_no_credit",
+        "name": "Капитал автора",
+        "description": "Накопите 20000 монет и не имейте активного кредита.",
+        "reward_coins": 18000,
+        "reward_exp": 180000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Суточное зелье доходности",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 16,
+        "status": "available",
+        "quest_func": "save_20000_coins_no_credit",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_2000_symbols_on_10_days",
+        "name": "Десять продуктивных дней",
+        "description": "Напишите не меньше 2000 символов в каждый из 10 разных дней.",
+        "reward_coins": 19500,
+        "reward_exp": 195000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак десяти дней",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 17,
+        "status": "available",
+        "quest_func": "write_2000_symbols_on_10_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "keep_deposit_10000_coins",
+        "name": "Инвестор",
+        "description": "Держите активный банковский вклад на сумму не меньше 10000 монет.",
+        "reward_coins": 21000,
+        "reward_exp": 210000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Часовое зелье супердоходности",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 18,
+        "status": "available",
+        "quest_func": "keep_deposit_10000_coins",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_250000_symbols_total",
+        "name": "Четверть миллиона",
+        "description": "Накопите 250000 написанных символов во всех текстах и этапах.",
+        "reward_coins": 23000,
+        "reward_exp": 230000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак четверти миллиона",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 19,
+        "status": "available",
+        "quest_func": "write_250000_symbols_total",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_ten_texts",
+        "name": "Десять финалов",
+        "description": "Завершите 10 разных текстов или этапов.",
+        "reward_coins": 25000,
+        "reward_exp": 250000,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Лотерейный билет",
+            "count": 3
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 20,
+        "status": "available",
+        "quest_func": "finish_ten_texts",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_20000_symbols_in_week",
+        "name": "Неделя мастера",
+        "description": "Напишите суммарно 20000 символов за последние 7 дней.",
+        "reward_coins": 27000,
+        "reward_exp": 270000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак недели мастера",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 21,
+        "status": "available",
+        "quest_func": "write_20000_symbols_in_week",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_120_days",
+        "name": "Глобальные четыре месяца",
+        "description": "Продержите глобальный стрик 120 дней.",
+        "reward_coins": 30000,
+        "reward_exp": 300000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Суточное зелье просвещения",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 22,
+        "status": "available",
+        "quest_func": "global_streak_120_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_500000_symbols_total",
+        "name": "Половина миллиона",
+        "description": "Накопите 500000 написанных символов во всех текстах и этапах.",
+        "reward_coins": 33000,
+        "reward_exp": 330000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак половины миллиона",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 24,
+        "status": "available",
+        "quest_func": "write_500000_symbols_total",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "write_notes_60_days_any_text",
+        "name": "Два месяца записей",
+        "description": "Добавляйте записи 60 дней подряд в один текст или этап.",
+        "reward_coins": 36000,
+        "reward_exp": 360000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Суточное зелье супердоходности",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 25,
+        "status": "available",
+        "quest_func": "write_notes_60_days_any_text",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_fifteen_texts",
+        "name": "Пятнадцать завершений",
+        "description": "Завершите 15 разных текстов или этапов.",
+        "reward_coins": 39000,
+        "reward_exp": 390000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак пятнадцати завершений",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 26,
+        "status": "available",
+        "quest_func": "finish_fifteen_texts",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "own_typewriter",
+        "name": "Классика на столе",
+        "description": "Получите печатную машинку Хемингуэя.",
+        "reward_coins": 42000,
+        "reward_exp": 420000,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Амулет восстановления",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 27,
+        "status": "available",
+        "quest_func": "own_typewriter",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "finish_text_100000",
+        "name": "Роман завершён",
+        "description": "Завершите текст или этап объёмом не меньше 100000 символов.",
+        "reward_coins": 45000,
+        "reward_exp": 450000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак завершённого романа",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 28,
+        "status": "available",
+        "quest_func": "finish_text_100000",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "own_rowling_laptop",
+        "name": "Портативная мастерская",
+        "description": "Получите ноутбук Роалинг.",
+        "reward_coins": 48000,
+        "reward_exp": 480000,
+        "reward_items": [
+          {
+            "category": "Предметы",
+            "name": "Лотерейный билет",
+            "count": 5
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: опыт",
+              "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.07 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "exp",
+              "value": 0.07,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 29,
+        "status": "available",
+        "quest_func": "own_rowling_laptop",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "reach_level_30",
+        "name": "Легенда мастерства",
+        "description": "Достигните 30 уровня.",
+        "reward_coins": 60000,
+        "reward_exp": 600000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак легенды мастерства",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 30,
+        "status": "available",
+        "quest_func": "reach_level_30",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_3_days",
+        "name": "Глобальный старт",
+        "description": "Продержите глобальный стрик 3 дня.",
+        "reward_coins": 300,
+        "reward_exp": 3000,
+        "reward_items": [
+          {
+            "category": "Зелья",
+            "name": "Среднее зелье здоровья",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [
+          {
+            "__type__": "game_data.Buff",
+            "fields": {
+              "name": "⭐️ Квестовая специализация: восстановление",
+              "description": "Постоянный бонус к восстановлению здоровья за квесты дисциплины и устойчивости. +0.02 к параметру за завершение квеста.",
+              "buff_type": "positive",
+              "target_cf": "health_recovery",
+              "value": 0.02,
+              "duration_minutes": null,
+              "start_time": null,
+              "end_time": null,
+              "source": "Квест",
+              "stackable": true
+            }
+          }
+        ],
+        "reward_items_received": false,
+        "level": 2,
+        "status": "available",
+        "quest_func": "global_streak_3_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_7_days",
+        "name": "Глобальная неделя",
+        "description": "Продержите глобальный стрик 7 дней.",
+        "reward_coins": 700,
+        "reward_exp": 7000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобальной недели",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 3,
+        "status": "available",
+        "quest_func": "global_streak_7_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_14_days",
+        "name": "Две глобальные недели",
+        "description": "Продержите глобальный стрик 14 дней.",
+        "reward_coins": 1400,
+        "reward_exp": 14000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобальных двух недель",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 4,
+        "status": "available",
+        "quest_func": "global_streak_14_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_21_days",
+        "name": "Глобальная привычка",
+        "description": "Продержите глобальный стрик 21 день.",
+        "reward_coins": 2100,
+        "reward_exp": 21000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобальной привычки",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 5,
+        "status": "available",
+        "quest_func": "global_streak_21_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_30_days",
+        "name": "Глобальный месяц",
+        "description": "Продержите глобальный стрик 30 дней.",
+        "reward_coins": 3000,
+        "reward_exp": 30000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобального месяца",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 6,
+        "status": "available",
+        "quest_func": "global_streak_30_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_30_days_no_freezes",
+        "name": "Чистый глобальный месяц",
+        "description": "Продержите глобальный стрик 30 дней без заморозок.",
+        "reward_coins": 4500,
+        "reward_exp": 45000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак чистого глобального месяца",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 7,
+        "status": "available",
+        "quest_func": "global_streak_30_days_no_freezes",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_60_days",
+        "name": "Глобальный сезон",
+        "description": "Продержите глобальный стрик 60 дней.",
+        "reward_coins": 6000,
+        "reward_exp": 60000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобального сезона",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 8,
+        "status": "available",
+        "quest_func": "global_streak_60_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_90_days",
+        "name": "Глобальный квартал",
+        "description": "Продержите глобальный стрик 90 дней.",
+        "reward_coins": 9000,
+        "reward_exp": 90000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобального квартала",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 9,
+        "status": "available",
+        "quest_func": "global_streak_90_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_180_days",
+        "name": "Глобальное полугодие",
+        "description": "Продержите глобальный стрик 180 дней.",
+        "reward_coins": 18000,
+        "reward_exp": 180000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобального полугодия",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 10,
+        "status": "available",
+        "quest_func": "global_streak_180_days",
+        "start_date": null,
+        "end_date": null
+      }
+    },
+    {
+      "__type__": "game.Quest",
+      "fields": {
+        "quest_id": "global_streak_365_days",
+        "name": "Глобальный год",
+        "description": "Продержите глобальный стрик 365 дней.",
+        "reward_coins": 36500,
+        "reward_exp": 365000,
+        "reward_items": [
+          {
+            "category": "Награды",
+            "name": "⭐️ Знак глобального года",
+            "count": 1
+          }
+        ],
+        "reward_buffs": [],
+        "reward_items_received": false,
+        "level": 12,
+        "status": "available",
+        "quest_func": "global_streak_365_days",
+        "start_date": null,
+        "end_date": null
+      }
+    }
+  ],
+  "inspiration": 0,
+  "daily_challenge": null,
+  "daily_challenge_options": [],
+  "daily_challenge_history": [],
+  "weekly_challenge": null,
+  "productive_actions_since_event": 0,
+  "pending_creative_event": null,
+  "creative_event_history": [],
+  "writing_session_streak": 0,
+  "writing_session_history": [],
+  "session_streak_shields": 0,
+  "session_grade_boosts": 0,
+  "writing_reward_bonus": 0.0,
+  "session_reward_bonus": 0.0,
+  "challenge_reward_bonus": 0.0,
+  "manuscript_reward_bonus": 0.0,
+  "specialization": null,
+  "specialization_changed_at": null,
+  "specialization_mastery": {},
+  "specialization_ability_ready_at": {},
+  "specialization_ability_effects": {},
+  "manuscript_journeys": {},
+  "cabinet_relics": []
+}

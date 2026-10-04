@@ -28,6 +28,13 @@ mod content_note_writer;
 mod document_codec;
 mod document_sync;
 mod progress_codec;
+mod game_codec;
+mod game_sync;
+mod game_writer;
+mod game_transport;
+mod game_control;
+mod game_projection;
+mod game_migration;
 mod progress_sync;
 mod map_codec;
 mod map_sync;
@@ -738,7 +745,25 @@ fn project_payload(
         let rows=stmt.query_map([project_id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(|_|"progress_storage_unavailable")?.collect::<rusqlite::Result<Vec<_>>>().map_err(|_|"progress_storage_unavailable")?;rows
     };
     if !scopes.is_empty(){let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"progress_storage_unavailable")?;
-        for(account_id,canonical_user_id,device_id,stage_id)in scopes{let scope=project_metadata_sync::MetadataScope{account_id,canonical_user_id,device_id};match progress_sync::rebuild(&mut privileged,&scope,project_id,stage_id.as_deref()){Ok(())=>{},Err(code)if code=="progress_publication_pending"=>{},Err(code)=>return Err(code)}}
+        for(account_id,canonical_user_id,device_id,stage_id)in scopes{
+            let scope=project_metadata_sync::MetadataScope{account_id,canonical_user_id,device_id};
+            match progress_sync::rebuild(&mut privileged,&scope,project_id,stage_id.as_deref()) {
+                Ok(())=>{},
+                Err(code)if code=="progress_publication_pending"=>{},
+                Err(code)if code=="project_metadata_authority_unresolved"=>{
+                    let view=project_metadata_sync::authority_view(connection,&scope.account_id,project_id).map_err(|e|e.to_string())?;
+                    let local_edit:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_metadata_decisions WHERE account_id=?1 AND project_id=?2 AND event_id=?3 AND kind='edit')",rusqlite::params![scope.account_id,project_id,view.pending_event_id],|r|r.get(0)).map_err(|_|"progress_storage_unavailable")?;
+                    if view.state!="resolution_pending"||!local_edit{return Err(code);}
+                    // A local Metadata edit awaits echo. Keep the last proven
+                    // Progress view; this read does not apply or ACK that edit.
+                },
+                Err(code)if code=="stage_dependency_missing" && stage_id.is_some()=>{
+                    let pending_completion:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM cloud_sync_structural_events e JOIN cloud_sync_structural_decisions d USING(account_id,event_id) JOIN cloud_sync_outbox o USING(account_id,event_id) JOIN stages s ON s.id=e.entity_id AND s.project_id=e.project_id WHERE e.account_id=?1 AND e.project_id=?2 AND e.entity_id=?3 AND e.entity_type='stage' AND e.operation='update' AND e.state='unsealed' AND o.device_id=?4 AND json_extract(CAST(substr(e.canonical_frame,21) AS TEXT),'$.stage.status')='завершен' AND s.status='завершен')",rusqlite::params![scope.account_id,project_id,stage_id,scope.device_id],|r|r.get(0)).map_err(|_|"progress_storage_unavailable")?;
+                    if !pending_completion{return Err(code);}
+                },
+                Err(code)=>return Err(code),
+            }
+        }
     }
     let mut repository = ProjectsRepository::new(connection);
     let project = repository
@@ -2568,6 +2593,23 @@ fn map_sync_command(scope:project_metadata_sync::MetadataScope,request:map_sync:
 
 #[tauri::command]
 fn get_current_writing_day()->Result<String,String>{let db=open_projects_database()?;streaks::logical_writing_day(&db)}
+
+#[tauri::command]
+fn game_sync_command(scope:project_metadata_sync::MetadataScope,request:game_control::Request)->Result<serde_json::Value,String>{
+    let mut db=open_projects_database()?;require_projects_owner(&db)?;
+    game_control::assert_scope(&db,&scope)?;
+    match request {
+        game_control::Request::Apply{frame,nonce,ciphertext,project}=>{
+            drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"game_storage_error")?;
+            Ok(serde_json::json!(game_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext,project)?))
+        },
+        game_control::Request::Rebuild{owner_key}=>{
+            drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"game_storage_error")?;
+            game_sync::rebuild(&mut privileged,&scope,&owner_key)?;Ok(serde_json::Value::Null)
+        },
+        ordinary=>game_control::ordinary(&mut db,&scope,ordinary),
+    }
+}
 
 #[tauri::command]
 fn progress_sync_command(scope:project_metadata_sync::MetadataScope,request:progress_sync::Request)->Result<serde_json::Value,String>{
@@ -4578,10 +4620,13 @@ fn set_project_archived(command: ArchiveProjectCommand) -> Result<serde_json::Va
 
 #[tauri::command]
 fn complete_project(command: ProjectIdCommand) -> Result<serde_json::Value, String> {
-    let mut connection = open_projects_database()?;
-    require_projects_owner(&connection)?;
-    let now = now_from_database(&connection)?;
-    let mut repository = ProjectsRepository::new(&mut connection);
+    let mut connection=open_projects_database()?;require_projects_owner(&connection)?;
+    complete_project_sqlite(&mut connection,command)
+}
+
+fn complete_project_sqlite(connection:&mut rusqlite::Connection, command:ProjectIdCommand)->Result<serde_json::Value,String>{
+    let now = now_from_database(connection)?;
+    let mut repository = ProjectsRepository::new(connection);
     let current = repository
         .get_project(&command.project_id)
         .map_err(|error| error.to_string())?
@@ -4602,9 +4647,13 @@ fn complete_project(command: ProjectIdCommand) -> Result<serde_json::Value, Stri
     let mut payload = current.payload;
     payload["status"] = "завершен".into();
     payload["completed_at"] = now.clone().into();
-    repository
-        .update_project_payload(&command.project_id, &payload)
-        .map_err(|error| error.to_string())?;
+    drop(repository);
+    let portable_now=stage_sync::event_now(connection).map_err(|e|e.to_string())?;
+    let captured=project_metadata_sync::capture_normal_edit(connection,&command.project_id,&payload,&portable_now).map_err(|e|e.to_string())?;
+    let mut repository=ProjectsRepository::new(connection);
+    if !captured {
+        repository.update_project_payload(&command.project_id,&payload).map_err(|e|e.to_string())?;
+    }
     append_event_with_context(
         &mut repository,
         &format!("project-completed:{}", command.project_id),
@@ -4621,15 +4670,18 @@ fn complete_project(command: ProjectIdCommand) -> Result<serde_json::Value, Stri
         }),
     )?;
     drop(repository);
-    project_payload(&mut connection, &command.project_id)
+    project_payload(connection, &command.project_id)
 }
 
 #[tauri::command]
 fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> {
-    let mut connection = open_projects_database()?;
-    require_projects_owner(&connection)?;
-    let now = now_from_database(&connection)?;
-    let mut repository = ProjectsRepository::new(&mut connection);
+    let mut connection=open_projects_database()?;require_projects_owner(&connection)?;
+    complete_stage_sqlite(&mut connection,command)
+}
+
+fn complete_stage_sqlite(connection:&mut rusqlite::Connection, command:StageIdCommand)->Result<serde_json::Value,String>{
+    let now = now_from_database(connection)?;
+    let mut repository = ProjectsRepository::new(connection);
     let stage = repository
         .get_stage(&command.stage_id)
         .map_err(|error| error.to_string())?
@@ -4667,9 +4719,9 @@ fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> 
     };
     drop(repository);
     let portable=update.payload.clone();
-    let now=stage_sync::event_now(&connection).map_err(|e|e.to_string())?;
-    let captured=stage_sync::normal_edit(&mut connection,&command.project_id,&command.stage_id,portable,&now).map_err(|e|e.to_string())?;
-    let mut repository=ProjectsRepository::new(&mut connection);
+    let now=stage_sync::event_now(connection).map_err(|e|e.to_string())?;
+    let captured=stage_sync::normal_edit(connection,&command.project_id,&command.stage_id,portable,&now).map_err(|e|e.to_string())?;
+    let mut repository=ProjectsRepository::new(connection);
     if !captured {
         repository
             .update_stage(&command.stage_id, &update)
@@ -4691,7 +4743,7 @@ fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> 
         }),
     )?;
     drop(repository);
-    project_payload(&mut connection, &command.project_id)
+    project_payload(connection, &command.project_id)
 }
 
 #[tauri::command]
@@ -6214,7 +6266,7 @@ pub fn run() {
             reconcile_verified_received_resolution_self_echo,
             commit_note_sync_inbound_page,
             commit_v3_sync_inbound_page,
-            progress_sync_command,document_sync_command,map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
+            game_sync_command,progress_sync_command,document_sync_command,map_sync_command,read_account_catalog,begin_account_catalog,decide_account_catalog,pending_account_catalog,seal_account_catalog,receipt_account_catalog,apply_account_catalog,reorder_project_folders,
             list_received_account_objects,
             block_account_object,
             read_stage_structural_authority,

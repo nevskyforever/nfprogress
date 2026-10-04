@@ -11,6 +11,7 @@ import ContentNoteAuthorityPanel from './ContentNoteAuthorityPanel.vue'
 import MapAuthorityPanel from './MapAuthorityPanel.vue'
 import DocumentAuthorityPanel from './DocumentAuthorityPanel.vue'
 import ProgressAuthorityPanel from './ProgressAuthorityPanel.vue'
+import GameAuthorityPanel from './GameAuthorityPanel.vue'
 import StageStructuralAuthorityPanel from './StageStructuralAuthorityPanel.vue'
 import ProjectMetadataAuthorityPanel from './ProjectMetadataAuthorityPanel.vue'
 
@@ -225,6 +226,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="settings-card cloud-sync-card" aria-labelledby="cloud-sync-title">
     <AccountCatalogAuthorityPanel v-if="cloud.hasProvisionedKey && !cloud.busy" />
+    <GameAuthorityPanel v-if="cloud.hasProvisionedKey && !cloud.busy" />
     <div class="settings-card__heading">
       <h2 id="cloud-sync-title">{{ t('Облачная синхронизация заметок') }}</h2>
       <p>{{ t('Отдельный защищённый сеанс для заметок. Он не связан с фоновой синхронизацией документов.') }}</p>

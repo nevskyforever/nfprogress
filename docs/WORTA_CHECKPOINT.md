@@ -2401,3 +2401,294 @@ After correction push, remote CI remains pending independent verification and Co
 must not poll Actions. Expected workflows: Cloud backend tests; SQLite sync substrate
 tests. Next slice only after remote acceptance: **C18.5.06 PROJECT / ACCOUNT GAME
 ACTION LEDGERS / REWARD ONCE**; not started by this correction.
+
+### C18.5.05 — independent remote acceptance
+
+**C18.5.05 = REMOTELY ACCEPTED**. Final accepted implementation and correction
+SHA: `302a5fe1f7cda77bcc248994bf0b40cc1dcc6ad0`, following original Progress
+implementation `fad87fc4111fe120de100094f5afdd1825bcfbd3`.
+Independent verification supplied by the owner: SQLite sync substrate run
+`37144592269` — **SUCCESS**, including Python/Rust substrate, repaired
+diagnostics/developer-streak regression step and native Progress authority;
+Cloud backend run `37144592250` — **SUCCESS**, including frontend, PostgreSQL,
+mandatory shared-ACK/multi-device acceptance and focused cloud/legacy API tests.
+This supersedes the pending remote status above. C18.5 and C18 remain
+**IN PROGRESS**; official progress remains exactly **77.0%**. The manual release
+gate and C21 local-Web-first order remain unchanged.
+
+### C18.5.06 — work in progress, not publishable
+
+Starting branch `6.0`, HEAD and origin/6.0 both
+`302a5fe1f7cda77bcc248994bf0b40cc1dcc6ad0`; worktree clean at preflight.
+The actual pre-implementation mutation inventory is in
+`docs/cloud/C18_GAME_MUTATION_AUDIT.md`. It records the native/Python rule and
+freeze differences, preparation/read mutations, and all current API families.
+
+Current draft foundation: strict, bounded Game schemas for project codec12 and
+account codec13, version/frame/compression1/1/0, with 19 shared TS/Rust syntax
+vectors (genesis/adoption, writing source, completion, streak/freeze, linked reward,
+inventory, compensation and resolution). These are **unactivated draft codecs**,
+not authenticated causal apply or a reward-once implementation. Catalog IDs4–7
+now have an explicit closed mapping independent of the account entity registry;
+old codec8/9/10/11 fixtures remain unchanged. Project C11 and account crypto2/AAD2
+implementation and registry are unchanged. Production crypto negative tests
+cover cross-project, Project/Stage, account user/action identity, entity type and
+cross-domain failure. Draft limits: 1MiB frame, 64 parents/references, 512 inventory
+entries, 4096 claims/days, 512-byte identities, finite fixed decimals bounded1e12.
+
+Backend capability groundwork adds zero-default independent project/account Game
+frame/codec/reader versions and compression flags, a strict declaration endpoint
+and account-wide registered-device gate requiring the existing Progress reader
+prerequisites. Alembic has one forward head `c18_game_readers` after
+`c18_progress_readers`; populated upgrade, reopen/repeated upgrade, third-device
+missing/revoked reader and Progress dependency checks pass on real PostgreSQL.
+No production client advertises Game support yet. Server Game descriptors/writers
+remain unadmitted; this groundwork cannot publish Game actions. Existing head
+expectations and focused CI filters/codec tests are updated together.
+
+Current evidence: focused TS codecs/production-crypto/Game API **73 PASS**;
+native shared codec vectors/resource negatives **3 PASS**, existing native Game
+rules/developer/projection regressions **11 PASS**; PostgreSQL capability/upgrade,
+Progress gate and repeated-head auth checks **6 PASS**, zero skips. Python syntax,
+isolated imports and Alembic single-head checks pass. This is focused groundwork
+evidence, **not** the mandatory two-device Game acceptance.
+Frontend typecheck/build and cargo check pass (existing bundle warnings and new
+unused draft-codec warnings until runtime wiring); final diff check passes.
+
+Still required in this same slice: finalize rule interpretation and all admitted
+effects; schema37 immutable ledgers/tips/reward uniqueness/blockers; explicit
+migration and recovery evidence; ordinary native/Python persistence boundaries;
+encrypted transport/outbox/self-echo; authenticated Progress/project/Stage and
+account reward dependencies; transactional conflict/resolution/compensation;
+compatibility projection rebuild; shared ACK proofs/fair reader scheduling;
+localized Vue migration/status/conflict UX/help; real two-file SQLite + PostgreSQL
+production-crypto reward-once/concurrency/restart/lost-response acceptance;
+bounded final CI-equivalent verification, commit and push.
+
+**C18.5.06 = IN PROGRESS / NOT LOCAL COMPLETE / NOT PUSHED**.
+Do not replace this with LOCAL COMPLETE until the outstanding work is done.
+C18.5 and C18 remain **IN PROGRESS**, official progress exactly **77.0%**.
+Protected engine/game_data bytecode is untouched. No registration/release gate,
+terminology audit or C21 local-Web-first order changes. No Game snapshot authority,
+compression, telemetry, notification sync, developer authority or local-only
+project binding has been activated. Continue from this working tree; do not start
+C18.5.07 or claim remote acceptance of these unpublished changes.
+
+### C18.5.06 continuation: durable native core (still unpublished)
+
+The existing dirty worktree is preserved at baseline
+`302a5fe1f7cda77bcc248994bf0b40cc1dcc6ad0`; no partial commit/push is made.
+Schema37 now retains both Game histories, causal tips, immutable candidates,
+source/reward uniqueness, decisions/compensations, exact envelopes/receipts,
+apply evidence and compatibility-write recovery evidence. Native/Python domain
+consumer savepoints prevent a failed processed marker from leaving half a reward.
+Developer provenance remains local and prevents ordinary legacy genesis.
+
+Explicit-only native capture retains legacy account/project/Stage sources and
+blocks the whole capture on unsupported data/resource overflow. Missing old
+project/Stage overlays fall back to the actual entity's saved series; orphan
+Stage overlays are retained and blocked. Frozen default comparisons use canonical
+numbers, so equivalent `1`/`1.0` persistence does not create false unsupported
+extensions. The capture kernel is tested; the actual Vue publication action is
+**not wired yet**. No automatic capture is introduced.
+
+The native domain consumer now records admitted ordinary local writing as one
+stable Project/Stage Game source and one account reward in the local semantic
+transaction, and reuses its recorded source after restart/reprocessing. Admitted
+writing freezes the real native coefficients/inspiration/bonus and validates the
+complete resulting portable projection. Other incomplete effects remain F with
+lossless local evidence. Project/Stage completion production writers, Python
+positive ledger writers and account economy writers are **still outstanding**.
+
+Internal paired native apply checks retained descriptors/envelopes, authenticated
+Metadata/Stage/Progress dependencies, project-action reward proof, parent ancestry,
+rule effects and causal tips. Waiting dependencies retain history without balance
+mutation/apply proof. Projection/apply receipt failures roll back together.
+Account migration self-echo cannot activate a partial multi-owner capture. A clean
+second device receives derived compatibility state without re-executing legacy
+rewards. Rebuild restores a damaged compatibility balance/derived projection from
+immutable authenticated history, preserving local recovery evidence.
+
+Both Game domains now participate in the single shared ACK proof. The bounded
+native unit scenario proves Progress -> Project Game -> account reward prefix
+holes, an unrelated processed Note beyond the hole, exact self-echo and repeated
+pull without another reward. These are synthetic-envelope native tests, **not**
+the mandatory PostgreSQL/production-TS-crypto/two-device acceptance. The durable
+transport wrapper reuses generic project objects/outbox/receipts and retains
+account envelopes in the account ledger; reopen/lost-response tests preserve exact
+frame/ID/nonce/ciphertext. HTTP success is never an apply proof.
+
+Mode3 opaque Game descriptors are admitted in the native/TS transport parsers;
+ordinary catalog IDs4–7 and existing derivations/framing remain unchanged. Actual
+paired TS Game readers, reader capability advertising, fair runtime scheduling,
+localized publication/conflict UX/help and final production acceptance are still
+required before activation/closure. No client advertises Game reader support yet.
+
+Focused continuation evidence: native Game/core/transport/writer checks **28 PASS**
+(the projection rebuild assertion was corrected and rerun independently after its
+added recovery row changed the blocker query); shared ACK-related regression
+selection **66 PASS**; schema37 upgrade/reopen/compatibility/Python consumer checks
+**42 PASS**; frontend Game codecs/crypto/catalog **50 PASS**, V3 descriptor checks
+**7 PASS**. Typecheck and cargo check pass at their checked revisions; final bounded
+CI-equivalent verification remains pending after full runtime/UX integration.
+
+**C18.5.06 = IN PROGRESS / NOT LOCAL COMPLETE / NOT PUSHED**.
+C18.5 and C18 remain IN PROGRESS; official progress remains exactly **77.0%**.
+Required real two-device/bidirectional/completion/concurrency acceptance is not
+claimed. The original remaining closure requirements continue to apply.
+
+Additional continuation checks: a duplicate local processing event referring to
+an already recorded Progress entry also reuses the canonical pair without another
+local reward. Legacy numeric inputs requiring more than the frozen six decimal
+places are retained/blocked rather than silently rounded. Account catalog reader
+selection remains explicitly limited to its four catalog types; Game ciphertext
+is not handed to the catalog decoder. V3 Game descriptor negatives and the updated
+frontend typecheck pass. Required runtime/UX/production acceptance remains open.
+
+### C18.5.06 continuation: paired runtime, production writers and acceptance
+
+The same authorized dirty worktree remains based on `302a5fe1f7cda77bcc248994bf0b40cc1dcc6ad0`; no partial commit or push.
+The paired TS runtime now advertises Game only with SQLite ownership and all required
+Progress readers, checks the all-device paired gate before each publication, seals
+both existing crypto domains once, resumes exact durable envelopes, and imports
+both domains through authenticated native transactions. Durable bounded rotation
+includes blocked/decryption-failed rows and introduces neither a second cursor nor
+a per-entity ACK. Background work never calls legacy capture.
+
+Ordinary native writing/completion and buy/sell writers are wired. Python's ordinary
+SQLite domain consumer also writes the same durable source/reward pair, preserving
+its historical raw-XP and round-to-even completion rule. Its frames match all 19
+frozen TS/Rust vectors. No native/Python rule is silently reinterpreted. Completion
+uses the established Metadata/Stage writers and freezes the exact pending local
+structural dependency; readers wait for authenticated echo. Display refresh retains
+the last proven Progress projection while an exact local structural completion
+awaits echo. It manufactures no import or ACK evidence.
+
+Explicit migration can add a newly bound Project/Stage after existing Game owners
+are active without regenerating their accepted bases. Missing/invalid/oversized
+sources retain the original game_state plus a durable bounded recovery reference.
+The Vue panel provides explicit publication, bounded versions/full-tip choice,
+rebuild and separately confirmed reward compensation. Russian help and all five
+translations are generated from reviewed source overrides.
+
+Focused evidence at these revisions: native Game selection **32 PASS** and additional
+earn/spend + compensation/spend conflict proof **1 PASS**; schema/vector Python
+selection **61 PASS**; frontend crypto/runtime/diagnostics/codec regression selection
+**165 PASS**; UI/runtime selection **16 PASS**; Chromium explicit publish/full-tip
+choice/separate reversal confirmation/all six locales **PASS**; help/localization
+**30 PASS**. Python Game regression selection had **88 PASS** plus one pre-existing
+OpenAPI test error: the baseline `/api/game/developer` already returns
+DeveloperModeResponse, not GameCommandResponse. Its assertion is now exact for that
+existing read DTO while retaining the exact command DTO assertions; focused rerun
+**1 PASS**. No application API behavior changed for this correction.
+
+Real PostgreSQL + production TS crypto + two separate file-backed native SQLite
+acceptance now proves legacy adoption without payment, bidirectional ordinary
+writing, Python raw-XP continuation, Project/Stage completion, new Stage-only
+migration, lost-response/replay, a Progress-only third reader blocking both unchanged
+Game candidates, concurrent purchases, full-tip choice/stale CAS, and single
+compensation retaining its reward. The complete scenario stores **19** opaque Game
+events with **6** unique rewards and **1** compensation and converges both devices.
+The mixed-account-stream variant additionally proves a processed legacy Note beyond
+a Progress/G/R dependency hole cannot advance shared ACK past that hole (**PASS**).
+Further rename/source-deletion/rebuild/Stage-tombstone acceptance and the bounded
+final CI-equivalent audit are still running; their outcome is not yet claimed.
+
+**C18.5.06 = IN PROGRESS / NOT LOCAL COMPLETE / NOT PUSHED**.
+C18.5 and C18 remain **IN PROGRESS**; official progress remains exactly **77.0%**.
+
+### C18.5.06 final bounded verification (continuation)
+
+The accumulated implementation preserves codecs 1–11 and independently freezes
+catalog IDs 4–7. Project/Stage Game is WORTA-C1 frame1/codec12/version1/compression0
+in unchanged C11 crypto1/AAD1; account Game is frame1/codec13/version1/compression0
+in unchanged AMK account crypto2/AAD2. Forward SQLite schema37 preserves existing
+opaque transport and catalog evidence. Alembic `c18_game_readers` has the single
+parent `c18_progress_readers`; both Game readers plus Progress prerequisites form
+one all-registered-device gate. The server retains opaque ciphertext only.
+
+Immutable source/action/reward relations use deterministic canonical namespace
+identities and durable uniqueness. Same identity with different effect blocks
+rather than replacing history. Frozen legacy/native/Python v1 rule facts preserve
+historical semantics. Atomic apply proves Metadata/Stage → Progress → project Game
+→ account reward, updates history/tips/snapshot/compatibility/receipt/ACK proof in
+one transaction, and never treats an upload receipt as authority. Full-tip CAS
+resolution retains both branches; idempotent negative compensation retains the
+original reward. Mutable game_state is a compatibility projection, not a cloud
+winner. Domain processing rows, notifications and developer/test provenance remain
+local. No local-only project is automatically bound.
+
+The final admission/deferred matrix is in `docs/cloud/C18_GAME_MUTATION_AUDIT.md`.
+Native/Python writing and completion plus native catalog buy/sell are admitted;
+explicit legacy adoption, resolution, rebuild and confirmed compensation are
+closed controls. Other portable-changing families retain exact local recovery
+and block complete sync until separately admitted; reserved codec variants alone
+are not authority. This includes freeze transitions, bank, quests/challenges,
+specialization/skill changes, custom awards and item-use effects.
+
+Bounded SQLite CI-equivalent after old fixture repair: **428 PASS**, no skips.
+Native CI-equivalent: **357 PASS** across all 17 workflow filters, no failures or
+ignored cases in these selections. Frontend closure regression **165 PASS**;
+final panel/codec selection **52 PASS**; help/localization **30 PASS**. Typecheck,
+frontend build, cargo check, affected Python syntax and diff whitespace checks
+pass. Chromium verifies explicit publication, full-tip choice, separate reversal
+confirmation and all six locales. Protected engine/game_data pyc timestamps
+remain unchanged.
+
+The complete mandatory Cloud/PostgreSQL workflow selection finished **50 PASS**
+and one Game acceptance fixture failure: a completed Stage's ordinary read-only
+guard masked the tombstone guard intended by that scenario. The fixture now
+reopens the Stage through its ordinary structural writer before tombstoning it;
+the unchanged strict tombstone/reward assertions are being rerun in the complete
+Game scenario. This outcome is not yet claimed. Earlier production acceptance
+already proved source rename/deletion preservation, rebuild from authenticated
+history and explicit reconciliation with immutable local recovery evidence.
+
+**C18.5.06 = IN PROGRESS / NOT LOCAL COMPLETE / NOT PUSHED**.
+C18.5 and C18 remain **IN PROGRESS**; official progress remains exactly **77.0%**.
+
+### C18.5.06 LOCAL COMPLETE / REMOTE CI PENDING
+
+The corrected complete Game production acceptance now **PASS** (222.59s), using
+real PostgreSQL, production TypeScript crypto and two separate file-backed native
+SQLite databases. The full mandatory Cloud selection had **50 PASS**; its only
+failed fixture is now repaired and the whole affected Game scenario rerun **1 PASS**.
+No mandatory tests were skipped or assertions weakened. The fixture reopens the
+Stage through the ordinary writer before deletion, so the strict observed error
+is `stage_tombstone_child_manifest_incomplete`, rather than an unrelated completed
+entity read-only guard. Existing reward/history assertions remain exact.
+
+Final production evidence: **22** opaque Game events, **6** unique rewards and
+**1** compensation. Legacy bases pay nothing; ordinary native/Python Progress and
+Project/Stage completion produce stable source/action/reward relations; remote
+Progress produces no local reward. Lost response retries exact sealed bytes;
+self-echo/replay/restart and completion retries do not pay twice. The third
+Progress-only device blocks both Game domains, then unchanged pending candidates
+resume after paired support. Spend/spend conflicts retain branches; full-tip CAS
+choice converges and stale choice fails. Native earn/spend and compensation/spend
+also retain conflict without partial invalid projection. Renames and Progress
+source deletion preserve claims/rewards. Deliberately corrupted derived balance
+rebuilds from authenticated history; explicit reconciliation retains immutable
+OLD/NEW evidence and restores both devices' authority without repayment.
+An authenticated Stage tombstone retains children and blocks new unsafe actions.
+A legacy Note beyond a Progress/G/R dependency hole may apply, but shared ACK
+cannot pass the unresolved Game prefix. Durable reader rotation survives restart.
+No second cursor, per-entity ACK, plaintext server Game fields, notification cloud
+authority, developer/test authority or automatic local-project binding was added.
+
+Final bounded checks: SQLite **428 PASS**; native workflow selections **357 PASS**;
+frontend closure **165 PASS**, final panel/codec **52 PASS**, UI/runtime **16 PASS**;
+help/localization **30 PASS**; Cloud mandatory **50 PASS + repaired scenario 1 PASS**.
+TypeScript typecheck, frontend build, cargo check, Python syntax/import checks,
+Alembic single head, strict TS/Rust diagnostics contract and git diff whitespace
+checks pass. Actual Chromium UX verification passes in all six languages.
+Previously accepted C11, account crypto2/AAD2, catalog4–7 and codecs1–11 remain
+unchanged. Protected pyc files remain untouched. The entire accumulated diff was
+reviewed against `302a5fe1f7cda77bcc248994bf0b40cc1dcc6ad0` before the single commit.
+
+**C18.5.06 = LOCAL COMPLETE / REMOTE CI PENDING**.
+**C18.5 = IN PROGRESS; C18 = IN PROGRESS; official progress = 77.0%.**
+Release gate, final terminology audit and C21 local-Web-first remain preserved.
+Independent remote acceptance is required before recommending
+`C18.5.07 — CONTENT/ACTION INTEGRATION AUDIT / C18.5 CLOSURE`; no C18.5.07 work is
+included. After publication Codex stops without polling GitHub Actions.

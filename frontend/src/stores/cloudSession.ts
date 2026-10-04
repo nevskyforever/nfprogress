@@ -1,4 +1,5 @@
 import type {ProgressAuthorityView,ProgressDecision} from '@/cloud/progressSyncRuntime'
+import type {GameAuthorityView,GameDecision,GameCompensation} from '@/cloud/gameSyncRuntime'
 import type {DocumentAuthorityView,DocumentDecision} from '@/cloud/documentSyncRuntime'
 import type {MapAuthorityView,MapDecision} from '@/cloud/mapSyncRuntime'
 import type { ContentNoteConflict, ContentNoteMigrationView } from '@/cloud/contentNoteRuntime'
@@ -79,6 +80,11 @@ interface LocalProjectSummary {
 }
 
 export interface CloudSessionRuntime {
+  gameAuthority?():Promise<GameAuthorityView>
+  beginGameMigration?():Promise<GameAuthorityView>
+  chooseGameHistory?(decision:GameDecision):Promise<void>
+  compensateGameReward?(decision:GameCompensation):Promise<void>
+  rebuildGameProjection?(ownerKey:string):Promise<void>
   projectProgressAuthority?(projectId:string):Promise<ProgressAuthorityView>
   beginProgressMigration?(projectId:string):Promise<ProgressAuthorityView>
   chooseProgressHistory?(decision:ProgressDecision):Promise<void>
@@ -215,6 +221,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     metadataAuthority.value = {}
     structuralAuthority.value = {}
     progressAuthority.value = {}
+    gameAuthority.value = null
     documentAuthority.value = {}
     mapAuthority.value = {}
     noteAuthority.value = {}
@@ -399,6 +406,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         }, correlation)
         if (current(epoch)) await refreshProjects()
         if (current(epoch) && result.transport_version === 3) {
+          const gameChanged=(result.cycle.gameApply?.applied??0)+(result.cycle.gameApply?.conflicts??0)
+          if(gameChanged>0){if(gameAuthority.value)await inspectGame();if(current(epoch))announceDataChange('game')}
           const progressChanged=(result.cycle.progressApply?.applied??0)+(result.cycle.progressApply?.conflicts??0)
           if(progressChanged>0)for(const projectId of Object.keys(progressAuthority.value)){if(!current(epoch))break;await inspectProgress(projectId)}
           const documentsChanged=(result.cycle.documentApply?.applied??0)+(result.cycle.documentApply?.conflicts??0)
@@ -618,6 +627,12 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   const noteConflicts=ref<Record<string,ContentNoteConflict[]>>({})
   const progressAuthority=ref<Record<string,ProgressAuthorityView>>({})
+  const gameAuthority=ref<GameAuthorityView|null>(null)
+  async function inspectGame():Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.gameAuthority)throw new Error('game_codec_not_activated');const view=await runtime.gameAuthority();if(current(epoch))gameAuthority.value=view}
+  async function beginGame():Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginGameMigration)throw new Error('game_codec_not_activated');await runtime.beginGameMigration();if(!current(epoch))return;await retry();if(current(epoch))await inspectGame()}
+  async function chooseGameHistory(decision:GameDecision):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.chooseGameHistory)throw new Error('game_codec_not_activated');await runtime.chooseGameHistory(decision);if(!current(epoch))return;await retry();if(current(epoch))await inspectGame()}
+  async function compensateGameReward(decision:GameCompensation):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.compensateGameReward)throw new Error('game_codec_not_activated');await runtime.compensateGameReward(decision);if(!current(epoch))return;await retry();if(current(epoch))await inspectGame()}
+  async function rebuildGameProjection(ownerKey:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.rebuildGameProjection)throw new Error('game_codec_not_activated');await runtime.rebuildGameProjection(ownerKey);if(current(epoch))await inspectGame()}
   async function inspectProgress(projectId:string):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.projectProgressAuthority)throw new Error('progress_runtime_unavailable');const view=await runtime.projectProgressAuthority(projectId);if(current(epoch))progressAuthority.value={...progressAuthority.value,[projectId]:view}}
   async function beginProgress(projectId:string):Promise<void>{await diagnostics.run('migrations','progress_migration',async correlation=>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.beginProgressMigration)throw new Error('progress_runtime_unavailable');await runtime.beginProgressMigration(projectId);if(!current(epoch))return;await retry(correlation);if(current(epoch))await inspectProgress(projectId)})}
   async function chooseProgressHistory(decision:ProgressDecision):Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.chooseProgressHistory)throw new Error('progress_runtime_unavailable');await runtime.chooseProgressHistory(decision);if(!current(epoch))return;await retry();if(!current(epoch))return;await inspectProgress(decision.project_id);if(current(epoch))announceDataChange('projects')}
@@ -781,6 +796,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     cancelProvisioning, unlock, refreshProjects, prepareProjectConnection,
     bootstrapProject, importProject, resumeProject, pauseProject,
     progressAuthority,inspectProgress,beginProgress,chooseProgressHistory,
+    gameAuthority,inspectGame,beginGame,chooseGameHistory,compensateGameReward,rebuildGameProjection,
     documentAuthority,inspectDocuments,beginDocuments,chooseDocumentVersion,moveDocument,deleteDocument,
     mapAuthority,inspectMaps,beginMaps,chooseMapVersion,
     noteAuthority,noteConflicts,inspectNotes,beginNotes,chooseNoteVersion,

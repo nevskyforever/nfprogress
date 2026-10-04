@@ -1077,6 +1077,9 @@ class GameService:
             state = self._serialize_state(
                 gamer, projects, enabled=self._game_mode_enabled(),
             )
+            record_override = getattr(self.repository, 'record_game_developer_override', None)
+            if callable(record_override):
+                record_override(gamer)
             self.repository.write_gamer(gamer)
             self.repository.write_projects(projects)
         return {
@@ -1104,6 +1107,9 @@ class GameService:
             state = self._serialize_state(
                 gamer, projects, enabled=self._game_mode_enabled(),
             )
+            record_override = getattr(self.repository, 'record_game_developer_override', None)
+            if callable(record_override):
+                record_override(gamer)
             self.repository.write_gamer(gamer)
         message = f'Получено: {item.name} x{count}.'
         return {

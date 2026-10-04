@@ -10,6 +10,26 @@ on:
       - 'frontend/src-tauri/src/document_codec.rs'
       - 'frontend/src-tauri/src/document_sync.rs'
       - 'frontend/src-tauri/src/progress_codec.rs'
+      - 'frontend/src-tauri/src/game_codec.rs'
+      - 'frontend/src-tauri/src/game_migration.rs'
+      - 'frontend/src-tauri/src/game_projection.rs'
+      - 'frontend/src-tauri/src/game_writer.rs'
+      - 'frontend/src-tauri/src/game_transport.rs'
+      - 'frontend/src-tauri/src/game_control.rs'
+      - 'frontend/src/cloud/__fixtures__/gameLegacyDefaultsV1.json'
+      - 'nfprogress/core/game_state.py'
+      - 'nfprogress/core/services/game.py'
+      - 'nfprogress/core/storage.py'
+      - 'frontend/src-tauri/src/game_sync.rs'
+      - 'frontend/src-tauri/src/game.rs'
+      - 'frontend/src/cloud/gameCodec.ts'
+      - 'frontend/src/cloud/gameCodec.spec.ts'
+      - 'frontend/src/cloud/gameSyncRuntime.ts'
+      - 'frontend/src/cloud/gameSyncRuntime.spec.ts'
+      - 'frontend/src/components/settings/GameAuthorityPanel.vue'
+      - 'frontend/src/components/settings/GameAuthorityPanel.spec.ts'
+      - 'nfprogress/core/sqlite/game_sync_writer.py'
+      - 'frontend/src/cloud/__fixtures__/gameCodecV1.json'
       - 'frontend/src-tauri/src/progress_sync.rs'
       - 'frontend/src/cloud/progressCodecV1.contract.json'
       - 'frontend/src/cloud/progressCodec.ts'
@@ -49,6 +69,7 @@ on:
       - 'tests/test_c18_map_sqlite.py'
       - 'tests/test_c18_document_sqlite.py'
       - 'tests/test_c18_progress_sqlite.py'
+      - 'tests/test_c18_game_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -63,6 +84,26 @@ on:
       - 'frontend/src-tauri/src/document_codec.rs'
       - 'frontend/src-tauri/src/document_sync.rs'
       - 'frontend/src-tauri/src/progress_codec.rs'
+      - 'frontend/src-tauri/src/game_codec.rs'
+      - 'frontend/src-tauri/src/game_migration.rs'
+      - 'frontend/src-tauri/src/game_projection.rs'
+      - 'frontend/src-tauri/src/game_writer.rs'
+      - 'frontend/src-tauri/src/game_transport.rs'
+      - 'frontend/src-tauri/src/game_control.rs'
+      - 'frontend/src/cloud/__fixtures__/gameLegacyDefaultsV1.json'
+      - 'nfprogress/core/game_state.py'
+      - 'nfprogress/core/services/game.py'
+      - 'nfprogress/core/storage.py'
+      - 'frontend/src-tauri/src/game_sync.rs'
+      - 'frontend/src-tauri/src/game.rs'
+      - 'frontend/src/cloud/gameCodec.ts'
+      - 'frontend/src/cloud/gameCodec.spec.ts'
+      - 'frontend/src/cloud/gameSyncRuntime.ts'
+      - 'frontend/src/cloud/gameSyncRuntime.spec.ts'
+      - 'frontend/src/components/settings/GameAuthorityPanel.vue'
+      - 'frontend/src/components/settings/GameAuthorityPanel.spec.ts'
+      - 'nfprogress/core/sqlite/game_sync_writer.py'
+      - 'frontend/src/cloud/__fixtures__/gameCodecV1.json'
       - 'frontend/src-tauri/src/progress_sync.rs'
       - 'frontend/src/cloud/progressCodecV1.contract.json'
       - 'frontend/src/cloud/progressCodec.ts'
@@ -102,6 +143,7 @@ on:
       - 'tests/test_c18_map_sqlite.py'
       - 'tests/test_c18_document_sqlite.py'
       - 'tests/test_c18_progress_sqlite.py'
+      - 'tests/test_c18_game_sqlite.py'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -139,7 +181,7 @@ jobs:
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
-            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py \
+            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py tests/test_c18_game_sqlite.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \
@@ -223,3 +265,7 @@ jobs:
         run: |
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc progress_
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run Game codec vectors
+        shell: pwsh
+        run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc game_

@@ -231,6 +231,11 @@ fn apply_event(
     Ok(())
 }
 
+#[cfg(test)]
+pub(crate) fn apply_ledger_rule_fixture(state: &mut Value, event_type: &str, delta: f64, context: &Map<String,Value>) -> Result<(),String> {
+    apply_event(state,event_type,"ledger-rule-fixture",delta,context,"p")
+}
+
 pub fn process_pending_events(
     connection: &mut Connection,
     limit: i64,
@@ -239,9 +244,9 @@ pub fn process_pending_events(
         .transaction()
         .map_err(|error| error.to_string())?;
     let mut statement = transaction
-        .prepare("SELECT event_id,event_type,project_id,delta_symbols,context_json,version,attempt_count FROM domain_events WHERE consumer='game' AND processed_at IS NULL AND status != 'failed' ORDER BY created_at,event_id LIMIT ?1")
+        .prepare("SELECT event_id,event_type,project_id,delta_symbols,context_json,version,attempt_count,stage_id,progress_id FROM domain_events WHERE consumer='game' AND processed_at IS NULL AND status != 'failed' ORDER BY created_at,event_id LIMIT ?1")
         .map_err(|error| error.to_string())?;
-    let rows: Vec<(String, String, String, Option<f64>, String, i64, i64)> = statement
+    let rows: Vec<(String, String, String, Option<f64>, String, i64, i64, Option<String>, Option<String>)> = statement
         .query_map([limit.max(1)], |row| {
             Ok((
                 row.get(0)?,
@@ -251,6 +256,8 @@ pub fn process_pending_events(
                 row.get(4)?,
                 row.get(5)?,
                 row.get(6)?,
+                row.get(7)?,
+                row.get(8)?,
             ))
         })
         .map_err(|error| error.to_string())?
@@ -259,7 +266,8 @@ pub fn process_pending_events(
     drop(statement);
 
     let mut summary = ProcessSummary::default();
-    for (event_id, event_type, project_id, delta, context_json, version, attempts) in rows {
+    for (event_id, event_type, project_id, delta, context_json, version, attempts, stage_id, progress_id) in rows {
+        transaction.execute_batch("SAVEPOINT game_domain_action").map_err(|error|error.to_string())?;
         let result = (|| {
             if version != EVENT_VERSION {
                 return Err(format!("unsupported event version: {version}"));
@@ -278,6 +286,7 @@ pub fn process_pending_events(
                 .map_err(|error| error.to_string())?;
             let mut state: Value =
                 serde_json::from_str(&raw_state).map_err(|error| error.to_string())?;
+            if !crate::game_writer::already_recorded(&transaction,&event_id,&project_id,stage_id.as_deref(),progress_id.as_deref(),delta.unwrap_or(0.0))? {
             apply_event(
                 &mut state,
                 &event_type,
@@ -286,6 +295,9 @@ pub fn process_pending_events(
                 context,
                 &project_id,
             )?;
+            let now:String=transaction.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%S.000000Z','now')",[],|r|r.get(0)).map_err(|e|e.to_string())?;
+            crate::game_writer::capture_domain(&transaction,&event_id,&event_type,&project_id,stage_id.as_deref(),progress_id.as_deref(),delta.unwrap_or(0.0),&raw_state,&state,context,&now)?;
+            }
             transaction.execute(
                 "UPDATE game_state SET schema_version=?1,payload_json=?2,updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id=1",
                 params![STATE_VERSION, state.to_string()],
@@ -296,6 +308,10 @@ pub fn process_pending_events(
             ).map_err(|error| error.to_string())?;
             Ok(())
         })();
+        if result.is_err() {
+            transaction.execute_batch("ROLLBACK TO game_domain_action").map_err(|error|error.to_string())?;
+        }
+        transaction.execute_batch("RELEASE game_domain_action").map_err(|error|error.to_string())?;
         match result {
             Ok(()) => summary.processed += 1,
             Err(error) => {
@@ -2368,10 +2384,31 @@ impl GameApplicationService {
     where
         F: FnOnce(&mut Value, &mut OsGameRng, &str) -> GameResult<(Option<String>, Option<Value>)>,
     {
+        Self::mutate_classified(false, mutator)
+    }
+
+    fn mutate_classified<F>(developer_override: bool, mutator: F) -> GameResult<GameCommandResponse>
+    where
+        F: FnOnce(&mut Value, &mut OsGameRng, &str) -> GameResult<(Option<String>, Option<Value>)>,
+    {
+        Self::mutate_portable(developer_override,None,mutator)
+    }
+
+    fn mutate_portable<F>(developer_override: bool, inventory:Option<crate::game_writer::InventoryIntent>, mutator: F) -> GameResult<GameCommandResponse>
+    where
+        F: FnOnce(&mut Value, &mut OsGameRng, &str) -> GameResult<(Option<String>, Option<Value>)>,
+    {
         let mut connection = crate::open_projects_database().map_err(GameError::Database)?;
-        Self::owner(&connection)?;
-        process_pending_events(&mut connection, 100).map_err(GameError::Database)?;
-        if !Self::enabled(&connection) {
+        Self::mutate_portable_sqlite(&mut connection,developer_override,inventory,mutator)
+    }
+
+    pub(crate) fn mutate_portable_sqlite<F>(connection:&mut Connection, developer_override: bool, inventory:Option<crate::game_writer::InventoryIntent>, mutator: F) -> GameResult<GameCommandResponse>
+    where
+        F: FnOnce(&mut Value, &mut OsGameRng, &str) -> GameResult<(Option<String>, Option<Value>)>,
+    {
+        Self::owner(connection)?;
+        process_pending_events(connection, 100).map_err(GameError::Database)?;
+        if !Self::enabled(connection) {
             return Err(GameError::PrerequisiteMissing(
                 "Игровой режим отключён.".into(),
             ));
@@ -2380,10 +2417,18 @@ impl GameApplicationService {
             .transaction()
             .map_err(|error| GameError::Database(error.to_string()))?;
         let mut state = Self::load(&tx)?;
+        let before_raw:String=tx.query_row("SELECT payload_json FROM game_state WHERE id=1",[],|r|r.get(0)).map_err(|e|GameError::Database(e.to_string()))?;
         let now = Self::now(&tx)?;
         let effects_now = Self::local_now(&tx)?;
         let mut rng = OsGameRng;
         let (message, result) = mutator(&mut state, &mut rng, &now)?;
+        if developer_override {
+            crate::game_sync::record_developer_override(&tx,&state,&now).map_err(GameError::Database)?;
+        }
+        if let Some(intent)=inventory {
+            let portable_now:String=tx.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%S.000000Z','now')",[],|r|r.get(0)).map_err(|e|GameError::Database(e.to_string()))?;
+            crate::game_writer::capture_inventory(&tx,&intent,&before_raw,&state,result.as_ref(),&portable_now).map_err(GameError::Database)?;
+        }
         tx.execute(
             "UPDATE game_state SET schema_version=?1,payload_json=?2,updated_at=?3 WHERE id=1",
             params![STATE_VERSION, state.to_string(), now],
@@ -2393,7 +2438,7 @@ impl GameApplicationService {
         tx.commit()
             .map_err(|error| GameError::Database(error.to_string()))?;
         let logical_day =
-            crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
+            crate::streaks::logical_writing_day(connection).map_err(GameError::Database)?;
         let state = project_state(&state, &now, &effects_now, &logical_day, enabled)?;
         let messages = message.clone().into_iter().collect::<Vec<_>>();
         Ok(GameCommandResponse {
@@ -2514,8 +2559,20 @@ impl GameApplicationService {
         count: i64,
         operation: &str,
     ) -> GameResult<GameCommandResponse> {
+        let mut connection=crate::open_projects_database().map_err(GameError::Database)?;
+        Self::inventory_sqlite(&mut connection,category,item_id,count,operation)
+    }
+
+    pub(crate) fn inventory_sqlite(
+        connection:&mut Connection,
+        category: String,
+        item_id: String,
+        count: i64,
+        operation: &str,
+    ) -> GameResult<GameCommandResponse> {
         let count = checked_count(count)?;
-        Self::mutate(move |state, rng, now| {
+        let intent=crate::game_writer::InventoryIntent{operation:operation.into(),category:category.clone(),item_id:item_id.clone(),count};
+        Self::mutate_portable_sqlite(connection,false,Some(intent),move |state, rng, now| {
             let gamer = gamer_object(state)?;
             let item = catalog_item(&category, &item_id)
                 .ok_or_else(|| GameError::NotFound("Предмет не найден.".into()))?;
@@ -3030,7 +3087,7 @@ impl GameApplicationService {
         let logical_day = crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
         let yesterday = crate::streaks::date_days(&logical_day)
             .ok_or_else(|| GameError::Validation("Некорректный писательский день.".into()))? - 1;
-        Self::mutate(move |state, _rng, _now| {
+        Self::mutate_classified(true, move |state, _rng, _now| {
             let (fields, history_key, status_key, _) = developer_streak_fields_mut(state, key.as_deref())?;
             fields.insert(history_key.into(), Value::Array(streak_series_ending_at(yesterday, length)));
             fields.insert(status_key.into(), Value::String("Active".into()));
@@ -3064,7 +3121,7 @@ impl GameApplicationService {
         let logical_day = crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
         let yesterday = crate::streaks::date_days(&logical_day)
             .ok_or_else(|| GameError::Validation("Некорректный писательский день.".into()))? - 1;
-        Self::mutate(move |state, _rng, _now| {
+        Self::mutate_classified(true, move |state, _rng, _now| {
             let (fields, history_key, status_key, _) = developer_streak_fields_mut(state, key.as_deref())?;
             fields.insert(history_key.into(), Value::Array(streak_series_ending_at(yesterday, length)));
             fields.insert(status_key.into(), Value::String("Active".into()));
@@ -3129,7 +3186,7 @@ impl GameApplicationService {
         }
         let test_date_enabled = request.test_date_enabled;
         let test_datetime = request.test_datetime.clone();
-        Self::mutate(move |state, _rng, _now| {
+        Self::mutate_classified(true, move |state, _rng, _now| {
             let gamer = gamer_object(state)?;
             gamer.insert("level".into(), json!(request.level.clamp(1, 999)));
             gamer.insert("coins".into(), json!(coins));
@@ -3156,7 +3213,7 @@ impl GameApplicationService {
             ));
         }
         let count = checked_count(request.count)?;
-        Self::mutate(move |state, _rng, _now| {
+        Self::mutate_classified(true, move |state, _rng, _now| {
             let gamer = gamer_object(state)?;
             let item = catalog_item(&request.category, &request.item_id)
                 .ok_or_else(|| GameError::NotFound("Предмет не найден.".into()))?;

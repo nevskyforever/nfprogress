@@ -534,6 +534,37 @@ class SyncService:
             session.rollback()
             raise
 
+    @classmethod
+    def game_reader_ready(cls, device) -> bool:
+        return cls.progress_reader_ready(device) and all(
+            getattr(device, f'{domain}_game_frame_version') == 1
+            and getattr(device, f'{domain}_game_codec_version') == 1
+            and getattr(device, f'{domain}_game_reader_version') == 1
+            and getattr(device, f'{domain}_game_compression_zero')
+            for domain in ('project', 'account')
+        )
+
+    def game_gate(self, session: Session, user_id: object) -> tuple[bool, int]:
+        devices = session.scalars(select(SyncDevice).where(SyncDevice.user_id == user_id)).all()
+        missing = sum(not self.game_reader_ready(device) for device in devices)
+        mode, _ = self.capabilities(session, user_id)
+        return bool(devices) and missing == 0 and mode == 3, missing
+
+    def declare_game_reader(self, session: Session, user_id: object, request) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, request.device_id)
+                for domain in ('project', 'account'):
+                    support = getattr(request, domain)
+                    for field in ('frame_version', 'codec_version', 'reader_version', 'compression_zero'):
+                        setattr(device, f'{domain}_game_{field}', getattr(support, field))
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
     def cutover_to_v3(self, session: Session, user_id: object, expected_cutover_epoch: int) -> tuple[int, int]:
         try:
             session.commit()
@@ -627,12 +658,12 @@ class SyncService:
                 raise SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported account object version.', 422)
             return
         allowed_operations = ('upsert', 'delete', 'resolution', 'event') if transport_version == 3 else ('upsert', 'delete') if transport_version == 1 else ('upsert', 'delete', 'resolution')
-        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress') if transport_version == 3 else ('note',)
+        allowed_types = ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress', 'project_game') if transport_version == 3 else ('note',)
         if (item.event.entity_type not in allowed_types or item.event.operation not in allowed_operations
-                or (item.event.operation == 'event' and item.event.entity_type not in ('note', 'map', 'document', 'progress'))
+                or (item.event.operation == 'event' and item.event.entity_type not in ('note', 'map', 'document', 'progress', 'project_game'))
                 or (item.event.entity_type == 'map' and (item.event.operation != 'event'
                     or item.event.deleted_at is not None or not is_map_entity_id(item.event.entity_id)))
-                or (item.event.entity_type in ('document', 'progress') and (item.event.operation != 'event' or item.event.deleted_at is not None))
+                or (item.event.entity_type in ('document', 'progress', 'project_game') and (item.event.operation != 'event' or item.event.deleted_at is not None))
                 or (item.event.entity_type == 'project_metadata'
                     and item.event.entity_id != item.event.project_id)
                 or (item.event.entity_type == 'stage' and item.event.operation not in ('upsert', 'delete'))
@@ -650,6 +681,8 @@ class SyncService:
                 item.object.ciphertext, minimum_length=16,
                 maximum_length=MAX_ENCRYPTED_SYNC_CIPHERTEXT_BYTES,
             ))
+            if item.event.entity_type in ('project_game', 'account_game') and len(decode_canonical_base64url(item.object.ciphertext, minimum_length=16)) > 1024 * 1024 + 16:
+                raise SyncProtocolError('encrypted_sync_object_too_large', 'Game encrypted object exceeds its size limit.', 413)
             if total > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES:
                 raise SyncProtocolError(
                     'encrypted_sync_batch_too_large', 'Encrypted sync batch exceeds ciphertext size limit.', 413,
@@ -673,7 +706,9 @@ class SyncService:
                 # Its request schema admits Notes only; metadata uses v3.
                 if not (transport_version == 2 and state.writer_transport_version == 3):
                     self._require_transport_mode(state, transport_version)
-                if any(item.event.entity_type in ('document', 'progress') for item in items) and not self.document_gate(session, user_id)[0]:
+                if any(item.event.entity_type in ('project_game', 'account_game') for item in items) and not self.game_gate(session, user_id)[0]:
+                    raise SyncProtocolError('game_readers_not_ready', 'Registered devices must support both Game readers and their dependencies.', 409)
+                if any(item.event.entity_type in ('document', 'progress', 'project_game') for item in items) and not self.document_gate(session, user_id)[0]:
                     raise SyncProtocolError('document_readers_not_ready', 'Registered devices must support document readers.', 409)
                 if any(item.event.entity_type == 'progress' for item in items) and not self.progress_gate(session, user_id)[0]:
                     raise SyncProtocolError('progress_readers_not_ready', 'Registered devices must support progress readers.', 409)
@@ -872,12 +907,12 @@ class SyncService:
                 if event.entity_type not in ACCOUNT_ENTITY_TYPES or event.operation not in ('upsert', 'delete') or encrypted is None or encrypted.crypto_version != 2 or encrypted.aad_version != 2:
                     raise SyncProtocolError('encrypted_sync_event_incomplete', 'Invalid account object.', 409)
                 continue
-            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress')
+            if (encrypted is None or event.entity_type not in ('note', 'project_metadata', 'stage', 'stage_order', 'map', 'document', 'progress', 'project_game')
                     or event.operation not in ('upsert', 'delete', 'resolution', 'event')
-                    or (event.operation == 'event' and event.entity_type not in ('note', 'map', 'document', 'progress'))
+                    or (event.operation == 'event' and event.entity_type not in ('note', 'map', 'document', 'progress', 'project_game'))
                     or (event.entity_type == 'map' and (event.operation != 'event'
                         or event.deleted_at is not None or not is_map_entity_id(event.entity_id)))
-                    or (event.entity_type in ('document', 'progress') and (event.operation != 'event' or event.deleted_at is not None))
+                    or (event.entity_type in ('document', 'progress', 'project_game') and (event.operation != 'event' or event.deleted_at is not None))
                     or (event.entity_type == 'project_metadata' and event.entity_id != event.project_id)
                     or (event.entity_type == 'stage' and event.operation not in ('upsert', 'delete'))
                     or (event.entity_type == 'stage_order' and (event.entity_id != 'stage_order' or event.operation != 'upsert'))):

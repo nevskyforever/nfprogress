@@ -13,7 +13,7 @@ from .schemas import (ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequ
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
                       V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
                       DocumentReaderCapabilities,
-    ProgressReaderCapabilities, MapReaderCapabilities, ContentNoteReaderCapabilities, ContentNoteCapabilityGate, V3ReaderReadyRequest, V3CutoverRequest, V3CutoverResponse, V3SyncPullEvent,
+    GameReaderCapabilities, ProgressReaderCapabilities, MapReaderCapabilities, ContentNoteReaderCapabilities, ContentNoteCapabilityGate, V3ReaderReadyRequest, V3CutoverRequest, V3CutoverResponse, V3SyncPullEvent,
                       encode_canonical_base64url, AccountEncryptedPushRequest, AccountSyncPullEvent)
 from .services import SyncProtocolError, SyncService
 from .sync_router import _error, _inline_json_schema, _read_encrypted_push_body
@@ -195,4 +195,21 @@ def progress_reader_capabilities(request: ProgressReaderCapabilities,
 def progress_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().progress_gate(session, current.user.id)
+    return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
+
+
+@router.put('/game-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
+def game_reader_capabilities(request: GameReaderCapabilities,
+                             current: AuthenticatedUser = Depends(get_current_user),
+                             session: Session = Depends(get_cloud_session)) -> None:
+    try:
+        SyncService().declare_game_reader(session, current.user.id, request)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+
+
+@router.get('/game-reader-capabilities', response_model=ContentNoteCapabilityGate)
+def game_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
+    ready, missing = SyncService().game_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
