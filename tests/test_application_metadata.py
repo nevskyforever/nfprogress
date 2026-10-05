@@ -123,6 +123,8 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         # Remove schema37 Game sidecars before reconstructing the v6 fixture.
         for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'game_%'").fetchall():
             database.execute(f'DROP TRIGGER "{name}"')
+        for table in ('cloud_cover_blockers', 'cloud_cover_intents', 'cloud_cover_material'):
+            database.execute(f'DROP TABLE {table}')
         for (name,) in database.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'cloud_game_%'").fetchall():
             database.execute(f'DROP TABLE "{name}"')
         # Remove schema36 progress sidecars before reconstructing v6.

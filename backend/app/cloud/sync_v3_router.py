@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
-from .schemas import (ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
+from .schemas import (ProjectCoverReaderCapabilities, ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
                       V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
                       DocumentReaderCapabilities,
@@ -213,3 +213,45 @@ def game_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
                      session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().game_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
+
+
+@router.put('/cover-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
+def declare_cover_reader(request: ProjectCoverReaderCapabilities,
+                         current: AuthenticatedUser = Depends(get_current_user),
+                         session: Session = Depends(get_cloud_session)) -> None:
+    try:
+        SyncService().declare_cover_reader(session, current.user.id, request)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+
+
+@router.get('/cover-reader-capabilities', response_model=ContentNoteCapabilityGate)
+def cover_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+                      session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
+    ready, missing = SyncService().cover_gate(session, current.user.id)
+    return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
+
+
+@router.post('/cover-metadata/push', response_model=V3EncryptedSyncPushResponse, openapi_extra={
+    'requestBody': {'required': True, 'content': {'application/json': {'schema': _PUSH_SCHEMA}}},
+})
+async def cover_metadata_push(http_request: Request,
+                         current: AuthenticatedUser = Depends(get_current_user),
+                         session: Session = Depends(get_cloud_session)) -> V3EncryptedSyncPushResponse:
+    body = await _read_encrypted_push_body(http_request)
+    try:
+        request = V3EncryptedSyncPushRequest.model_validate_json(body)
+    except ValidationError as error:
+        raise RequestValidationError(error.errors()) from None
+    try:
+        results, cursor = await run_in_threadpool(
+            SyncService().push_encrypted, session, current.user.id, request.device_id,
+            request.items, transport_version=3, metadata_cover=True,
+        )
+    except SyncProtocolError as error:
+        raise _error(error) from None
+    return V3EncryptedSyncPushResponse(
+        results=[SyncPushResult(event_id=row.event_id, server_sequence=row.server_sequence,
+                                duplicate=row.duplicate) for row in results],
+        current_cursor=cursor,
+    )

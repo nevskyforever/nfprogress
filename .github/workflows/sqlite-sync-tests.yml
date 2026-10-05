@@ -44,6 +44,15 @@ on:
       - 'frontend/src-tauri/src/content_note_writer.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
+      - 'frontend/src-tauri/src/project_cover_sync.rs'
+      - 'frontend/src/cloud/projectMetadataCodec.ts'
+      - 'frontend/src/cloud/projectCoverReference.ts'
+      - 'frontend/src/cloud/projectCoverReference.spec.ts'
+      - 'frontend/src/cloud/projectCoverCrypto.ts'
+      - 'frontend/src/cloud/projectCoverRuntime.spec.ts'
+      - 'frontend/src/cloud/projectMetadataMigrationRuntime.ts'
+      - 'frontend/src/infrastructure/sqlite/projectCoverRepository.ts'
+      - 'frontend/src/cloud/__fixtures__/projectMetadataV2.json'
       - 'frontend/src-tauri/src/stage_sync.rs'
       - 'frontend/src-tauri/src/account_sync.rs'
       - 'frontend/src-tauri/src/account_catalog.rs'
@@ -62,6 +71,8 @@ on:
       - 'frontend/src-tauri/Cargo.lock'
       - 'tests/test_c9_sqlite_sync.py'
       - 'tests/test_c18_metadata_sqlite.py'
+      - 'tests/test_c18_cover_sqlite.py'
+      - 'tests/test_cloud_c18_cover_acceptance.py'
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
@@ -120,6 +131,15 @@ on:
       - 'frontend/src-tauri/src/content_note_writer.rs'
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
+      - 'frontend/src-tauri/src/project_cover_sync.rs'
+      - 'frontend/src/cloud/projectMetadataCodec.ts'
+      - 'frontend/src/cloud/projectCoverReference.ts'
+      - 'frontend/src/cloud/projectCoverReference.spec.ts'
+      - 'frontend/src/cloud/projectCoverCrypto.ts'
+      - 'frontend/src/cloud/projectCoverRuntime.spec.ts'
+      - 'frontend/src/cloud/projectMetadataMigrationRuntime.ts'
+      - 'frontend/src/infrastructure/sqlite/projectCoverRepository.ts'
+      - 'frontend/src/cloud/__fixtures__/projectMetadataV2.json'
       - 'frontend/src-tauri/src/stage_sync.rs'
       - 'frontend/src-tauri/src/account_sync.rs'
       - 'frontend/src-tauri/src/account_catalog.rs'
@@ -138,6 +158,8 @@ on:
       - 'frontend/src-tauri/Cargo.lock'
       - 'tests/test_c9_sqlite_sync.py'
       - 'tests/test_c18_metadata_sqlite.py'
+      - 'tests/test_c18_cover_sqlite.py'
+      - 'tests/test_cloud_c18_cover_acceptance.py'
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
@@ -182,7 +204,7 @@ jobs:
         run: |
           python -m pytest -q \
             tests/test_c9_sqlite_sync.py \
-            tests/test_c18_metadata_sqlite.py \
+            tests/test_c18_metadata_sqlite.py tests/test_c18_cover_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
             tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py tests/test_c18_game_sqlite.py tests/test_c18_content_action_integration.py \

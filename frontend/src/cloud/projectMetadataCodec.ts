@@ -1,3 +1,4 @@
+import { validateCoverReference, type ProjectCoverReference } from './projectCoverReference'
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 import { decryptObjectBytes, encryptObjectBytes, type AccountMasterKey, type ObjectCryptoEnvelope } from '@/crypto'
 
@@ -11,7 +12,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const META_KEYS = ['auto_freeze', 'combine_stage_mindmaps', 'deadline', 'stages_enabled', 'goal', 'infinite', 'name', 'personal_goal', 'status', 'streak_enabled', 'unit', 'work_method'] as const
 const HEADER_KEYS = ['account_id', 'bootstrap_id', 'device_id', 'entity_id', 'event_id', 'generation', 'operation', 'parent_event_ids', 'project_id', 'revision', 'updated_at'] as const
 
+export const METADATA_COVER_CODEC_VERSION = 2 as const
 export interface ProjectMetadata {
+  cover_reference?: ProjectCoverReference | null
   name: string; goal: number | null; infinite: boolean; unit: string; deadline: string | null
   status: string; personal_goal: number; auto_freeze: boolean; streak_enabled: boolean
   work_method: string; stages_enabled: boolean; combine_stage_mindmaps: boolean
@@ -21,7 +24,7 @@ export interface MetadataHeader {
   generation: number; operation: 'create' | 'update' | 'delete' | 'genesis_resolution' | 'resolution'
   parent_event_ids: string[]; project_id: string; revision: number; updated_at: string
 }
-export type ProjectMetadataEvent = { version: 1; header: MetadataHeader; metadata: ProjectMetadata | null; deleted_at: string | null }
+export type ProjectMetadataEvent = { version: 1 | 2; header: MetadataHeader; metadata: ProjectMetadata | null; deleted_at: string | null }
 
 function fail(): never { throw new TypeError('invalid_project_metadata') }
 function obj(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value) }
@@ -37,7 +40,7 @@ export function timestamp(value: unknown): value is string {
   try { return canonicalizeSyncTimestamp(value) === value } catch { return false }
 }
 export function validateProjectMetadataEvent(value: unknown): asserts value is ProjectMetadataEvent {
-  if (!obj(value) || !exact(value, ['version', 'header', 'metadata', 'deleted_at']) || value.version !== 1 || !obj(value.header)) fail()
+  if (!obj(value) || !exact(value, ['version', 'header', 'metadata', 'deleted_at']) || ![1,2].includes(value.version as number) || !obj(value.header)) fail()
   const h = value.header
   if (!exact(h, HEADER_KEYS) || !UUID.test(String(h.account_id)) || !UUID.test(String(h.bootstrap_id))
     || !UUID.test(String(h.device_id)) || !UUID.test(String(h.event_id)) || !nonempty(h.project_id)
@@ -54,8 +57,9 @@ export function validateProjectMetadataEvent(value: unknown): asserts value is P
   if (h.operation === 'delete') {
     if (value.metadata !== null || !timestamp(value.deleted_at) || value.deleted_at !== h.updated_at) fail()
   } else {
-    if (value.deleted_at !== null || !obj(value.metadata) || !exact(value.metadata, META_KEYS)) fail()
+    if (value.deleted_at !== null || !obj(value.metadata) || !exact(value.metadata, value.version === 2 ? [...META_KEYS, 'cover_reference'] : META_KEYS)) fail()
     const m = value.metadata
+    if (value.version === 2 && m.cover_reference !== null) validateCoverReference(m.cover_reference)
     if (!nonempty(m.name) || !(m.goal === null || finiteNonnegative(m.goal)) || typeof m.infinite !== 'boolean'
       || !nonempty(m.unit) || !(m.deadline === null || nonempty(m.deadline)) || !nonempty(m.status)
       || !finiteNonnegative(m.personal_goal) || typeof m.auto_freeze !== 'boolean'
@@ -88,7 +92,7 @@ export function decodeProjectMetadataEvent(bytes: Uint8Array): ProjectMetadataEv
 export function frameProjectMetadata(value: ProjectMetadataEvent): Uint8Array {
   const payload = encodeProjectMetadataEvent(value)
   const frame = new Uint8Array(20 + payload.length)
-  frame.set(MAGIC); frame.set([1, 1, 1, 0], 8)
+  frame.set(MAGIC); frame.set([1, 1, value.version, 0], 8)
   const sizes = new DataView(frame.buffer)
   sizes.setUint32(12, payload.length, false); sizes.setUint32(16, payload.length, false)
   frame.set(payload, 20)
@@ -97,10 +101,12 @@ export function frameProjectMetadata(value: ProjectMetadataEvent): Uint8Array {
 export function unframeProjectMetadata(frame: Uint8Array): ProjectMetadataEvent {
   if (!(frame instanceof Uint8Array) || frame.length < 20 || frame.length > MAX_METADATA_BYTES + 20
     || !MAGIC.every((byte, i) => frame[i] === byte) || frame[8] !== 1 || frame[9] !== 1
-    || frame[10] !== 1 || frame[11] !== 0) fail()
+    || ![1,2].includes(frame[10]!) || frame[11] !== 0) fail()
   const sizes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength)
   if (sizes.getUint32(12, false) !== frame.length - 20 || sizes.getUint32(16, false) !== frame.length - 20) fail()
-  return decodeProjectMetadataEvent(frame.subarray(20))
+  const event = decodeProjectMetadataEvent(frame.subarray(20))
+  if (event.version !== frame[10]) fail()
+  return event
 }
 export async function sealProjectMetadataEvent(amk: AccountMasterKey, event: ProjectMetadataEvent): Promise<ObjectCryptoEnvelope> {
   validateProjectMetadataEvent(event)

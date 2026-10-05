@@ -1,17 +1,88 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 5 октября 2026 года.\
+**Дата:** 6 октября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.06 — **REMOTELY ACCEPTED**; C18.5.07 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
-**Текущий статус C18.5:** **CLOSURE CANDIDATE / REMOTE CI PENDING**, окончательное CLOSED требует независимой приёмки .07; C18.6 — **NOT STARTED**.\
-**Последняя независимая приёмка:** C18.5.06 SHA `d34254fef37501e95d7b435f35e3106e6d8eda95`; SQLite `37212649560` и Cloud `37212649515` — **SUCCESS**, включая обязательные multi-device/ACK jobs. C18.4 независимо CLOSED для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac` (SQLite `37004006923`, Cloud `37004006914`). Последний закрытый полный roadmap stage остаётся C17.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **IN PROGRESS**.\
+**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Последняя независимая приёмка:** C18.5.07 implementation `9b2c7594589b7dfa58b5b7fe83905f0336a7c710`, Cloud correction `e11d6b6fc453b218738d1f6a0dd5b34a9eebb750`; SQLite `37288645324` и final Cloud `37358324509` — **SUCCESS**, все четыре Cloud jobs. C18.5 — **CLOSED**; последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
+
+## C18.6.01 — authenticated cover blob sync (6 октября 2026)
+
+Baseline `e11d6b6fc453b218738d1f6a0dd5b34a9eebb750`, branch6.0,
+HEAD=origin/6.0, clean preflight. **LOCAL COMPLETE / REMOTE CI PENDING**.
+C18.5 CLOSED по независимой приёмке ниже; C18.6/C18 IN PROGRESS, **77.0%**.
+
+Обложка: immutable encrypted Class A blob + Class B reference/null внутри
+Project Metadata authority. Metadata frame1/codecID1, payloadv2 добавляет только
+cover_reference; исторические v1 bytes/decode/apply/resolution сохранены.
+Strict referencev1: version, blob_id, crypto_version, aad_version, mime_type,
+plaintext_size, key_fingerprint, envelope_sha256. SHA256 связывает exact canonical
+encrypted envelope, не plaintext; fingerprint derived object key находится
+в encrypted Metadata. Существующая C11 cover crypto1/AAD1 и account/project/blob
+context сохранены. Actual source20MiB JPEG/PNG/WebP, preparedJPEG2MiB crop2:3,
+crypto plaintext2MiB, ciphertext2MiB+16; не предполагаемые8/11MiB.
+
+Actual API — stable client UUID PUT/GET covers/{blob}; exact retry idempotent,
+same-ID different bytes409, immutable storage не менялось. Durable captured →
+sealed → uploaded → metadata_pending → active, typed blockers. Explicit legacy
+publication без recompression; malformed source сохранён. После активации обычный
+editor save автоматически ведёт causal writer. Local-only не создаёт binding/blob.
+Upload + GET exact proof предшествуют Metadata sealing. Lost responses повторяют
+тот же blob/event/ciphertext; self-echo устанавливает authority.
+
+Remote verify/cache предшествует atomic Metadata/head/receipt/projection/conflict/
+ACK transaction. Schema38 добавляет только local intents/material/blockers;
+existing inbox/outbox/causal tables и schema37 reader rotation reused. Missing404/
+503 и invalid ref/digest/AEAD/JPEG различаются, retained event/blocker переживает
+reopen; предыдущая safe projection сохраняется, ACK не перескакивает hole.
+Поздний Note8 применяется при hole; восстановленный exact blob завершает тот же
+Metadata event и contiguous ACK. Full-tip name/cover, replacement и remove/replace
+conflicts разрешаются existing causal semantics, старые blobs retained, no GC.
+
+Новая явная registered-device capability metadata-cover2 нужна: mode3 сам по
+себе не доказывает reader. Все registered devices проходят gate под user-state
+lock; old v1-only device блокирует v2, v1 history не переписывается. Минимальный
+Alembic `c18_cover_readers` после `c18_game_readers` — capability only, single head;
+blob storage не redesign. PKI/independent cover authority/cursor не добавлены.
+
+Real PostgreSQL + production TS crypto + два file-backed native SQLite прошли
+migration, exact JPEG import, ordering, restart/lost-response, missing/recovery/
+ACK fairness, offline replacement, concurrent replacement, remove/replace,
+local-only, server blindness/auth isolation. Cloud union250 tests (34foundation,
+22content-action,194regressions) покрыт одним bounded проходом и exact retests
+двух stale Alembic-head expectations; zero mandatory skips. Frontend639 passed
++3 добавленных targeted tests; Rust378 passed +новый targeted conflict test,
+23 Metadata tests; SQLite479 passed +3 corrected exact retests +populated37
+(current union483, cover40); help/locales30 passed. Typecheck/build/cargo check,
+Chromium6locales, YAML/collection/export/syntax/diff-check passed. Split Cloud
+40-minute jobs preserved; новое cover acceptance в foundation, путь фильтров
+обоих workflow обновлён. Protected pyc unchanged.
+
+Полная карта и доказательства: `docs/cloud/C18_6_COVER_ACCEPTANCE.md`.
+Release gate / final terminology audit / C21 local-Web-first preserved.
+C18.6.02, compression, paths/bindings transport, generic attachments и telemetry
+не реализованы. После push не проверять Actions; ожидаются Cloud и SQLite.
+Далее только после независимой приёмки: **C18.6.02 — LOCAL EXTERNAL FILES /
+EXPLICIT REATTACHMENT / PATH-LEAK ACCEPTANCE**.
+
+## C18.5 final independent closure / C18.6.01 started
+
+Owner/GPT authoritatively accepted C18.5.07 implementation
+`9b2c7594589b7dfa58b5b7fe83905f0336a7c710` and Cloud runtime correction
+`e11d6b6fc453b218738d1f6a0dd5b34a9eebb750`: SQLite **37288645324 — SUCCESS**,
+final Cloud **37358324509 — SUCCESS**. All four Cloud jobs passed: Frontend admin,
+PostgreSQL mandatory (foundation), PostgreSQL mandatory (content-action),
+PostgreSQL cloud and legacy regressions. Therefore **C18.5.07 REMOTELY ACCEPTED**,
+**C18.5 CLOSED**. Earlier pending/cancellation records below are historical.
+C18 / C18.6 remain **IN PROGRESS**; C18.6.01 starts from the accepted correction.
+Official progress stays exactly **77.0%**: C18 scores only after full-stage closure.
 
 ## C18.5.07 — Cloud CI runtime correction (5 октября 2026)
 
@@ -93,16 +164,15 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
 
-**Текущая приёмка C18.5.06, независимо предоставленная owner/GPT:** SHA
-`d34254fef37501e95d7b435f35e3106e6d8eda95` — **REMOTELY ACCEPTED**.
+**Текущая независимая приёмка C18.5.07 / C18.5 CLOSED:** implementation
+`9b2c7594589b7dfa58b5b7fe83905f0336a7c710`, Cloud correction
+`e11d6b6fc453b218738d1f6a0dd5b34a9eebb750`.
 
-- [SQLite sync substrate 37212649560](https://github.com/nevskyforever/nfprogress/actions/runs/37212649560) — SUCCESS: Python/Rust substrate, Game vectors и предыдущие native entity regressions.
-- [Cloud backend 37212649515](https://github.com/nevskyforever/nfprogress/actions/runs/37212649515) — SUCCESS: frontend, PostgreSQL, mandatory sync ACK/multi-device acceptance и focused API tests.
+- [SQLite sync substrate 37288645324](https://github.com/nevskyforever/nfprogress/actions/runs/37288645324) — SUCCESS на implementation SHA.
+- [Cloud backend 37358324509](https://github.com/nevskyforever/nfprogress/actions/runs/37358324509) — SUCCESS на correction SHA: Frontend admin, PostgreSQL foundation, content-action и cloud/legacy regressions.
 
-C18.5.01–.05 также REMOTELY ACCEPTED; точные SHA/run evidence сохранены ниже.
-Секции LOCAL COMPLETE / REMOTE CI PENDING предыдущих slices ниже являются
-историческими записями и не заменяют эту текущую сводку. C18.5.07 локально завершён;
-C18.5 — CLOSURE CANDIDATE / REMOTE CI PENDING; C18 остаётся IN PROGRESS, официальный прогресс **77.0%**.
+Предыдущие pending/cancellation записи ниже исторические. C18.6.01 — LOCAL
+COMPLETE / REMOTE CI PENDING; C18.6/C18 — IN PROGRESS; прогресс **77.0%**.
 
 ### Исторические remote acceptance evidence
 

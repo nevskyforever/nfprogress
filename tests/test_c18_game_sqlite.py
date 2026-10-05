@@ -28,12 +28,12 @@ def test_game_every_prefix_upgrade_and_reopen(version, tmp_path):
     db.execute('CREATE TABLE schema_info(schema_version INTEGER NOT NULL)')
     db.execute('INSERT INTO schema_info VALUES(?)', (version,))
     db.commit()
-    assert apply_migrations(db) == 37
+    assert apply_migrations(db) == 38
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []
     assert db.execute('SELECT COUNT(*) FROM cloud_game_rewards').fetchone() == (0,)
     db.close()
     db = sqlite3.connect(path)
-    assert apply_migrations(db) == 37
+    assert apply_migrations(db) == 38
     db.close()
 
 
@@ -49,8 +49,8 @@ def test_game_populated36_preserves_catalog_blocker_and_ciphertext(tmp_path, mon
     tables = [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name!='schema_info'")]
     before = {t: db.execute(f'SELECT * FROM "{t}"').fetchall() for t in tables}
     db.commit()
-    monkeypatch.setattr(schema, 'CURRENT_SCHEMA_VERSION', 37)
-    assert apply_migrations(db) == 37
+    monkeypatch.setattr(schema, 'CURRENT_SCHEMA_VERSION', 38)
+    assert apply_migrations(db) == 38
     for table, rows in before.items():
         assert db.execute(f'SELECT * FROM "{table}"').fetchall() == rows
     assert db.execute('PRAGMA foreign_key_check').fetchall() == []

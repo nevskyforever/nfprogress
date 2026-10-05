@@ -216,6 +216,15 @@ export const encryptedSyncV3Api = {
       return result
     })
   },
+  coverReaderCapabilities: (token:string,deviceId:string,readerVersion:0|2=2):Promise<void> => apiRequest('/api/v3/sync/encrypted/cover-reader-capabilities', {method:'PUT',headers:headers(token),body:{device_id:deviceId,frame_version:1,codec_id:1,metadata_codec_version:2,cover_crypto_version:1,cover_aad_version:1,compression_zero:true,reader_version:readerVersion}}),
+  coverReaderGate: (token:string):Promise<{ready:boolean;missing_devices:number}> => apiRequest<unknown>('/api/v3/sync/encrypted/cover-reader-capabilities',{headers:headers(token)}).then(value=>{
+    if(!exact(value,['ready','missing_devices']))fail()
+    const gate=value as {ready:boolean;missing_devices:number}
+    if(typeof gate.ready!=='boolean'||!safe(gate.missing_devices,0))fail()
+    return gate
+  }),
+  pushCoverMetadata: (token:string,deviceId:string,items:readonly V3MetadataPushItem[]):Promise<V3PushResponse> =>
+    apiRequest<unknown>('/api/v3/sync/encrypted/cover-metadata/push',{method:'POST',headers:headers(token),rawBody:encodeV3MetadataPush(deviceId,items)}).then(value=>parsePush(value,items.map(item=>item.event.event_id))),
   pushMetadata: (token: string, deviceId: string, items: readonly V3MetadataPushItem[]): Promise<V3PushResponse> =>
     apiRequest<unknown>('/api/v3/sync/encrypted/push', { method: 'POST', headers: headers(token), rawBody: encodeV3MetadataPush(deviceId, items) })
       .then(value => parsePush(value, items.map(item => item.event.event_id))),

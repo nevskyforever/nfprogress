@@ -7,6 +7,7 @@ import { getProjectReadRepository } from '@/infrastructure/projects/projectReadR
 import { getProjectMetadataRepository } from '@/infrastructure/projects/projectMetadataRepository'
 import { getProgressRepository } from '@/infrastructure/projects/progressRepository'
 import { adaptStatistics, calculateLocalStatistics } from '@/services/statisticsAdapter'
+import { useCloudSessionStore } from '@/stores/cloudSession'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
   EntityUpdate,
@@ -179,12 +180,14 @@ export const useProjectsStore = defineStore('projects', () => {
     detailActionError.value = null
   }
 
-  function updateCurrent(projectId: string, payload: ProjectUpdate): Promise<Project | null> {
+  async function updateCurrent(projectId: string, payload: ProjectUpdate): Promise<Project | null> {
     const safeKeys = ['name', 'goal', 'unit', 'deadline', 'infinite']
     const isSafeMetadata = Object.keys(payload).every((key) => safeKeys.includes(key))
-    return runDetailMutation('update-project', () => isSafeMetadata
+    const updated = await runDetailMutation('update-project', () => isSafeMetadata
       ? projectMetadataRepository.updateMetadata(projectId, payload as ProjectMetadataPatch)
       : projectsApi.update(projectId, payload))
+    if (updated && payload.cover_image !== undefined) void useCloudSessionStore().syncSavedCover(projectId)
+    return updated
   }
 
   function setArchived(projectId: string, archived: boolean): Promise<Project | null> {

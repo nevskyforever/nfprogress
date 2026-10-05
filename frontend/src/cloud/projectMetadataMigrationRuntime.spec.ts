@@ -65,6 +65,17 @@ describe('explicit metadata migration runtime', () => {
     return { runtime, native, api, ack, status, capabilities, mode: (value: number) => { mode = value } }
   }
 
+  it('routes sealed v2 metadata through the all-reader-gated endpoint without altering v1 transport', async () => {
+    const h=await setup()
+    const push=vi.fn().mockResolvedValue({results:[{event_id:EVENT,server_sequence:1,duplicate:false}],current_cursor:1})
+    Object.assign(h.api,{pushCoverMetadata:push})
+    h.native.sealed.mockResolvedValue([{event_id:EVENT,project_id:PROJECT,revision:2,updated_at:NOW,nonce:Array(24).fill(1),ciphertext:Array(32).fill(2),metadata_codec_version:2}])
+    await h.runtime.uploadOnce('local',DEVICE)
+    expect(push).toHaveBeenCalledOnce();expect(h.api.pushMetadata).not.toHaveBeenCalled()
+    expect(h.native.commitReceipt).toHaveBeenCalledWith(expect.anything(),EVENT,1,false,expect.anything())
+    h.capabilities.mockRestore()
+  })
+
   it('prepares the mode-two prerequisite only through a separate explicit action', async () => {
     const h = await setup(); h.mode(1)
     const v2 = (await import('@/api/encryptedSyncV2')).encryptedSyncV2Api

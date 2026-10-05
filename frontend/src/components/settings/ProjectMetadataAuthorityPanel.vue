@@ -14,6 +14,12 @@ const view = computed(() => cloud.metadataAuthority[props.projectId])
 const pending = ref(false)
 const error = ref(false)
 const draft = ref<ProjectMetadata | null>(null)
+const coverPreviews=ref<Record<string,string>>({})
+async function previewCover(eventId:string,metadata:ProjectMetadata){
+ if(!metadata.cover_reference)return
+ try{const image=await cloud.coverPreview(props.projectId,metadata.cover_reference);if(image)coverPreviews.value={...coverPreviews.value,[eventId]:image}}
+ catch{error.value=true}
+}
 
 const fields: Array<{ key: keyof ProjectMetadata; label: string; kind: 'string' | 'number' | 'boolean' | 'nullable' }> = [
   { key: 'name', label: 'Название', kind: 'string' },
@@ -87,6 +93,9 @@ function setField(key: keyof ProjectMetadata, kind: string, event: Event): void 
         <p>{{ t('Проверенная облачная версия') }}:  <span v-if="branch.local_candidate">({{ t('Локальная версия') }})</span></p>
         <DiagnosticDetails :code="view.state" subsystem="migrations" operation="conflict_resolution" />
         <dl><template v-for="field in fields" :key="field.key"><dt>{{ t(field.label) }}</dt><dd>{{ field.key === 'name' ? branch.metadata[field.key] : display(branch.metadata[field.key]) }}</dd></template></dl>
+        <p v-if="branch.metadata.cover_reference===null">{{t('Версия без обложки')}}</p>
+        <button v-if="branch.metadata.cover_reference" class="nf-button nf-button--secondary" type="button" @click="previewCover(branch.event_id,branch.metadata)">{{t('Показать обложку этой версии')}}</button>
+        <img v-if="coverPreviews[branch.event_id]" :src="coverPreviews[branch.event_id]" :alt="t('Обложка')" style="max-width:100px;aspect-ratio:2/3;object-fit:contain" />
         <button class="nf-button nf-button--secondary" v-if="['genesis_conflict', 'metadata_conflict'].includes(view.state)" type="button" :disabled="pending || cloud.busy" @click="decide('choose_branch', branch.event_id)">{{ t('Выбрать этот вариант') }}</button>
       </div>
       <div v-if="cloud.metadataTransportMode === 3" class="metadata-actions">

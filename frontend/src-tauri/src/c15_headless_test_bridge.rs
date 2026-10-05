@@ -574,6 +574,12 @@ fn receive_resolution(request: &Value) -> Value {
     json!({"result":result,"ack":ack})
 }
 
+fn cover_bridge(request:&Value)->Value {
+ let mut db=open_database(&database_path(request)).unwrap();
+ let scope=crate::project_metadata_sync::MetadataScope{account_id:required_string(request,"local_account_id").into(),canonical_user_id:required_string(request,"canonical_user_id").into(),device_id:required_string(request,"device_id").into()};
+ match crate::project_cover_sync::command(&mut db,&scope,required_string(request,"project_id"),required_string(request,"step"),request.get("data").unwrap_or(&json!({})),"2026-10-06T00:00:00.000000Z") {Ok(value)=>value,Err(error)=>json!({"error":error.to_string()})}
+}
+
 fn catalog_bridge(request:&Value)->Value {
     use crate::account_catalog as catalog;
     let mut db=open_database(&database_path(request)).expect("catalog database");
@@ -832,6 +838,7 @@ fn c15_headless_native_bridge() {
         &std::fs::read(request_path).expect("read bridge request"),
     ).expect("parse bridge request");
     let response = match required_string(&request, "action") {
+        "cover" => cover_bridge(&request),
         "metadata_authority" => metadata_authority_bridge(&request),
         "structural" => structural_bridge(&request),
         "content_note" => content_note_bridge(&request),

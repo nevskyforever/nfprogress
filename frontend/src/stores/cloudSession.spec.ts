@@ -109,6 +109,22 @@ describe('desktop cloud session owner', () => {
     vi.mocked(currentPlatform).mockReturnValue('tauri')
   })
 
+  it('automatically retries only an already activated durable cover after ordinary save', async () => {
+    const instance=runtime()
+    instance.projectCoverAuthority=vi.fn().mockResolvedValue({metadata_state:'active',active:false,has_local_cover:true,blockers:[],pending:null})
+    configureCloudSessionRuntimeFactoryForTests(()=>instance)
+    const store=useCloudSessionStore();store.initialize()
+    await store.login('normal-user','password');await store.unlock('encryption-password')
+    await store.syncSavedCover(PROJECT)
+    expect(instance.retry).not.toHaveBeenCalled()
+    vi.mocked(instance.projectCoverAuthority).mockResolvedValue({metadata_state:'active',active:true,blockers:[],pending:{state:'uploaded',blocker:null}})
+    await store.syncSavedCover(PROJECT)
+    expect(instance.retry).toHaveBeenCalledOnce()
+    expect(instance.beginProjectMetadataMigration).not.toHaveBeenCalled()
+    await store.lock();await store.syncSavedCover(PROJECT)
+    expect(instance.retry).toHaveBeenCalledOnce()
+  })
+
   it('does not migrate or reconcile metadata on login, unlock or project listing', async () => {
     const instance = runtime()
     configureCloudSessionRuntimeFactoryForTests(() => instance)

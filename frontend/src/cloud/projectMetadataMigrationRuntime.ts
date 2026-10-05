@@ -1,3 +1,9 @@
+import { SQLiteProjectCoverRepository, type ProjectCoverRepository } from '@/infrastructure/sqlite/projectCoverRepository'
+import { encryptedCoversApi } from '@/api/encryptedCovers'
+import { encryptProjectCover, createProjectCoverBlobId } from './projectCoverCrypto'
+import { authenticateCoverReference, createCoverReference, InvalidCoverReferenceError, type ProjectCoverReference } from './projectCoverReference'
+import { projectCoverDataUrlToBytes } from '@/components/projects/projectCoverPreparation'
+import { ApiError } from '@/api/client'
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
 import { encryptedSyncV3Api, isAccountItem, type V3MetadataPushItem } from '@/api/encryptedSyncV3'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
@@ -18,7 +24,12 @@ export interface MetadataAckResult { status: 'no_progress' | 'advanced' | 'alrea
 const now = (): string => canonicalizeSyncTimestamp(new Date().toISOString())
 
 /** Internal migration boundary. Capture and publication require explicit calls. */
+export interface CoverTransfer {
+ intent_id:string;source_cover:string|null;state:string;reference:ProjectCoverReference|null;blob_id:string|null;nonce:number[]|null;ciphertext:number[]|null;event_id:string|null;blocker:string|null
+}
+export interface CoverAuthorityStatus { has_local_cover?:boolean;metadata_state:string;active:boolean;blockers:string[];pending?:Pick<CoverTransfer,'state'|'blocker'>|null }
 export class ProjectMetadataMigrationRuntime {
+  private readonly covers:ProjectCoverRepository|null
   constructor(
     protected readonly auth: NormalUserAuthRuntime,
     protected readonly bindings: AuthoritativeAccountBinding,
@@ -29,7 +40,8 @@ export class ProjectMetadataMigrationRuntime {
     private readonly ack: NoteSyncAckRepository = new SQLiteNoteSyncAckRepository(),
     private readonly api: typeof encryptedSyncV3Api = encryptedSyncV3Api,
     private readonly importPageSize = 200,
-  ) {}
+    covers?:ProjectCoverRepository,
+  ) { this.covers=covers ?? (native instanceof SQLiteProjectMetadataMigrationRepository ? new SQLiteProjectCoverRepository() : null) }
 
   protected async scope(accountId: string, deviceId: string): Promise<{ scope: MetadataScope; context: AuthContextSnapshot }> {
     const binding = await this.bindings.ensureForCurrentUser(accountId)
@@ -126,6 +138,7 @@ export class ProjectMetadataMigrationRuntime {
         if (opened.header.bootstrap_id !== bootstrapId || opened.header.device_id !== item.event.device_id
           || opened.header.revision !== item.event.revision || opened.header.updated_at !== canonicalizeSyncTimestamp(item.event.updated_at)
           || opened.deleted_at !== (item.event.deleted_at === null ? null : canonicalizeSyncTimestamp(item.event.deleted_at)) || (opened.header.operation === 'delete' ? 'delete' : 'upsert') !== item.event.operation) throw new TypeError('metadata_import_descriptor')
+        if(opened.version===2 && opened.metadata?.cover_reference) await this.verifyIncomingCover(scope,context,projectId,opened.metadata.cover_reference)
         const plaintext = encodeProjectMetadataEvent(opened)
         try { events.push({ server_sequence: item.event.server_sequence, plaintext: Array.from(plaintext) }) }
         finally { plaintext.fill(0) }
@@ -189,13 +202,92 @@ export class ProjectMetadataMigrationRuntime {
     return this.native.status(scope, projectId)
   }
 
+  async coverAuthority(accountId:string,deviceId:string,projectId:string):Promise<CoverAuthorityStatus> {
+    const {scope,context}=await this.scope(accountId,deviceId)
+    if(!this.covers)throw new TypeError('cover_runtime_unavailable')
+    const status=await this.covers.command<CoverAuthorityStatus>(scope,projectId,'status',{},now());this.assertCurrent(context)
+    const pending=await this.covers.command<CoverTransfer|null>(scope,projectId,'pending',{},now());this.assertCurrent(context)
+    return {...status,pending:pending?{state:pending.state,blocker:pending.blocker}:null}
+  }
+  async coverPreview(accountId:string,deviceId:string,projectId:string,reference:ProjectCoverReference):Promise<string|null>{
+    const {scope,context}=await this.scope(accountId,deviceId)
+    if(!this.covers)throw new TypeError('cover_runtime_unavailable')
+    const value=await this.covers.command<string|null>(scope,projectId,'preview',{reference},now());this.assertCurrent(context);return value
+  }
+  async captureCover(accountId:string,deviceId:string,projectId:string):Promise<void> {
+    await this.requireMode3(accountId,deviceId)
+    const {scope,context}=await this.scope(accountId,deviceId)
+    if(!this.covers)throw new TypeError('cover_runtime_unavailable')
+    await this.covers.command(scope,projectId,'capture',{},now());this.assertCurrent(context)
+  }
+  private async coverGate(context:AuthContextSnapshot):Promise<boolean> {
+    const response=await this.auth.authorized(token=>this.api.coverReaderGate(token));this.assertCurrent(context)
+    if(response.context.userId!==context.userId||response.context.authEpoch!==context.authEpoch)throw new StaleAuthContextError()
+    return response.value.ready
+  }
+  /** Only previously captured intents are processed. Login/open/background never captures a source. */
+  async processCoverTransfers(accountId:string,deviceId:string):Promise<number> {
+    if(!this.covers)return 0
+    const {scope,context}=await this.scope(accountId,deviceId)
+    await this.auth.authorized(token=>this.api.coverReaderCapabilities(token,deviceId));this.assertCurrent(context)
+    const projects=await this.covers.command<string[]>(scope,'*','projects',{},now());this.assertCurrent(context)
+    let prepared=0
+    for(const projectId of projects){
+      let intent=await this.covers.command<CoverTransfer|null>(scope,projectId,'pending',{},now());this.assertCurrent(context)
+      if(!intent)continue
+      if(!await this.coverGate(context)){await this.covers.command(scope,projectId,'block_intent',{intent_id:intent.intent_id,code:'cover_readers_not_ready'},now());continue}
+      if(intent.state==='captured'){
+        if(intent.source_cover===null){await this.covers.command(scope,projectId,'seal',{intent_id:intent.intent_id,reference:null},now())}
+        else{
+          let jpeg:Uint8Array
+          try{jpeg=await projectCoverDataUrlToBytes(intent.source_cover)}catch{this.assertCurrent(context);await this.covers.command(scope,projectId,'block_intent',{intent_id:intent.intent_id,code:'cover_source_invalid'},now());continue}
+          const lease=this.keys.leaseForAccount(accountId);if(!lease)throw new KeyNotProvisionedError()
+          try{await lease.use(async amk=>{
+            const identity={userId:context.userId,projectId,blobId:createProjectCoverBlobId()}
+            const envelope=await encryptProjectCover(amk,identity,jpeg)
+            const reference=await createCoverReference(amk,identity,jpeg,envelope)
+            this.assertCurrent(context)
+            await this.covers!.command(scope,projectId,'seal',{intent_id:intent!.intent_id,reference,nonce:Array.from(envelope.nonce),ciphertext:Array.from(envelope.ciphertext),jpeg:Array.from(jpeg)},now())
+          })}catch(error){if(error instanceof StaleAuthContextError||error instanceof KeyNotProvisionedError)throw error;this.assertCurrent(context);await this.covers.command(scope,projectId,'block_intent',{intent_id:intent.intent_id,code:'cover_source_invalid'},now());continue}
+          finally{jpeg.fill(0)}
+        }
+        this.assertCurrent(context);intent=await this.covers.command<CoverTransfer>(scope,projectId,'pending',{},now());this.assertCurrent(context)
+      }
+      if(intent.state==='sealed'){
+        if(!intent.reference||!intent.blob_id||!intent.nonce||!intent.ciphertext)throw new TypeError('cover_transfer_invalid')
+        const envelope={crypto_version:1 as const,aad_version:1 as const,nonce:Uint8Array.from(intent.nonce),ciphertext:Uint8Array.from(intent.ciphertext)}
+        const uploaded=await this.auth.authorized(token=>encryptedCoversApi.upload(token,projectId,intent!.blob_id!,envelope));this.assertCurrent(context)
+        if(uploaded.value.blob_id!==intent.blob_id||uploaded.value.project_id!==projectId||uploaded.value.kind!=='project_cover'||uploaded.value.size_bytes!==envelope.ciphertext.length)throw new TypeError('cover_blob_invalid')
+        await this.verifyIncomingCover(scope,context,projectId,intent.reference)
+        await this.covers.command(scope,projectId,'uploaded',{intent_id:intent.intent_id},now());this.assertCurrent(context)
+        intent={...intent,state:'uploaded'}
+      }
+      if(intent.state==='uploaded'){
+        if(!await this.coverGate(context))continue
+        await this.covers.command(scope,projectId,'prepare',{intent_id:intent.intent_id},now());this.assertCurrent(context);prepared++
+      }
+    }
+    return prepared
+  }
+  private async verifyIncomingCover(scope:MetadataScope,context:AuthContextSnapshot,projectId:string,reference:ProjectCoverReference):Promise<void>{
+    if(!this.covers)throw new TypeError('cover_runtime_unavailable')
+    const downloaded=await this.auth.authorized(token=>encryptedCoversApi.download(token,projectId,reference.blob_id));this.assertCurrent(context)
+    const lease=this.keys.leaseForAccount(scope.account_id);if(!lease)throw new KeyNotProvisionedError()
+    await lease.use(async amk=>{
+      const jpeg=await authenticateCoverReference(amk,{userId:context.userId,projectId,blobId:reference.blob_id},reference,downloaded.value)
+      try{this.assertCurrent(context);await this.covers!.command(scope,projectId,'material',{reference,nonce:Array.from(downloaded.value.nonce),ciphertext:Array.from(downloaded.value.ciphertext),jpeg:Array.from(jpeg)},now());this.assertCurrent(context)}finally{jpeg.fill(0)}
+    })
+  }
+
   async sealOnce(accountId: string, deviceId: string): Promise<number> {
     await this.requireMode3(accountId, deviceId)
     const { scope, context } = await this.scope(accountId, deviceId)
+    await this.processCoverTransfers(accountId,deviceId)
     const events = await this.native.unsealed(scope)
     let sealed = 0
     for (const event of events) {
       validateProjectMetadataEvent(event)
+      if(event.version===2 && !await this.coverGate(context))continue
       if (event.header.account_id !== scope.canonical_user_id || event.header.device_id !== deviceId) throw new TypeError('metadata_genesis_scope')
       const lease = this.keys.leaseForAccount(accountId)
       if (!lease) throw new KeyNotProvisionedError()
@@ -221,7 +313,7 @@ export class ProjectMetadataMigrationRuntime {
           entity_type: 'project_metadata', operation: 'upsert', revision: item.revision, updated_at: item.updated_at, deleted_at: null },
         object: { crypto_version: 1, aad_version: 1, nonce: Uint8Array.from(item.nonce), ciphertext: Uint8Array.from(item.ciphertext) },
       }
-      const pushed = await this.auth.authorized(token => this.api.pushMetadata(token, deviceId, [event]))
+      const pushed = await this.auth.authorized(token => item.metadata_codec_version===2 ? this.api.pushCoverMetadata(token,deviceId,[event]) : this.api.pushMetadata(token, deviceId, [event]))
       this.assertCurrent(context)
       if (pushed.context.userId !== context.userId || pushed.context.authEpoch !== context.authEpoch) throw new StaleAuthContextError()
       const receipt = pushed.value.results[0]
@@ -264,6 +356,16 @@ export class ProjectMetadataMigrationRuntime {
             const h = event.header
             if (h.device_id !== item.source_device_id || h.revision !== item.revision || h.updated_at !== canonicalizeSyncTimestamp(item.updated_at)
               || event.deleted_at !== item.deleted_at || (h.operation === 'delete' ? 'delete' : 'upsert') !== item.operation) throw new TypeError('metadata_inbox_mismatch')
+            if(event.version===2 && event.metadata?.cover_reference){
+              try{await this.verifyIncomingCover(scope,context,item.project_id,event.metadata.cover_reference)}
+              catch(error){
+                if(error instanceof StaleAuthContextError||error instanceof KeyNotProvisionedError)throw error
+                this.assertCurrent(context)
+                const code=error instanceof ApiError&&(error.status===404||(error.status===503&&error.code==='encrypted_blob_unavailable'))?'cover_blob_missing':'cover_blob_invalid'
+                await this.covers?.command(scope,item.project_id,'block',{event_id:item.event_id,reference:event.metadata.cover_reference,code},now());this.assertCurrent(context)
+                throw error
+              }
+            }
             const plaintext = encodeProjectMetadataEvent(event)
             try { this.assertCurrent(context); return await this.native.apply(scope, item.project_id, plaintext, nonce, ciphertext, now()) }
             finally { plaintext.fill(0) }
@@ -273,6 +375,16 @@ export class ProjectMetadataMigrationRuntime {
           else orphans += 1
         } catch (error) {
           if (error instanceof StaleAuthContextError || error instanceof KeyNotProvisionedError) throw error
+          // This typed error is raised only after metadata AEAD opens and its
+          // versioned decoder encounters an invalid reference. Retain the exact
+          // authenticated descriptor, including invalid fields, for safe retry.
+          if (error instanceof InvalidCoverReferenceError) {
+            this.assertCurrent(context)
+            await this.covers?.command(scope, item.project_id, 'block', {
+              event_id: item.event_id, reference: error.reference, code: 'cover_blob_invalid',
+            }, now())
+            this.assertCurrent(context)
+          }
           blocked.push(item.event_id)
         }
       }

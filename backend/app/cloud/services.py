@@ -424,6 +424,26 @@ class SyncService:
             session.rollback()
             raise
 
+    def cover_gate(self, session: Session, user_id: object) -> tuple[bool, int]:
+        devices = session.scalars(select(SyncDevice).where(SyncDevice.user_id == user_id)).all()
+        missing = sum(device.reader_transport_version != 3 or device.metadata_cover_reader_version != 2 for device in devices)
+        mode, _ = self.capabilities(session, user_id)
+        return bool(devices) and missing == 0 and mode == 3, missing
+
+    def declare_cover_reader(self, session: Session, user_id: object, request) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, request.device_id)
+                if device.reader_transport_version != 3:
+                    raise SyncProtocolError('cover_readers_not_ready', 'Mode 3 reader is required.', 409)
+                device.metadata_cover_reader_version = request.reader_version
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
     @staticmethod
     def content_note_reader_ready(device) -> bool:
         return (device.reader_transport_version == 3 and device.note_frame_version == 1
@@ -690,7 +710,7 @@ class SyncService:
 
     def push_encrypted(self, session: Session, user_id: object, device_id: object,
                        items: list[EncryptedSyncPushItem] | list[V2EncryptedSyncPushItem], *,
-                       transport_version: int = 1) -> tuple[list[SyncPushResult], int]:
+                       transport_version: int = 1, metadata_cover: bool = False) -> tuple[list[SyncPushResult], int]:
         try:
             from .schemas import AccountSyncEventEnvelope
             for item in items:
@@ -702,6 +722,9 @@ class SyncService:
                 device = self._registered_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
+                if metadata_cover and (transport_version != 3 or any(item.event.entity_type != 'project_metadata' for item in items)
+                                       or not self.cover_gate(session, user_id)[0]):
+                    raise SyncProtocolError('cover_readers_not_ready', 'All registered devices must support metadata-v2 covers.', 409)
                 # A mode-3 reader keeps the frozen Note-v2 writer endpoint.
                 # Its request schema admits Notes only; metadata uses v3.
                 if not (transport_version == 2 and state.writer_transport_version == 3):

@@ -54,6 +54,7 @@ const LEGACY_PROJECT_FIELDS: &[&str] = &[
     "stages_enabled",
     "combine_stage_mindmaps",
     "cover_image",
+    "cover_reference",
     "folder_id",
     "sync_available",
     "work_method",
@@ -162,7 +163,9 @@ pub(crate) fn new_event_id() -> Result<String, MetadataError> {
 }
 fn validate_metadata(value: &Value) -> Result<(), MetadataError> {
     let o = value.as_object().ok_or(MetadataError::Invalid)?;
-    if !exact(o, &FIELDS) {
+    let mut keys=FIELDS.to_vec();
+    if o.contains_key("cover_reference") {keys.push("cover_reference");crate::project_cover_sync::validate_reference(&o["cover_reference"])?;}
+    if !exact(o, &keys) {
         return Err(MetadataError::Invalid);
     }
     for key in ["name", "unit", "status", "work_method"] {
@@ -394,6 +397,7 @@ pub(crate) fn preserve_authenticated_event_checked(
     if bound.as_deref() != header["account_id"].as_str() {
         return Err(MetadataError::Scope);
     }
+    if let Some(reference)=root["metadata"].get("cover_reference") {crate::project_cover_sync::require_material(&tx,account,project,reference)?;}
     if let Some((stored, outcome)) = tx.query_row(
         "SELECT canonical_payload,outcome FROM cloud_sync_metadata_apply_ledger WHERE account_id=?1 AND event_id=?2",
         params![account,event_id], |r| Ok((r.get::<_,Vec<u8>>(0)?, r.get::<_,String>(1)?))
@@ -650,6 +654,15 @@ pub(crate) fn preserve_authenticated_event_checked(
             ON CONFLICT(account_id,project_id) DO UPDATE SET head_event_id=excluded.head_event_id,portable_json=excluded.portable_json,reconciled_at=excluded.reconciled_at",
             params![account,project,event_id,payload_json,now])?;
     }
+    if outcome=="applied" && root["metadata"].get("cover_reference").is_some() {
+        // Existing full-record conflict handling decides the winner; project the verified winner only.
+        if visible_metadata(&tx,project).ok().as_ref()==Some(&root["metadata"]) {write_visible_metadata(&tx,project,&root["metadata"],now)?;}
+        tx.execute("DELETE FROM cloud_cover_blockers WHERE account_id=?1 AND event_id=?2",params![account,event_id])?;
+        tx.execute("UPDATE cloud_cover_intents SET state='active',blocker=NULL WHERE account_id=?1 AND event_id=?2",params![account,event_id])?;
+        if matches!(operation,"resolution"|"genesis_resolution") {tx.execute("UPDATE cloud_cover_intents SET state='active',blocker=NULL WHERE account_id=?1 AND project_id=?2 AND state='metadata_pending'",params![account,project])?;}
+    }
+    if outcome=="conflict_preserved" {tx.execute("UPDATE cloud_cover_intents SET blocker='cover_conflict' WHERE account_id=?1 AND event_id=?2",params![account,event_id])?;}
+    tx.execute("DELETE FROM cloud_cover_blockers WHERE account_id=?1 AND event_id=?2",params![account,event_id])?;
     invalidate_stale_decisions(&tx, account, project, now)?;
     tx.commit()?;
     Ok(outcome)
@@ -712,7 +725,7 @@ pub(crate) fn unsealed_genesis(connection: &Connection, account: &str, device: &
             let user:String=connection.query_row("SELECT canonical_user_id FROM cloud_account_bindings WHERE local_account_id=?1",[account],|r|r.get(0))?;
             let metadata:Value=serde_json::from_str(&payload).map_err(|_|MetadataError::Invalid)?;
             let parent_ids:Value=serde_json::from_str(&parents).map_err(|_|MetadataError::Invalid)?;
-            Ok(json!({"version":1,"header":{"account_id":user,"bootstrap_id":bootstrap,"device_id":device,"entity_id":project,"event_id":event,"generation":generation,"operation":operation,"parent_event_ids":parent_ids,"project_id":project,"revision":revision,"updated_at":updated},"metadata":metadata,"deleted_at":null}))
+            Ok(json!({"version":if metadata.get("cover_reference").is_some(){2}else{1},"header":{"account_id":user,"bootstrap_id":bootstrap,"device_id":device,"entity_id":project,"event_id":event,"generation":generation,"operation":operation,"parent_event_ids":parent_ids,"project_id":project,"revision":revision,"updated_at":updated},"metadata":metadata,"deleted_at":null}))
         }).collect();
     events
 }
@@ -732,11 +745,11 @@ pub(crate) fn commit_sealed_genesis(connection:&mut Connection, account:&str, de
 
 #[derive(Serialize)]
 pub(crate) struct MetadataUploadItem {
-    pub event_id:String,pub project_id:String,pub revision:i64,pub updated_at:String,pub nonce:Vec<u8>,pub ciphertext:Vec<u8>,
+    pub event_id:String,pub project_id:String,pub revision:i64,pub updated_at:String,pub nonce:Vec<u8>,pub ciphertext:Vec<u8>,pub metadata_codec_version:i64,
 }
 pub(crate) fn sealed_genesis(connection:&Connection, account:&str, device:&str)->Result<Vec<MetadataUploadItem>,MetadataError>{
-    let mut statement=connection.prepare("SELECT e.event_id,e.project_id,e.revision,o.updated_at,obj.nonce,obj.ciphertext FROM cloud_sync_metadata_events e JOIN cloud_sync_outbox o ON o.event_id=e.event_id JOIN cloud_sync_event_objects obj ON obj.account_id=e.account_id AND obj.event_id=e.event_id WHERE e.account_id=?1 AND e.device_id=?2 AND e.state='sealed' AND o.lifecycle='sealed' AND NOT EXISTS(SELECT 1 FROM cloud_sync_metadata_invalidated_decisions stale WHERE stale.account_id=e.account_id AND stale.event_id=e.event_id) ORDER BY o.local_ordinal LIMIT 8")?;
-    let items=statement.query_map(params![account,device],|r|Ok(MetadataUploadItem{event_id:r.get(0)?,project_id:r.get(1)?,revision:r.get(2)?,updated_at:r.get(3)?,nonce:r.get(4)?,ciphertext:r.get(5)?}))?.collect::<Result<Vec<_>,_>>()?;
+    let mut statement=connection.prepare("SELECT e.event_id,e.project_id,e.revision,o.updated_at,obj.nonce,obj.ciphertext,CASE WHEN json_type(e.payload_json,'$.cover_reference') IS NULL THEN 1 ELSE 2 END FROM cloud_sync_metadata_events e JOIN cloud_sync_outbox o ON o.event_id=e.event_id JOIN cloud_sync_event_objects obj ON obj.account_id=e.account_id AND obj.event_id=e.event_id WHERE e.account_id=?1 AND e.device_id=?2 AND e.state='sealed' AND o.lifecycle='sealed' AND NOT EXISTS(SELECT 1 FROM cloud_sync_metadata_invalidated_decisions stale WHERE stale.account_id=e.account_id AND stale.event_id=e.event_id) ORDER BY o.local_ordinal LIMIT 8")?;
+    let items=statement.query_map(params![account,device],|r|Ok(MetadataUploadItem{event_id:r.get(0)?,project_id:r.get(1)?,revision:r.get(2)?,updated_at:r.get(3)?,nonce:r.get(4)?,ciphertext:r.get(5)?,metadata_codec_version:r.get(6)?}))?.collect::<Result<Vec<_>,_>>()?;
     Ok(items)
 }
 
@@ -759,8 +772,13 @@ pub(crate) struct MetadataInboxItem {
 }
 pub(crate) fn received_metadata(connection:&Connection,account:&str,limit:i64,after:i64)->Result<Vec<MetadataInboxItem>,MetadataError>{
     if !(1..=32).contains(&limit)||!(0..=MAX_REVISION).contains(&after){return Err(MetadataError::Invalid);}
-    let mut statement=connection.prepare("SELECT inbox.event_id,inbox.server_sequence,inbox.device_id,inbox.project_id,inbox.entity_id,inbox.sync_revision,inbox.updated_at,inbox.deleted_at,inbox.operation,obj.crypto_version,obj.aad_version,obj.nonce,obj.ciphertext FROM cloud_sync_inbox inbox JOIN cloud_sync_event_objects obj ON obj.account_id=inbox.account_id AND obj.event_id=inbox.event_id WHERE inbox.account_id=?1 AND inbox.entity_type='project_metadata' AND inbox.state IN ('received','orphan') AND inbox.server_sequence>?3 ORDER BY inbox.server_sequence LIMIT ?2")?;
-    let items=statement.query_map(params![account,limit,after],|r|Ok(MetadataInboxItem{event_id:r.get(0)?,server_sequence:r.get(1)?,source_device_id:r.get(2)?,project_id:r.get(3)?,entity_id:r.get(4)?,revision:r.get(5)?,updated_at:r.get(6)?,deleted_at:r.get(7)?,operation:r.get(8)?,crypto_version:r.get(9)?,aad_version:r.get(10)?,nonce:r.get(11)?,ciphertext:r.get(12)?}))?.collect::<Result<Vec<_>,_>>()?;
+    let tx=connection.unchecked_transaction()?;
+    let mut statement=tx.prepare("SELECT inbox.event_id,inbox.server_sequence,inbox.device_id,inbox.project_id,inbox.entity_id,inbox.sync_revision,inbox.updated_at,inbox.deleted_at,inbox.operation,obj.crypto_version,obj.aad_version,obj.nonce,obj.ciphertext FROM cloud_sync_inbox inbox JOIN cloud_sync_event_objects obj ON obj.account_id=inbox.account_id AND obj.event_id=inbox.event_id WHERE inbox.account_id=?1 AND inbox.entity_type='project_metadata' AND inbox.state IN ('received','orphan') AND inbox.server_sequence>?3 ORDER BY COALESCE((SELECT ordinal FROM cloud_game_reader_visits v WHERE v.account_id=inbox.account_id AND v.event_id=inbox.event_id),0),inbox.server_sequence LIMIT ?2")?;
+    let mut items=statement.query_map(params![account,limit,after],|r|Ok(MetadataInboxItem{event_id:r.get(0)?,server_sequence:r.get(1)?,source_device_id:r.get(2)?,project_id:r.get(3)?,entity_id:r.get(4)?,revision:r.get(5)?,updated_at:r.get(6)?,deleted_at:r.get(7)?,operation:r.get(8)?,crypto_version:r.get(9)?,aad_version:r.get(10)?,nonce:r.get(11)?,ciphertext:r.get(12)?}))?.collect::<Result<Vec<_>,_>>()?;
+    drop(statement);
+    crate::sqlite::record_sync_reader_visits(&tx,account,items.iter().map(|i|i.event_id.as_str()))?;
+    items.sort_by_key(|i|i.server_sequence);
+    tx.commit()?;
     Ok(items)
 }
 
@@ -791,7 +809,9 @@ fn visible_metadata(connection: &Connection, project: &str) -> Result<Value, Met
         "stages_enabled":source.get("stages_enabled").cloned().unwrap_or(json!(false)),
         "combine_stage_mindmaps":source.get("combine_stage_mindmaps").cloned().unwrap_or(json!(false)),
     });
-    let metadata = normalize_metadata_numbers(metadata);
+    let mut metadata = normalize_metadata_numbers(metadata);
+    if let Some(reference)=source.get("cover_reference") {metadata["cover_reference"]=reference.clone();}
+    else if let Some(raw)=connection.query_row("SELECT payload_json FROM cloud_sync_metadata_projection WHERE project_id=?1 AND deleted_at IS NULL",[project],|r|r.get::<_,String>(0)).optional()? {let prior:Value=serde_json::from_str(&raw).map_err(|_|MetadataError::Invalid)?;if let Some(reference)=prior.get("cover_reference"){metadata["cover_reference"]=reference.clone();}}
     validate_metadata(&metadata)?;
     Ok(metadata)
 }
@@ -814,8 +834,12 @@ pub(crate) fn write_visible_metadata(
         if pending{return Err(MetadataError::Conflict)}
     }
     let object = payload.as_object_mut().ok_or(MetadataError::Invalid)?;
-    for key in FIELDS {
-        object.insert(key.into(), metadata[key].clone());
+    for key in FIELDS {object.insert(key.into(),metadata[key].clone());}
+    if let Some(reference)=metadata.get("cover_reference") {
+        let account:String=tx.query_row("SELECT account_id FROM cloud_sync_project_bindings WHERE project_id=?1",[project],|r|r.get(0))?;
+        let projection=crate::project_cover_sync::require_material(tx,&account,project,reference)?;
+        object.insert("cover_reference".into(),reference.clone());
+        object.insert("cover_image".into(),projection.map(Value::String).unwrap_or(Value::Null));
     }
     let name = metadata["name"].as_str().ok_or(MetadataError::Invalid)?;
     let unit = metadata["unit"].as_str().ok_or(MetadataError::Invalid)?;
@@ -1050,7 +1074,7 @@ pub(crate) fn prepare_change_in_transaction(
     {
         return Err(MetadataError::Conflict);
     }
-    let desired = match kind {
+    let mut desired = match kind {
         "keep_local" => expected_local.clone(),
         "choose_branch" => view
             .branches
@@ -1060,6 +1084,13 @@ pub(crate) fn prepare_change_in_transaction(
             .ok_or(MetadataError::Invalid)?,
         _ => proposed.cloned().ok_or(MetadataError::Invalid)?,
     };
+    // Resolving an older complete v1 branch against a v2 cover branch means
+    // choosing its no-cover value. Keep the transition explicit and versioned;
+    // an already published cover authority must not silently revert to v1.
+    if desired.get("cover_reference").is_none()
+        && view.branches.iter().any(|branch|branch.metadata.get("cover_reference").is_some()) {
+        desired["cover_reference"]=Value::Null;
+    }
     validate_metadata(&desired)?;
     let tip_json = serde_json::to_string(&tips).map_err(|_| MetadataError::Invalid)?;
     if let Some((pending_id,pending_kind,pending_source,pending_json,pending_tips))=tx.query_row(
@@ -1176,7 +1207,19 @@ pub(crate) fn capture_normal_edit(
     }
     let desired = normalize_metadata_numbers(desired);
     validate_metadata(&desired)?;
-    if desired != local {
+    let old_cover:Option<String>=tx.query_row("SELECT json_extract(payload_json,'$.cover_image') FROM projects WHERE id=?1",[project],|r|r.get(0))?;
+    let new_cover=source.get("cover_image").and_then(Value::as_str);
+    let cover_changed=source.contains_key("cover_image")&&old_cover.as_deref()!=new_cover
+        && view.authenticated.as_ref().is_some_and(|m|m.get("cover_reference").is_some());
+    if cover_changed {
+        if view.state!="active" {return Err(MetadataError::Conflict)}
+        let tips=view.branches.iter().map(|b|b.event_id.clone()).collect::<Vec<_>>();
+        crate::project_cover_sync::capture_in_tx(&tx,&account,project,&device,&local,&desired,new_cover,&tips,now)?;
+        // Keep ordinary local editor fields coherent while the new blob is
+        // pending. The authenticated old reference remains unchanged until
+        // prepare seals the causally bound metadata candidate.
+        write_visible_metadata(&tx,project,&desired,now)?;
+    } else if desired != local {
         if view.state != "active" {
             return Err(MetadataError::Conflict);
         };
@@ -1216,6 +1259,82 @@ mod tests {
     const DEVICE: &str = "123e4567-e89b-42d3-a456-426614174003";
     const BOOT: &str = "123e4567-e89b-42d3-a456-426614174002";
     const NOW: &str = "2026-09-21T00:00:00.000000Z";
+    #[test]
+    fn cover_missing_restart_and_atomic_projection_rollback() {
+        use crate::project_cover_sync as cover;
+        use sha2::{Digest,Sha256};
+        let (mut db,path)=database();
+        let id="123e4567-e89b-42d3-a456-426614174051";
+        let blob="123e4567-e89b-42d3-a456-426614174052";
+        let envelope=json!({"aad_version":1,"crypto_version":1,"nonce":crate::note_sync::encode_canonical_base64url(&[0;24]),"ciphertext":crate::note_sync::encode_canonical_base64url(&[1;20])});
+        let reference=json!({"version":1,"blob_id":blob,"crypto_version":1,"aad_version":1,"mime_type":"image/jpeg","plaintext_size":4,"key_fingerprint":"a".repeat(64),"envelope_sha256":format!("{:x}",Sha256::digest(envelope.to_string().as_bytes()))});
+        let mut root:Value=serde_json::from_slice(&event(id,DEVICE,"Local name")).unwrap();
+        root["version"]=json!(2);root["metadata"]["cover_reference"]=reference.clone();
+        let payload=serde_json::to_vec(&root).unwrap();
+        inbound(&db,id,DEVICE,1);
+        assert!(preserve_authenticated_event(&mut db,ACCOUNT,"project",&payload,NOW).is_err());
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_events",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        let scope=MetadataScope{account_id:ACCOUNT.into(),canonical_user_id:USER.into(),device_id:DEVICE.into()};
+        cover::command(&mut db,&scope,"project","block",&json!({"event_id":id,"reference":reference,"code":"cover_blob_missing"}),NOW).unwrap();
+        drop(db);let mut db=sqlite::open_database(&path).unwrap();
+        assert_eq!(cover::command(&mut db,&scope,"project","status",&json!({}),NOW).unwrap()["blockers"],json!(["cover_blob_missing"]));
+        cover::command(&mut db,&scope,"project","material",&json!({"reference":reference,"nonce":vec![0;24],"ciphertext":vec![1;20],"jpeg":[255,216,255,217]}),NOW).unwrap();
+        db.execute_batch("CREATE TRIGGER interrupted_cover_apply BEFORE UPDATE ON projects BEGIN SELECT RAISE(ABORT,'interrupted apply'); END;").unwrap();
+        assert!(preserve_authenticated_event(&mut db,ACCOUNT,"project",&payload,NOW).is_err());
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_sync_metadata_events",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_cover_blockers",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+        db.execute_batch("DROP TRIGGER interrupted_cover_apply;").unwrap();
+        assert_eq!(preserve_authenticated_event(&mut db,ACCOUNT,"project",&payload,NOW).unwrap(),"applied");
+        assert_eq!(authority_view(&db,ACCOUNT,"project").unwrap().authenticated.unwrap()["cover_reference"],reference);
+        let local:String=db.query_row("SELECT json_extract(payload_json,'$.cover_image') FROM projects",[],|r|r.get(0)).unwrap();
+        assert_eq!(local,"data:image/jpeg;base64,/9j/2Q==");
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_cover_blockers",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        drop(db);let _=std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn cover_reader_rotation_is_bounded_and_survives_restart() {
+        let (db,path)=database();
+        for sequence in 1..=41 {
+            let id=format!("123e4567-e89b-42d3-a456-{:012}",sequence+100);
+            inbound(&db,&id,DEVICE,sequence);
+        }
+        let mut seen=std::collections::BTreeSet::new();
+        for _ in 0..6 {
+            let reopened=sqlite::open_database(&path).unwrap();
+            let page=received_metadata(&reopened,ACCOUNT,8,0).unwrap();
+            assert!(page.len()<=8);
+            seen.extend(page.iter().map(|item|item.server_sequence));
+        }
+        assert!(seen.contains(&41));assert_eq!(seen.len(),41);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_reader_visits",[],|r|r.get::<_,i64>(0)).unwrap(),41);
+        assert_eq!(db.query_row("SELECT ack_cursor FROM cloud_sync_state",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        drop(db);let _=std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn cover_and_v1_name_change_share_full_tip_conflict_and_resolution() {
+        let (mut db,path)=database();
+        let ids=["123e4567-e89b-42d3-a456-426614174061","123e4567-e89b-42d3-a456-426614174062","123e4567-e89b-42d3-a456-426614174063"];
+        inbound(&db,ids[0],DEVICE,1);
+        preserve_authenticated_event(&mut db,ACCOUNT,"project",&event(ids[0],DEVICE,"Local name"),NOW).unwrap();
+        let renamed=causal_event(ids[1],DEVICE,"Changed name","update",&[ids[0].into()],2,2);
+        inbound_causal(&db,ids[1],DEVICE,2,2);
+        preserve_authenticated_event(&mut db,ACCOUNT,"project",&renamed,NOW).unwrap();
+        let mut cover:Value=serde_json::from_slice(&causal_event(ids[2],DEVICE,"Local name","update",&[ids[0].into()],2,2)).unwrap();
+        cover["version"]=json!(2);cover["metadata"]["cover_reference"]=Value::Null;
+        inbound_causal(&db,ids[2],DEVICE,3,2);
+        preserve_authenticated_event(&mut db,ACCOUNT,"project",&serde_json::to_vec(&cover).unwrap(),NOW).unwrap();
+        let view=authority_view(&db,ACCOUNT,"project").unwrap();assert_eq!(view.state,"metadata_conflict");
+        let tips=view.branches.iter().map(|branch|branch.event_id.clone()).collect::<Vec<_>>();
+        prepare_authoritative_change(&mut db,ACCOUNT,"project",DEVICE,"choose_branch",Some(ids[1]),None,view.local.as_ref().unwrap(),&tips,NOW).unwrap();
+        let pending=unsealed_genesis(&db,ACCOUNT,DEVICE).unwrap();
+        let resolution=pending.last().unwrap();
+        assert_eq!(resolution["version"],2);assert_eq!(resolution["metadata"]["name"],"Changed name");
+        assert!(resolution["metadata"]["cover_reference"].is_null());assert_eq!(resolution["header"]["parent_event_ids"],json!(tips));
+        drop(db);let _=std::fs::remove_file(path);
+    }
+
     fn database() -> (Connection, std::path::PathBuf) {
         database_with_contents(false)
     }
@@ -2187,7 +2306,7 @@ fn decode_metadata_event(bytes: &[u8], project: &str) -> Result<Value, MetadataE
         return Err(MetadataError::Invalid);
     }
     let root = value.as_object().ok_or(MetadataError::Invalid)?;
-    if !exact(root, &["version", "header", "metadata", "deleted_at"]) || root["version"] != 1 {
+    if !exact(root, &["version", "header", "metadata", "deleted_at"]) || !matches!(root["version"].as_u64(),Some(1|2)) {
         return Err(MetadataError::Invalid);
     }
     let header = root["header"].as_object().ok_or(MetadataError::Invalid)?;
@@ -2254,6 +2373,8 @@ fn decode_metadata_event(bytes: &[u8], project: &str) -> Result<Value, MetadataE
     } else if !root["deleted_at"].is_null() {
         return Err(MetadataError::Invalid);
     } else {
+        let has_cover=root["metadata"].get("cover_reference").is_some();
+        if has_cover!=(root["version"]==2) {return Err(MetadataError::Invalid)}
         validate_metadata(&root["metadata"])?;
     }
     Ok(value)
@@ -2407,6 +2528,7 @@ pub(crate) fn commit_metadata_import_page(
         }
         previous_sequence = item.server_sequence;
         let value = decode_metadata_event(&item.plaintext, project)?;
+        if let Some(reference)=value["metadata"].get("cover_reference"){crate::project_cover_sync::require_material(&tx,account,project,reference)?;}
         let h = value["header"].as_object().ok_or(MetadataError::Invalid)?;
         if str_field(h, "account_id")? != user || str_field(h, "bootstrap_id")? != bootstrap {
             return Err(MetadataError::Scope);
@@ -2470,4 +2592,33 @@ pub(crate) fn commit_metadata_import_page(
     tx.execute("UPDATE cloud_sync_metadata_imports SET cursor=?3,state=?4,event_count=event_count+?5,payload_bytes=payload_bytes+?6 WHERE account_id=?1 AND project_id=?2",params![account,project,page.next_cursor,if page.has_more {"running"} else {"complete"},page.events.len() as i64,bytes])?;
     tx.commit()?;
     read_metadata_import(connection, account, project, bootstrap)
+}
+
+
+/// Independent native framing verifier; historical v1 is never rewritten.
+pub(crate) fn unframe_metadata_event(frame:&[u8])->Result<Value,MetadataError>{
+ if frame.len()<20||frame.len()>MAX_BYTES+20||&frame[..8]!=b"WORTA-C1"||frame[8]!=1||frame[9]!=1||!matches!(frame[10],1|2)||frame[11]!=0{return Err(MetadataError::Invalid)}
+ let len=frame.len()-20;
+ if u32::from_be_bytes(frame[12..16].try_into().unwrap()) as usize!=len||u32::from_be_bytes(frame[16..20].try_into().unwrap()) as usize!=len{return Err(MetadataError::Invalid)}
+ let value:Value=serde_json::from_slice(&frame[20..]).map_err(|_|MetadataError::Invalid)?;
+ let project=value["header"]["project_id"].as_str().ok_or(MetadataError::Invalid)?;
+ let value=decode_metadata_event(&frame[20..],project)?;
+ if value["version"]!=frame[10] {return Err(MetadataError::Invalid)}
+ Ok(value)
+}
+#[cfg(test)]
+mod cover_vectors {
+ use super::*;
+ #[test]
+ fn project_metadata_cover_v2_golden_vectors_preserve_v1(){
+  let vectors:Vec<Value>=serde_json::from_str(include_str!("../../src/cloud/__fixtures__/projectMetadataV2.json")).unwrap();
+  for vector in vectors {
+   let raw=vector["frame_hex"].as_str().unwrap();let bytes=(0..raw.len()).step_by(2).map(|i|u8::from_str_radix(&raw[i..i+2],16).unwrap()).collect::<Vec<_>>();
+   assert_eq!(&bytes[20..],vector["canonical"].as_str().unwrap().as_bytes());
+   assert_eq!(unframe_metadata_event(&bytes).unwrap(),vector["event"]);
+   for offset in [8,9,10,11] {let mut bad=bytes.clone();bad[offset]=255;assert!(unframe_metadata_event(&bad).is_err());}
+   let mut bad=vector["event"].clone();bad["metadata"]["unknown"]=json!(true);assert!(decode_metadata_event(bad.to_string().as_bytes(),"project").is_err());
+   if bad["version"]==2 {bad["metadata"].as_object_mut().unwrap().remove("unknown");bad["version"]=json!(1);assert!(decode_metadata_event(bad.to_string().as_bytes(),"project").is_err());}
+  }
+ }
 }

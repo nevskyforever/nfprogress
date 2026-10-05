@@ -60,7 +60,7 @@ def test_document_reader_upgrade_preserves_populated_note_reader_baseline(cloud_
         assert after == before
         assert connection.execute(text('SELECT document_frame_version,document_codec_version,document_reader_version,'
             'document_compression_zero FROM sync_devices')).one() == (0, 0, 0, False)
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c18_game_readers'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c18_cover_readers'
     with Session(engine) as session:
         from backend.app.cloud.services import SyncService
         assert not SyncService.document_reader_ready(session.query(SyncDevice).filter_by(user_id=user).one())
@@ -129,5 +129,5 @@ def test_document_gate_three_registered_devices_exact_replay_and_downgrade(cloud
     with pytest.raises(RuntimeError, match='document history exists'):
         command.downgrade(Config(str(ROOT / 'alembic.ini')), 'c18_map_readers')
     with engine.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c18_game_readers'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c18_cover_readers'
         assert connection.execute(text('SELECT count(*) FROM sync_events')).scalar_one() == 1

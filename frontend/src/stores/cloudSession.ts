@@ -1,3 +1,4 @@
+import type { CoverAuthorityStatus } from '@/cloud/projectMetadataMigrationRuntime'
 import type {ProgressAuthorityView,ProgressDecision} from '@/cloud/progressSyncRuntime'
 import type {GameAuthorityView,GameDecision,GameCompensation} from '@/cloud/gameSyncRuntime'
 import type {DocumentAuthorityView,DocumentDecision} from '@/cloud/documentSyncRuntime'
@@ -123,6 +124,9 @@ export interface CloudSessionRuntime {
   prepareMetadataTransport(): Promise<void>
   declareMetadataReaderReady(): Promise<void>
   cutoverMetadataTransport(): Promise<void>
+  projectCoverPreview?(projectId:string,reference:import('@/cloud/projectCoverReference').ProjectCoverReference):Promise<string|null>
+  projectCoverAuthority?(projectId:string):Promise<CoverAuthorityStatus>
+  beginCoverMigration?(projectId:string):Promise<void>
   projectMetadataAuthority(projectId: string): Promise<MetadataAuthorityView>
   beginProjectMetadataMigration(projectId: string): Promise<MetadataMigrationStatus>
   adoptProjectMetadata(projectId: string, expectedHead: string, expectedLocal: ProjectMetadata): Promise<MetadataAuthorityView>
@@ -203,6 +207,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   const metadataTransportMode = ref<1 | 2 | 3 | null>(null)
   const catalogAuthority=ref<CatalogView|null>(null)
   const structuralAuthority = ref<Record<string, StructuralView>>({})
+  const coverAuthority=ref<Record<string,CoverAuthorityStatus>>({})
   const metadataAuthority = ref<Record<string, MetadataAuthorityView>>({})
   const canRunCycle = ref(false)
   const projectBootstrapEnabled = canEnableCloudProjectSync()
@@ -218,6 +223,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     lastCycleAt.value = null
     projects.value = []
     metadataTransportMode.value = null
+    coverAuthority.value = {}
     metadataAuthority.value = {}
     structuralAuthority.value = {}
     progressAuthority.value = {}
@@ -710,6 +716,46 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     if (current(epoch)) metadataTransportMode.value = 3
   }
 
+  /** A normal saved cover starts one bounded cycle; it never captures a legacy source. */
+  async function syncSavedCover(projectId: string): Promise<void> {
+    if (!supported.value || !hasProvisionedKey.value || !canRunCycle.value
+      || !['ready', 'syncing', 'completed', 'retryable_error', 'blocked', 'remaining_work'].includes(status.value)
+      || !runtime?.projectCoverAuthority) return
+    const epoch = lifecycleEpoch
+    try {
+      if (syncFlight?.epoch === epoch) await syncFlight.promise
+      if (!current(epoch) || !runtime?.projectCoverAuthority) return
+      const view = await runtime.projectCoverAuthority(projectId)
+      if (!current(epoch)) return
+      coverAuthority.value = { ...coverAuthority.value, [projectId]: view }
+      if (view.active && view.pending) await retry()
+    } catch (error) {
+      // A local save has already committed. Keep network failure in the cloud
+      // status while the exact native transfer remains durable for retry.
+      setFailure(error, epoch)
+    }
+  }
+
+  async function coverPreview(projectId:string,reference:import('@/cloud/projectCoverReference').ProjectCoverReference):Promise<string|null>{
+    const epoch=lifecycleEpoch,runtime=requireRuntime();if(!runtime.projectCoverPreview)return null
+    const result=await runtime.projectCoverPreview(projectId,reference);return current(epoch)?result:null
+  }
+  async function inspectCover(projectId:string):Promise<void>{
+    const epoch=lifecycleEpoch,runtime=requireRuntime()
+    if(!runtime.projectCoverAuthority)return
+    const view=await runtime.projectCoverAuthority(projectId)
+    if(current(epoch))coverAuthority.value={...coverAuthority.value,[projectId]:view}
+  }
+  async function beginCover(projectId:string):Promise<void>{
+    await diagnostics.run('migrations','metadata_migration',async correlation=>{
+      const epoch=lifecycleEpoch,runtime=requireRuntime()
+      if(!runtime.beginCoverMigration)throw new TypeError('cover_runtime_unavailable')
+      await runtime.beginCoverMigration(projectId)
+      if(!current(epoch))return
+      await inspectCover(projectId);await retry(correlation);await inspectCover(projectId);await inspectProjectMetadata(projectId)
+    })
+  }
+
   async function beginMetadataMigration(projectId: string): Promise<void> {
     await diagnostics.run('migrations', 'metadata_migration', async correlation => {
       const epoch = lifecycleEpoch
@@ -793,6 +839,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     supported, status, username, hasProvisionedKey, errorMessage, errorCode, blockedEvents, blockedEventCodes,
     hasRemainingWork, lastCycleAt, busy, authenticated, projects, canRunCycle,
     catalogAuthority,inspectCatalog,beginCatalog,decideCatalog,
+    coverAuthority,inspectCover,beginCover,coverPreview,syncSavedCover,
     metadataTransportMode, metadataAuthority, structuralAuthority, inspectStructure, beginStructure, decideStructure,
     projectBootstrapEnabled,
     initialize, login, prepareProvisioning, submitProvisioning, reconcileProvisioning,

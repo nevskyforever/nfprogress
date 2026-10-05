@@ -130,7 +130,7 @@ def test_c15_sqlite_sync_substrate_fresh_schema_is_metadata_only():
     )""")
     connection.execute("INSERT INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES ('game-1','Game','p','{\"coins\": 1}','2026-09-21T00:00:00Z')")
 
-    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 37
+    assert apply_migrations(connection) == CURRENT_SCHEMA_VERSION == 38
     assert connection.execute("SELECT context_json FROM domain_events WHERE event_id='game-1'").fetchone()[0] == '{"coins": 1}'
     tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert {
@@ -743,6 +743,11 @@ def test_c17_upgrade_from_populated_v23_replaces_only_generation_guards(tmp_path
     for name in list(current_triggers):
         if name.startswith(('cloud_sync_metadata_', 'cloud_sync_structural_', 'structural_', 'account_inbox_', 'project_inbox_cross_scope_', 'catalog_', 'content_note_', 'cloud_map_', 'map_', 'cloud_document_', 'document_', 'cloud_progress_', 'progress_', 'projects_progress_', 'stages_progress_', 'game_')):
             current_triggers.pop(name)
+    cover_triggers = {'cover_intent_source_immutable', 'cover_intent_sealed_immutable',
+                      'cover_material_immutable', 'cover_material_retained'}
+    assert {name for name in current_triggers if name.startswith('cover_')} == cover_triggers
+    for name in cover_triggers:
+        current_triggers.pop(name)
     current_triggers.pop('cloud_sync_note_applied_resolution_insert_guard')
     preserved_triggers.pop('cloud_sync_note_applied_resolution_insert_guard')
     assert current_triggers == preserved_triggers

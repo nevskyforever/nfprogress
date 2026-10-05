@@ -14,7 +14,7 @@ use rusqlite::{
     TransactionBehavior,
 };
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 37;
+pub const CURRENT_SCHEMA_VERSION: i64 = 38;
 
 /// Durable inbox scheduling only: visits cannot prove apply or advance ACK.
 /// Reuse schema37's visit records; event IDs are unique across entity families.
@@ -562,7 +562,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 37] = [
+const MIGRATIONS: [(i64, &str); 38] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -646,6 +646,7 @@ const MIGRATIONS: [(i64, &str); 37] = [
     (35, include_str!("../../../nfprogress/core/sqlite/migrations/035_document_authority.sql")),
     (36, include_str!("../../../nfprogress/core/sqlite/migrations/036_progress_authority.sql")),
     (37, include_str!("../../../nfprogress/core/sqlite/migrations/037_game_action_ledgers.sql")),
+    (38, include_str!("../../../nfprogress/core/sqlite/migrations/038_cover_transfers.sql")),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {

@@ -154,6 +154,7 @@ class SyncDevice(Base):
 
     __tablename__ = 'sync_devices'
     __table_args__ = (
+        CheckConstraint('metadata_cover_reader_version IN (0, 2)', name='ck_sync_devices_metadata_cover_reader_version'),
         CheckConstraint('reader_transport_version IN (2, 3)', name='ck_sync_devices_reader_transport_version'),
         CheckConstraint('note_frame_version IN (0, 1)', name='ck_sync_devices_note_frame_version'),
         CheckConstraint('note_codec_version IN (0, 1)', name='ck_sync_devices_note_codec_version'),
@@ -183,6 +184,7 @@ class SyncDevice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     last_ack_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
+    metadata_cover_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     reader_transport_version: Mapped[int] = mapped_column(Integer, nullable=False, default=2, server_default=text('2'))
     note_frame_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     note_codec_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))

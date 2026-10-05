@@ -40,6 +40,7 @@ mod map_codec;
 mod map_sync;
 #[allow(dead_code)]
 mod project_metadata_sync;
+mod project_cover_sync;
 mod stage_sync;
 mod profile_transfer;
 #[allow(dead_code)]
@@ -2806,6 +2807,12 @@ fn list_sealed_project_metadata_genesis(scope:project_metadata_sync::MetadataSco
 fn commit_project_metadata_upload_receipt(scope:project_metadata_sync::MetadataScope,event_id:String,server_sequence:i64,duplicate:bool,now:String)->Result<(),String>{
     let mut connection=metadata_connection(&scope)?;
     project_metadata_sync::commit_upload_receipt(&mut connection,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn project_cover_command(scope:project_metadata_sync::MetadataScope,project_id:String,action:String,data:serde_json::Value,now:String)->Result<serde_json::Value,String>{
+ let mut connection=metadata_connection(&scope)?;
+ project_cover_sync::command(&mut connection,&scope,&project_id,&action,&data,&now).map_err(|e|e.to_string())
 }
 
 #[tauri::command]
@@ -6294,6 +6301,7 @@ pub fn run() {
             list_sealed_project_metadata_genesis,
             commit_project_metadata_upload_receipt,
             list_received_project_metadata,
+            project_cover_command,
             apply_authenticated_project_metadata,
             read_project_metadata_authority,
             read_project_metadata_import,

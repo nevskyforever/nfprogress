@@ -179,6 +179,7 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
                 35: "035_document_authority.sql",
                 36: "036_progress_authority.sql",
                 37: "037_game_action_ledgers.sql",
+                38: "038_cover_transfers.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

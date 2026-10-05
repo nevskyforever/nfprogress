@@ -6017,3 +6017,144 @@ _C18506_TRANSLATIONS = {
 }
 for _language, _translations in _C18506_TRANSLATIONS.items():
     TRANSLATION_OVERRIDES[_language].update(_translations)
+
+
+# C18.6.01: source strings and exact terminology for the Vue cover workflow/help.
+_COVER_SYNC_TRANSLATIONS = {
+    'Обложка': (
+        'Cover',
+        'Portada',
+        'Cover',
+        'Couverture',
+        'Capa',
+    ),
+    'Обложка в облаке': (
+        'Cloud cover',
+        'Portada en la nube',
+        'Cover in der Cloud',
+        'Couverture dans le cloud',
+        'Capa na nuvem',
+    ),
+    'Обложка не прошла проверку': (
+        'Cover verification failed',
+        'La portada no pasó la verificación',
+        'Cover-Prüfung fehlgeschlagen',
+        'Échec de la vérification de la couverture',
+        'A verificação da capa falhou',
+    ),
+    'Зашифрованная обложка пока недоступна': (
+        'Encrypted cover is temporarily unavailable',
+        'La portada cifrada no está disponible temporalmente',
+        'Das verschlüsselte Cover ist vorübergehend nicht verfügbar',
+        'La couverture chiffrée est temporairement indisponible',
+        'A capa criptografada está temporariamente indisponível',
+    ),
+    'Конфликт обложки: выберите полную версию настроек проекта': (
+        'Cover conflict: choose a complete project settings version',
+        'Conflicto de portada: elige una versión completa de la configuración del proyecto',
+        'Cover-Konflikt: vollständige Version der Projekteinstellungen wählen',
+        'Conflit de couverture : choisissez une version complète des paramètres du projet',
+        'Conflito de capa: escolha uma versão completa das configurações do projeto',
+    ),
+    'Локальная обложка повреждена или не поддерживается': (
+        'Local cover is invalid or unsupported',
+        'La portada local está dañada o no es compatible',
+        'Das lokale Cover ist beschädigt oder wird nicht unterstützt',
+        'La couverture locale est endommagée ou non prise en charge',
+        'A capa local está danificada ou não é compatível',
+    ),
+    'Для обложки требуется обновление всех устройств': (
+        'All devices must be updated to sync covers',
+        'Todos los dispositivos deben actualizarse para sincronizar portadas',
+        'Zum Synchronisieren von Covern müssen alle Geräte aktualisiert werden',
+        'Tous les appareils doivent être mis à jour pour synchroniser les couvertures',
+        'Todos os dispositivos precisam ser atualizados para sincronizar capas',
+    ),
+    'Публикация обложки ожидает завершения': (
+        'Cover publication is pending',
+        'La publicación de la portada está pendiente',
+        'Cover-Veröffentlichung steht aus',
+        'La publication de la couverture est en attente',
+        'A publicação da capa está pendente',
+    ),
+    'Обложка синхронизирована': (
+        'Cover synchronized',
+        'Portada sincronizada',
+        'Cover synchronisiert',
+        'Couverture synchronisée',
+        'Capa sincronizada',
+    ),
+    'Обложка хранится только на этом устройстве': (
+        'Cover is stored only on this device',
+        'La portada se guarda solo en este dispositivo',
+        'Das Cover ist nur auf diesem Gerät gespeichert',
+        'La couverture est stockée uniquement sur cet appareil',
+        'A capa é armazenada apenas neste dispositivo',
+    ),
+    'Обложка шифруется до отправки. Сервер не видит изображение.': (
+        'The cover is encrypted before upload. The server cannot see the image.',
+        'La portada se cifra antes de enviarla. El servidor no puede ver la imagen.',
+        'Das Cover wird vor dem Upload verschlüsselt. Der Server kann das Bild nicht sehen.',
+        'La couverture est chiffrée avant son envoi. Le serveur ne peut pas voir l’image.',
+        'A capa é criptografada antes do envio. O servidor não pode ver a imagem.',
+    ),
+    'Недоступная обложка временно задерживает полную синхронизацию.': (
+        'An unavailable cover temporarily delays complete synchronization.',
+        'Una portada no disponible retrasa temporalmente la sincronización completa.',
+        'Ein nicht verfügbares Cover verzögert vorübergehend die vollständige Synchronisierung.',
+        'Une couverture indisponible retarde temporairement la synchronisation complète.',
+        'Uma capa indisponível atrasa temporariamente a sincronização completa.',
+    ),
+    'Удаление обложки сохраняет зашифрованные изображения в истории.': (
+        'Removing a cover retains encrypted images in history.',
+        'Al quitar una portada, las imágenes cifradas se conservan en el historial.',
+        'Beim Entfernen eines Covers bleiben verschlüsselte Bilder im Verlauf erhalten.',
+        'Retirer une couverture conserve les images chiffrées dans l’historique.',
+        'Ao remover uma capa, as imagens criptografadas permanecem no histórico.',
+    ),
+    'Опубликовать обложку': (
+        'Publish cover',
+        'Publicar portada',
+        'Cover veröffentlichen',
+        'Publier la couverture',
+        'Publicar capa',
+    ),
+    'Не удалось завершить синхронизацию обложки': (
+        'Could not complete cover synchronization',
+        'No se pudo completar la sincronización de la portada',
+        'Cover-Synchronisierung konnte nicht abgeschlossen werden',
+        'Impossible de terminer la synchronisation de la couverture',
+        'Não foi possível concluir a sincronização da capa',
+    ),
+    'Версия без обложки': (
+        'Version without a cover',
+        'Versión sin portada',
+        'Version ohne Cover',
+        'Version sans couverture',
+        'Versão sem capa',
+    ),
+    'Показать обложку этой версии': (
+        'Show this version’s cover',
+        'Mostrar la portada de esta versión',
+        'Cover dieser Version anzeigen',
+        'Afficher la couverture de cette version',
+        'Mostrar a capa desta versão',
+    ),
+    'Зашифрованные обложки проектов': (
+        'Encrypted project covers',
+        'Portadas cifradas de proyectos',
+        'Verschlüsselte Projektcover',
+        'Couvertures de projet chiffrées',
+        'Capas criptografadas de projetos',
+    ),
+    '<html><body><h2>Зашифрованные обложки проектов</h2><p>После включения настроек проекта в облаке существующая обложка остаётся локальной. В настройках облака выберите «Опубликовать обложку». Все зарегистрированные устройства должны поддерживать эту возможность. Запуск приложения, вход и открытие проекта сами по себе обложку не публикуют.</p><p>Обложка шифруется до отправки: сервер не видит изображение. После первой подтверждённой публикации обычная замена и удаление обложки создают зашифрованные изменения настроек проекта. У локального проекта обложка остаётся только на устройстве.</p><p>Если зашифрованная обложка недоступна или не прошла проверку, проверенное изображение сохраняется, а полная синхронизация временно задерживается. Повторите попытку позже; незавершённая публикация и ожидание обложки переживают перезапуск.</p><p>При одновременной замене, удалении или изменении других настроек выберите полную версию проекта в существующем разделе конфликтов. Можно просмотреть проверенную обложку каждой версии. Удаление обложки не стирает исторические зашифрованные изображения на сервере.</p></body></html>': (
+        '<html><body><h2>Encrypted project covers</h2><p>After enabling cloud project settings, an existing cover remains local. Choose “Publish cover” in cloud settings. Every registered device must support this feature. Starting the application, signing in or opening a project does not publish a cover.</p><p>The cover is encrypted before upload: the server cannot see the image. After the first confirmed publication, ordinary replacement and removal create encrypted changes to project settings. A local project’s cover stays only on the device.</p><p>If an encrypted cover is unavailable or fails verification, the verified image is preserved while complete synchronization is temporarily delayed. Retry later; unfinished publication and waiting for a cover survive restart.</p><p>For concurrent replacement, removal or changes to other settings, choose a complete project version in the existing conflict section. You can preview each version’s verified cover. Removing a cover does not erase historical encrypted images on the server.</p></body></html>',
+        '<html><body><h2>Portadas cifradas de proyectos</h2><p>Después de activar la configuración del proyecto en la nube, la portada existente sigue siendo local. Elige «Publicar portada» en la configuración de la nube. Todos los dispositivos registrados deben admitir esta función. Iniciar la aplicación, iniciar sesión o abrir un proyecto no publica la portada.</p><p>La portada se cifra antes de enviarla: el servidor no puede ver la imagen. Tras la primera publicación confirmada, sustituir o quitar la portada crea cambios cifrados en la configuración del proyecto. La portada de un proyecto local permanece solo en el dispositivo.</p><p>Si una portada cifrada no está disponible o no supera la verificación, se conserva la imagen verificada mientras la sincronización completa se retrasa temporalmente. Reintenta más tarde; la publicación pendiente y la espera de una portada sobreviven al reinicio.</p><p>Si hay sustituciones, eliminaciones o cambios simultáneos de otros ajustes, elige una versión completa del proyecto en la sección de conflictos existente. Puedes ver la portada verificada de cada versión. Quitar una portada no borra las imágenes cifradas históricas del servidor.</p></body></html>',
+        '<html><body><h2>Verschlüsselte Projektcover</h2><p>Nach dem Aktivieren der Cloud-Projekteinstellungen bleibt ein vorhandenes Cover lokal. Wählen Sie in den Cloud-Einstellungen „Cover veröffentlichen“. Alle registrierten Geräte müssen diese Funktion unterstützen. App-Start, Anmeldung und Öffnen des Projekts veröffentlichen kein Cover.</p><p>Das Cover wird vor dem Upload verschlüsselt: Der Server kann das Bild nicht sehen. Nach der ersten bestätigten Veröffentlichung erzeugen Ersetzen und Entfernen verschlüsselte Änderungen der Projekteinstellungen. Das Cover eines lokalen Projekts bleibt auf dem Gerät.</p><p>Ist ein verschlüsseltes Cover nicht verfügbar oder ungültig, bleibt das geprüfte Bild erhalten; die vollständige Synchronisierung wird vorübergehend verzögert. Versuchen Sie es später erneut. Ausstehende Veröffentlichung und Cover-Wartezustand bleiben nach einem Neustart erhalten.</p><p>Bei gleichzeitigen Änderungen wählen Sie im bestehenden Konfliktbereich eine vollständige Projektversion. Das geprüfte Cover jeder Version kann angezeigt werden. Beim Entfernen bleiben historische verschlüsselte Bilder auf dem Server erhalten.</p></body></html>',
+        '<html><body><h2>Couvertures de projet chiffrées</h2><p>Après activation des paramètres du projet dans le cloud, une couverture existante reste locale. Choisissez « Publier la couverture » dans les paramètres du cloud. Tous les appareils enregistrés doivent prendre en charge cette fonction. Démarrer l’application, se connecter ou ouvrir un projet ne publie pas de couverture.</p><p>La couverture est chiffrée avant son envoi : le serveur ne peut pas voir l’image. Après la première publication confirmée, remplacer ou retirer la couverture crée des modifications chiffrées des paramètres du projet. La couverture d’un projet local reste sur l’appareil.</p><p>Si une couverture chiffrée est indisponible ou échoue à la vérification, l’image vérifiée est conservée et la synchronisation complète est temporairement retardée. Réessayez plus tard : la publication en attente et l’attente d’une couverture survivent au redémarrage.</p><p>Lors de modifications simultanées, choisissez une version complète du projet dans la section existante des conflits. Vous pouvez afficher la couverture vérifiée de chaque version. Retirer une couverture n’efface pas les images chiffrées historiques du serveur.</p></body></html>',
+        '<html><body><h2>Capas criptografadas de projetos</h2><p>Após ativar as configurações do projeto na nuvem, uma capa existente permanece local. Escolha “Publicar capa” nas configurações da nuvem. Todos os dispositivos registrados precisam oferecer suporte a esse recurso. Iniciar o aplicativo, entrar ou abrir um projeto não publica a capa.</p><p>A capa é criptografada antes do envio: o servidor não pode ver a imagem. Após a primeira publicação confirmada, substituir ou remover a capa cria alterações criptografadas nas configurações do projeto. A capa de um projeto local permanece no dispositivo.</p><p>Se uma capa criptografada estiver indisponível ou falhar na verificação, a imagem verificada é preservada e a sincronização completa é temporariamente atrasada. Tente novamente mais tarde: a publicação pendente e a espera pela capa sobrevivem à reinicialização.</p><p>Em alterações simultâneas, escolha uma versão completa do projeto na seção existente de conflitos. Você pode visualizar a capa verificada de cada versão. Remover uma capa não apaga as imagens criptografadas históricas do servidor.</p></body></html>',
+    ),
+}
+
+for _cover_language, _cover_index in zip(("en", "es", "de", "fr", "pt_BR"), range(5)):
+    TRANSLATION_OVERRIDES[_cover_language].update({source: values[_cover_index] for source, values in _COVER_SYNC_TRANSLATIONS.items()})

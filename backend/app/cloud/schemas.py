@@ -786,3 +786,30 @@ class GameReaderCapabilities(BaseModel):
     device_id: UUID
     project: ProjectGameReaderSupport
     account: AccountGameReaderSupport
+
+
+class ProjectCoverReaderCapabilities(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    frame_version: Literal[1]
+    codec_id: Literal[1]
+    metadata_codec_version: Literal[2]
+    cover_crypto_version: Literal[1]
+    cover_aad_version: Literal[1]
+    compression_zero: Literal[True]
+    reader_version: Literal[0, 2]
+
+    @field_validator('frame_version', 'codec_id', 'metadata_codec_version',
+                     'cover_crypto_version', 'cover_aad_version', 'reader_version', mode='before')
+    @classmethod
+    def strict_cover_version(cls, value):
+        if type(value) is not int:
+            raise ValueError('Reader version must be an integer')
+        return value
+
+    @field_validator('compression_zero', mode='before')
+    @classmethod
+    def strict_cover_compression(cls, value):
+        if type(value) is not bool:
+            raise ValueError('Compression evidence must be a boolean')
+        return value

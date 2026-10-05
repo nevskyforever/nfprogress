@@ -5464,6 +5464,10 @@ pub(crate) fn import_remote_cloud_project(
         "INSERT INTO projects(id,name,goal,infinite,unit,status,created_at,updated_at,payload_json) VALUES(?1,?2,NULL,1,'symbols','активен',?3,?3,?4)",
         rusqlite::params![command.project_id, name, now, payload.to_string()],
     )?;
+    transaction.execute(
+        "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES(?1,?2,?3,?3)",
+        rusqlite::params![command.project_id, command.account_id, now],
+    )?;
     if let Some(metadata)=command.authenticated_metadata.as_ref() {
         crate::project_metadata_sync::write_visible_metadata(&transaction,&command.project_id,metadata,&now)
             .map_err(|_|NoteSyncError::InvalidSealState("invalid authenticated import metadata"))?;
@@ -5475,10 +5479,6 @@ pub(crate) fn import_remote_cloud_project(
     transaction.execute(
         "INSERT INTO project_order(project_id,position) VALUES(?1,?2)",
         rusqlite::params![command.project_id, position],
-    )?;
-    transaction.execute(
-        "INSERT INTO cloud_sync_project_bindings(project_id,account_id,created_at,updated_at) VALUES(?1,?2,?3,?3)",
-        rusqlite::params![command.project_id, command.account_id, now],
     )?;
     transaction.execute(
         "INSERT INTO cloud_sync_project_bootstraps(

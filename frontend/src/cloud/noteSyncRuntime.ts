@@ -327,6 +327,21 @@ export class NoteSyncRuntime {
     return this.metadata.status(identity.local_account_id, identity.device_id, projectId)
   }
 
+  async projectCoverAuthority(projectId:string) {
+    const context=this.auth.requireContext(),identity=await this.readFor(context)
+    this.assertUnlocked(context,identity)
+    return this.metadata.coverAuthority(identity.local_account_id,identity.device_id,projectId)
+  }
+  async projectCoverPreview(projectId:string,reference:import('./projectCoverReference').ProjectCoverReference){
+    const context=this.auth.requireContext(),identity=await this.readFor(context);this.assertUnlocked(context,identity)
+    return this.metadata.coverPreview(identity.local_account_id,identity.device_id,projectId,reference)
+  }
+  async beginCoverMigration(projectId:string):Promise<void> {
+    const context=this.auth.requireContext(),identity=await this.readFor(context)
+    this.assertUnlocked(context,identity)
+    await this.metadata.captureCover(identity.local_account_id,identity.device_id,projectId)
+  }
+
   async projectMetadataAuthority(projectId: string): Promise<MetadataAuthorityView> {
     const context = this.auth.requireContext()
     const identity = await this.readFor(context)

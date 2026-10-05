@@ -13,7 +13,7 @@ export interface MetadataMigrationStatus {
   candidate_id: string | null; event_id: string | null; blockers: string[]; genesis_tips: number
 }
 export interface SealedMetadataGenesis {
-  event_id: string; project_id: string; revision: number; updated_at: string; nonce: number[]; ciphertext: number[]
+  event_id: string; project_id: string; revision: number; updated_at: string; nonce: number[]; ciphertext: number[]; metadata_codec_version?:1|2
 }
 export interface ReceivedMetadataEvent {
   event_id: string; server_sequence: number; source_device_id: string; project_id: string; entity_id: string
