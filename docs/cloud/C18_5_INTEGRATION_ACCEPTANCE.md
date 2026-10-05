@@ -238,3 +238,118 @@ only after independent remote acceptance: C18.6.01 COVER BLOB / REFERENCE /
 MISSING-BLOB ACCEPTANCE. Release/registration decision and C21 local-Web-first
 sequence remain unchanged. After the authorized push, Codex stops without polling
 Actions; expected workflows are Cloud backend tests and SQLite sync substrate tests.
+
+
+## C18.5.07 Cloud CI runtime correction
+
+Correction baseline: `9b2c7594589b7dfa58b5b7fe83905f0336a7c710`, branch `6.0`,
+HEAD = origin/6.0 and worktree clean before this correction. Production files,
+protocols, assertions and the three integration fixes above remain unchanged.
+
+### Completed remote run inspection (no rerun or polling)
+
+Owner/GPT independent result: SQLite **37288645324 SUCCESS**; Cloud
+**37288645301 CANCELLED**. Frontend admin succeeded (381 + 199 + 48 tests,
+typecheck and build). PostgreSQL mandatory acceptance succeeded: **52 passed,
+zero skips**, pytest 2026.05 seconds. C18.5 remains a closure candidate.
+
+Stored Cloud run timestamps (UTC): created 2026-10-05 09:13:44, updated 09:54:07.
+PostgreSQL job started 09:13:47, completed 09:54:06 (40:19 including cleanup).
+The cancellation error was emitted at 09:54:03; configured job timeout was 40
+minutes. The stored check-run annotation explicitly confirms:
+`The job has exceeded the maximum execution time of 40m0s`.
+Setup/container/toolchains/dependencies to first native check:
+09:13:47–09:15:12 (1:25). Native checks: 09:15:12–09:18:50 (3:38).
+Mandatory step: 09:18:50–09:52:39 (33:49). Focused regression step:
+09:52:39–09:54:03 (1:24 before cancellation).
+
+The quiet pytest log confirms at least **72 focused tests passed** at 09:53:20
+(37% of 194); buffering prevents an exact final completed count. It does not
+record the active node ID when cancelled. The last identifiable test activity is
+`test_cloud_encrypted_blobs.py::test_c14_postgresql_constraints_and_c13_roundtrip`:
+its nine deliberately invalid blob inserts emitted PostgreSQL constraint errors
+at 09:54:01.999–09:54:02.007. These match its `pytest.raises(IntegrityError)`
+assertions; they are expected negative-test output, not pytest failures. It is
+node 129 of the baseline focused collection; serial ordering suggests 128 prior
+nodes completed, but only the 72-dot progress line is an explicit passed-count
+record. The exact count at cancellation cannot be recovered from this quiet log.
+No pytest assertion/error/failure summary preceded cancellation. Classification:
+**CI runtime / 40-minute job timeout**, not a product correctness failure.
+
+### Deterministic coverage manifest
+
+The explicit file lists in `cloud-backend-tests.yml` are the executable manifest;
+there is no collection-order or random balancing. All jobs run independently.
+
+| Selection | Old intended files / collected tests | New assignment |
+|---|---|---|
+| Mandatory ACK / multi-device | 26 / 52 | foundation: 15 / 30; content-action: 11 / 22 |
+| Focused cloud / legacy | 14 / 194 | regressions: identical 14 / 194 |
+| Native Rust checks | note_sync, account_catalog, account_sync, document_codec, document_sync, progress_ | unchanged commands, once in foundation |
+| Frontend admin | three curated groups, typecheck, build | entire job unchanged |
+
+Foundation contains sync, two-device, C15/C17 historical Note (including
+three-device conflict), project/C16 bootstrap, C18 metadata/account, structural,
+catalog, authority and edge families. Content-action contains Note/Map/Document/
+Progress/Game gates and acceptance plus mixed C18.5 integration. Both retain
+`Run mandatory sync ACK and multi-device backend acceptance without skips`, with
+pytest/tee failure checks and the same zero-skip guard.
+
+Collection comparison uses complete pytest node-ID sets, not only counts:
+old mandatory = foundation union content-action; old focused = regressions.
+The sets are disjoint: **246 unique Python tests**, no exact duplicates removed,
+no unique tests/families lost, no skip/xfail/assertion changes. Native and frontend
+selections are unchanged. Server-blindness, all entity families, shared ACK,
+two-/three-device, mixed integration and Alembic upgrade/head/round-trip checks
+remain selected.
+
+Each matrix expansion and the regression job provisions its own PostgreSQL 16
+service and fresh `nfprogress_c1_test` database on its own runner. No shared DB,
+cache of mutable DB state, cross-job ordering or dependencies. Existing fixture
+Alembic setup and cleanup remain unchanged. Both mandatory shards need Python,
+Node/npm production crypto and Rust/headless native dependencies. Regression
+files and imported backend/SQLite helpers use Python only; they install no Node,
+Rust, native GTK dependencies or frontend npm packages.
+
+Every PostgreSQL job retains **timeout-minutes: 40**; frontend retains 15. Splitting
+the former 33:49 mandatory workload itself, rather than merely moving regressions,
+provides variance margin. Runtime estimates remain estimates until independent
+remote acceptance confirms actual runner timings.
+
+Both push/PR filters retain all previous paths and additionally cover all native
+sources/toolchain files, C9 SQLite tests, legacy engine and core dependencies.
+Workflow self and cloud docs continue triggering all Cloud jobs. SQLite workflow
+filters do not match these Cloud-workflow/docs-only edits; no production edit is
+manufactured to trigger it. Accepted implementation SQLite run 37288645324
+remains carried forward.
+
+### Correction validation and status
+
+YAML parsing, matrix/service/timeout/trigger checks, pinned-action checks and
+`bash -n` for every run command pass. Frontend job, native commands and regression
+selection compare equal to the baseline. Collect-only proof: 30 + 22 + 194 = 246.
+Single local separated-group execution (sequential pytest sessions, one isolated
+PostgreSQL database with existing fixture reset/cleanup, temporary legacy profile;
+no production data):
+
+| Group | Collected / passed | Skipped / failed | Wall time |
+|---|---|---|---|
+| foundation | 30 / 30 | 0 / 0 | 462.82s (7:43) |
+| content-action | 22 / 22 | 0 / 0 | 740.64s (12:21) |
+| regressions | 194 / 194 | 0 / 0 | 106.10s (1:46) |
+
+Mixed C18.5 and Progress acceptance passed. No frontend/native unit rerun was
+needed: their commands are unchanged and passed in the inspected baseline run;
+both mandatory groups execute the real native bridge and production crypto.
+The local mandatory split is approximately 38% / 62% of test time. Applying that
+ratio to the observed remote 33:49 workload, plus the old setup/native overhead,
+gives planning estimates near 18 / 26 minutes per mandatory job (not a remote
+result or guarantee); the regression job has its own full 40-minute budget.
+`git diff --check` passed; protected engine/game_data Python 3.12 bytecode size
+and modification timestamps remain identical to preflight. Only the workflow
+and these two documents changed.
+
+C18.5.07: **CI CORRECTION LOCAL COMPLETE / REMOTE CI PENDING** after validation.
+C18.5: **CLOSURE CANDIDATE / REMOTE CI PENDING**. C18: **IN PROGRESS**. Progress:
+**77.0%**. P0 remaining 0, P1 remaining 0. Only independent GPT/owner full-green
+acceptance may close C18.5; the correction push does not close it or begin C18.6.

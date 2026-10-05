@@ -13,6 +13,47 @@
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## C18.5.07 — Cloud CI runtime correction (5 октября 2026)
+
+Implementation SHA: `9b2c7594589b7dfa58b5b7fe83905f0336a7c710`.
+Независимые результаты: SQLite **37288645324 — SUCCESS**; Cloud
+**37288645301 — CANCELLED**. Frontend admin — **SUCCESS**; PostgreSQL обязательная
+sync ACK / multi-device приёмка — **SUCCESS**, 52 passed, 0 skipped.
+Отмена произошла позже в `Run focused cloud and legacy API tests`.
+
+Сохранённый завершённый лог прочитан до изменений: PostgreSQL job
+09:13:47–09:54:06 UTC 2026-10-05; подготовка 1:25, native checks 3:38,
+mandatory 33:49, focused 1:24 до отмены. Лог подтверждает минимум 72 прошедших
+focused теста; quiet output не позволяет точно определить итоговый count или
+активный node ID. Последняя идентифицируемая активность — отрицательные
+constraint checks C14 encrypted blobs. Assertion/test failure перед отменой
+не обнаружен. Архивная check-run annotation подтверждает:
+`The job has exceeded the maximum execution time of 40m0s`.
+Классификация: **40-minute CI job timeout / runtime**.
+
+Коррекция только Cloud workflow/docs: mandatory разделена на стабильные
+foundation (30 tests) и content-action (22), focused regressions (194) вынесены
+в независимый Python-only job. Каждый PostgreSQL job имеет отдельный disposable
+service/database и прежний лимит 40 минут. Все 246 уникальных Python tests,
+native filters, frontend и zero-skip mandatory guard сохранены. Production
+protocols и три integration fixes baseline не изменены. Coverage manifest и
+локальные результаты: `docs/cloud/C18_5_INTEGRATION_ACCEPTANCE.md`.
+Локально один раз прошли все группы: foundation **30/30, 462.82s**;
+content-action **22/22, 740.64s**; regressions **194/194, 106.10s**;
+**0 skips, 0 failures**. YAML/structure/bash syntax, collection union,
+`git diff --check` проверены; защищённые pyc не затронуты.
+
+C18.5.07 остаётся **LOCAL COMPLETE / REMOTE CI PENDING**, коррекция после локальной
+проверки — **CI CORRECTION LOCAL COMPLETE / REMOTE CI PENDING**. C18.5 —
+**CLOSURE CANDIDATE / REMOTE CI PENDING**; C18 — **IN PROGRESS**; официальный
+прогресс строго **77.0%**. P0/P1 remaining: 0/0. Закрытие допускается только после
+независимой полной green remote приёмки. C18.6 не начат.
+
+После push ожидается **Cloud backend tests** (два mandatory shards, regressions,
+frontend admin). Cloud-workflow/docs-only paths не запускают SQLite по текущим
+filters; implementation SQLite SUCCESS **37288645324** сохраняется. Codex не
+polls Actions и не ждёт CI. Published correction SHA сообщается в task result.
+
 ## Permanent Codex CI handling rule
 
 После успешно завершённого и разрешённого локального commit Codex самостоятельно выполняет `git push origin 6.0`; обычный push больше не требует ручного действия пользователя. После push Codex не ждёт GitHub Actions и не проверяет workflow через `gh`, GitHub API, браузер или другой polling. Codex сообщает published SHA и ожидаемые workflow/jobs, считает опубликованный slice `REMOTE CI PENDING` и завершает задачу. Независимую проверку remote SHA и GitHub Actions выполняет GPT-чат. Собственный commit/push Codex не даёт права объявить roadmap stage `CLOSED` или изменить официальный процент. ChatGPT сообщает пользователю рекомендуемые модель/thinking и необходимость нового Codex-чата вне копируемого task prompt; эти инструкции не включаются в task prompts. Сохранять это правило во всех следующих checkpoint.
