@@ -407,7 +407,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         if (current(epoch)) await refreshProjects()
         if (current(epoch) && result.transport_version === 3) {
           const gameChanged=(result.cycle.gameApply?.applied??0)+(result.cycle.gameApply?.conflicts??0)
-          if(gameChanged>0){if(gameAuthority.value)await inspectGame();if(current(epoch))announceDataChange('game')}
+          // A local deferred mutation can block authority without creating any
+          // Game inbox event. Refresh an inspected view even in an idle cycle.
+          if(gameAuthority.value)await inspectGame()
+          if(gameChanged>0&&current(epoch))announceDataChange('game')
           const progressChanged=(result.cycle.progressApply?.applied??0)+(result.cycle.progressApply?.conflicts??0)
           if(progressChanged>0)for(const projectId of Object.keys(progressAuthority.value)){if(!current(epoch))break;await inspectProgress(projectId)}
           const documentsChanged=(result.cycle.documentApply?.applied??0)+(result.cycle.documentApply?.conflicts??0)

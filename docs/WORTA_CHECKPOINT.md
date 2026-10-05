@@ -1,12 +1,13 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 3 октября 2026 года.\
+**Дата:** 5 октября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS / C18.4 STRUCTURAL / CATALOG ENTITIES CLOSED / C18.5.01 REMOTELY ACCEPTED / C18.5.02 REMOTELY ACCEPTED / C18.5.03 REMOTELY ACCEPTED / C18.5.04 REMOTELY ACCEPTED / C18.5.05 IN PROGRESS**.\
-**Последнее закрытие:** C18.4 независимо закрыт для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac`; SQLite `37004006923` и Cloud `37004006914` — **SUCCESS**, все четыре jobs. Последний закрытый полный roadmap stage остаётся C17.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.06 — **REMOTELY ACCEPTED**; C18.5.07 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий статус C18.5:** **CLOSURE CANDIDATE / REMOTE CI PENDING**, окончательное CLOSED требует независимой приёмки .07; C18.6 — **NOT STARTED**.\
+**Последняя независимая приёмка:** C18.5.06 SHA `d34254fef37501e95d7b435f35e3106e6d8eda95`; SQLite `37212649560` и Cloud `37212649515` — **SUCCESS**, включая обязательные multi-device/ACK jobs. C18.4 независимо CLOSED для SHA `ddfe65c5b606fca259a88bfc6644074098e9faac` (SQLite `37004006923`, Cloud `37004006914`). Последний закрытый полный roadmap stage остаётся C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
@@ -50,6 +51,19 @@
 | C15.7B           | `9578706b9e86a12daceb42a3b69bdc8e60921ce9` | Atomic encrypted inbox remote apply |
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
+
+**Текущая приёмка C18.5.06, независимо предоставленная owner/GPT:** SHA
+`d34254fef37501e95d7b435f35e3106e6d8eda95` — **REMOTELY ACCEPTED**.
+
+- [SQLite sync substrate 37212649560](https://github.com/nevskyforever/nfprogress/actions/runs/37212649560) — SUCCESS: Python/Rust substrate, Game vectors и предыдущие native entity regressions.
+- [Cloud backend 37212649515](https://github.com/nevskyforever/nfprogress/actions/runs/37212649515) — SUCCESS: frontend, PostgreSQL, mandatory sync ACK/multi-device acceptance и focused API tests.
+
+C18.5.01–.05 также REMOTELY ACCEPTED; точные SHA/run evidence сохранены ниже.
+Секции LOCAL COMPLETE / REMOTE CI PENDING предыдущих slices ниже являются
+историческими записями и не заменяют эту текущую сводку. C18.5.07 локально завершён;
+C18.5 — CLOSURE CANDIDATE / REMOTE CI PENDING; C18 остаётся IN PROGRESS, официальный прогресс **77.0%**.
+
+### Исторические remote acceptance evidence
 
 **Для correction SHA `25476c611b91e26e5b94798dcf33a55924a45e08` (C15 closure):**
 
@@ -2692,3 +2706,67 @@ Release gate, final terminology audit and C21 local-Web-first remain preserved.
 Independent remote acceptance is required before recommending
 `C18.5.07 — CONTENT/ACTION INTEGRATION AUDIT / C18.5 CLOSURE`; no C18.5.07 work is
 included. After publication Codex stops without polling GitHub Actions.
+
+
+### C18.5.06 — independent remote acceptance
+
+**C18.5.06 — REMOTELY ACCEPTED.** Owner/GPT independent implementation SHA
+`d34254fef37501e95d7b435f35e3106e6d8eda95`:
+
+- SQLite [37212649560](https://github.com/nevskyforever/nfprogress/actions/runs/37212649560) — SUCCESS: Python/Rust SQLite substrate, Game codec vectors, preceding Note/Map/Document/Progress/native regressions.
+- Cloud [37212649515](https://github.com/nevskyforever/nfprogress/actions/runs/37212649515) — SUCCESS: frontend, PostgreSQL, mandatory ACK/multi-device acceptance, focused cloud/legacy API tests.
+
+This supersedes all historical .06 pending/work-in-progress sections. Accepted
+slices .01–.06 and their exact evidence are enumerated in the integration document.
+
+### C18.5.07 — local integration closure candidate
+
+Branch6.0; starting clean HEAD == origin/6.0 ==
+`d34254fef37501e95d7b435f35e3106e6d8eda95`. Implementation is this C18.5.07
+commit; its published SHA is reported in the task result. Dedicated evidence:
+[Content/action integration acceptance](cloud/C18_5_INTEGRATION_ACCEPTANCE.md).
+
+**C18.5.07 — LOCAL COMPLETE / REMOTE CI PENDING.**
+**C18.5 — CLOSURE CANDIDATE / REMOTE CI PENDING.**
+Only owner/GPT independent Actions acceptance can establish final C18.5 CLOSED.
+C18.4 CLOSED; .01–.06 REMOTELY ACCEPTED; C18 IN PROGRESS; official77.0%;
+C18.6 NOT STARTED.
+
+P0 found0; P1 found3 and resolved; remaining P0/P1=0; no open task-specific P2:
+
+1. First remote Stage lacked empty Progress read-model defaults, falsely conflicting with admitted genesis. Initialize total0/empty entries only for a new Stage; preserve existing history.
+2. Open Game authority could display stale success after a durable deferred mutation. Refresh on data changes and inspected idle sync cycles; unsubscribe on unmount, no automatic publication.
+3. More than32 retained content events could indefinitely hide later owners across bounded cycles. Note8/Map/Document/Progress reuse schema37 durable reader visits; output remains sequence-sorted. Historical Note v1/v2 paging remains unchanged. No added sync cursor/ACK proof.
+
+Registry1–13 and all golden bytes unchanged; project C11 and account2/2 domains
+unchanged. Authenticated dependency DAG, explicit consent, staged capability gates,
+ONE common ACK with held Progress plus later safe Note, reader fairness/reopen,
+local-only exclusion with two cloud projects, Note/Map edit/delete single authority,
+Document/Progress composition, one G/R reward, A→B→A and upgraded C convergence,
+independent Note/Map conflicts, Stage tombstone with all child families retained,
+server blindness and deferred/F source preservation verified. No codec14/schema38,
+new crypto/AAD, telemetry, protocol redesign or C18.6 implementation.
+
+Final local evidence:
+
+- Python SQLite workflow selection442 PASS, zero skips; final production routing/F guard14 PASS.
+- Native workflow17 filters358 PASS; explicit content/Game rotation2 PASS; cargo check PASS.
+- Mandatory real-PG/production-TS/native-file acceptance52 PASS, zero skips; focused backend/API194 PASS, zero skips.
+- Final mixed scenario including map-derived Note deletion1 PASS; local-only two-cloud-project scenario1 PASS.
+- Frontend workflow381 PASS/60 files; typecheck/build PASS; Chromium blocker refresh without publication, explicit consent/full-tip/reversal flows and six locales PASS.
+- Diagnostics TS/Rust equality/privacy, SQLite contiguous1–37/all-prefix/populated36 upgrade/reopen, single Alembic c18_game_readers head, Python syntax/imports, workflow YAML and git diff --check PASS.
+- Protected engine/game_data pyc untouched, original mtimes/sizes retained. Existing frontend size/dynamic-import and native dead-code warnings remain outside the bounded slice.
+
+Local platform macOS/Python3.12/Node26.4.0 with existing WebStorage compatibility
+flag; independent Linux/Windows CI with pinned Python3.13/Node20.19.0 is pending.
+An initial no-DB aggregate run with skips was rejected, then both Cloud workflow
+selections passed with an explicit isolated PostgreSQL URL and zero mandatory skips.
+
+Authorized single commit/push to origin6.0; afterward Codex does not poll Actions.
+Expected: Cloud backend tests; SQLite sync substrate tests. Next ONLY after independent
+remote acceptance: **C18.6.01 — COVER BLOB / REFERENCE / MISSING-BLOB ACCEPTANCE**.
+Release gate unchanged: full C18 → C21 → C22 → C23 → PF6.0/RC → owner dogfooding /
+stabilization → diagnostics review → final user-facing terminology audit → explicit
+owner registration decision. PF6.0/RC does not automatically open registration.
+C21 order remains local browser build → Tauri dependency audit → browser adapters →
+stable local Web → VPS/production.

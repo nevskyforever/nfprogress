@@ -16,6 +16,28 @@ use rusqlite::{
 
 pub const CURRENT_SCHEMA_VERSION: i64 = 37;
 
+/// Durable inbox scheduling only: visits cannot prove apply or advance ACK.
+/// Reuse schema37's visit records; event IDs are unique across entity families.
+/// Call inside the reader's transaction, before handing encrypted rows to TS.
+pub(crate) fn record_sync_reader_visits<'a>(
+    db: &Connection, account: &str, ids: impl IntoIterator<Item = &'a str>,
+) -> rusqlite::Result<()> {
+    let mut ordinal: i64 = db.query_row(
+        "SELECT COALESCE(MAX(ordinal),0) FROM cloud_game_reader_visits WHERE account_id=?1",
+        [account], |r| r.get(0),
+    )?;
+    for id in ids {
+        ordinal = ordinal.checked_add(1).filter(|n| *n <= 9007199254740991)
+            .ok_or(rusqlite::Error::InvalidQuery)?;
+        db.execute(
+            "INSERT INTO cloud_game_reader_visits VALUES(?1,?2,?3) ON CONFLICT(account_id,event_id) DO UPDATE SET ordinal=excluded.ordinal",
+            rusqlite::params![account,id,ordinal],
+        )?;
+    }
+    Ok(())
+}
+
+
 /// Every ordinary Rust connection is fail-closed.  The remote-apply command
 /// installs its scoped verifier only after opening its dedicated connection.
 pub(crate) fn register_fail_closed_remote_apply_guard(connection: &Connection) -> Result<(), StorageError> {
@@ -1005,6 +1027,50 @@ fn validate_json_column(
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn sqlite_content_reader_rotation_survives_more_than_one_cycle_and_reopen() {
+        const USER: &str = "123e4567-e89b-42d3-a456-426614174000";
+        const DEVICE: &str = "123e4567-e89b-42d3-a456-426614174001";
+        fn listed(db: &Connection, kind: &str, after: i64) -> Vec<serde_json::Value> {
+            match kind {
+                "map" => crate::map_sync::received(db,"test",after,8).unwrap(),
+                "document" => crate::document_sync::received(db,"test",after,8).unwrap(),
+                "progress" => crate::progress_sync::received(db,"test",after,8).unwrap(),
+                "note" => crate::note_sync::list_received_note_sync_inbox_page(db,
+                    &crate::note_sync::ListReceivedNoteSyncInboxPageCommand {
+                        account_id:"test".into(),device_id:DEVICE.into(),canonical_user_id:USER.into(),
+                        kind:crate::note_sync::ReceivedNoteSyncInboxPageKind::Content,limit:8,after_server_sequence:after,
+                    }).unwrap().into_iter().map(|row|serde_json::to_value(row).unwrap()).collect(),
+                _ => unreachable!(),
+            }
+        }
+        for kind in ["note","map","document","progress"] {
+            let path=std::env::temp_dir().join(format!("reader-{kind}-{}.db",crate::project_metadata_sync::new_event_id().unwrap()));
+            let db=open_database(&path).unwrap();
+            db.execute("INSERT INTO cloud_sync_state(account_id,device_id,created_at,updated_at) VALUES('test',?1,'now','now')",[DEVICE]).unwrap();
+            db.execute("INSERT INTO cloud_account_bindings VALUES('test',?1,'now','now')",[USER]).unwrap();
+            for sequence in 1..=40 {
+                let id=crate::project_metadata_sync::new_event_id().unwrap();
+                db.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,state,received_at) VALUES('test',?1,?2,?3,'p',?1,?4,'event',1,'2026-10-01T00:00:00.000000Z','orphan','now')",rusqlite::params![id,sequence,DEVICE,kind]).unwrap();
+                db.execute("INSERT INTO cloud_sync_event_objects VALUES('test',?1,1,1,?2,?3,'now')",rusqlite::params![id,vec![4u8;24],vec![5u8;32]]).unwrap();
+            }
+            let mut after=0;
+            for _ in 0..4 {
+                let rows=listed(&db,kind,after);assert_eq!(rows.len(),8);
+                after=rows.last().unwrap()["server_sequence"].as_i64().unwrap();
+            }
+            assert_eq!(after,32);
+            drop(db);
+            let db=open_database(&path).unwrap();
+            let next=listed(&db,kind,0);
+            assert_eq!(next.iter().map(|r|r["server_sequence"].as_i64().unwrap()).collect::<Vec<_>>(),(33..=40).collect::<Vec<_>>());
+            assert_eq!(db.query_row("SELECT ack_cursor FROM cloud_sync_state",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+            assert_eq!(db.query_row("SELECT count(*) FROM cloud_sync_inbox WHERE state='orphan'",[],|r|r.get::<_,i64>(0)).unwrap(),40);
+            assert_eq!(db.query_row("SELECT count(*) FROM cloud_sync_outbox",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+            drop(db);std::fs::remove_file(path).unwrap();
+        }
+    }
     use super::*;
 
     const TEST_DEVICE_ID: &str = "123e4567-e89b-42d3-a456-426614174001";

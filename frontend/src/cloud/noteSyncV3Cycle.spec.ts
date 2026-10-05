@@ -7,7 +7,7 @@ const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174003'
 const PAGE = { committed_cursor: 1, new_events: 1, replayed_events: 0, has_more: false }
 
-async function setup(structuralEnabled = false, accountEnabled = false, contentEnabled = false, mapEnabled = false, documentEnabled = false) {
+async function setup(structuralEnabled = false, accountEnabled = false, contentEnabled = false, mapEnabled = false, documentEnabled = false, actionsEnabled = false) {
   const auth = new NormalUserAuthRuntime({
     login: vi.fn().mockResolvedValue({ access_token: 'token', refresh_token: 'refresh', access_expires_in: 60 }),
     refresh: vi.fn(), logout: vi.fn(), me: vi.fn().mockResolvedValue({ id: USER, username: 'u',
@@ -55,15 +55,31 @@ async function setup(structuralEnabled = false, accountEnabled = false, contentE
       applied: 1, conflicts: 0, hasRemainingWork: false } }),
   }
   const documents={declareSupport:vi.fn(async()=>{calls.push('declare_documents')}),sealDocuments:vi.fn(async()=>{calls.push('seal_documents');return 0}),uploadDocuments:vi.fn(async()=>{calls.push('upload_documents');return 0}),readOnce:vi.fn(async()=>{calls.push('apply_documents');return {listed:1,applied:0,conflicts:0,blocked:['document_unsupported_extension'],hasRemainingWork:true}})}
+  const progress={declareSupport:vi.fn(),beginProgress:vi.fn(),sealProgress:vi.fn().mockResolvedValue(0),uploadProgress:vi.fn().mockResolvedValue(0),readOnce:vi.fn(async()=>{calls.push('apply_progress');return {listed:2,applied:1,conflicts:0,blocked:['progress_parent_unknown'],hasRemainingWork:true}})}
+  const game={gameReaderAvailable:vi.fn().mockResolvedValue(true),declareGameSupport:vi.fn(),beginGame:vi.fn(),sealGame:vi.fn().mockResolvedValue(0),uploadGame:vi.fn().mockResolvedValue(0),readGameOnce:vi.fn(async()=>{calls.push('apply_game');return {listed:2,applied:1,conflicts:0,blocked:['game_source_dependency_unknown'],hasRemainingWork:true}})}
   const cycle = new NoteSyncV3Cycle(auth, bindings as never, identity as never, keys as never,
-    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined, contentEnabled ? content as never : undefined, mapEnabled ? maps as never : undefined, documentEnabled ? documents as never : undefined)
-  return { documents, account, structural, maps, cycle, calls, capabilities, intents, note, resolution, metadata,
+    device as never, intents as never, note as never, resolution as never, noteApply as never, metadata as never, structuralEnabled ? structural as never : undefined, accountEnabled ? account as never : undefined, contentEnabled ? content as never : undefined, mapEnabled ? maps as never : undefined, documentEnabled ? documents as never : undefined, actionsEnabled ? progress as never : undefined, actionsEnabled ? game as never : undefined)
+  return { progress, game, documents, account, structural, maps, cycle, calls, capabilities, intents, note, resolution, metadata,
     mode: (value: number) => { writerMode = value } }
 }
 
 afterEach(() => vi.restoreAllMocks())
 
 describe('mode-3 Note and metadata cycle', () => {
+  it('continues every family through several blockers without migration consent',async()=>{
+    const h=await setup(true,true,true,true,true,true)
+    for(let pass=0;pass<2;pass++){
+      const start=h.calls.length
+      const result=await h.cycle.runOnce('local',DEVICE)
+      expect(result.blocked).toEqual(expect.arrayContaining(['orphan','document_unsupported_extension','progress_parent_unknown','game_source_dependency_unknown']))
+      expect(result.hasRemainingWork).toBe(true)
+      const calls=h.calls.slice(start)
+      for(const family of ['apply_content','apply_maps','apply_documents','apply_progress','apply_game','ack'])expect(calls).toContain(family)
+      expect(h.calls.indexOf('apply_progress')).toBeLessThan(h.calls.indexOf('apply_game'))
+    }
+    expect(h.progress.beginProgress).not.toHaveBeenCalled();expect(h.game.beginGame).not.toHaveBeenCalled()
+  })
+
   it('runs the framed Note reader after dependencies and before common ACK without a content writer', async () => {
     const h=await setup(true,true,true),r=await h.cycle.runOnce('local',DEVICE)
     expect(h.calls.indexOf('apply_structure')).toBeLessThan(h.calls.indexOf('apply_content'))

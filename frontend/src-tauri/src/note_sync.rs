@@ -6847,6 +6847,9 @@ fn list_note_sync_inbox_items(
     if !(1..=MAX_RECEIVED_INBOX_LIST_LIMIT).contains(&limit)
         || after_server_sequence.is_some_and(|value| !(0..=MAX_SYNC_INTEGER).contains(&value))
     { return Err(NoteSyncError::InvalidListLimit); }
+    // Historical v1/resolution paging stays stable. Only the newly admitted
+    // content Note stream needs durable rotation across bounded cycles.
+    let rotate = allowed_operations == ["event"];
     let transaction = connection.unchecked_transaction()?;
     validate_pull_scope(&transaction, account_id, device_id, canonical_user_id)?;
     let query = format!(
@@ -6857,12 +6860,14 @@ fn list_note_sync_inbox_items(
          FROM cloud_sync_inbox AS inbox
          LEFT JOIN cloud_sync_event_objects AS object
            ON object.account_id=inbox.account_id AND object.event_id=inbox.event_id
+         LEFT JOIN cloud_game_reader_visits AS visits
+           ON visits.account_id=inbox.account_id AND visits.event_id=inbox.event_id
          WHERE inbox.account_id=?1 AND inbox.entity_type='note' {predicate}
            AND (?2 IS NULL OR inbox.server_sequence>?2)
-         ORDER BY inbox.server_sequence ASC LIMIT ?3",
+         ORDER BY CASE WHEN ?4 THEN COALESCE(visits.ordinal,0) ELSE 0 END,inbox.server_sequence ASC LIMIT ?3",
     );
     let mut statement = transaction.prepare(&query)?;
-    let rows = statement.query_map(rusqlite::params![account_id, after_server_sequence, limit], |row| {
+    let rows = statement.query_map(rusqlite::params![account_id, after_server_sequence, limit, rotate], |row| {
         Ok((
             row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, String>(2)?,
             row.get::<_, String>(3)?, row.get::<_, String>(4)?, row.get::<_, String>(5)?,
@@ -6907,6 +6912,8 @@ fn list_note_sync_inbox_items(
         });
     }
     drop(statement);
+    items.sort_by_key(|item|item.server_sequence);
+    if rotate {crate::sqlite::record_sync_reader_visits(&transaction,account_id,items.iter().map(|item|item.event_id.as_str()))?;}
     transaction.commit()?;
     Ok(items)
 }

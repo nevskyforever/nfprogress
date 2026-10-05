@@ -912,8 +912,13 @@ pub(crate) fn received(db: &Connection, a: &str, after: i64, limit: i64) -> Resu
     if after < 0 || !(1..=32).contains(&limit) {
         return fail("invalid_map_page");
     }
-    let mut q=db.prepare("SELECT i.event_id,i.server_sequence,i.device_id,i.project_id,i.entity_id,i.sync_revision,i.updated_at,o.nonce,o.ciphertext FROM cloud_sync_inbox i JOIN cloud_sync_event_objects o ON o.account_id=i.account_id AND o.event_id=i.event_id WHERE i.account_id=?1 AND i.entity_type='map' AND i.operation='event' AND i.state IN ('received','orphan') AND i.server_sequence>?2 ORDER BY i.server_sequence LIMIT ?3")?;
-    let rows=q.query_map(params![a,after,limit],|r|Ok(json!({"event_id":r.get::<_,String>(0)?,"server_sequence":r.get::<_,i64>(1)?,"source_device_id":r.get::<_,String>(2)?,"project_id":r.get::<_,String>(3)?,"entity_id":r.get::<_,String>(4)?,"revision":r.get::<_,i64>(5)?,"updated_at":r.get::<_,String>(6)?,"nonce":r.get::<_,Vec<u8>>(7)?,"ciphertext":r.get::<_,Vec<u8>>(8)?})))?.collect::<std::result::Result<Vec<_>,_>>()?;
+    let tx=db.unchecked_transaction()?;
+    let mut q=tx.prepare("SELECT i.event_id,i.server_sequence,i.device_id,i.project_id,i.entity_id,i.sync_revision,i.updated_at,o.nonce,o.ciphertext FROM cloud_sync_inbox i JOIN cloud_sync_event_objects o ON o.account_id=i.account_id AND o.event_id=i.event_id LEFT JOIN cloud_game_reader_visits v ON v.account_id=i.account_id AND v.event_id=i.event_id WHERE i.account_id=?1 AND i.entity_type='map' AND i.operation='event' AND i.state IN ('received','orphan') AND i.server_sequence>?2 ORDER BY COALESCE(v.ordinal,0),i.server_sequence LIMIT ?3")?;
+    let mut rows=q.query_map(params![a,after,limit],|r|Ok(json!({"event_id":r.get::<_,String>(0)?,"server_sequence":r.get::<_,i64>(1)?,"source_device_id":r.get::<_,String>(2)?,"project_id":r.get::<_,String>(3)?,"entity_id":r.get::<_,String>(4)?,"revision":r.get::<_,i64>(5)?,"updated_at":r.get::<_,String>(6)?,"nonce":r.get::<_,Vec<u8>>(7)?,"ciphertext":r.get::<_,Vec<u8>>(8)?})))?.collect::<std::result::Result<Vec<_>,_>>()?;
+    drop(q);
+    rows.sort_by_key(|r| r["server_sequence"].as_i64().unwrap_or(0));
+    crate::sqlite::record_sync_reader_visits(&tx,a,rows.iter().filter_map(|r|r["event_id"].as_str()))?;
+    tx.commit()?;
     Ok(rows)
 }
 pub(crate) fn ack_proven(db: &Connection, a: &str, seq: i64) -> rusqlite::Result<bool> {

@@ -70,6 +70,8 @@ on:
       - 'tests/test_c18_document_sqlite.py'
       - 'tests/test_c18_progress_sqlite.py'
       - 'tests/test_c18_game_sqlite.py'
+      - 'tests/test_c18_content_action_integration.py'
+      - 'frontend/src/cloud/contentActionIntegration.spec.ts'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -144,6 +146,8 @@ on:
       - 'tests/test_c18_document_sqlite.py'
       - 'tests/test_c18_progress_sqlite.py'
       - 'tests/test_c18_game_sqlite.py'
+      - 'tests/test_c18_content_action_integration.py'
+      - 'frontend/src/cloud/contentActionIntegration.spec.ts'
       - 'tests/test_c15_7b_cross_runtime_udf_proof.py'
       - 'tests/test_application_metadata.py'
       - 'tests/test_f8_recovery.py'
@@ -181,7 +185,7 @@ jobs:
             tests/test_c18_metadata_sqlite.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
-            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py tests/test_c18_game_sqlite.py \
+            tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py tests/test_c18_game_sqlite.py tests/test_c18_content_action_integration.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
             tests/test_application_metadata.py \
             tests/test_f8_recovery.py \

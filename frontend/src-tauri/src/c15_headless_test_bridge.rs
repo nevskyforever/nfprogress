@@ -661,14 +661,17 @@ fn game_bridge(request:&Value)->Value {
         "complete"=>{let p=required_string(request,"project_id").to_string();if let Some(s)=request["stage_id"].as_str(){crate::complete_stage_sqlite(&mut db,crate::StageIdCommand{project_id:p,stage_id:s.into()})}else{crate::complete_project_sqlite(&mut db,crate::ProjectIdCommand{project_id:p})}},
         "inventory"=>serde_json::to_value(crate::game::GameApplicationService::inventory_sqlite(&mut db,required_string(request,"category").into(),required_string(request,"item_id").into(),required_i64(request,"count"),required_string(request,"operation")).map_err(|e|e.to_string())?).map_err(|e|e.to_string()),
         "receive"=>{crate::note_sync::commit_mixed_sync_inbound_page(&mut db,&serde_json::from_value(request["command"].clone()).map_err(|_|"test_game_inbox")?).map_err(|e|e.to_string())?;Ok(json!(true))},
-        "note_apply"=>{
+        "note_apply"|"content_note_apply"=>{
             let row=&request["event"];let opened=&request["opened"];
             drop(db);let mut privileged=open_privileged_remote_apply_database(&path).map_err(|e|e.to_string())?;
-            let result=crate::note_sync::apply_verified_received_note_ipc(&mut privileged,crate::note_sync::ApplyVerifiedReceivedNoteIpcCommand{
+            let command=crate::note_sync::ApplyVerifiedReceivedNoteIpcCommand{
                 account_id:scope.account_id,canonical_user_id:scope.canonical_user_id,pulling_device_id:scope.device_id,
                 event_id:required_string(row,"event_id").into(),server_sequence:required_i64(row,"server_sequence"),source_device_id:required_string(row,"device_id").into(),
-                crypto_version:required_i64(opened,"crypto_version"),aad_version:required_i64(opened,"aad_version"),nonce:bytes(opened,"nonce"),ciphertext:bytes(opened,"ciphertext"),plaintext:bytes(opened,"plaintext")
-            }).map_err(|e|e.to_string())?;Ok(json!(result))
+                crypto_version:if required_string(request,"step")=="content_note_apply"{1}else{required_i64(opened,"crypto_version")},aad_version:if required_string(request,"step")=="content_note_apply"{1}else{required_i64(opened,"aad_version")},nonce:bytes(opened,"nonce"),ciphertext:bytes(opened,"ciphertext"),plaintext:bytes(opened,if required_string(request,"step")=="content_note_apply"{"frame"}else{"plaintext"})
+            };
+            let result=if required_string(request,"step")=="content_note_apply"{
+                json!(crate::note_sync::apply_verified_received_content_note_ipc(&mut privileged,command).map_err(|e|e.to_string())?)
+            }else{json!(crate::note_sync::apply_verified_received_note_ipc(&mut privileged,command).map_err(|e|e.to_string())?)};Ok(result)
         },
         "command"=>{
             drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());

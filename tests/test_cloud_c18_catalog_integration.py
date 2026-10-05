@@ -254,3 +254,35 @@ def test_account_catalog_explicit_migration_two_native_devices_v2_postgresql(clo
         assert db.execute("SELECT folder_id FROM project_folder_members WHERE project_id='L1'").fetchone()==('F1',)
         assert db.execute("SELECT project_id FROM project_order ORDER BY position").fetchall()==[('L1',),('C1',),('C2',)]
         assert db.execute('SELECT count(*) FROM cloud_sync_project_bindings').fetchone()[0]==2
+
+    # The same production profile has TWO connected projects and one local
+    # project. Account discovery/order/migration cannot grant content authority.
+    from test_cloud_c18_document_acceptance import content as document_text
+    from nfprogress.core.sqlite.connection import register_remote_apply_authorization_guard
+    def local(action, step, **values):
+        return native(tmp_path,a,ia,user,action=action,step=step,project_id='L1',**values)
+    with sqlite3.connect(a) as db:
+        register_remote_apply_authorization_guard(db)
+        db.execute("UPDATE projects SET payload_json=json_set(payload_json,'$.work_method','app','$.total',0,'$.progress_entries',json('[]')) WHERE id='L1'")
+    local('document','init')
+    local('content_note','create',note_id='private-local-note',content_format='plain')
+    local('content_note','edit',note_id='private-local-note',patch=dict(content='Private local content'))
+    assert 'document_id' in local('document','save',content=document_text('Private local manuscript'))
+    assert local('progress','document_progress')['changed'] is True
+    local('game','init')
+    # Account Game migration examines the same registry, never inventing a
+    # Project Game owner for local-only content.
+    assert local('game','process')['processed'] == 1
+    result=local('game','command',request=dict(action='begin',now=NOW))
+    assert 'error' not in result,result
+    for action in ('content_note','map','document','progress'):
+        assert local(action,'pending') == []
+    with sqlite3.connect(a) as db:
+        assert db.execute("SELECT count(*) FROM cloud_sync_project_bindings WHERE project_id='L1'").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM cloud_sync_outbox WHERE project_id='L1'").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM cloud_game_events WHERE project_id='L1'").fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM cloud_game_migrations WHERE owner_key=json_array('L1',NULL)").fetchone()[0] == 0
+        assert 'L1' not in repr(db.execute("SELECT canonical_frame FROM cloud_catalog_events WHERE entity_type='project_order'").fetchall())
+    from sqlalchemy import text
+    with engine.connect() as db:
+        assert db.execute(text("SELECT count(*) FROM sync_events WHERE project_id='L1'")).scalar() == 0

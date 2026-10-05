@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import {computed,ref} from 'vue'
+import {computed,ref,onMounted,onUnmounted} from 'vue'
 import {useCloudSessionStore} from '@/stores/cloudSession'
 import {useLocaleStore} from '@/stores/locale'
 import type {GameOwnerView} from '@/cloud/gameSyncRuntime'
 import FriendlyStatus from './FriendlyStatus.vue'
+import {onDataChange} from '@/services/dataChanges'
 const cloud=useCloudSessionStore(),t=useLocaleStore().translate
 const pending=ref(false),error=ref<string|null>(null),selected=ref<Record<string,string>>({}),reward=ref(''),confirmReversal=ref(false)
 const account=computed(()=>cloud.gameAuthority?.owners.find(o=>o.owner_key==='account'))
+let stopChanges:(()=>void)|undefined
+onMounted(()=>{stopChanges=onDataChange(scope=>{
+ if(scope==='game'||scope==='game-sync'||scope==='projects')void run(()=>cloud.inspectGame())
+})})
+onUnmounted(()=>stopChanges?.())
 async function run(action:()=>Promise<void>){pending.value=true;error.value=null;try{await action()}catch(e){error.value=e instanceof Error?e.message:String(e)}finally{pending.value=false}}
 function amount(snapshot:unknown,key:string){if(!snapshot||typeof snapshot!=='object')return '';const value=(snapshot as Record<string,unknown>)[key];return typeof value==='string'||typeof value==='number'?value:''}
 function label(owner:GameOwnerView){if(owner.owner_key==='account')return t('Игровая история аккаунта');try{return JSON.parse(owner.owner_key)[1]?t('Игровая история этапа'):t('Игровая история проекта')}catch{return t('Игровая история проекта')}}

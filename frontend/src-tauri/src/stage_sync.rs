@@ -757,6 +757,13 @@ fn write_stage(tx: &Transaction<'_>, e: &Event) -> Result<(), Error> {
         .map_err(|_| Error::Invalid)?
         .unwrap_or(json!({"id":h.entity_id}));
     let o = payload.as_object_mut().ok_or(Error::Invalid)?;
+    if is_new {
+        // A newly imported Stage has no local Progress history. Initialize the
+        // empty local read model so its separate Progress genesis can attach.
+        // Existing totals/history remain owned by Progress and are preserved.
+        o.insert("total".into(), json!(0));
+        o.insert("progress_entries".into(), json!([]));
+    }
     for k in FIELDS {
         o.insert(k.to_string(), s[*k].clone());
     }
@@ -2055,6 +2062,11 @@ mod tests {
         let mut db = sqlite::open_database(&path).unwrap();
         metadata_active(&mut db);
         assert_eq!(retry(&mut db, ACCOUNT, 8).unwrap(), vec!["applied"]);
+        let initial: String = db.query_row("SELECT payload_json FROM stages WHERE id='S1'", [], |r| r.get(0)).unwrap();
+        let initial: Value = serde_json::from_str(&initial).unwrap();
+        assert_eq!(initial["total"], json!(0));
+        assert_eq!(initial["progress_entries"], json!([]));
+        assert_eq!(crate::progress_sync::source(&db, "project", Some("S1")).unwrap()["chain"]["base_total"], json!("0.000000"));
         let mut s2 = event(102);
         s2.header.entity_id = "S2".into();
         let o = order(103, &[e.clone(), s2.clone()]);
