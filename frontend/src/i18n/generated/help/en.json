@@ -247,5 +247,11 @@
     "content": "<html><body><h2>Encrypted project covers</h2><p>After enabling cloud project settings, an existing cover remains local. Choose “Publish cover” in cloud settings. Every registered device must support this feature. Starting the application, signing in or opening a project does not publish a cover.</p><p>The cover is encrypted before upload: the server cannot see the image. After the first confirmed publication, ordinary replacement and removal create encrypted changes to project settings. A local project’s cover stays only on the device.</p><p>If an encrypted cover is unavailable or fails verification, the verified image is preserved while complete synchronization is temporarily delayed. Retry later; unfinished publication and waiting for a cover survive restart.</p><p>For concurrent replacement, removal or changes to other settings, choose a complete project version in the existing conflict section. You can preview each version’s verified cover. Removing a cover does not erase historical encrypted images on the server.</p></body></html>",
     "key": "cloud_cover_sync",
     "title": "Encrypted project covers"
+  },
+  {
+    "children": [],
+    "content": "<html><body><h2>Local files on each device</h2><p>Word and Scrivener are attached separately on each device. Paths, selected sources and local checks are not synchronized.</p><p>Export a Word copy first or reattach an existing file. Selecting an existing file compares content without overwriting it. If versions differ, explicitly import Word or write the WORTA version; you can export a separate copy. Compare again if WORTA or the file changed since comparison.</p><p>A missing local file does not delete cloud text or progress. Choose another path explicitly. Word/Scrivener progress changes require confirmation of the comparison. Local links are unavailable on Web; WORTA text remains available.</p></body></html>",
+    "key": "local_external_reattachment",
+    "title": "Local files on each device"
   }
 ]

@@ -56,6 +56,8 @@ const LEGACY_PROJECT_FIELDS: &[&str] = &[
     "cover_image",
     "cover_reference",
     "folder_id",
+    "synch",
+    "last_synch",
     "sync_available",
     "work_method",
 ];
@@ -1259,6 +1261,15 @@ mod tests {
     const DEVICE: &str = "123e4567-e89b-42d3-a456-426614174003";
     const BOOT: &str = "123e4567-e89b-42d3-a456-426614174002";
     const NOW: &str = "2026-09-21T00:00:00.000000Z";
+    #[test]
+    fn project_metadata_external_bindings_are_losslessly_local_only() {
+        let (mut db,path)=database();
+        db.execute("UPDATE projects SET payload_json=json_set(payload_json,'$.synch',json(?1),'$.last_synch',?2) WHERE id='project'",params![json!({"path":"/Users/C18_SECRET_PATH/book-private.docx","source_id":"SOURCE-ID-C18-LOCAL-ONLY"}).to_string(),"local-clock-only"]).unwrap();
+        let cid=capture_legacy_candidate(&mut db,ACCOUNT,"project",NOW).unwrap();
+        let (snapshot,unsupported,source):(String,String,String)=db.query_row("SELECT snapshot_json,unsupported_json,source_payload_json FROM cloud_sync_metadata_candidates WHERE candidate_id=?1",[cid],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+        assert_eq!(unsupported,"[]");assert!(!snapshot.contains("C18_SECRET_PATH"));assert!(!snapshot.contains("SOURCE-ID-C18-LOCAL-ONLY"));assert!(!snapshot.contains("last_synch"));assert!(source.contains("C18_SECRET_PATH"));
+        assert!(db.query_row("SELECT payload_json FROM projects WHERE id='project'",[],|r|r.get::<_,String>(0)).unwrap().contains("C18_SECRET_PATH"));drop(db);let _=std::fs::remove_file(path);
+    }
     #[test]
     fn cover_missing_restart_and_atomic_projection_rollback() {
         use crate::project_cover_sync as cover;

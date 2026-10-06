@@ -6,12 +6,80 @@
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
 **Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **IN PROGRESS**.\
-**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
-**Последняя независимая приёмка:** C18.5.07 implementation `9b2c7594589b7dfa58b5b7fe83905f0336a7c710`, Cloud correction `e11d6b6fc453b218738d1f6a0dd5b34a9eebb750`; SQLite `37288645324` и final Cloud `37358324509` — **SUCCESS**, все четыре Cloud jobs. C18.5 — **CLOSED**; последний закрытый полный roadmap stage остаётся C17.\
+**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01 — **REMOTELY ACCEPTED**; C18.6.02 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Последняя независимая приёмка:** C18.6.01 implementation `5b4d54d3ae4de8bf801683f36f01dbdedb6612a1`; SQLite `37372599703` attempt2 и Cloud `37372599817` attempt4 — **SUCCESS**, все required jobs. C18.6/C18 остаются IN PROGRESS; последний полностью закрытый roadmap stage C17.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
+
+## C18.6.02 — local external integration boundary (6 октября 2026)
+
+**LOCAL COMPLETE / REMOTE CI PENDING**, starting SHA
+`5b4d54d3ae4de8bf801683f36f01dbdedb6612a1`. C18.6/C18 IN PROGRESS, **77.0%**.
+C18.6.01 independently REMOTELY ACCEPTED (exact evidence below).
+
+Native SQLite documents/document_bindings remain portable text + local Word
+support; connected Project Word/Scrivener sources are separated into existing
+project_bindings. Legacy Python documents.json/engine synch/last_synch remain
+local, original bindings retained. Known synch/last_synch excluded losslessly
+from Metadata/Stage canonical migration; no codec/history change. Unknown local
+binding payloads are not cloud extensions or unrelated cloud blockers.
+
+First output is explicit export/copy. Existing-file reattachment reads/parses/
+hashes before any decision, records exact authenticated Document snapshot/tips
+and external expected hash in local payload_json. Same semantic content, including
+split Word runs/different ZIP containers, binds without file rewrite/event.
+Different content creates durable local proposal/preview. Explicit import uses
+ordinary causal Document writer; binding remains pending until self-echo.
+Explicit WORTA overwrite rechecks head/path/hash and uses guarded temp/fsync/
+replace, rechecking hash immediately before replace. Crash-after-write is detected
+by intended output hash. Stale head/file, missing/moved source and unlink preserve
+portable authority/files; no automatic merge or winner, no file tombstone.
+
+Progress source reattachment requires applied causal tip + apply ledger and exact
+chain, not authored local tip/revision/mtime. Same count is local baseline;
+different count requires explicit proposal confirmation through ordinary writer.
+Scrivener live binder identity validated locally; stale/missing never reset total.
+Background without local source does zero reads/events; configured sources only
+propose. Web rejects filesystem actions and strips bindings from document views.
+Schema **38 unchanged**: generic local payload/hash columns suffice; no schema39,
+Alembic migration, cloud capability/entity, crypto/cursor/codec change.
+
+Real PostgreSQL/production TS crypto/two native file-backed SQLite prove both
+Word document and Word/Scrivener progress flows, stale races, restart/self-echo,
+separate device paths and no sentinel in canonical frames/HTTP/server rows.
+Validation: Cloud union254 (foundation34 pass; content-action21 pass + two exact
+corrected retests pass; regressions197 pass), zero mandatory skips. SQLite483 +
+new Web guards3 pass; Rust384 full + added semantic case in focused5; frontend645
+workflow union + panel3 pass; legacy focused19 + affected7, locales19/help11;
+Chromium6locales; typecheck/build/cargo/YAML/export/syntax/diff-check pass.
+Split Cloud40-minute jobs and Windows/native coverage preserved, both filters
+updated. Protected pyc unchanged. Evidence and exact commands:
+`docs/cloud/C18_6_LOCAL_INTEGRATION_ACCEPTANCE.md`.
+
+No compression/C18.7, arbitrary attachments, telemetry or portable paths/bindings.
+Release gate/final terminology audit/C21 local-Web-first remain intact. Do not
+close C18.6 locally or poll Actions after push. Next only after independent
+remote acceptance: **C18.7 — COMPRESSION IMPLEMENTATION**, first benchmark/license/
+algorithm/bounded-decoder gate; no algorithm preselected here.
+
+## C18.6.01 independent acceptance / C18.6.02 started
+
+Owner/GPT confirms implementation `5b4d54d3ae4de8bf801683f36f01dbdedb6612a1`:
+SQLite **37372599703 attempt2 SUCCESS**, Python/Rust both SUCCESS;
+Cloud **37372599817 attempt4 SUCCESS**, Frontend/foundation/content-action/
+regressions all SUCCESS. **C18.6.01 REMOTELY ACCEPTED**. Historical pending and
+cancelled records below are superseded. C18.6.02 starts on this clean branch6.0
+baseline. C18.6/C18 IN PROGRESS; official progress exactly **77.0%**.
+
+Audit: native SQLite documents/document_bindings own active desktop bindings;
+Project Word/Scrivener progress sources also use native document_bindings.
+Legacy Python documents.json and project_bindings/synch/last_synch remain local.
+Portable Document is A; paths/source IDs/raw hashes/binding/proposal state C.
+Existing local payload_json/expected_external_hash suffice: schema38 retained,
+no backend migration, no portable codec/capability change. Acceptance map:
+`docs/cloud/C18_6_LOCAL_INTEGRATION_ACCEPTANCE.md`.
 
 ## C18.6.01 — authenticated cover blob sync (6 октября 2026)
 
@@ -164,15 +232,14 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
 
-**Текущая независимая приёмка C18.5.07 / C18.5 CLOSED:** implementation
-`9b2c7594589b7dfa58b5b7fe83905f0336a7c710`, Cloud correction
-`e11d6b6fc453b218738d1f6a0dd5b34a9eebb750`.
+**Текущая независимая приёмка C18.6.01:** implementation
+`5b4d54d3ae4de8bf801683f36f01dbdedb6612a1` — **REMOTELY ACCEPTED**.
 
-- [SQLite sync substrate 37288645324](https://github.com/nevskyforever/nfprogress/actions/runs/37288645324) — SUCCESS на implementation SHA.
-- [Cloud backend 37358324509](https://github.com/nevskyforever/nfprogress/actions/runs/37358324509) — SUCCESS на correction SHA: Frontend admin, PostgreSQL foundation, content-action и cloud/legacy regressions.
+- [SQLite sync substrate 37372599703 attempt2](https://github.com/nevskyforever/nfprogress/actions/runs/37372599703/attempts/2) — SUCCESS; Python/Rust SUCCESS.
+- [Cloud backend 37372599817 attempt4](https://github.com/nevskyforever/nfprogress/actions/runs/37372599817/attempts/4) — SUCCESS; Frontend/foundation/content-action/regressions SUCCESS.
 
-Предыдущие pending/cancellation записи ниже исторические. C18.6.01 — LOCAL
-COMPLETE / REMOTE CI PENDING; C18.6/C18 — IN PROGRESS; прогресс **77.0%**.
+C18.5 CLOSED. Предыдущие pending/cancellation записи ниже исторические.
+C18.6.02 LOCAL COMPLETE / REMOTE CI PENDING; C18.6/C18 IN PROGRESS; **77.0%**.
 
 ### Исторические remote acceptance evidence
 

@@ -105,6 +105,8 @@ class ProjectDocumentService:
             return self._public(record)
 
     def write_docx(self, project_id: str, payload: str, stage_id: str | None = None) -> dict[str, Any]:
+        if not self.allow_local_files:
+            raise ValidationError('Связь с локальным Word-файлом доступна только в desktop-приложении.')
         key = self._key(project_id, stage_id)
         try:
             raw = base64.b64decode(payload, validate=True)
@@ -130,6 +132,8 @@ class ProjectDocumentService:
             return self._public(record)
 
     def read_external_docx(self, project_id: str, stage_id: str | None = None) -> dict[str, Any]:
+        if not self.allow_local_files:
+            raise ValidationError('Связь с локальным Word-файлом доступна только в desktop-приложении.')
         key = self._key(project_id, stage_id)
         with self.repository.locked():
             records = self._load_with_migrations()
@@ -146,6 +150,8 @@ class ProjectDocumentService:
             return {'state': state, 'content_base64': base64.b64encode(raw).decode('ascii'), 'hash': digest}
 
     def accept_word(self, project_id: str, content: dict[str, Any], source_hash: str, stage_id: str | None = None) -> dict[str, Any]:
+        if not self.allow_local_files:
+            raise ValidationError('Связь с локальным Word-файлом доступна только в desktop-приложении.')
         key = self._key(project_id, stage_id)
         with self.repository.locked():
             records = self._load_with_migrations()
@@ -320,10 +326,11 @@ class ProjectDocumentService:
     @staticmethod
     def _new(project_id: str, stage_id: str | None) -> dict[str, Any]:
         return {'project_id': project_id, 'stage_id': stage_id, 'content': EMPTY_DOCUMENT, 'exists': False, 'updated_at': None, 'docx_path': None, 'sync_state': 'unlinked', 'last_synced_hash': None, 'last_synced_at': None, 'local_dirty': False, 'word_dirty': False}
-    @classmethod
-    def _public(cls, record: dict[str, Any]) -> dict[str, Any]:
-        result = dict(record)
-        result['symbols'] = cls._symbol_count(result.get('content', {}))
+    def _public(self, record: dict[str, Any]) -> dict[str, Any]:
+        result = dict(record) if self.allow_local_files else {key: value for key, value in record.items() if key in {'project_id','stage_id','document_id','title','content','content_format','created_at','updated_at','exists','revision'}}
+        if not self.allow_local_files:
+            result.update(docx_path=None,sync_state='unlinked',last_synced_hash=None,last_synced_at=None,local_dirty=False,word_dirty=False)
+        result['symbols'] = self._symbol_count(result.get('content', {}))
         result['has_content'] = result['symbols'] > 0
         return result
     def _path(self) -> Path: return self.repository.base_dir / 'documents.json'

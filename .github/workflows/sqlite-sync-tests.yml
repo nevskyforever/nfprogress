@@ -45,6 +45,11 @@ on:
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/project_cover_sync.rs'
+      - 'frontend/src-tauri/src/external_reattach.rs'
+      - 'frontend/src/cloud/localBindingBoundary.spec.ts'
+      - 'tests/test_cloud_c18_external_progress_acceptance.py'
+      - 'nfprogress/core/services/documents.py'
+      - 'tests/test_c18_external_local_boundary.py'
       - 'frontend/src/cloud/projectMetadataCodec.ts'
       - 'frontend/src/cloud/projectCoverReference.ts'
       - 'frontend/src/cloud/projectCoverReference.spec.ts'
@@ -132,6 +137,11 @@ on:
       - 'frontend/src-tauri/src/note_sync_plaintext.rs'
       - 'frontend/src-tauri/src/project_metadata_sync.rs'
       - 'frontend/src-tauri/src/project_cover_sync.rs'
+      - 'frontend/src-tauri/src/external_reattach.rs'
+      - 'frontend/src/cloud/localBindingBoundary.spec.ts'
+      - 'tests/test_cloud_c18_external_progress_acceptance.py'
+      - 'nfprogress/core/services/documents.py'
+      - 'tests/test_c18_external_local_boundary.py'
       - 'frontend/src/cloud/projectMetadataCodec.ts'
       - 'frontend/src/cloud/projectCoverReference.ts'
       - 'frontend/src/cloud/projectCoverReference.spec.ts'
@@ -204,7 +214,7 @@ jobs:
         run: |
           python -m pytest -q \
             tests/test_c9_sqlite_sync.py \
-            tests/test_c18_metadata_sqlite.py tests/test_c18_cover_sqlite.py \
+            tests/test_c18_metadata_sqlite.py tests/test_c18_cover_sqlite.py tests/test_c18_external_local_boundary.py \
             tests/test_c18_stage_sqlite.py \
             tests/test_c18_account_sqlite.py \
             tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py tests/test_c18_game_sqlite.py tests/test_c18_content_action_integration.py \
@@ -277,6 +287,9 @@ jobs:
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc map_codec
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc map_sync
+
+      - name: Native local external reattachment safety
+        run: cargo test --manifest-path frontend/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --lib external_reattach
 
       - name: Native document codec and authority
         shell: pwsh

@@ -247,5 +247,11 @@
     "content": "<html><body><h2>Portadas cifradas de proyectos</h2><p>Después de activar la configuración del proyecto en la nube, la portada existente sigue siendo local. Elige «Publicar portada» en la configuración de la nube. Todos los dispositivos registrados deben admitir esta función. Iniciar la aplicación, iniciar sesión o abrir un proyecto no publica la portada.</p><p>La portada se cifra antes de enviarla: el servidor no puede ver la imagen. Tras la primera publicación confirmada, sustituir o quitar la portada crea cambios cifrados en la configuración del proyecto. La portada de un proyecto local permanece solo en el dispositivo.</p><p>Si una portada cifrada no está disponible o no supera la verificación, se conserva la imagen verificada mientras la sincronización completa se retrasa temporalmente. Reintenta más tarde; la publicación pendiente y la espera de una portada sobreviven al reinicio.</p><p>Si hay sustituciones, eliminaciones o cambios simultáneos de otros ajustes, elige una versión completa del proyecto en la sección de conflictos existente. Puedes ver la portada verificada de cada versión. Quitar una portada no borra las imágenes cifradas históricas del servidor.</p></body></html>",
     "key": "cloud_cover_sync",
     "title": "Portadas cifradas de proyectos"
+  },
+  {
+    "children": [],
+    "content": "<html><body><h2>Archivos locales en cada dispositivo</h2><p>Word y Scrivener se vinculan por separado en cada dispositivo. Las rutas, fuentes seleccionadas y comprobaciones locales no se sincronizan.</p><p>Exporta una copia Word o vuelve a vincular un archivo existente. Seleccionarlo compara el contenido sin sobrescribirlo. Si las versiones difieren, importa Word o escribe la versión WORTA explícitamente; puedes exportar otra copia. Compara de nuevo si WORTA o el archivo cambiaron.</p><p>Un archivo local ausente no elimina el texto ni el progreso en la nube. Elige otra ruta explícitamente. Los cambios de progreso Word/Scrivener requieren confirmar la comparación. Los vínculos locales no están disponibles en Web; el texto WORTA sigue disponible.</p></body></html>",
+    "key": "local_external_reattachment",
+    "title": "Archivos locales en cada dispositivo"
   }
 ]

@@ -63,9 +63,13 @@ export const integrationsApi = {
     })
   },
 
+  confirmSync(projectId: string, stageId?: string | null): Promise<SyncRunResult> {
+    if (currentPlatform() !== 'tauri') return Promise.reject(new Error('Доступно только в desktop-приложении.'))
+    return nativeInvoke<SyncRunResult>('confirm_external_progress', { projectId, stageId: stageId ?? null })
+  },
   runSync(projectId: string, stageId?: string | null): Promise<SyncRunResult> {
     if (currentPlatform() === 'tauri') {
-      return nativeInvoke<SyncRunResult>('run_document_sync', { projectId, stageId: stageId ?? null })
+      return nativeInvoke<SyncRunResult>('refresh_external_progress', { projectId, stageId: stageId ?? null })
     }
     return apiRequest<SyncRunResult>(
       `${projectSyncPath(projectId)}/run${stageQuery(stageId)}`,

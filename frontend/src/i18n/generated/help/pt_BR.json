@@ -247,5 +247,11 @@
     "content": "<html><body><h2>Capas criptografadas de projetos</h2><p>Após ativar as configurações do projeto na nuvem, uma capa existente permanece local. Escolha “Publicar capa” nas configurações da nuvem. Todos os dispositivos registrados precisam oferecer suporte a esse recurso. Iniciar o aplicativo, entrar ou abrir um projeto não publica a capa.</p><p>A capa é criptografada antes do envio: o servidor não pode ver a imagem. Após a primeira publicação confirmada, substituir ou remover a capa cria alterações criptografadas nas configurações do projeto. A capa de um projeto local permanece no dispositivo.</p><p>Se uma capa criptografada estiver indisponível ou falhar na verificação, a imagem verificada é preservada e a sincronização completa é temporariamente atrasada. Tente novamente mais tarde: a publicação pendente e a espera pela capa sobrevivem à reinicialização.</p><p>Em alterações simultâneas, escolha uma versão completa do projeto na seção existente de conflitos. Você pode visualizar a capa verificada de cada versão. Remover uma capa não apaga as imagens criptografadas históricas do servidor.</p></body></html>",
     "key": "cloud_cover_sync",
     "title": "Capas criptografadas de projetos"
+  },
+  {
+    "children": [],
+    "content": "<html><body><h2>Arquivos locais em cada dispositivo</h2><p>Word e Scrivener são vinculados separadamente em cada dispositivo. Caminhos, fontes selecionadas e verificações locais não são sincronizados.</p><p>Exporte uma cópia Word ou reconecte um arquivo existente. A seleção compara o conteúdo sem sobrescrevê-lo. Se houver diferença, importe Word ou grave a versão WORTA explicitamente; uma cópia separada pode ser exportada. Compare novamente após alterações.</p><p>Um arquivo local ausente não exclui o texto ou progresso na nuvem. Escolha outro caminho explicitamente. O progresso Word/Scrivener requer confirmar a comparação. Os vínculos locais não estão disponíveis na Web; o texto WORTA permanece disponível.</p></body></html>",
+    "key": "local_external_reattachment",
+    "title": "Arquivos locais em cada dispositivo"
   }
 ]

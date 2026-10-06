@@ -13,6 +13,7 @@ import { convertProjectUnit } from '@/utils/projectPlanning'
 import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import { progressChangeNotification } from '@/utils/progressNotifications'
 import { gameResponseMessages } from '@/utils/gameNotifications'
+import LocalWordBindingPanel from './LocalWordBindingPanel.vue'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
 import NFDocumentEditor from './editor/NFDocumentEditor.vue'
 import NFEditorStatusControls from './editor/NFEditorStatusControls.vue'
@@ -80,7 +81,7 @@ const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
 const processing = computed(() => saving.value || recording.value)
-const { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal, downloadWordCopy } = useDocumentSync(props.scope)
+const { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, resolveExternal, checkExternal, acknowledgeExternal, downloadWordCopy } = useDocumentSync(props.scope)
 let externalTimer: number | undefined
 let stopCloseListener: (() => void) | undefined
 let stopProjectDataChanges: (() => void) | undefined
@@ -359,9 +360,7 @@ async function importExternal() {
     if (external.state === 'conflict' || countTextSymbols(current) > 0) {
       const choice = await chooseExternalVersion()
       if (choice === 'nfprogress') {
-        const snapshot = captureEditorContent()
-        await acknowledgeExternal(snapshot, external.hash)
-        await writeLinkedWord(snapshot)
+        await resolveExternal('cloud')
         status.value = t('Сохранено')
         return
       }
@@ -378,6 +377,13 @@ async function importExternal() {
     await acknowledgeExternal(json, external.hash)
   } finally {
     externalImportInProgress = false
+  }
+}
+async function decideLocalFile(choice: 'compare' | 'cloud' | 'import' | 'unlink') {
+  try { await resolveExternal(choice) }
+  catch (error) {
+    const code=String(error)
+    status.value=t(code.includes('head_stale') ? 'Версия WORTA изменилась после сравнения' : code.includes('hash_stale') ? 'Word изменился после сравнения' : code.includes('source_missing') ? 'Локальный файл не найден. Переподключите его.' : 'Локальный источник требует повторной проверки')
   }
 }
 async function linkWord() {
@@ -468,9 +474,11 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
         </button>
         <button class="nf-button nf-button--secondary" type="button" title="Импортировать документ Word" aria-label="Импортировать документ Word" @click="importWord">Импорт DOCX</button>
         <button class="nf-button nf-button--secondary" type="button" title="Экспортировать документ Word" aria-label="Экспортировать документ Word" @click="exportWord">Экспорт DOCX</button>
-        <button v-if="canLinkWord" class="nf-button nf-button--secondary" type="button" title="Связать документ с локальным файлом Word" aria-label="Связать документ с локальным файлом Word" @click="linkWord">{{ linked ? 'Файл Word связан' : 'Связать с Word' }}</button>
+
       </div>
+
     </header>
+    <LocalWordBindingPanel v-if="canLinkWord" :attached="linked" :state="documentState?.sync_state" :external-content="documentState?.external_content" @reattach="linkWord" @copy="exportWord" @decision="decideLocalFile" @cancel="status=''" />
     <div class="document-editor-view__workspace">
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <NFDocumentEditor

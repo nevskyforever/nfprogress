@@ -28,6 +28,12 @@ export const documentsApi: DocumentRepository = {
   save: (scope: DocumentScope, content: TiptapDocument, expectedHeads?: unknown) => currentPlatform() === 'tauri'
     ? nativeInvoke<ProjectDocument>('save_document', { command: { ...nativeScope(scope), content, ...(expectedHeads===undefined?{}:{expectedHeads}) } })
     : apiRequest<ProjectDocument>(path(scope), { method: 'PUT', body: { content } }),
+  resolveExternal: (scope, choice) => currentPlatform() === 'tauri'
+    ? nativeInvoke<ProjectDocument>('resolve_external_binding', { command: { ...nativeScope(scope), choice } })
+    : Promise.reject(new Error('Связь с локальным Word-файлом доступна только в desktop-приложении.')),
+  pollBinding: (scope) => currentPlatform() === 'tauri'
+    ? nativeInvoke<ProjectDocument>('poll_external_binding', { scope: nativeScope(scope) })
+    : Promise.reject(new Error('Связь с локальным Word-файлом доступна только в desktop-приложении.')),
   link: (scope: DocumentScope, filePath: string) => currentPlatform() === 'tauri'
     ? nativeInvoke<ProjectDocument>('bind_document_file', { command: { ...nativeScope(scope), path: filePath } })
     : apiRequest<ProjectDocument>(path(scope, '/link'), { method: 'PUT', body: { path: filePath } }),

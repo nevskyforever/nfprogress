@@ -11,6 +11,8 @@ import { useDocumentSync } from './useDocumentSync'
 
 vi.mock('@/api/documents', () => ({
   documentsApi: {
+    resolveExternal: vi.fn(),
+    pollBinding: vi.fn(),
     acceptWord: vi.fn(),
     external: vi.fn(),
     get: vi.fn(),
@@ -61,6 +63,15 @@ describe('useDocumentSync', () => {
     vi.mocked(currentPlatform).mockReturnValue('web')
   })
 
+  it('reattaches an existing file without writing or importing', async () => {
+    vi.mocked(currentPlatform).mockReturnValue('tauri')
+    vi.mocked(documentsApi.get).mockResolvedValue(documentResponse(editedDocument))
+    vi.mocked(documentsApi.link).mockResolvedValue({...documentResponse(editedDocument),docx_path:'/Users/C18_SECRET_PATH/private.docx',sync_state:'external_proposal'})
+    const w=mount(defineComponent({setup(){return{sync:useDocumentSync({projectId:'project-id'})}},template:'<div />'}))
+    await flushPromises(); await w.vm.sync.link('/Users/C18_SECRET_PATH/private.docx')
+    expect(documentsApi.writeDocxContent).not.toHaveBeenCalled();expect(documentsApi.writeDocx).not.toHaveBeenCalled();expect(documentsApi.acceptWord).not.toHaveBeenCalled();expect(documentsApi.save).not.toHaveBeenCalled()
+    w.unmount()
+  })
   it('does not let a slow initial read erase text entered in the editor', async () => {
     let finishLoad: ((value: ProjectDocument) => void) | undefined
     vi.mocked(documentsApi.get).mockReturnValue(new Promise((resolve) => { finishLoad = resolve }))

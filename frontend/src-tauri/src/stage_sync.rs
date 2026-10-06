@@ -45,6 +45,8 @@ const LEGACY: &[&str] = &[
     "combine_stage_mindmaps",
     "cover_image",
     "folder_id",
+    "synch",
+    "last_synch",
     "sync_available",
     "parent_project_name",
     "parent_project_id",

@@ -278,6 +278,11 @@ fn delete_document(scope: documents::DocumentScope) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn resolve_external_binding(command:documents::ExternalDecisionCommand)->Result<serde_json::Value,String>{documents::resolve_external_binding(command)}
+#[tauri::command]
+fn poll_external_binding(scope:documents::DocumentScope)->Result<serde_json::Value,String>{documents::poll_external_binding(scope)}
+
+#[tauri::command]
 fn bind_document_file(
     command: documents::DocumentFileCommand,
 ) -> Result<serde_json::Value, String> {
@@ -370,6 +375,12 @@ fn remove_document_sync(
 ) -> Result<documents::SyncSummary, String> {
     documents::remove_sync(command)
 }
+
+#[tauri::command]
+fn refresh_external_progress(project_id:String,stage_id:Option<String>)->Result<documents::SyncRunResult,String>{documents::refresh_external_progress(documents::SyncScopeCommand{project_id,stage_id})}
+
+#[tauri::command]
+fn confirm_external_progress(project_id:String,stage_id:Option<String>)->Result<documents::SyncRunResult,String>{documents::confirm_external_progress(documents::SyncScopeCommand{project_id,stage_id})}
 
 #[tauri::command]
 fn run_document_sync(
@@ -6145,6 +6156,8 @@ pub fn run() {
             rename_document,
             delete_document,
             bind_document_file,
+            resolve_external_binding,
+            poll_external_binding,
             write_document_word,
             read_document_external,
             accept_document_external,
@@ -6159,6 +6172,8 @@ pub fn run() {
             get_project_document_syncs,
             remove_document_sync,
             run_document_sync,
+            confirm_external_progress,
+            refresh_external_progress,
             run_all_document_sync,
             run_project_document_syncs,
             game_state,

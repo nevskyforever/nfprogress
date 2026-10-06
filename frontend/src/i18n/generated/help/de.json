@@ -247,5 +247,11 @@
     "content": "<html><body><h2>Verschlüsselte Projektcover</h2><p>Nach dem Aktivieren der Cloud-Projekteinstellungen bleibt ein vorhandenes Cover lokal. Wählen Sie in den Cloud-Einstellungen „Cover veröffentlichen“. Alle registrierten Geräte müssen diese Funktion unterstützen. App-Start, Anmeldung und Öffnen des Projekts veröffentlichen kein Cover.</p><p>Das Cover wird vor dem Upload verschlüsselt: Der Server kann das Bild nicht sehen. Nach der ersten bestätigten Veröffentlichung erzeugen Ersetzen und Entfernen verschlüsselte Änderungen der Projekteinstellungen. Das Cover eines lokalen Projekts bleibt auf dem Gerät.</p><p>Ist ein verschlüsseltes Cover nicht verfügbar oder ungültig, bleibt das geprüfte Bild erhalten; die vollständige Synchronisierung wird vorübergehend verzögert. Versuchen Sie es später erneut. Ausstehende Veröffentlichung und Cover-Wartezustand bleiben nach einem Neustart erhalten.</p><p>Bei gleichzeitigen Änderungen wählen Sie im bestehenden Konfliktbereich eine vollständige Projektversion. Das geprüfte Cover jeder Version kann angezeigt werden. Beim Entfernen bleiben historische verschlüsselte Bilder auf dem Server erhalten.</p></body></html>",
     "key": "cloud_cover_sync",
     "title": "Verschlüsselte Projektcover"
+  },
+  {
+    "children": [],
+    "content": "<html><body><h2>Lokale Dateien auf jedem Gerät</h2><p>Word und Scrivener werden auf jedem Gerät separat verknüpft. Pfade, ausgewählte Quellen und lokale Prüfungen werden nicht synchronisiert.</p><p>Exportieren Sie eine Word-Kopie oder verknüpfen Sie eine vorhandene Datei erneut. Die Auswahl vergleicht Inhalte ohne Überschreiben. Bei Unterschieden importieren Sie ausdrücklich Word oder schreiben die WORTA-Version; eine separate Kopie kann exportiert werden. Vergleichen Sie nach Änderungen erneut.</p><p>Eine fehlende lokale Datei löscht weder Cloud-Text noch Fortschritt. Wählen Sie ausdrücklich einen anderen Pfad. Word/Scrivener-Fortschrittsänderungen erfordern eine Bestätigung des Vergleichs. Lokale Verknüpfungen sind im Web nicht verfügbar; WORTA-Text bleibt verfügbar.</p></body></html>",
+    "key": "local_external_reattachment",
+    "title": "Lokale Dateien auf jedem Gerät"
   }
 ]

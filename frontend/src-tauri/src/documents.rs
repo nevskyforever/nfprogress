@@ -17,6 +17,9 @@ use sha2::{Digest, Sha256};
 use zip::write::SimpleFileOptions;
 use zip::ZipArchive;
 
+#[path = "external_reattach.rs"]
+mod external_reattach;
+
 const EMPTY_DOCUMENT: &str = r#"{"type":"doc","content":[{"type":"paragraph"}]}"#;
 const MAX_DOCX_BYTES: usize = 100 * 1024 * 1024;
 const MAX_DOCX_ENTRIES: usize = 10_000;
@@ -577,6 +580,7 @@ pub fn record_document_progress(command: DocumentProgressCommand) -> Result<Valu
         total,
         &source_key,
         &now(),
+        None,
     )?;
     Ok(serde_json::json!({
         "changed": true,
@@ -712,7 +716,7 @@ pub fn bind_document_file(command: DocumentFileCommand) -> Result<Value, String>
         .transaction()
         .map_err(|error| error.to_string())?;
     tx.execute(
-        "INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,'tiptap-json/v1',?7,?7,0,'{}') ON CONFLICT(scope_key) DO NOTHING",
+        "INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) SELECT ?1,?2,?3,?4,?5,?6,'tiptap-json/v1',?7,?7,0,'{}' WHERE NOT EXISTS(SELECT 1 FROM documents WHERE id=?1)",
         params![document_id, scope, command.project_id, command.stage_id, payload.get("name").and_then(Value::as_str).unwrap_or("Текст"), EMPTY_DOCUMENT, timestamp],
     ).map_err(|error| error.to_string())?;
     tx.execute(
@@ -720,12 +724,7 @@ pub fn bind_document_file(command: DocumentFileCommand) -> Result<Value, String>
         params![binding_id(&document_id), document_id, path.to_string_lossy()],
     ).map_err(|error| error.to_string())?;
     tx.commit().map_err(|error| error.to_string())?;
-    document_row(
-        &connection,
-        &command.project_id,
-        command.stage_id.as_deref(),
-    )?
-    .ok_or_else(|| "Документ не найден.".to_string())
+    external_reattach::compare(&mut connection,&command.project_id,command.stage_id.as_deref(),&path)
 }
 
 pub fn write_document_word(command: DocumentWordWriteCommand) -> Result<Value, String> {
@@ -872,7 +871,7 @@ pub fn accept_external(command: DocumentExternalAcceptCommand) -> Result<Value, 
     let mut canonical=crate::document_sync::source(&tx,&command.project_id,&document_id).map_err(|e|e.to_string())?;
     if !canonical.is_null(){canonical["content_json"]=command.content.clone();}
     if crate::document_sync::normal(&tx,&command.project_id,&document_id,canonical,command.expected_heads.as_ref(),&timestamp).map_err(|e|e.to_string())? {
-        tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_hash=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),last_synced_at=?,sync_state='synced',expected_external_hash=? WHERE document_id=?",params![command.source_hash,command.source_hash,document_id,timestamp,command.source_hash,document_id]).map_err(|e|e.to_string())?;
+        external_reattach::import_pending(&tx,&document_id,command.expected_heads.as_ref().ok_or("document_stale_heads")?,&command.content,&command.source_hash)?;
         tx.commit().map_err(|e|e.to_string())?;
         return document_row(&connection,&command.project_id,command.stage_id.as_deref())?.ok_or_else(||"document_missing".into());
     }
@@ -931,6 +930,7 @@ pub fn import_word(command: WordImportCommand) -> Result<WordImportResult, Strin
                 total,
                 &hash,
                 &now(),
+                None,
             )?;
             (
                 Some(project.clone()),
@@ -1073,6 +1073,7 @@ pub struct SyncSummary {
     pub item_id: Option<String>,
     pub last_synced_at: Option<String>,
     pub desktop_only: bool,
+    pub proposal_pending: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -1137,6 +1138,9 @@ fn binding_for_scope(
     String,
 > {
     let document_id = document_id_for_scope(connection, project_id, stage_id)?;
+    if external_reattach::connected(connection,project_id)? {
+        return connection.query_row("SELECT binding_type,external_path,source_id,content_hash,last_synced_at FROM project_bindings WHERE id=?1",[external_reattach::project_binding_id(project_id,stage_id)],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional().map_err(|e|e.to_string());
+    }
     connection
         .query_row(
             "SELECT binding_type,external_path,source_id,last_external_hash,last_synced_at FROM document_bindings WHERE document_id=?1",
@@ -1170,6 +1174,7 @@ fn sync_summary(
         item_id: binding.as_ref().and_then(|value| value.2.clone()),
         last_synced_at: binding.and_then(|value| value.4),
         desktop_only: true,
+        proposal_pending: connection.query_row("SELECT EXISTS(SELECT 1 FROM project_bindings WHERE project_id=?1 AND stage_id IS ?2 AND json_type(payload_json,'$.progress_reattach_v1') IS NOT NULL)",params![project_id,stage_id],|r|r.get(0)).map_err(|e|e.to_string())?,
     })
 }
 
@@ -1180,6 +1185,9 @@ pub fn configure_sync(command: SyncConfigureCommand) -> Result<SyncSummary, Stri
         &command.project_id,
         command.stage_id.as_deref(),
     )?;
+    if external_reattach::connected(&connection,&command.project_id)? {
+        return external_reattach::configure_project_source(&mut connection,command);
+    }
     let document_id = document_id_for_scope(
         &connection,
         &command.project_id,
@@ -1326,6 +1334,10 @@ pub fn remove_sync(command: SyncScopeCommand) -> Result<SyncSummary, String> {
         &command.project_id,
         command.stage_id.as_deref(),
     )?;
+    if external_reattach::connected(&connection,&command.project_id)? {
+        connection.execute("DELETE FROM project_bindings WHERE id=?1",[external_reattach::project_binding_id(&command.project_id,command.stage_id.as_deref())]).map_err(|e|e.to_string())?;
+        return sync_summary(&connection,&command.project_id,command.stage_id.as_deref());
+    }
     let document_id = document_id_for_scope(
         &connection,
         &command.project_id,
@@ -1358,6 +1370,7 @@ fn sync_source(
         let item_id = source_id.ok_or_else(|| "Документ Scrivener не выбран.".to_string())?;
         let xml_path = find_scrivener_xml(path)?;
         let xml = read_stable_source(&xml_path)?;
+        if !contains_item(&parse_scrivener_xml(&xml_path)?,item_id){return Err("sync_source_stale".into())}
         let content = read_scrivener_item(path, item_id)?;
         let mut hash_input = xml.bytes;
         hash_input.extend_from_slice(&content);
@@ -1387,6 +1400,9 @@ pub fn run_sync(command: SyncScopeCommand) -> Result<SyncRunResult, String> {
         command.stage_id.as_deref(),
     )?
     .ok_or_else(|| "Синхронизация не настроена.".to_string())?;
+    if external_reattach::connected(&connection,&command.project_id)? {
+        return external_reattach::progress_proposal(&mut connection,&command.project_id,command.stage_id.as_deref(),false);
+    }
     let (symbols, hash) = match sync_source(&binding.0, Path::new(&binding.1), binding.2.as_deref())
     {
         Ok(result) => result,
@@ -1449,6 +1465,7 @@ pub fn run_sync(command: SyncScopeCommand) -> Result<SyncRunResult, String> {
             total,
             &hash,
             &now(),
+            None,
         )?;
         if internal_changed {
             connection
@@ -1501,7 +1518,7 @@ fn progress_result(project: Value, entry: Value) -> Value {
 fn run_all_sync_filtered(project_filter: Option<&str>) -> Result<SyncBatchResult, String> {
     let connection = open()?.0;
     let mut targets = Vec::new();
-    let mut statement = connection.prepare("SELECT d.project_id,d.stage_id FROM documents d JOIN document_bindings b ON b.document_id=d.id JOIN projects p ON p.id=d.project_id LEFT JOIN stages s ON s.id=d.stage_id WHERE (?1 IS NULL OR d.project_id=?1) AND ((d.stage_id IS NULL AND json_extract(p.payload_json,'$.status')='активен' AND json_extract(p.payload_json,'$.work_method')='sync') OR (d.stage_id IS NOT NULL AND json_extract(s.payload_json,'$.status')='активен' AND json_extract(s.payload_json,'$.work_method')='sync')) ORDER BY d.project_id,d.stage_id").map_err(|error| error.to_string())?;
+    let mut statement = connection.prepare("SELECT d.project_id,d.stage_id FROM documents d JOIN document_bindings b ON b.document_id=d.id JOIN projects p ON p.id=d.project_id LEFT JOIN stages s ON s.id=d.stage_id WHERE NOT EXISTS(SELECT 1 FROM cloud_sync_project_bindings cb WHERE cb.project_id=d.project_id) AND (?1 IS NULL OR d.project_id=?1) AND ((d.stage_id IS NULL AND json_extract(p.payload_json,'$.status')='активен' AND json_extract(p.payload_json,'$.work_method')='sync') OR (d.stage_id IS NOT NULL AND json_extract(s.payload_json,'$.status')='активен' AND json_extract(s.payload_json,'$.work_method')='sync')) UNION SELECT b.project_id,b.stage_id FROM project_bindings b JOIN projects p ON p.id=b.project_id LEFT JOIN stages s ON s.id=b.stage_id WHERE b.id LIKE 'external-progress:%' AND (?1 IS NULL OR b.project_id=?1) AND ((b.stage_id IS NULL AND json_extract(p.payload_json,'$.status')='активен' AND json_extract(p.payload_json,'$.work_method')='sync') OR (b.stage_id IS NOT NULL AND json_extract(s.payload_json,'$.status')='активен' AND json_extract(s.payload_json,'$.work_method')='sync')) ORDER BY 1,2").map_err(|error| error.to_string())?;
     let rows = statement
         .query_map([project_filter], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
@@ -1750,7 +1767,8 @@ fn read_stable_source(path: &Path) -> Result<SourceSnapshot, String> {
     })
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> { atomic_write_guarded(path,bytes,None) }
+fn atomic_write_guarded(path: &Path, bytes: &[u8], expected_hash:Option<&str>) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| "Некорректный путь к файлу.".to_string())?;
@@ -1768,6 +1786,9 @@ fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     file.write_all(bytes).map_err(|error| error.to_string())?;
     file.sync_all().map_err(|error| error.to_string())?;
     drop(file);
+    if let Some(expected)=expected_hash {
+        if read_stable_source(path).map(|s|s.hash).ok().as_deref()!=Some(expected){let _=fs::remove_file(&temporary);return Err("external_hash_stale".into())}
+    }
     fs::rename(&temporary, path).map_err(|error| {
         let _ = fs::remove_file(&temporary);
         format!("Не удалось заменить файл: {error}")
@@ -1779,6 +1800,11 @@ fn ensure_external_write_safe(
     document_id: &str,
     path: &Path,
 ) -> Result<(), String> {
+    let raw:String=connection.query_row("SELECT payload_json FROM document_bindings WHERE document_id=?1",[document_id],|r|r.get(0)).map_err(|_|"external_reattach_required")?;
+    let local:Value=serde_json::from_str(&raw).map_err(|_|"external_revalidation_required")?;
+    if local.get("reattach_v1").is_some(){return Err("external_explicit_decision_required".into())}
+    let connected:bool=connection.query_row("SELECT EXISTS(SELECT 1 FROM cloud_document_migrations WHERE entity_id=?1)",[document_id],|r|r.get(0)).map_err(|e|e.to_string())?;
+    if connected{return Err("external_revalidation_required".into())}
     let expected: Option<String> = connection
         .query_row(
             "SELECT last_synced_hash FROM document_bindings WHERE document_id=?",
@@ -2775,7 +2801,7 @@ mod tests {
                 stage_id: None,
                 path: path.to_string_lossy().into_owned(),
             })?;
-            let written = write_document_word_content("p1".into(), None, content.clone())?;
+            let written = resolve_external_binding(ExternalDecisionCommand{project_id:"p1".into(),stage_id:None,choice:"cloud".into()})?;
             let external = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
@@ -2892,7 +2918,7 @@ mod tests {
                 stage_id: None,
                 path: word_path.to_string_lossy().into_owned(),
             })?;
-            write_document_word_content("p1".into(), None, initial)?;
+            resolve_external_binding(ExternalDecisionCommand{project_id:"p1".into(),stage_id:None,choice:"cloud".into()})?;
 
             save_document(DocumentSaveCommand {
                 project_id: "p1".into(),
@@ -3060,8 +3086,10 @@ fn record_sync_progress(
     total: f64,
     source_hash: &str,
     created_at: &str,
+    proposal: Option<&Value>,
 ) -> Result<(Value, Value), String> {
     let tx=connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate).map_err(|e|e.to_string())?;
+    if let Some(proposal)=proposal{external_reattach::assert_progress_proposal(&tx,project_id,stage_id,proposal)?;}
     let document_id = document_id_for_scope(&tx, project_id, stage_id)?;
     let last: Option<String> = tx
         .query_row(
@@ -3072,7 +3100,7 @@ fn record_sync_progress(
         .optional()
         .map_err(|e| e.to_string())?
         .flatten();
-    if last.as_deref() == Some(source_hash) {
+    if proposal.is_none() && last.as_deref() == Some(source_hash) {
         tx.commit().map_err(|e|e.to_string())?;return Ok((crate::project_payload(connection, project_id)?, Value::Null));
     }
     let (entity_id, payload, _) = project_entity(&tx, project_id, stage_id)?;
@@ -3090,7 +3118,7 @@ fn record_sync_progress(
     };
     let delta = (total - previous) * factor;
     if delta.abs() < 0.009 {
-        tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,sync_state='synced' WHERE document_id=?",params![source_hash,now(),document_id]).map_err(|e|e.to_string())?;
+        if proposal.is_none(){tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,sync_state='synced' WHERE document_id=?",params![source_hash,now(),document_id]).map_err(|e|e.to_string())?;}
         tx.commit().map_err(|e|e.to_string())?;return Ok((crate::project_payload(connection, project_id)?, Value::Null));
     }
     let entry_id = crate::new_note_id()?;
@@ -3144,7 +3172,26 @@ fn record_sync_progress(
     }
     }
     tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,delta_symbols,context_json,created_at) VALUES(?,'ProgressAdded',?,?,?,?,?,?)",params![format!("sync-progress:{document_id}:{source_hash}"),project_id,stage_id,entry_id,delta,serde_json::json!({"source":"trusted_document_sync","version":1,"key":format!("document:{}:{}",project_id,stage_id.unwrap_or("project"))}).to_string(),created_at]).map_err(|e|e.to_string())?;
-    tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),sync_state='synced',expected_external_hash=? WHERE document_id=?",params![source_hash,now(),document_id,source_hash,document_id]).map_err(|e|e.to_string())?;
+    if proposal.is_none(){tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),sync_state='synced',expected_external_hash=? WHERE document_id=?",params![source_hash,now(),document_id,source_hash,document_id]).map_err(|e|e.to_string())?;}
     tx.commit().map_err(|e| e.to_string())?;
     Ok((crate::project_payload(connection, project_id)?, entry))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub struct ExternalDecisionCommand {pub project_id:String,pub stage_id:Option<String>,pub choice:String}
+pub fn resolve_external_binding(command:ExternalDecisionCommand)->Result<Value,String>{let mut db=open()?.0;validate_scope(&db,&command.project_id,command.stage_id.as_deref())?;external_reattach::resolve(&mut db,&command.project_id,command.stage_id.as_deref(),&command.choice)}
+pub fn poll_external_binding(scope:DocumentScope)->Result<Value,String>{let mut db=open()?.0;validate_scope(&db,&scope.project_id,scope.stage_id.as_deref())?;external_reattach::poll(&mut db,&scope.project_id,scope.stage_id.as_deref())}
+
+pub fn confirm_external_progress(command:SyncScopeCommand)->Result<SyncRunResult,String>{let mut db=open()?.0;validate_sync_scope(&db,&command.project_id,command.stage_id.as_deref())?;external_reattach::progress_proposal(&mut db,&command.project_id,command.stage_id.as_deref(),true)}
+
+pub fn refresh_external_progress(command:SyncScopeCommand)->Result<SyncRunResult,String>{
+ let mut db=open()?.0;validate_sync_scope(&db,&command.project_id,command.stage_id.as_deref())?;
+ if !external_reattach::connected(&db,&command.project_id)?{drop(db);return run_sync(command)}
+ let id=external_reattach::project_binding_id(&command.project_id,command.stage_id.as_deref());
+ let raw:String=db.query_row("SELECT payload_json FROM project_bindings WHERE id=?1",[&id],|r|r.get(0)).map_err(|_|"external_reattach_required")?;
+ let mut local:Value=serde_json::from_str(&raw).map_err(|_|"external_invalid_evidence")?;
+ local.as_object_mut().ok_or("external_invalid_evidence")?.remove("progress_reattach_v1");
+ db.execute("UPDATE project_bindings SET payload_json=?1 WHERE id=?2",params![local.to_string(),id]).map_err(|e|e.to_string())?;
+ external_reattach::progress_proposal(&mut db,&command.project_id,command.stage_id.as_deref(),false)
 }

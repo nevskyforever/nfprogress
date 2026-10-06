@@ -247,5 +247,11 @@
     "content": "<html><body><h2>Couvertures de projet chiffrées</h2><p>Après activation des paramètres du projet dans le cloud, une couverture existante reste locale. Choisissez « Publier la couverture » dans les paramètres du cloud. Tous les appareils enregistrés doivent prendre en charge cette fonction. Démarrer l’application, se connecter ou ouvrir un projet ne publie pas de couverture.</p><p>La couverture est chiffrée avant son envoi : le serveur ne peut pas voir l’image. Après la première publication confirmée, remplacer ou retirer la couverture crée des modifications chiffrées des paramètres du projet. La couverture d’un projet local reste sur l’appareil.</p><p>Si une couverture chiffrée est indisponible ou échoue à la vérification, l’image vérifiée est conservée et la synchronisation complète est temporairement retardée. Réessayez plus tard : la publication en attente et l’attente d’une couverture survivent au redémarrage.</p><p>Lors de modifications simultanées, choisissez une version complète du projet dans la section existante des conflits. Vous pouvez afficher la couverture vérifiée de chaque version. Retirer une couverture n’efface pas les images chiffrées historiques du serveur.</p></body></html>",
     "key": "cloud_cover_sync",
     "title": "Couvertures de projet chiffrées"
+  },
+  {
+    "children": [],
+    "content": "<html><body><h2>Fichiers locaux sur chaque appareil</h2><p>Word et Scrivener sont connectés séparément sur chaque appareil. Les chemins, sources choisies et vérifications locales ne sont pas synchronisés.</p><p>Exportez une copie Word ou reconnectez un fichier existant. Sa sélection compare le contenu sans l’écraser. En cas de différence, importez explicitement Word ou écrivez la version WORTA ; une copie séparée peut être exportée. Comparez à nouveau après une modification.</p><p>Un fichier local manquant ne supprime ni le texte ni la progression cloud. Choisissez explicitement un autre chemin. La progression Word/Scrivener nécessite de confirmer la comparaison. Les liens locaux sont indisponibles sur Web ; le texte WORTA reste accessible.</p></body></html>",
+    "key": "local_external_reattachment",
+    "title": "Fichiers locaux sur chaque appareil"
   }
 ]

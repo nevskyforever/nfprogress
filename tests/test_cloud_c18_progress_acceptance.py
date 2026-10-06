@@ -183,12 +183,17 @@ def test_progress_two_devices_causal_rebase_delete_and_derived_rebuild(cloud_cli
     with zipfile.ZipFile(external,'w') as z:z.writestr('word/document.xml','<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>'+('y'*100)+'</w:t></w:r></w:p></w:body></w:document>')
     with sqlite3.connect(a) as db:
         db.execute("INSERT INTO document_bindings(id,document_id,binding_type,external_path,last_synced_revision,sync_state,payload_json) VALUES(?, ?, 'word', ?, (SELECT revision FROM documents WHERE id=?), 'external_changed', '{}')",('isolated-progress-binding',saved['document_id'],str(external),saved['document_id']))
-    result=progress(tmp_path,a,ia,user,'external_sync',stage_id='S1');assert result.get('changed') is True,result
-    assert progress(tmp_path,a,ia,user,'external_sync',stage_id='S1')['changed'] is False
+    configured=document(tmp_path,a,ia,user,'configure_source',stage_id='S1',source_type='word',source_path=str(external));assert configured['configured'],configured
+    prepared=document(tmp_path,a,ia,user,'prepare_progress',stage_id='S1');assert prepared['changed'] is False and prepared['sync']['proposal_pending'],prepared
+    assert progress(tmp_path,a,ia,user,'pending')==[]
+    result=document(tmp_path,a,ia,user,'confirm_progress',stage_id='S1');assert result.get('changed') is True,result
+    assert document(tmp_path,a,ia,user,'confirm_progress',stage_id='S1')['error']=='external_progress_authority_pending'
     assert len(progress(tmp_path,a,ia,user,'pending'))==1
     emit(client,tmp_path,token,a,ia,user,amk)
     for path,identity in ((a,ia),(b,ib)):assert receive(client,tmp_path,token,path,identity,user,amk)==['applied']
     assert totals(a)==totals(b);assert totals(a)[0]==100;assert external.exists()
+    assert document(tmp_path,a,ia,user,'prepare_progress',stage_id='S1')['changed'] is False
+    assert progress(tmp_path,a,ia,user,'pending')==[]
     for path,identity in ((a,ia),(b,ib)):
         day=progress(tmp_path,path,identity,user,'writing_day')
         with sqlite3.connect(path) as db:

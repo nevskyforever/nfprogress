@@ -700,6 +700,17 @@ fn document_bridge(request:&Value)->Value {
  "seal"=>{docs::seal(&mut db,&scope.account_id,required_string(request,"event_id"),&bytes(request,"frame"),&bytes(request,"nonce"),&bytes(request,"ciphertext")).unwrap();json!(true)},
  "receipt"=>{docs::receipt(&mut db,&scope.account_id,&scope.device_id,required_string(request,"event_id"),required_i64(request,"server_sequence"),request["duplicate"].as_bool().unwrap_or(false),now).unwrap();json!(true)},
  "edit"=>{let tx=db.transaction().unwrap();let result=docs::normal(&tx,p,id,request["document"].clone(),request.get("expected"),now);match result{Ok(v)=>{tx.commit().unwrap();json!(v)},Err(e)=>json!({"error":e.to_string()})}},
+ "configure_source"|"prepare_progress"|"confirm_progress"|"refresh_progress"|"background"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());let c=crate::documents::SyncScopeCommand{project_id:p.into(),stage_id:request["stage_id"].as_str().map(str::to_string)};
+ let result:Result<Value,String>=match required_string(request,"step"){
+ "configure_source"=>crate::documents::configure_sync(serde_json::from_value(json!({"projectId":p,"stageId":request["stage_id"],"type":request["source_type"],"path":request["source_path"],"itemId":request["item_id"]})).unwrap()).map(|v|serde_json::to_value(v).unwrap()),
+ "prepare_progress"=>crate::documents::run_sync(c).map(|v|serde_json::to_value(v).unwrap()),
+ "confirm_progress"=>crate::documents::confirm_external_progress(c).map(|v|serde_json::to_value(v).unwrap()),
+ "refresh_progress"=>crate::documents::refresh_external_progress(c).map(|v|serde_json::to_value(v).unwrap()),
+ _=>crate::documents::run_all_sync().map(|v|serde_json::to_value(v).unwrap())};match result{Ok(v)=>v,Err(e)=>json!({"error":e})}},
+ "reattach"|"resolve_binding"|"poll_binding"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());let result=match required_string(request,"step"){
+ "reattach"=>crate::documents::bind_document_file(serde_json::from_value(json!({"projectId":p,"stageId":request["stage_id"],"path":request["path"]})).unwrap()),
+ "resolve_binding"=>crate::documents::resolve_external_binding(serde_json::from_value(json!({"projectId":p,"stageId":request["stage_id"],"choice":request["choice"]})).unwrap()),
+ _=>crate::documents::poll_external_binding(serde_json::from_value(json!({"projectId":p,"stageId":request["stage_id"]})).unwrap())};match result{Ok(v)=>v,Err(e)=>json!({"error":e})}},
  "save"|"external"|"rename"=>{drop(db);std::env::set_var("NFPROGRESS_DATA_DIR",path.parent().unwrap());let document_scope=json!({"projectId":p,"stageId":request["stage_id"],"expectedHeads":request["expected"]});
   let mut command=document_scope;command["content"]=request["content"].clone();command["title"]=request["title"].clone();command["sourceHash"]=request["source_hash"].clone();let result=match required_string(request,"step"){
   "save"=>{command.as_object_mut().unwrap().remove("title");command.as_object_mut().unwrap().remove("sourceHash");crate::documents::save_document(serde_json::from_value(command).unwrap())},

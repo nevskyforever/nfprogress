@@ -5,6 +5,7 @@ export type SyncType = 'word' | 'scrivener'
 export interface SyncSummary {
   project_id: string
   stage_id: string | null
+  proposal_pending?: boolean
   configured: boolean
   type: SyncType | null
   path: string | null

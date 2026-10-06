@@ -38,7 +38,8 @@ export function useDocumentSync(scope: DocumentScope) {
     return queued
   }
   async function writeLinkedWord(next = content.value) {
-    if (!documentState.value?.docx_path) return
+    if (!documentState.value?.docx_path || documentState.value.expected_heads !== undefined
+      || ['external_proposal','external_import_pending','external_write_pending'].includes(documentState.value.sync_state)) return
     documentState.value = currentPlatform() === 'tauri'
       ? await documentsApi.writeDocxContent(scope, next)
       : await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(next)))
@@ -87,6 +88,12 @@ export function useDocumentSync(scope: DocumentScope) {
   }
   async function checkExternal(): Promise<ExternalDocumentChange | undefined> {
     if (!documentState.value?.docx_path) return
+    if (currentPlatform() === 'tauri' && documentState.value.expected_heads !== undefined) {
+      try { documentState.value = await documentsApi.pollBinding(scope) }
+      catch { status.value = 'Локальный источник требует повторной проверки'; return }
+      if (documentState.value.sync_state === 'external_proposal') status.value = 'Word отличается от WORTA. Выберите действие.'
+      return // Native durable proposal is resolved only by an explicit button.
+    }
     const external = await documentsApi.external(scope)
     if (!external.content_base64 || !external.hash) return
     // Native writes persist their resulting file hash. Even if a delayed or
@@ -107,7 +114,15 @@ export function useDocumentSync(scope: DocumentScope) {
     announceDataChange('projects')
     status.value = 'Изменения Word импортированы'
   }
-  async function link(path: string) { documentState.value = await documentsApi.link(scope, path); await writeLinkedWord() }
+  async function link(path: string) {
+    documentState.value = await documentsApi.link(scope, path)
+    status.value = documentState.value.sync_state === 'synced' ? 'Файл Word связан' : 'Word отличается от WORTA. Выберите действие.'
+  }
+  async function resolveExternal(choice: 'compare' | 'cloud' | 'import' | 'unlink') {
+    documentState.value = await documentsApi.resolveExternal(scope, choice)
+    if (choice === 'import') { setContent(copyContent(documentState.value.content)); announceDataChange('projects') }
+    status.value = choice === 'unlink' ? 'Файл Word не подключён на этом устройстве' : 'Сохранено'
+  }
   async function downloadWordCopy() {
     const blob = await exportDocx(content.value); const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
     anchor.href = url; anchor.download = 'nfprogress-conflict-copy.docx'; anchor.click(); URL.revokeObjectURL(url)
@@ -127,5 +142,5 @@ export function useDocumentSync(scope: DocumentScope) {
     window.clearInterval(watchTimer)
     void save().catch(() => { status.value = 'Не удалось сохранить' })
   })
-  return { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal, downloadWordCopy }
+  return { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, resolveExternal, writeLinkedWord, checkExternal, acknowledgeExternal, downloadWordCopy }
 }

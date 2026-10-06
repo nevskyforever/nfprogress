@@ -3,6 +3,7 @@ import type { ProgressResult } from './api'
 export type TiptapDocument = { type: 'doc'; content?: Array<Record<string, unknown>> }
 
 export interface ProjectDocument {
+  external_content?: TiptapDocument
   expected_heads?: unknown
   document_id?: string
   project_id: string
@@ -39,6 +40,8 @@ export interface DocumentRepository {
   list(): Promise<ProjectDocument[]>
   get(scope: DocumentScope): Promise<ProjectDocument>
   save(scope: DocumentScope, content: TiptapDocument, expectedHeads?: unknown): Promise<ProjectDocument>
+  resolveExternal(scope: DocumentScope, choice: 'compare' | 'cloud' | 'import' | 'unlink'): Promise<ProjectDocument>
+  pollBinding(scope: DocumentScope): Promise<ProjectDocument>
   link(scope: DocumentScope, filePath: string): Promise<ProjectDocument>
   writeDocx(scope: DocumentScope, contentBase64: string): Promise<ProjectDocument>
   writeDocxContent(scope: DocumentScope, content: TiptapDocument): Promise<ProjectDocument>

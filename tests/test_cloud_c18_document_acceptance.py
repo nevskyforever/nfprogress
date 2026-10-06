@@ -12,8 +12,8 @@ from test_cloud_c18_authority_cross_runtime import provision, bootstrap, native,
 from test_cloud_c18_structural_cross_runtime import event, structural, structural_publish, structural_sync
 from test_cloud_c15_headless_cross_runtime import PROJECT_ID, _crypto_bridge, _native_bridge, _headers
 NOW='2026-10-03T00:00:00.000000Z'
-def document(tmp,path,identity,user,step,**values):
-    return _native_bridge(tmp,dict(action='document',database_path=str(path),local_account_id=identity['local_account_id'],device_id=identity['device_id'],canonical_user_id=user,project_id=PROJECT_ID,step=step,**values))
+def document(tmp,database_path,identity,user,step,**values):
+    return _native_bridge(tmp,dict(action='document',database_path=str(database_path),local_account_id=identity['local_account_id'],device_id=identity['device_id'],canonical_user_id=user,project_id=PROJECT_ID,step=step,**values))
 def content(value):return dict(type='doc',content=[dict(type='paragraph',content=[dict(type='text',text=value)])])
 def support(client,headers,device):
     r=client.put('/api/v3/sync/encrypted/document-reader-capabilities',headers=headers,json=dict(device_id=device,frame_version=1,codec_id=10,codec_version=1,reader_version=1,compression_zero=True));assert r.status_code==204,r.text
@@ -99,6 +99,45 @@ def test_documents_real_two_devices_moves_conflicts_extensions_and_gate(cloud_cl
     for path,identity in ((a,ia),(b,ib)):assert receive(client,tmp_path,token,path,identity,user,amk)==['applied','applied']
     assert stored(a,pid)==stored(b,pid) and stored(a,sid)==stored(b,sid)
     with sqlite3.connect(b) as db:assert db.execute('SELECT count(*) FROM document_bindings').fetchone()[0]==0
+    # C18.6.02: each device explicitly compares its own file; no implicit copy.
+    import hashlib, io, zipfile
+    def local_docx(value, tag):
+        out=io.BytesIO()
+        with zipfile.ZipFile(out,'w') as z:
+            z.writestr('word/document.xml',f'<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{value}</w:t></w:r></w:p></w:body></w:document>')
+            z.writestr('local-container-note',tag)
+        return out.getvalue()
+    paths=[tmp_path/'C18_SECRET_PATH_A.docx',tmp_path/'C18_SECRET_PATH_B.docx']
+    text_value='Secret portable manuscript'
+    for path,identity,word,tag in ((a,ia,paths[0],'A'),(b,ib,paths[1],'B')):
+        word.write_bytes(local_docx(text_value,tag));raw=word.read_bytes();before=heads(tmp_path,path,identity,user,pid)
+        linked=document(tmp_path,path,identity,user,'reattach',path=str(word));assert 'error' not in linked,linked
+        assert linked['sync_state']=='synced';assert word.read_bytes()==raw;assert heads(tmp_path,path,identity,user,pid)==before;assert document(tmp_path,path,identity,user,'pending')==[]
+    for path,other in ((a,paths[1]),(b,paths[0])):
+        with sqlite3.connect(path) as db:assert str(other) not in json.dumps(db.execute('SELECT * FROM document_bindings').fetchall())
+    paths[1].write_bytes(local_docx('B external explicit import','B2'));before=heads(tmp_path,b,ib,user,pid);raw=paths[1].read_bytes()
+    proposal=document(tmp_path,b,ib,user,'resolve_binding',choice='compare');assert proposal['sync_state']=='external_proposal';assert heads(tmp_path,b,ib,user,pid)==before;assert paths[1].read_bytes()==raw
+    imported=document(tmp_path,b,ib,user,'resolve_binding',choice='import');assert imported['sync_state']=='external_import_pending',imported
+    pending=document(tmp_path,b,ib,user,'pending')
+    for item in pending:
+        canonical=bytes(item['frame']).decode('utf8',errors='ignore');assert 'C18_SECRET_PATH' not in canonical;assert 'SOURCE-ID-C18-LOCAL-ONLY' not in canonical;assert 'document_bindings' not in canonical
+    requests=emit(client,tmp_path,token,b,ib,user,amk)
+    assert 'C18_SECRET_PATH' not in json.dumps(requests)
+    for path,identity in ((a,ia),(b,ib)):assert receive(client,tmp_path,token,path,identity,user,amk)==['applied']
+    assert document(tmp_path,b,ib,user,'poll_binding')['sync_state']=='synced'
+    paths[1].write_bytes(local_docx('Preserve this external edit','B3'));document(tmp_path,b,ib,user,'resolve_binding',choice='compare');raw=paths[1].read_bytes()
+    # Proposal has a frozen authenticated head and cannot overwrite a later edit.
+    document(tmp_path,a,ia,user,'save',content=content('Cloud newer'),expected=heads(tmp_path,a,ia,user,pid));emit(client,tmp_path,token,a,ia,user,amk)
+    for path,identity in ((a,ia),(b,ib)):receive(client,tmp_path,token,path,identity,user,amk)
+    assert document(tmp_path,b,ib,user,'resolve_binding',choice='import')['error']=='external_head_stale';assert paths[1].read_bytes()==raw
+    document(tmp_path,b,ib,user,'resolve_binding',choice='compare');paths[1].write_bytes(local_docx('Changed after comparison','B4'));raw=paths[1].read_bytes()
+    assert document(tmp_path,b,ib,user,'resolve_binding',choice='cloud')['error']=='external_hash_stale';assert paths[1].read_bytes()==raw
+    document(tmp_path,b,ib,user,'resolve_binding',choice='compare');before=heads(tmp_path,b,ib,user,pid)
+    written=document(tmp_path,b,ib,user,'resolve_binding',choice='cloud');assert written['sync_state']=='synced',written;assert heads(tmp_path,b,ib,user,pid)==before;assert document(tmp_path,b,ib,user,'pending')==[]
+    for path,identity in ((a,ia),(b,ib)):document(tmp_path,path,identity,user,'resolve_binding',choice='unlink')
+    with engine.connect() as db:
+        for table in ('sync_events','encrypted_objects','sync_devices','cloud_projects','encrypted_blobs'):
+            rows=db.execute(text(f'SELECT row_to_json(t)::text FROM {table} t')).scalars().all();assert not any('C18_SECRET_PATH' in r or 'SOURCE-ID-C18-LOCAL-ONLY' in r for r in rows)
     # A frozen document reference remains valid through an accepted Stage rename.
     from test_cloud_c18_structural_integration import publish_pending,pull_structure
     saved=document(tmp_path,a,ia,user,'save',stage_id='S3',content=content('Before Stage rename'),expected=heads(tmp_path,a,ia,user,sid));assert 'error' not in saved,saved

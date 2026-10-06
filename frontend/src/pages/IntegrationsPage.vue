@@ -314,7 +314,7 @@ async function configureSync(): Promise<void> {
   }
 }
 
-async function runSync(): Promise<void> {
+async function runSync(confirm = false): Promise<void> {
   if (
     !sync.value?.configured ||
     !selectedProjectId.value ||
@@ -326,7 +326,7 @@ async function runSync(): Promise<void> {
   operationError.value = null
   success.value = ''
   try {
-    const result = await integrationsApi.runSync(
+    const result = await (confirm ? integrationsApi.confirmSync : integrationsApi.runSync)(
       selectedProjectId.value,
       selectedStageId.value || null,
     )
@@ -334,7 +334,7 @@ async function runSync(): Promise<void> {
     applyProgressFeedback(result.progress)
     applyGameFeedback(result.progress)
     if (result.changed) announceDataChange('projects')
-    success.value = result.changed
+    success.value = result.sync.proposal_pending ? t('Внешний источник отличается. Подтвердите новый объём: {count}.', {count:locale.formatNumber(result.symbols,0)}) : result.changed
       ? t('Синхронизация завершена. Прочитано: {count} {unit}', {
           count: locale.formatNumber(result.symbols, 0),
           unit: locale.formatUnit('symbols', result.symbols),
@@ -342,7 +342,8 @@ async function runSync(): Promise<void> {
       : t('Документ не изменился. Текущий объём уже актуален.')
     if (!result.changed) notifications.show(success.value, 'info')
   } catch (runError) {
-    operationError.value = t(apiErrorMessage(runError))
+    const code=apiErrorMessage(runError)
+    operationError.value = t(code==='sync_source_missing' ? 'Локальный файл не найден. Переподключите его.' : code.startsWith('external_') || code==='sync_source_stale' ? 'Локальный источник требует повторной проверки' : code)
   } finally {
     mutating.value = false
   }
@@ -675,12 +676,14 @@ onMounted(loadPage)
                     class="nf-button"
                     type="button"
                     :disabled="busy || !entityWritable"
-                    @click="runSync"
+                    @click="runSync(false)"
                   >
                     <IonSpinner v-if="mutating" name="crescent" aria-hidden="true" />
                     <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
                     {{ t('Синхронизировать сейчас') }}
                   </button>
+                  <button v-if="sync?.proposal_pending" class="nf-button" type="button" :disabled="busy" @click="runSync(true)">{{ t('Применить сравнение внешнего источника') }}</button>
+                  <p>{{ t('Путь и выбранный источник остаются только на этом устройстве. Изменение прогресса требует подтверждения.') }}</p>
                   <button
                     class="nf-button nf-button--quiet"
                     type="button"
