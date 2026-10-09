@@ -1,3 +1,4 @@
+import { encryptObjectBytes } from '@/crypto'
 import { compressionBlocker } from './frameCompression'
 import { encryptedSyncV3Api } from '@/api/encryptedSyncV3'
 import { KeyNotProvisionedError, type RuntimeKeyContext } from '@/auth/keyContext'
@@ -6,7 +7,7 @@ import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdentityRepository'
 import { SQLiteStageStructuralRepository, type StructuralDecision, type StructuralView } from '@/infrastructure/sqlite/stageStructuralRepository'
 import { ProjectMetadataMigrationRuntime, type MetadataApplyResult } from './projectMetadataMigrationRuntime'
-import { frameStructuralEvent, openStructuralEvent, sealStructuralEvent, validateStructuralEvent } from './stageCodec'
+import { frameStructuralEvent, openStructuralEvent, validateStructuralEvent } from './stageCodec'
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 const now = (): string => canonicalizeSyncTimestamp(new Date().toISOString())
 /** Reuses the accepted account/key/device guards. Only begin captures legacy Stages. */
@@ -38,10 +39,15 @@ export class StageStructuralRuntime extends ProjectMetadataMigrationRuntime {
       const lease = this.keys.leaseForAccount(accountId)
       if (!lease) throw new KeyNotProvisionedError()
       await lease.use(async amk => {
-        const sealed = await sealStructuralEvent(amk, event); this.assertCurrent(context)
-        const frame = frameStructuralEvent(event)
-        try { await this.structural.seal(scope, event.header.event_id, frame, sealed.nonce, sealed.ciphertext) }
-        finally { frame.fill(0) }
+        const original = frameStructuralEvent(event)
+        let frame=original
+        try {
+          frame=await this.compressionFrame(accountId,deviceId,original)
+          const h=event.header
+          const sealed=await encryptObjectBytes(amk,{userId:h.account_id,projectId:h.project_id,entityId:h.entity_id,entityType:h.entity_type},frame);this.assertCurrent(context)
+          await this.structural.seal(scope,h.event_id,frame,sealed.nonce,sealed.ciphertext)
+        }
+        finally { frame.fill(0); original.fill(0) }
       })
     }
     return items.length

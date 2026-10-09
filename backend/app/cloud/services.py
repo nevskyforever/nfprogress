@@ -410,6 +410,46 @@ class SyncService:
             session.rollback()
             raise
 
+    def compression_gate(self, session: Session, user_id: object) -> tuple[bool, int]:
+        devices = session.scalars(select(SyncDevice).where(SyncDevice.user_id == user_id)).all()
+        missing = sum(not device.compression_id1 for device in devices)
+        mode, _ = self.capabilities(session, user_id)
+        return bool(devices) and missing == 0 and mode == 3, missing
+
+    def declare_compression_reader(self, session: Session, user_id: object, request) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, request.device_id)
+                device.compression_id1 = request.compression_id1
+                device.last_seen_at = utc_now()
+        except Exception:
+            session.rollback()
+            raise
+
+    def authorize_compressed_seal(self, session: Session, user_id: object, device_id: object) -> tuple[bool, int]:
+        # Same account lock as device registration/capability changes. This
+        # conservative sticky read barrier precedes encryption/publication, so a
+        # late legacy registration cannot consume already sealed ID1 history.
+        try:
+            session.commit()
+            with session.begin():
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                self._registered_device(session, user_id, device_id)
+                ready, missing = self.compression_gate(session, user_id)
+                if ready:
+                    state.compression_id1_required = True
+                return ready, missing
+        except Exception:
+            session.rollback()
+            raise
+
+    @staticmethod
+    def require_compression_reader(state, device) -> None:
+        if state.compression_id1_required and not device.compression_id1:
+            raise SyncProtocolError('compression_reader_required', 'Explicit ID1 reader support is required for retained account history.', 409)
+
     def declare_v3_reader_ready(self, session: Session, user_id: object, device_id: object) -> None:
         try:
             session.commit()
@@ -719,9 +759,9 @@ class SyncService:
             self._validate_encrypted_batch(items, transport_version=transport_version)
             session.commit()
             with session.begin():
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
                 device = self._registered_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
-                state = self._sync.ensure_user_state(session, user_id, lock=True)
                 if metadata_cover and (transport_version != 3 or any(item.event.entity_type != 'project_metadata' for item in items)
                                        or not self.cover_gate(session, user_id)[0]):
                     raise SyncProtocolError('cover_readers_not_ready', 'All registered devices must support metadata-v2 covers.', 409)
@@ -796,6 +836,7 @@ class SyncService:
         if device is None:
             raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
         state = self._sync.ensure_user_state(session, user_id)
+        self.require_compression_reader(state, device)
         self._require_transport_mode(state, transport_version)
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
@@ -851,6 +892,7 @@ class SyncService:
         if device is None:
             raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
         state = self._sync.ensure_user_state(session, user_id)
+        self.require_compression_reader(state, device)
         self._require_transport_mode(state, transport_version)
         if since > state.current_sequence:
             raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
@@ -949,8 +991,9 @@ class SyncService:
         try:
             session.commit()
             with session.begin():
-                device = self._registered_device(session, user_id, device_id)
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
+                device = self._registered_device(session, user_id, device_id)
+                self.require_compression_reader(state, device)
                 self._require_transport_mode(state, transport_version)
                 if cursor > state.current_sequence:
                     raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)

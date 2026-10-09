@@ -1,4 +1,5 @@
-import { compressionBlocker } from './frameCompression'
+import { encryptObjectBytes } from '@/crypto'
+import { selectWriterFrame, compressionBlocker } from './frameCompression'
 import { SQLiteProjectCoverRepository, type ProjectCoverRepository } from '@/infrastructure/sqlite/projectCoverRepository'
 import { encryptedCoversApi } from '@/api/encryptedCovers'
 import { encryptProjectCover, createProjectCoverBlobId } from './projectCoverCrypto'
@@ -16,7 +17,7 @@ import { SQLiteNoteSyncInboxRepository, type NoteSyncInboxRepository, type Commi
 import { SQLiteProjectMetadataMigrationRepository, type MetadataScope, type MetadataMigrationStatus, type MetadataAuthorityView, type MetadataDecisionKind, type ProjectMetadataMigrationRepository } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
 import type { ProjectMetadata, ProjectMetadataEvent } from './projectMetadataCodec'
 import { cloudProjectsApi } from '@/api/cloudProjects'
-import { encodeProjectMetadataEvent, openProjectMetadataEvent, sealProjectMetadataEvent, validateProjectMetadataEvent } from './projectMetadataCodec'
+import { encodeProjectMetadataEvent, frameProjectMetadata, openProjectMetadataEvent, validateProjectMetadataEvent } from './projectMetadataCodec'
 import { encodeBase64Url } from '@/api/base64url'
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 
@@ -70,6 +71,40 @@ export class ProjectMetadataMigrationRuntime {
     if (await this.mode(accountId, deviceId) !== 3) throw new TypeError('metadata_mode_3_required')
   }
 
+  protected async advertiseCompression(accountId: string, deviceId: string): Promise<boolean> {
+    const {context}=await this.scope(accountId,deviceId)
+    // An injected older API adapter cannot prove support: stay ID0.
+    if (!this.api.compressionReaderCapabilities) return false
+    try {
+      await this.auth.authorized(token=>this.api.compressionReaderCapabilities(token,deviceId))
+      this.assertCurrent(context)
+      return true
+    } catch(error) {
+      if (error instanceof StaleAuthContextError) throw error
+      this.assertCurrent(context)
+      return false
+    }
+  }
+
+  protected async compressionFrame(accountId: string, deviceId: string, canonical: Uint8Array): Promise<Uint8Array> {
+    if (!this.api.compressionWriter || !this.api.compressionReaderCapabilities) return canonical
+    const {context}=await this.scope(accountId,deviceId)
+    return selectWriterFrame(canonical, async()=>{
+      try {
+        if (!await this.advertiseCompression(accountId,deviceId)) return false
+        const gate=await this.auth.authorized(token=>this.api.compressionWriter(token,deviceId))
+        this.assertCurrent(context)
+        return gate.value.ready===true && gate.value.missing_devices===0
+      } catch(error) {
+        // Capability unavailable/unknown is never authorization for ID1.
+        // Authentication epoch changes remain hard failures.
+        if (error instanceof StaleAuthContextError) throw error
+        this.assertCurrent(context)
+        return false
+      }
+    })
+  }
+
   /** Separate explicit preparation of the frozen mode-2 prerequisite. */
   async prepareTransport(accountId: string, deviceId: string): Promise<void> {
     const { context } = await this.scope(accountId, deviceId)
@@ -85,6 +120,7 @@ export class ProjectMetadataMigrationRuntime {
     const { context } = await this.scope(accountId, deviceId)
     const mode = await this.mode(accountId, deviceId)
     if (mode !== 2 && mode !== 3) throw new TypeError('metadata_mode_2_required')
+    await this.advertiseCompression(accountId,deviceId)
     const response = await this.auth.authorized(token => this.api.readerReady(token, deviceId))
     this.assertCurrent(context)
     if (response.context.userId !== context.userId || response.context.authEpoch !== context.authEpoch) throw new StaleAuthContextError()
@@ -113,6 +149,7 @@ export class ProjectMetadataMigrationRuntime {
     if (!descriptor?.bootstrap_id || descriptor.state !== 'active') throw new TypeError('metadata_import_lineage')
     if (!Number.isSafeInteger(this.importPageSize) || this.importPageSize < 1 || this.importPageSize > 200) throw new TypeError('metadata_import_page_limit')
     const bootstrapId = descriptor.bootstrap_id
+    await this.advertiseCompression(accountId,deviceId)
     const { scope } = await this.scope(accountId, deviceId)
     let progress = await this.native.readImport(scope, projectId, bootstrapId)
     this.assertCurrent(context)
@@ -293,7 +330,11 @@ export class ProjectMetadataMigrationRuntime {
       const lease = this.keys.leaseForAccount(accountId)
       if (!lease) throw new KeyNotProvisionedError()
       await lease.use(async amk => {
-        const envelope = await sealProjectMetadataEvent(amk, event)
+        const original = frameProjectMetadata(event)
+        let frame=original
+        let envelope
+        try { frame=await this.compressionFrame(accountId,deviceId,original); envelope = await encryptObjectBytes(amk, {userId:event.header.account_id,projectId:event.header.project_id,entityId:event.header.entity_id,entityType:'project_metadata'}, frame) }
+        finally { frame.fill(0); original.fill(0) }
         this.assertCurrent(context)
         await this.native.commitSealed(scope, event.header.event_id, envelope.nonce, envelope.ciphertext)
       })
@@ -329,6 +370,7 @@ export class ProjectMetadataMigrationRuntime {
     await this.requireMode3(accountId, deviceId)
     const { scope, context } = await this.scope(accountId, deviceId)
     const state = await this.inbox.readPullState(accountId, deviceId, context.userId)
+    await this.advertiseCompression(accountId,deviceId)
     const pulled = await this.auth.authorized(token => this.api.pull(token, deviceId, state.pull_cursor))
     this.assertCurrent(context)
     if (pulled.context.userId !== context.userId || pulled.context.authEpoch !== context.authEpoch) throw new StaleAuthContextError()

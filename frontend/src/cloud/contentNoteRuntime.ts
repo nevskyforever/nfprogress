@@ -56,13 +56,15 @@ export class ContentNoteRuntime extends ContentNoteReader {
     const {context}=await this.scope(accountId,deviceId)
     const pending=await invoke<Pending[]>('list_pending_content_notes',{scope,sealed:false});this.assertCurrent(context)
     for(const item of pending){
-      const bytes=new Uint8Array(item.frame),event=unframeContentNote(bytes),h=event.event.header
+      const original=new Uint8Array(item.frame),event=unframeContentNote(original),h=event.event.header
       if(event.account_id!==scope.canonical_user_id||event.device_id!==scope.device_id||h.event_id!==item.event_id)throw new Error('content_note_scope_mismatch')
       const lease=this.keys.leaseForAccount(accountId);if(!lease)throw new KeyNotProvisionedError()
+      let bytes:Uint8Array=original
       try{await lease.use(async amk=>{
+        bytes=await this.compressionFrame(accountId,deviceId,original)
         const sealed=await encryptObjectBytes(amk,{userId:event.account_id,projectId:h.project_id,entityType:'note',entityId:h.entity_id},bytes);this.assertCurrent(context)
-        await invoke('seal_content_note',{scope,eventId:item.event_id,frame:item.frame,envelope:{crypto_version:1,aad_version:1,nonce:encodeBase64Url(sealed.nonce),ciphertext:encodeBase64Url(sealed.ciphertext)}})
-      })}finally{bytes.fill(0)}
+        await invoke('seal_content_note',{scope,eventId:item.event_id,frame:Array.from(bytes),envelope:{crypto_version:1,aad_version:1,nonce:encodeBase64Url(sealed.nonce),ciphertext:encodeBase64Url(sealed.ciphertext)}})
+      })}finally{bytes.fill(0);original.fill(0)}
     }
     return pending.length
   }
@@ -71,13 +73,13 @@ export class ContentNoteRuntime extends ContentNoteReader {
     const {context}=await this.scope(accountId,deviceId)
     const pending=await invoke<Pending[]>('list_pending_content_notes',{scope,sealed:true});this.assertCurrent(context)
     for(const item of pending){
-      const bytes=new Uint8Array(item.frame),event=unframeContentNote(bytes),h=event.event.header
+      const original=new Uint8Array(item.frame),event=unframeContentNote(original),h=event.event.header
       if(!item.nonce||!item.ciphertext||event.device_id!==deviceId||event.account_id!==scope.canonical_user_id)throw new Error('content_note_scope_mismatch')
       try{
         const response=await this.auth.authorized(token=>encryptedSyncV3Api.pushMetadata(token,deviceId,[{event:{event_id:h.event_id,project_id:h.project_id,entity_id:h.entity_id,entity_type:'note',operation:'event',revision:h.revision,updated_at:h.updated_at,deleted_at:null},object:{crypto_version:1,aad_version:1,nonce:new Uint8Array(item.nonce!),ciphertext:new Uint8Array(item.ciphertext!)}}]));this.assertCurrent(context)
         const receipt=response.value.results[0]!
         await invoke('receipt_content_note',{scope,eventId:h.event_id,serverSequence:receipt.server_sequence,duplicate:receipt.duplicate})
-      }finally{bytes.fill(0)}
+      }finally{original.fill(0)}
     }
     return pending.length
   }

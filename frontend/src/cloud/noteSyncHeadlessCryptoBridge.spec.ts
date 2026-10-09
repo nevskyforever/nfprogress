@@ -1,3 +1,4 @@
+import {selectWriterFrame,normalizeAuthenticatedFrame,COMPRESSION_LIMITS} from './frameCompression'
 import {encryptProjectCover} from './projectCoverCrypto'
 import {createCoverReference,authenticateCoverReference,type ProjectCoverReference} from './projectCoverReference'
 import {frameProgressEvent,unframeProgressEvent} from './progressCodec'
@@ -60,10 +61,10 @@ interface CatalogOpenRequest {action:'catalog_open';canonical_user_id:string;amk
 interface ContentSealRequest{action:'content_note_seal';frame:number[];amk:number[]}
 interface ContentOpenRequest{action:'content_note_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
 interface DocumentEventSealRequest{action:'document_event_seal';payload:import('./documentCodec').DocumentEvent;amk:number[]}
-interface DocumentSealRequest{action:'document_seal';frame:number[];amk:number[]}
+interface DocumentSealRequest{action:'document_seal';frame:number[];amk:number[];compression_ready?:boolean}
 interface DocumentOpenRequest{action:'document_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
 interface MapEventSealRequest{action:'map_event_seal';payload:import('./mapCodec').MapEvent;amk:number[]}
-interface MapSealRequest{action:'map_seal';frame:number[];amk:number[]}
+interface MapSealRequest{action:'map_seal';frame:number[];amk:number[];compression_ready?:boolean}
 interface MapOpenRequest{action:'map_open';canonical_user_id:string;amk:number[];item:OpenRequest['item']}
 interface ProgressEventSealRequest{action:'progress_event_seal';payload:import('./progressCodec').ProgressEvent;amk:number[]}
 interface ProgressSealRequest{action:'progress_seal';frame:number[];amk:number[]}
@@ -114,8 +115,9 @@ async function execute(request: BridgeRequest): Promise<Record<string, unknown>>
     return {decoded,nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
   }
   if(request.action==='document_seal'){
-    const frame=Uint8Array.from(request.frame),e=await unframeDocumentEvent(frame),h=e.header
-    expect([...await frameDocumentEvent(e)]).toEqual(request.frame)
+    const original=Uint8Array.from(request.frame),e=await unframeDocumentEvent(original),h=e.header
+    expect([...await frameDocumentEvent(e)]).toEqual([...normalizeAuthenticatedFrame(original,[10],[1],COMPRESSION_LIMITS.bytes)])
+    const frame=await selectWriterFrame(original,async()=>request.compression_ready===true)
     const o=await encryptObjectBytes(asAccountMasterKey(Uint8Array.from(request.amk)),{userId:h.account_id,projectId:h.project_id,entityType:'document',entityId:h.entity_id},frame)
     return {object:resolutionEnvelopeWire(o),nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
   }
@@ -127,8 +129,9 @@ async function execute(request: BridgeRequest): Promise<Record<string, unknown>>
   }
   if(request.action==='map_event_seal'){return execute({action:'map_seal',frame:[...await frameMapEvent(request.payload)],amk:request.amk})}
   if(request.action==='map_seal'){
-    const frame=Uint8Array.from(request.frame),e=await unframeMapEvent(frame),h=e.header
-    expect([...await frameMapEvent(e)]).toEqual(request.frame)
+    const original=Uint8Array.from(request.frame),e=await unframeMapEvent(original),h=e.header
+    expect([...await frameMapEvent(e)]).toEqual([...normalizeAuthenticatedFrame(original,[9],[1],COMPRESSION_LIMITS.bytes)])
+    const frame=await selectWriterFrame(original,async()=>request.compression_ready===true)
     const o=await encryptObjectBytes(asAccountMasterKey(Uint8Array.from(request.amk)),{userId:h.account_id,projectId:h.project_id,entityType:'map',entityId:h.entity_id},frame)
     return {object:resolutionEnvelopeWire(o),nonce:[...o.nonce],ciphertext:[...o.ciphertext],frame:[...frame]}
   }

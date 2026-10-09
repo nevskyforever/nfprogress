@@ -734,6 +734,8 @@ pub(crate) fn seal(
     if nonce.len() != 24 || !(16..=codec::MAX_FRAME_BYTES + 16).contains(&ciphertext.len()) {
         return fail("invalid_map_payload");
     }
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(|c| Error::Code(c.into()))?;
+    let frame = compression_view.as_ref();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let old:Vec<u8>=tx.query_row("SELECT canonical_frame FROM cloud_map_events WHERE account_id=?1 AND event_id=?2 AND state IN ('unsealed','sealed')",params![a,id],|r|r.get(0))?;
     if old != frame {
@@ -860,6 +862,8 @@ pub(crate) fn apply(
     nonce: &[u8],
     ciphertext: &[u8],
 ) -> Result<String> {
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(|c| Error::Code(c.into()))?;
+    let frame = compression_view.as_ref();
     let e = codec::decode(frame)?;
     db.execute_planned_many_once(|tx|->Result<(Vec<sqlite::OwnedRemoteApplyAuthorization>,Option<ApplyPlan>)>{
   metadata::assert_runtime_scope(tx,&scope.account_id,&scope.canonical_user_id,&scope.device_id)?;let a=&scope.account_id;let h=&e.header;

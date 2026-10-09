@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
-from .schemas import (ProjectCoverReaderCapabilities, ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
+from .schemas import (CompressionReaderCapability, CompressionWriterRequest,ProjectCoverReaderCapabilities, ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
                       V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
                       DocumentReaderCapabilities,
@@ -255,3 +255,31 @@ async def cover_metadata_push(http_request: Request,
                                 duplicate=row.duplicate) for row in results],
         current_cursor=cursor,
     )
+
+
+@router.put('/compression-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
+def compression_reader(request: CompressionReaderCapability,
+                       current: AuthenticatedUser = Depends(get_current_user),
+                       session: Session = Depends(get_cloud_session)) -> None:
+    try:
+        SyncService().declare_compression_reader(session, current.user.id, request)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+
+
+@router.get('/compression-reader-capabilities', response_model=ContentNoteCapabilityGate)
+def compression_gate(current: AuthenticatedUser = Depends(get_current_user),
+                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
+    ready, missing = SyncService().compression_gate(session, current.user.id)
+    return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
+
+
+@router.post('/compression-writer', response_model=ContentNoteCapabilityGate)
+def compression_writer(request: CompressionWriterRequest,
+                       current: AuthenticatedUser = Depends(get_current_user),
+                       session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
+    try:
+        ready, missing = SyncService().authorize_compressed_seal(session, current.user.id, request.device_id)
+    except SyncProtocolError as error:
+        raise _error(error) from None
+    return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)

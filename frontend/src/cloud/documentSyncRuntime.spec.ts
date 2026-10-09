@@ -8,7 +8,7 @@ import {encryptedSyncV3Api} from '@/api/encryptedSyncV3'
 import {syncApi} from '@/api/sync'
 import {frameDocumentEvent,type DocumentEvent} from './documentCodec'
 import fixture from './__fixtures__/documentCodecV1.json'
-import {asAccountMasterKey,encryptObjectBytes} from '@/crypto'
+import {asAccountMasterKey,encryptObjectBytes,decryptObjectBytes} from '@/crypto'
 vi.mock('@tauri-apps/api/core',()=>({invoke:vi.fn()}))
 const USER=fixture.examples[0]!.event.header.account_id,DEVICE=fixture.examples[0]!.event.header.device_id
 async function setup(){
@@ -18,6 +18,8 @@ async function setup(){
  const amk=asAccountMasterKey(new Uint8Array(32))
  const lease={canonicalUserId:USER,authEpoch:context.authEpoch,isCurrent:()=>true,use:(f:(k:typeof amk)=>Promise<unknown>)=>f(amk)}
  const runtime=new DocumentSyncRuntime(auth,bindings as never,identity as never,{leaseForAccount:()=>lease} as never)
+ vi.spyOn(encryptedSyncV3Api,'compressionReaderCapabilities').mockResolvedValue(undefined)
+ vi.spyOn(encryptedSyncV3Api,'compressionWriter').mockResolvedValue({ready:false,missing_devices:1})
  vi.spyOn(syncApi,'registerDevice').mockResolvedValue({protocol_version:1,device_id:DEVICE,last_ack_cursor:0})
  vi.spyOn(encryptedSyncV2Api,'capabilities').mockResolvedValue({supported_transport_version:2,writer_transport_version:3,cutover_epoch:2} as never)
  vi.spyOn(encryptedSyncV3Api,'noteReaderCapabilities').mockResolvedValue(undefined)
@@ -62,4 +64,26 @@ describe('document authority production orchestration',()=>{
   expect(vi.mocked(invoke).mock.calls.some(c=>['apply','ack','seal'].includes((c[1] as {request:{action:string}}).request.action))).toBe(false)
  })
 
+})
+
+
+describe('C18.7.02 production Document writer compression gate',()=>{
+ for(const ready of [false,true])it('fresh eligible frame follows explicit account capability '+ready,async()=>{
+  const {runtime}=await setup()
+  vi.mocked(encryptedSyncV3Api.compressionWriter).mockResolvedValue({ready,missing_devices:ready?0:1})
+  const event=structuredClone(fixture.examples[0]!.event) as DocumentEvent
+  event.document!.content_json={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Portable manuscript paragraph. '.repeat(100)}]}]}
+  const original=await frameDocumentEvent(event)
+  let sealedFrame:number[]=[];let nonce:number[]=[];let ciphertext:number[]=[]
+  vi.mocked(invoke).mockImplementation(async(_c,args)=>{const r=(args as {request:{action:string;frame:number[];nonce:number[];ciphertext:number[]}}).request
+   if(r.action==='pending')return [{event,frame:[...original],nonce:null,ciphertext:null}]
+   if(r.action==='seal'){sealedFrame=r.frame;nonce=r.nonce;ciphertext=r.ciphertext}
+  })
+  expect(await runtime.sealDocuments('a',DEVICE)).toBe(1)
+  expect(sealedFrame[11]).toBe(ready?1:0)
+  const opened=await decryptObjectBytes(asAccountMasterKey(new Uint8Array(32)),{userId:USER,projectId:event.header.project_id,entityType:'document',entityId:event.header.entity_id},{crypto_version:1,aad_version:1,nonce:Uint8Array.from(nonce),ciphertext:Uint8Array.from(ciphertext)})
+  expect([...opened]).toEqual(sealedFrame)
+  expect(await import('./documentCodec').then(m=>m.unframeDocumentEvent(opened))).toEqual(event)
+  expect(original[11]).toBe(0)
+ })
 })

@@ -1,4 +1,4 @@
-/** C18.7.01: authenticated frame transform only. Writers still emit ID0.
+/** C18.7.01: authenticated frame transform only. Production selection requires explicit account reader authorization.
  * Low-level inflate intentionally avoids convenience APIs that join members or
  * allocate from an untrusted stream. Never call this before AEAD authentication.
  */
@@ -40,12 +40,16 @@ export function decompressBounded(algorithm: number, compressed: Uint8Array, dec
     }
   } finally { inflate.inflateEnd(stream) }
 }
-/** Policy primitive, dormant until all-device ID1 writer gate in C18.7.02. */
+/** Frozen policy primitive. Capability authorization is separate from payload selection. */
 export function compressForFrame(canonicalBytes: Uint8Array, codecId: number): { algorithm: 0 | 1; payload: Uint8Array } {
   if (canonicalBytes.length > COMPRESSION_LIMITS.bytes) fail('compression_output_limit')
   const none = { algorithm: 0 as const, payload: canonicalBytes }
   if (!Number.isInteger(codecId) || codecId < 1 || codecId > 13 || canonicalBytes.length < COMPRESSION_POLICY.minimumBytes) return none
-  const payload = deflate(canonicalBytes, { level: COMPRESSION_POLICY.level, windowBits: 15 })
+  let payload: Uint8Array
+  // A library failure before persistence leaves the validated canonical ID0
+  // candidate usable. Reader failures and persisted frames never use fallback.
+  try { payload = deflate(canonicalBytes, { level: COMPRESSION_POLICY.level, windowBits: 15 }) }
+  catch { return none }
   const saving = canonicalBytes.length - payload.length
   if (payload.length > COMPRESSION_LIMITS.inputBytes || saving < COMPRESSION_POLICY.minimumSaving || saving * 100 < canonicalBytes.length * COMPRESSION_POLICY.minimumPercent
     || canonicalBytes.length > payload.length * COMPRESSION_LIMITS.ratio) return none
@@ -68,3 +72,34 @@ export function normalizeAuthenticatedFrame(frame: Uint8Array, codecs: readonly 
   return normalized
 }
 export const compressionBlocker = (error: unknown): CompressionCode | undefined => error instanceof FrameCompressionError ? error.code : undefined
+
+
+/** Called only for a freshly validated canonical writer candidate, never a
+ * persisted ciphertext retry. Canonical identity remains the original ID0 view.
+ */
+export function compressCanonicalFrame(frame: Uint8Array): Uint8Array {
+  if (frame.length < 20 || frame[11] !== 0) fail('compression_invalid_stream')
+  const original = normalizeAuthenticatedFrame(frame, [1,2,3,4,5,6,7,8,9,10,11,12,13], [1,2], COMPRESSION_LIMITS.bytes)
+  const result = compressForFrame(original.subarray(20), original[9]!)
+  if (result.algorithm === 0) return frame
+  const selected = new Uint8Array(20 + result.payload.length)
+  selected.set(original.subarray(0,20)); selected[11] = 1
+  new DataView(selected.buffer).setUint32(16, result.payload.length)
+  selected.set(result.payload,20)
+  return selected
+}
+
+
+/** Admission precedes first encryption/persistence. Unknown/false admission is
+ * ID0; a sealed retry never calls this function. Caller owns authentication and
+ * canonical entity validation, and must wipe both returned/original buffers.
+ */
+export async function selectWriterFrame(canonical: Uint8Array, authorize: () => Promise<boolean>): Promise<Uint8Array> {
+  const candidate = compressCanonicalFrame(canonical)
+  if (candidate === canonical) return canonical
+  try {
+    if (await authorize()) return candidate
+    candidate.fill(0)
+    return canonical
+  } catch (error) { candidate.fill(0); throw error }
+}

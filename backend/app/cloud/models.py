@@ -184,6 +184,7 @@ class SyncDevice(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     last_ack_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
+    compression_id1: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     metadata_cover_reader_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
     reader_transport_version: Mapped[int] = mapped_column(Integer, nullable=False, default=2, server_default=text('2'))
     note_frame_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default=text('0'))
@@ -223,6 +224,7 @@ class SyncUserState(Base):
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    compression_id1_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
     current_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
     writer_transport_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default=text('1'))
     cutover_epoch: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))

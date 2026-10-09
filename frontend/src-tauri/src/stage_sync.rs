@@ -556,6 +556,8 @@ pub(crate) fn seal(
     if nonce.len() != 24 || ciphertext.len() < 16 || ciphertext.len() > 1024 * 1024 + 36 {
         return Err(Error::Invalid);
     }
+    let compression_view = crate::frame_compression::canonical_view(expected_frame).map_err(|_| Error::Invalid)?;
+    let expected_frame = compression_view.as_ref();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let bytes:Vec<u8>=tx.query_row("SELECT e.canonical_frame FROM cloud_sync_structural_events e JOIN cloud_sync_outbox o ON o.account_id=e.account_id AND o.event_id=e.event_id WHERE e.account_id=?1 AND e.event_id=?2 AND o.lifecycle IN ('unsealed','sealed','accepted')",params![a,event],|r|r.get(0))?;
     if bytes != expected_frame {
@@ -805,6 +807,8 @@ pub(crate) fn apply(
     nonce: &[u8],
     ciphertext: &[u8],
 ) -> Result<&'static str, Error> {
+    let compression_view = crate::frame_compression::canonical_view(bytes).map_err(|_| Error::Invalid)?;
+    let bytes = compression_view.as_ref();
     let e = unframe(bytes)?;
     let h = &e.header;
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;

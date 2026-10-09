@@ -6,16 +6,63 @@
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
 **Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **CLOSED**; C18.7 — **IN PROGRESS**.\
-**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01/.02 — **REMOTELY ACCEPTED**; C18.6 — **CLOSED**; C18.7.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
-**Последняя независимая приёмка:** C18.6.02 implementation `b361d72f7505d8e7de1139c3f2f697081d728b82`; SQLite `37438328166` — **SUCCESS** (Python/Rust); Cloud `37438328232` — **SUCCESS** (Frontend admin, PostgreSQL foundation/content-action/regressions). По авторитетной независимой приёмке C18.6.02 REMOTELY ACCEPTED и C18.6 CLOSED. C18/C18.7 IN PROGRESS; официальный прогресс **77.0%**, roadmap stage C17 остаётся последним полностью закрытым.\
+**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01/.02 — **REMOTELY ACCEPTED**; C18.6 — **CLOSED**; C18.7.01 — **REMOTELY ACCEPTED**; C18.7.02 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Последняя независимая приёмка:** C18.7.01 SHA `087f22baec3cc2e59d4a76132a07a9ecc62715b1`; Cloud `37942773598` — **SUCCESS**; SQLite `37942773576` — **SUCCESS**, по независимой owner/GPT приёмке. C18/C18.7 IN PROGRESS; официальный прогресс **77.0%**.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## C18.7.02 — explicit compression capability / writer activation
+
+**LOCAL COMPLETE / REMOTE CI PENDING**; starting HEAD/origin `087f22baec3cc2e59d4a76132a07a9ecc62715b1`.
+C18.7.01 independently REMOTELY ACCEPTED: Cloud37942773598 SUCCESS,
+SQLite37942773576 SUCCESS. C18.7/C18 IN PROGRESS, official **77.0%** unchanged.
+
+Minimal backend migration explicitly authorized after preflight found no durable
+ID1 evidence in SyncDevice. Alembic `c18_cover_readers` →
+`c18_compression_readers`: boolean `sync_devices.compression_id1` default false;
+boolean `sync_user_state.compression_id1_required` default false. Existing
+constraints, registration payloads and crypto descriptors unchanged. No new
+capability registry, device expiry/eviction, PKI or cursor. SQLite **38 unchanged**.
+
+Relevant readers = ALL registered devices of the authenticated account (one
+account-wide mixed pull sequence). No inference from compression_zero, reader/app
+version, platform, dates or server heuristic. Client explicitly advertises ID1;
+locked server authorization permits a fresh ID1 seal only when every device says
+true and existing mode3 writer authority is active. Authorization sets a sticky
+read barrier before encryption, conservatively even if seal fails. A late legacy
+reader forces new candidates to ID0 and cannot pull/ACK retained history until
+explicitly upgraded. No historical rewrite or backend plaintext inspection.
+
+All canonical families1–13 use one TS selection helper before existing AEAD;
+1024B/128B/10% and all frozen .01 bounds remain. Ineligible/unknown/false capability
+or pre-seal library failure uses exact ID0; malformed/persisted/read frames never
+fall back. Sealed retries reuse exact event, parents, nonce/ciphertext. Native
+captures/frames canonical ID0; final compression/admission/encryption belong to
+TS renderer. Native apply/seal compares bounded ID0 canonical views while exact
+ciphertext remains immutable proof. No entity/frame-version, C11/account AAD,
+cover/attachment/external-file compression or local-path transport changes.
+
+Final unique coverage: frontend667, native393 required (existing headless hook
+executed by real PG), SQLite Python486, PostgreSQL264 (final foundation44 /
+content-action23 / cloud-legacy197), zero mandatory skips. Focused original
+Alembic-head assertions updated; five local frontend load timeouts and one Vite
+public-asset race from concurrent build/bridge passed unchanged in exact focused
+retests. No broad loop or timeout increase. New compression cases assigned to
+foundation after measured31m54s vs original combined content workload36m29s;
+split services/jobs retained. Typecheck/build/cargo/YAML/coverage/diff checks pass;
+protected artifacts retain bytes/size/mtime. Release gate/final terminology audit/
+C21 local-Web-first preserved. Remaining independent remote/platform/release proof.
+
+Evidence/commands/counts: `docs/cloud/C18_7_COMPRESSION_GATE.md`, C18.7.02 section.
+C18.7 closure requires independent acceptance and remaining platform/release
+proof; this slice does not self-close it or start C18.8.
+
 ## C18.7.01 — compression gate / bounded substrate (9 октября 2026)
 
-**LOCAL COMPLETE / REMOTE CI PENDING**; starting implementation
+**REMOTELY ACCEPTED**; accepted SHA `087f22baec3cc2e59d4a76132a07a9ecc62715b1`,
+Cloud `37942773598` SUCCESS; SQLite `37942773576` SUCCESS. Historical starting implementation
 `b361d72f7505d8e7de1139c3f2f697081d728b82`. C18.6 CLOSED по независимой
 приёмке, C18.7/C18 IN PROGRESS, **77.0%**; C18 points не начислены.
 

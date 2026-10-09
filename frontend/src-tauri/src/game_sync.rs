@@ -663,6 +663,8 @@ pub fn seal(
     if nonce.len() != 24 || !(16..=codec::MAX_FRAME_BYTES + 16).contains(&ciphertext.len()) {
         return Err("invalid_game_payload".into());
     }
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(str::to_owned)?;
+    let frame = compression_view.as_ref();
     let (stored,n,c,state): (Vec<u8>,Option<Vec<u8>>,Option<Vec<u8>>,String) = db.query_row("SELECT canonical_frame,nonce,ciphertext,state FROM cloud_game_events WHERE account_id=?1 AND event_id=?2",params![account,id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).map_err(sql)?;
     if stored != frame
         || n.as_ref().is_some_and(|v| v != nonce)
@@ -990,6 +992,8 @@ pub fn apply(
     ciphertext: &[u8],
     project: bool,
 ) -> Result<String> {
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(str::to_owned)?;
+    let frame = compression_view.as_ref();
     let e = codec::unframe(frame, project)?;
     let h = &e["header"];
     let a = &scope.account_id;

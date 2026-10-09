@@ -148,6 +148,13 @@ export function encodeAccountPush(deviceId:string,items:readonly AccountPushItem
   const body=JSON.stringify({protocol_version:3,encrypted_sync_version:3,device_id:deviceId,items:wire});if(new TextEncoder().encode(body).length>MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES)fail();return body
 }
 export const encryptedSyncV3Api = {
+  compressionReaderCapabilities: (token: string, deviceId: string): Promise<void> => apiRequest('/api/v3/sync/encrypted/compression-reader-capabilities', {method:'PUT', headers:headers(token), body:{device_id:deviceId, compression_id1:true}}),
+  compressionWriter: (token: string, deviceId: string): Promise<{ready:boolean;missing_devices:number}> => apiRequest<unknown>('/api/v3/sync/encrypted/compression-writer', {method:'POST', headers:headers(token), body:{device_id:deviceId}}).then(value => {
+    if (!exact(value,['ready','missing_devices'])) fail()
+    const gate=value as {ready:boolean;missing_devices:number}
+    if (typeof gate.ready!=='boolean'||!safe(gate.missing_devices,0)||gate.ready&&gate.missing_devices!==0) fail()
+    return gate
+  }),
   gameReaderCapabilities:(token:string,deviceId:string):Promise<void>=>{
     if(!UUID.test(deviceId))fail()
     return apiRequest('/api/v3/sync/encrypted/game-reader-capabilities',{method:'PUT',headers:headers(token),body:{device_id:deviceId,project:{frame_version:1,codec_id:12,codec_version:1,reader_version:1,compression_zero:true},account:{frame_version:1,codec_id:13,codec_version:1,reader_version:1,compression_zero:true}}})

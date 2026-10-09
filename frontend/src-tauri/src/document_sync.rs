@@ -177,6 +177,8 @@ pub(crate) fn seal(
     if nonce.len() != 24 || !(16..=codec::MAX_FRAME_BYTES + 16).contains(&ciphertext.len()) {
         return fail("invalid_document_payload");
     }
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(|c| Error::Code(c.into()))?;
+    let frame = compression_view.as_ref();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     let old:Vec<u8>=tx.query_row("SELECT canonical_frame FROM cloud_document_events WHERE account_id=?1 AND event_id=?2 AND state IN ('unsealed','sealed')",params![a,id],|r|r.get(0))?;
     if old != frame {
@@ -774,6 +776,8 @@ pub(crate) fn apply(
     nonce: &[u8],
     ciphertext: &[u8],
 ) -> Result<String> {
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(|c| Error::Code(c.into()))?;
+    let frame = compression_view.as_ref();
     let e = codec::decode(frame)?;
     db.execute_planned_many_once(|tx|->Result<(Vec<sqlite::OwnedRemoteApplyAuthorization>,Option<ApplyPlan>)>{
   metadata::assert_runtime_scope(tx,&scope.account_id,&scope.canonical_user_id,&scope.device_id)?;let a=&scope.account_id;let h=&e.header;
@@ -1129,6 +1133,38 @@ mod tests {
         )
         .unwrap()
     }
+    #[test]
+    fn compressed_apply_bad_stream_retry_restart_and_canonical_identity() {
+        let (db,path)=seed(false);
+        let mut e=fixture();
+        e.document["content_json"]=json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Portable manuscript paragraph. ".repeat(100)}]}]});
+        let original=codec::encode(&e).unwrap();
+        let (id,payload)=crate::frame_compression::compress_for_frame(&original[20..],10).unwrap();
+        assert_eq!(id,1);
+        let mut frame=original[..20].to_vec();frame[11]=1;frame[16..20].copy_from_slice(&(payload.len() as u32).to_be_bytes());frame.extend(payload);
+        inbox(&db,&e,2);drop(db);
+        let mut bad=frame.clone();let last=bad.len()-1;bad[last]^=1;
+        {
+            let mut db=sqlite::open_privileged_remote_apply_database(&path).unwrap();
+            assert!(apply(&mut db,&scope(),&bad,&[1;24],&[2;32]).is_err());
+        }
+        {
+            let db=sqlite::open_database(&path).unwrap();
+            assert!(!ack_proven(&db,A,2).unwrap());
+            assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_document_apply_ledger",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        }
+        for _ in 0..2 {
+            let mut db=sqlite::open_privileged_remote_apply_database(&path).unwrap();
+            assert_eq!(apply(&mut db,&scope(),&frame,&[1;24],&[2;32]).unwrap(),"applied");
+        }
+        let db=sqlite::open_database(&path).unwrap();
+        assert!(ack_proven(&db,A,2).unwrap());
+        let stored:Vec<u8>=db.query_row("SELECT canonical_frame FROM cloud_document_events WHERE event_id=?1",[&e.header.event_id],|r|r.get(0)).unwrap();
+        assert_eq!(stored,original);assert_eq!(stored[11],0);
+        assert_eq!(source(&db,"P1",&e.header.entity_id).unwrap(),e.document);
+        drop(db);std::fs::remove_file(path).unwrap();
+    }
+
     #[test]
     fn document_extensions_and_orphans_survive_blocked_edits_restart() {
         let (mut db, path) = seed(true);

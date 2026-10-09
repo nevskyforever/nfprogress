@@ -813,3 +813,14 @@ class ProjectCoverReaderCapabilities(BaseModel):
         if type(value) is not bool:
             raise ValueError('Compression evidence must be a boolean')
         return value
+
+
+class CompressionReaderCapability(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID
+    compression_id1: bool = Field(strict=True)
+
+
+class CompressionWriterRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    device_id: UUID

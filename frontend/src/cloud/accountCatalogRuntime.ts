@@ -1,5 +1,6 @@
+import { encryptAccountObject } from '@/crypto/accountObjectCrypto'
 import { AccountObjectReader } from './accountObjectReader';
-import { frameCatalogEvent, sealCatalogEvent, validateCatalogEvent } from './accountCatalogCodec';
+import { frameCatalogEvent, validateCatalogEvent } from './accountCatalogCodec';
 import { SQLiteAccountCatalogRepository, type CatalogDecision, type CatalogView } from '@/infrastructure/sqlite/accountCatalogRepository';
 import { encryptedSyncV3Api } from '@/api/encryptedSyncV3';
 import { StaleAuthContextError, type NormalUserAuthRuntime } from '@/auth/userAuth';
@@ -26,11 +27,13 @@ export class AccountCatalogRuntime extends AccountObjectReader {
                 throw new KeyNotProvisionedError();
             if (!lease.isCurrent() || lease.canonicalUserId !== context.userId || lease.authEpoch !== context.authEpoch)
                 throw new StaleAuthContextError();
-            await lease.use(async (amk) => { const sealed = await sealCatalogEvent(amk, event); this.assertCurrent(context); const frame = frameCatalogEvent(event); try {
+            await lease.use(async (amk) => { const original=frameCatalogEvent(event); let frame=original; try {
+                frame=await this.compressionFrame(accountId,deviceId,original);
+                const sealed=await encryptAccountObject(amk,{userId:h.account_id,scope:'account',entityId:h.entity_id,entityType:h.entity_type},frame);this.assertCurrent(context);
                 await this.catalog.seal(scope, h.event_id, frame, sealed.nonce, sealed.ciphertext);
             }
             finally {
-                frame.fill(0);
+                frame.fill(0); original.fill(0);
             } });
         }
         return items.length;

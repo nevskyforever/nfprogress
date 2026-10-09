@@ -67,19 +67,20 @@ export class GameSyncRuntime extends ProgressSyncRuntime {
     const {scope,context}=await this.gameGate(account,device)
     const rows=await native<Pending[]>(scope,{action:'pending',sealed:false});this.assertCurrent(context)
     for(const row of rows){
-      const frame=Uint8Array.from(row.frame)
+      const original=Uint8Array.from(row.frame);let frame:Uint8Array=original
       try {
         const e=unframeGameEvent(frame,row.event.header.scope),h=e.header
         if(h.account_id!==context.userId||h.device_id!==device)throw new GameSyncError('game_scope_mismatch')
         const lease=this.keys.leaseForAccount(account);if(!lease)throw new KeyNotProvisionedError()
         await lease.use(async amk=>{
+          frame=await this.compressionFrame(account,device,original)
           const sealed=h.scope==='project'
             ?await encryptObjectBytes(amk,{userId:h.account_id,projectId:h.project_id,entityType:'project_game',entityId:h.entity_id},frame)
             :await encryptAccountObject(amk,{userId:h.account_id,scope:'account',entityType:'account_game',entityId:h.entity_id},frame)
           this.assertCurrent(context)
-          await native(scope,{action:'seal',event_id:h.event_id,frame:row.frame,nonce:Array.from(sealed.nonce),ciphertext:Array.from(sealed.ciphertext)});this.assertCurrent(context)
+          await native(scope,{action:'seal',event_id:h.event_id,frame:Array.from(frame),nonce:Array.from(sealed.nonce),ciphertext:Array.from(sealed.ciphertext)});this.assertCurrent(context)
         })
-      }finally{frame.fill(0)}
+      }finally{frame.fill(0);original.fill(0)}
     }
     return rows.length
   }

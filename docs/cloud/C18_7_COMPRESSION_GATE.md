@@ -1,7 +1,8 @@
 # C18.7.01 compression gate (9 October 2026)
 
-Status: **LOCAL COMPLETE / REMOTE CI PENDING** after the validation recorded
-below. Production writers remain **compression0**. C18.7/C18 remain IN PROGRESS;
+C18.7.01 status: **REMOTELY ACCEPTED** (SHA087f22baec3cc2e59d4a76132a07a9ecc62715b1;
+Cloud37942773598 / SQLite37942773576 SUCCESS). At the .01 baseline production
+writers remained **compression0**; .02 activation/evidence is recorded below. C18.7/C18 remain IN PROGRESS;
 o roadmap points awarded, official progress **77.0%**.
 
 ## Accepted prerequisites
@@ -332,3 +333,176 @@ specific and is not a real manuscript performance guarantee; Android build/devic
 and complete app-native binary delta not measured; independent remote CI and the
 all-device capability/writer activation gate still required. Do not close C18.7
 or C18 and do not poll Actions after push.
+
+
+## C18.7.02 — explicit capability and production activation
+
+Independent .01 acceptance: SHA `087f22baec3cc2e59d4a76132a07a9ecc62715b1`,
+Cloud37942773598 SUCCESS, SQLite37942773576 SUCCESS. All earlier .01 constants,
+licenses, vectors and security decisions remain frozen; their writer-ID0 wording
+records the .01 baseline. This section describes the subsequent activation.
+
+### Durable evidence and relevant-reader scope
+
+The previous registry had no extensible capability payload: reader integers have
+closed CHECK constraints and compression_zero explicitly proves ONLY ID0.
+The owner authorized the minimal Alembic migration, revision
+`c18_compression_readers`, parent `c18_cover_readers`. Exactly two non-secret
+boolean columns, NOT NULL/default false:
+
+- SyncDevice.compression_id1: explicit support for bounded ID1 on all canonical
+  codecs1–13, alongside existing ID0 support. Existing registrations/rows are
+  ID0-only, without changes to their API payload or unrelated constraints.
+- SyncUserState.compression_id1_required: sticky conservative read barrier after
+  an ID1 seal is authorized. No new entity, sequence or ACK.
+
+PUT /api/v3/sync/encrypted/compression-reader-capabilities accepts strict bool
+and registered account/device identity; GET exposes the aggregate ready/missing
+count. POST /compression-writer locks the existing account state, checks the
+registered device and ALL account devices (no stale exclusion or eviction), and
+sets the barrier if all explicitly support ID1 and existing mode3 authority is
+active. Registration, capability changes and admission serialize on the account
+row. Encrypted push/ACK use the same account-before-device lock order.
+
+The account scope follows the existing shared account-wide pull of project and
+catalog/Game history, not a per-project membership guess. Unknown/absent/false
+readers force ID0. A capable joining device is initially unknown until its PUT;
+a legacy joining device immediately makes subsequent fresh admission false.
+After prior admission a legacy device's pulls (including metadata-only/opaque
+transport variants) and ACK are rejected with compression_reader_required until
+upgrade. Existing ID1 events never go to an incompatible reader; capable devices
+continue reading mixed history and may publish fresh ID0. No timestamp eviction.
+
+The barrier is committed BEFORE encryption/publication and intentionally remains
+if its HTTP response or subsequent encryption is lost. This conservative case
+may require a reader upgrade even when no ID1 ciphertext was ultimately uploaded.
+It avoids a late-registration crash/race window without exposing compression IDs
+in opaque event descriptors, rewriting history or adding per-event server state.
+Downgrade drops both columns only while no account barrier is true; otherwise it
+refuses, because immutable retained ciphertext may need ID1. Fresh/upgraded old
+rows, repeated upgrade, pre-activation downgrade and post-activation refusal are
+tested on actual PostgreSQL. Local SQLite remains schema38, no migration39.
+
+### Writer and retry ownership
+
+Project Metadata, structural Stage/order, account catalog, framed Note8, Map9,
+Document10, Progress11 and Game12/13 runtime seal paths invoke selectWriterFrame
+on their freshly validated canonical ID0 candidate. It runs the frozen pako
+level6/window15 per-event policy; only an eligible candidate requests authoritative
+admission. Payload>=1024B, savings>=128B AND>=10%, compressed<=1MiB,
+ratio<=512, existing entity/global output ceilings; no dictionary/state/concat.
+
+Absent/false/unknown capability or unavailable capability API keeps the exact
+ID0 candidate. A compression-library exception before seal also keeps ID0 only
+after owning canonical validation; auth epoch changes remain hard failures.
+Malformed persisted frames, failed inflate, unknown compression and failed
+canonical validation never fall back or receive apply/ACK proof. Small/random or
+insufficient saving always stays ID0. No history migration or automatic rewrite.
+
+Readers advertise explicit support during reader readiness, normal pull and
+snapshot import; writes advertise before fresh admission. Final AEAD and frozen
+outbox ownership are unchanged. Catalog/account crypto2 and project C11/AAD1
+remain intact. Sealed upload/lost-response retry never invokes compression or
+capability selection again; retries use the same event/parents/nonce/ciphertext.
+
+Native writers own canonical capture/framing and still produce historical ID0;
+TS owns final transport compression/encryption. Rust→TS production canonical
+frames remain readable; there is NO Rust-owned production ID1 seal path to
+invent. Both low-level native-flate2/TS-pako producer vectors remain unchanged.
+Native seal/apply uses bounded normalized canonical views for equality and local
+SQL projection/ledger evidence; original nonce/ciphertext stays exact immutable
+proof. The exact selected ID1 frame remains recoverable from that immutable
+ciphertext with its existing key/AAD context; the canonical_frame column is the
+logical ID0 view, never a second transport writer. This also prevents compression-specific identity mismatches on self-echo
+and preserves Game JSON queries over canonical local records. No frame/codec
+versions or portable canonical identity changes.
+
+### Acceptance and test coverage
+
+Mixed real PostgreSQL acceptance uses two distinct file-backed native databases:
+metadata codec1 ID0, Document codec10 ID0→ID1→ID0, repeated pulls, self-echo,
+expected causal heads, capability upgrade/join/legacy fallback, lost upload
+receipt/exact replay, restart and unchanged server ciphertext. Late ID0 readers
+are rejected before delivery. Both devices materialize the exact manuscript;
+three document apply receipts/cursor4 survive repeated processing with no false
+conflict. Client canonical framing and server stored opaque bytes are inspected.
+
+Native compressed Document acceptance corrupts checksum, proves zero apply/ACK,
+reopens and retries the same valid event, then proves projection, one canonical
+identity and contiguous apply proof. Existing bomb/truncation/size/window/dict/
+concat/trailing/unknown-ID/corruption/checksum/canonical negatives and reader
+fairness tests are retained. Historical ID0 goldens for all families remain exact;
+no golden fixture changed. Writer determinism is checked on representative
+canonical payloads; near-limit producer/decoder vectors stay in the existing
+boundary suite without repeatedly reserializing an8MiB document for each gate.
+
+The Cloud union adds only compression gate/migration and mixed acceptance to
+foundation alongside native bounded compression checks, and compressionWriter.spec.ts
+to frontend. Existing foundation/content-action/regression families are retained; mandatory matrices keep independent PostgreSQL services,
+fail-fast=false, 40-minute limits, Windows native validation and zero required
+skips. Both workflows match changed native/TS/backend/test paths; no timeout
+increase or path-filter hole. Local final results are recorded below.
+
+
+### Final local validation (9 October 2026)
+
+| Coverage | Collected / unique passed | Evidence |
+|---|---:|---|
+| Frontend Cloud union | 667 / 667 | three unchanged family commands plus compressionWriter; Node20.19.0 |
+| Native Rust library union | 393 / 393 required | broad392 + new entity-ceiling case; existing ignored headless hook executed by mandatory PostgreSQL harness |
+| Python SQLite workflow union | 486 / 486 |438.36s, no skips |
+| PostgreSQL foundation, final selection |44 / 44 |existing34 + compression gate9/mixed1; separate disposable DB services |
+| PostgreSQL content-action, final selection |23 / 23 |existing families retained, six head assertions and exact Document target repeated after narrow failures |
+| PostgreSQL cloud/legacy |197 / 197 |195 broad + two corrected head-assertion targets |
+
+Actual commands/groups: .github/workflows/cloud-backend-tests.yml matrix.tests
+and its three frontend-admin commands; .github/workflows/sqlite-sync-tests.yml
+Python selection and cargo test --lib. Deterministic --collect-only proof:
+foundation44, content-action23, regressions197. Total PostgreSQL264 unique;
+no required scenario deselected/skipped/xfail or assertion weakened. Final groups
+are coverage unions including the exact focused repairs below, not a claim that
+all initial broad invocations returned green without repairs.
+
+Focused frontend compression/production runtime tests59 pass; final focused
+retarget of four timeout files plus metadata/Document runtime70 pass. All original
+TS/native producer vectors, codec goldens, corpus54 cases and adversarial cases
+remain covered. Native frame_compression5 and compressed Document restart/ACK1
+pass. New PostgreSQL gate/migration family9 and mixed production acceptance1 pass;
+focused migration/head verification11 and existing capability/concurrency14 pass.
+Native existing headless hook is run explicitly with --ignored by the mandatory
+real PostgreSQL suite, so it is not an unexecuted required acceptance scenario.
+
+Initial broad failures were repaired narrowly: existing expected Alembic head
+strings were updated to the new revision in foundation/auth/cover/Map/Document/
+Progress/Game migration tests, preserving their upgrade/downgrade assertions.
+Five frontend checks timed out under simultaneous large native/Python workload;
+all pass focused with one worker and unchanged timeouts/assertions. One existing
+Document crypto-bridge startup encountered Vite copyfile ENOENT because a local
+frontend build simultaneously prepared the same public assets. The exact input
+opens successfully, and the entire existing Document acceptance passes isolated
+(510.51s). No protocol fix or workflow coverage removal was made for that race;
+GitHub jobs have independent checkouts, while each job's commands are serial.
+
+Foundation's unchanged Python union34 took1914.34s (31m54s). Original combined
+content-action/new compression invocation33 took2189.48s (36m29s), including its
+initial narrow failures. New mixed acceptance takes69.66s, gate/migration cases
+about20s. The final workflow assigns the ten new compression cases to foundation
+alongside bounded frame checks, preserving content-action's previous workload
+and providing more margin under the unchanged40-minute per-job limit. No entire
+broad union was repeated; exact failed targets and affected focused cases were
+repeated only. These are local command times, not GitHub setup-time guarantees.
+
+TypeScript typecheck, frontend production build, cargo check, Python source AST,
+YAML/shard/coverage/path-filter checks and git diff --check pass. Existing Vite
+chunk/import/sourcemap and Rust unused-code warnings remain. Protected engine/
+game_data CPython312 artifacts retain their exact original hashes, size and mtime.
+No golden fixture, codec/version, frame version, crypto/AAD, dependency or local
+SQLite migration changed. No cover/external/attachment compression or telemetry.
+
+C18.7.02 **LOCAL COMPLETE / REMOTE CI PENDING**; C18.7/C18 IN PROGRESS, **77.0%**.
+Expected Actions: Cloud backend tests; SQLite sync substrate tests. No Actions
+polling after push. Remaining risks: independent new-SHA acceptance; ordinary CI
+variance; conservative reader barrier after an unsuccessful admission/seal;
+Android/device/release proof already left open by .01. After independent remote
+acceptance, proceed only to the remaining C18.7 platform/integration closure gate;
+do not self-close C18.7 or start the next stage here.

@@ -89,3 +89,29 @@ mod tests {
         }
     }
 }
+
+
+/// Durable canonical identity uses the historical ID0 view; the original
+/// nonce/ciphertext remains immutable replay and ACK evidence. Owning codecs
+/// still perform their exact canonical/entity-limit checks after this transform.
+pub fn canonical_view(frame: &[u8]) -> Result<std::borrow::Cow<'_, [u8]>, &'static str> {
+    if frame.len() >= 20 && frame[11] != 0 {
+        normalize_authenticated_frame(frame, &[1,2,3,4,5,6,7,8,9,10,11,12,13], &[1,2], match frame[9] {
+            1..=3 => 1024*1024, 4..=7 => 4*1024*1024, 12|13 => 1024*1024-20, _ => MAX_BYTES,
+        })
+            .map(std::borrow::Cow::Owned)
+    } else { Ok(std::borrow::Cow::Borrowed(frame)) }
+}
+
+
+#[cfg(test)]
+mod canonical_view_bounds_tests {
+    #[test]
+    fn owning_entity_ceiling_is_checked_before_normalization_allocation() {
+        for (codec,limit) in [(1,1024*1024),(2,1024*1024),(3,1024*1024),(4,4*1024*1024),(12,1024*1024-20),(13,1024*1024-20)] {
+            let mut frame=b"WORTA-C1".to_vec();frame.extend([1,codec,1,1]);
+            frame.extend(((limit+1) as u32).to_be_bytes());frame.extend(6u32.to_be_bytes());frame.extend([0x78,0x9c,0,0,0,0]);
+            assert_eq!(super::canonical_view(&frame).unwrap_err(),"compression_output_limit");
+        }
+    }
+}

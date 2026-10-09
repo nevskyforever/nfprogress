@@ -985,6 +985,8 @@ pub(crate) fn seal(
     {
         return Err(invalid());
     }
+    let compression_view = crate::frame_compression::canonical_view(raw).map_err(Error::Code)?;
+    let raw = compression_view.as_ref();
     let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
     dependencies_ready(&tx, &s.account_id, &e)?;
     let old:Option<(Vec<u8>,String,Option<Vec<u8>>,Option<Vec<u8>>)>=tx.query_row("SELECT canonical_frame,state,nonce,ciphertext FROM cloud_catalog_events WHERE account_id=?1 AND event_id=?2",params![s.account_id,id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional()?;
@@ -1121,6 +1123,8 @@ pub(crate) fn apply(
     nonce: &[u8],
     cipher: &[u8],
 ) -> Result<String> {
+    let compression_view = crate::frame_compression::canonical_view(raw).map_err(Error::Code)?;
+    let raw = compression_view.as_ref();
     scope(db, s)?;
     let e = unframe(raw)?;
     let h = &e.header;

@@ -902,6 +902,8 @@ pub fn seal(
     {
         return Err("progress_scope_mismatch".into());
     }
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(str::to_owned)?;
+    let frame = compression_view.as_ref();
     let tx = db
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .map_err(sql)?;
@@ -1142,6 +1144,8 @@ pub fn apply(
     nonce: &[u8],
     ciphertext: &[u8],
 ) -> Result<String> {
+    let compression_view = crate::frame_compression::canonical_view(frame).map_err(str::to_owned)?;
+    let frame = compression_view.as_ref();
     let e = codec::decode(frame)?;
     let h = &e.header;
     let a = &scope.account_id;

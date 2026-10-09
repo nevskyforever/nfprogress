@@ -517,6 +517,8 @@ pub(crate) fn seal(
     expected: &[u8],
     envelope: notes::EncryptedNoteSyncEnvelope,
 ) -> Result<(), String> {
+    let compression_view = crate::frame_compression::canonical_view(expected).map_err(str::to_owned)?;
+    let expected = compression_view.as_ref();
     metadata::assert_runtime_scope(
         db,
         &scope.account_id,
