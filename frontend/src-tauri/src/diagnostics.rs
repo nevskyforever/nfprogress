@@ -65,6 +65,12 @@ const EVENT_CODES: &[&str] = &[
     "ack_result",
 ];
 const SAFE_CODES: &[&str] = &[
+    "compression_unsupported",
+    "compression_invalid_stream",
+    "compression_input_limit",
+    "compression_output_limit",
+    "compression_resource_limit",
+    "compression_length_mismatch",
     "progress_readers_not_ready",
     "progress_reader_required",
     "progress_resource_limit",

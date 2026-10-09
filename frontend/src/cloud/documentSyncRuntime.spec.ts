@@ -52,4 +52,14 @@ describe('document authority production orchestration',()=>{
  })
  it('unsupported codec is durably blocked with exact encrypted evidence and never applied',async()=>{const {runtime}=await setup();const event=fixture.examples[0]!.event as DocumentEvent;const bytes=await frameDocumentEvent(event);bytes[9]=11;const o=await encryptObjectBytes(asAccountMasterKey(new Uint8Array(32)),{userId:USER,projectId:event.header.project_id,entityType:'document',entityId:event.header.entity_id},bytes);const row={event_id:event.header.event_id,server_sequence:7,project_id:event.header.project_id,entity_id:event.header.entity_id,source_device_id:DEVICE,revision:1,updated_at:event.header.updated_at,nonce:[...o.nonce],ciphertext:[...o.ciphertext]};vi.mocked(invoke).mockImplementation(async(_c,args)=>{const r=(args as {request:{action:string;after:number}}).request;return r.action==='received'&&r.after===0?[row]:[]});const result=await runtime.readOnce('a',DEVICE,1,2);expect(result.blocked).toEqual(['document_codec_unsupported']);expect(invoke).toHaveBeenCalledWith('document_sync_command',expect.objectContaining({request:{action:'block',event_id:row.event_id,nonce:row.nonce,ciphertext:row.ciphertext,code:'document_codec_unsupported'}}));expect(vi.mocked(invoke).mock.calls.some(c=>(c[1] as {request:{action:string}}).request.action==='apply')).toBe(false)})
 
+ it('retains authenticated invalid compressed event, does not apply/ACK, and visits later events once',async()=>{
+  const {runtime}=await setup();const event=fixture.examples[0]!.event as DocumentEvent;const bytes=await frameDocumentEvent(event);bytes[11]=1
+  const o=await encryptObjectBytes(asAccountMasterKey(new Uint8Array(32)),{userId:USER,projectId:event.header.project_id,entityType:'document',entityId:event.header.entity_id},bytes)
+  const row={event_id:event.header.event_id,server_sequence:7,project_id:event.header.project_id,entity_id:event.header.entity_id,source_device_id:DEVICE,revision:1,updated_at:event.header.updated_at,nonce:[...o.nonce],ciphertext:[...o.ciphertext]};const visits:number[]=[]
+  vi.mocked(invoke).mockImplementation(async(_c,args)=>{const r=(args as {request:{action:string;after:number}}).request;if(r.action==='received'){visits.push(r.after);return r.after===0?[row]:[]}})
+  const result=await runtime.readOnce('a',DEVICE,1,2);expect(result.blocked).toEqual(['compression_invalid_stream']);expect(visits).toEqual([0,7])
+  expect(invoke).toHaveBeenCalledWith('document_sync_command',expect.objectContaining({request:{action:'block',event_id:row.event_id,nonce:row.nonce,ciphertext:row.ciphertext,code:'compression_invalid_stream'}}))
+  expect(vi.mocked(invoke).mock.calls.some(c=>['apply','ack','seal'].includes((c[1] as {request:{action:string}}).request.action))).toBe(false)
+ })
+
 })

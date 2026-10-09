@@ -148,13 +148,17 @@ pub(crate) fn block(
     ciphertext: &[u8],
     code: &str,
 ) -> Result<(), NoteSyncError> {
-    if !matches!(
+    if !crate::frame_compression::CODES.contains(&code) && !matches!(
         code,
         "account_entity_codec_not_activated" | "decrypt_failed" | "account_scope_rejected" | "invalid_catalog_frame" | "catalog_dependency_missing" | "catalog_parent_unknown" | "catalog_membership_changed" | "catalog_project_unproven" | "catalog_folder_has_members" | "catalog_resource_limit" | "catalog_dependency_conflict" | "unsupported_catalog_source"
     ) {
         return Err(invalid());
     }
     let tx = connection.unchecked_transaction()?;
+    let code=if crate::frame_compression::CODES.contains(&code) {
+        crate::note_sync::record_frame_compression_blocker(&tx,&scope.account_id,event_id,code)?;
+        "invalid_catalog_frame"
+    }else{code};
     validate_pull_scope(
         &tx,
         &scope.account_id,
@@ -448,5 +452,22 @@ mod tests {
         )
         .is_err());
         assert_eq!(received(&c, &scope(), 1, 0).unwrap()[0].server_sequence, 2);
+    }
+
+    #[test]
+    fn account_compression_blocker_preserves_exact_local_code_without_schema_change(){
+        let path=std::env::temp_dir().join(format!("account-compression-{}.db",crate::project_metadata_sync::new_event_id().unwrap()));
+        let mut c=Connection::open(&path).unwrap();setup(&c);
+        note_sync::commit_mixed_sync_inbound_page(&mut c,&command()).unwrap();
+        let row=received(&c,&scope(),8,0).unwrap().remove(0);
+        block(&c,&scope(),&row.event_id,&row.nonce,&row.ciphertext,"compression_invalid_stream").unwrap();
+        let key=format!("frame_compression_blocker:{}",serde_json::json!([scope().account_id,row.event_id]));
+        drop(c);let c=Connection::open(&path).unwrap();crate::sqlite::apply_migrations(&c).unwrap();
+        let value:String=c.query_row("SELECT value FROM application_metadata WHERE key=?1",[&key],|r|r.get(0)).unwrap();
+        assert_eq!(value,"{\"code\":\"compression_invalid_stream\"}");
+        assert!(block(&c,&scope(),&row.event_id,&[9;24],&row.ciphertext,"compression_length_mismatch").is_err());
+        assert_eq!(c.query_row("SELECT value FROM application_metadata WHERE key=?1",[&key],|r|r.get::<_,String>(0)).unwrap(),value);
+        let mut c=c;let ack=note_sync::prepare_note_sync_ack(&mut c,&PrepareNoteSyncAckCommand{account_id:scope().account_id,canonical_user_id:USER.into(),device_id:DEVICE.into()}).unwrap();
+        assert_eq!(ack.candidate_cursor,0);drop(c);std::fs::remove_file(path).unwrap();
     }
 }

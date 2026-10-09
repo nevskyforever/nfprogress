@@ -25,6 +25,7 @@ mod account_catalog;
 mod note_sync_plaintext;
 mod content_note_sync;
 mod content_note_writer;
+mod frame_compression;
 mod document_codec;
 mod document_sync;
 mod progress_codec;
@@ -2593,7 +2594,7 @@ fn map_sync_command(scope:project_metadata_sync::MetadataScope,request:map_sync:
             Pending{sealed,now}=>{map_sync::advance(&mut db,&scope.account_id,&now)?;Ok(serde_json::json!(map_sync::pending(&db,&scope.account_id,&scope.device_id,sealed)?))},
             Seal{event_id,frame,nonce,ciphertext}=>{map_sync::seal(&mut db,&scope.account_id,&event_id,&frame,&nonce,&ciphertext)?;Ok(serde_json::Value::Null)},
             Receipt{event_id,server_sequence,duplicate,now}=>{map_sync::receipt(&mut db,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now)?;Ok(serde_json::Value::Null)},
-            Block{event_id,nonce,ciphertext,code}=>{if !matches!(code.as_str(),"invalid_map_payload"|"decrypt_failed"){return Err(map_sync::Error::from("invalid_map_blocker".to_string()))}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='map' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext])?;Ok(serde_json::Value::Null)},
+            Block{event_id,nonce,ciphertext,code}=>{if !frame_compression::CODES.contains(&code.as_str()) && !matches!(code.as_str(),"invalid_map_payload"|"decrypt_failed"){return Err(map_sync::Error::from("invalid_map_blocker".to_string()))}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='map' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext])?;Ok(serde_json::Value::Null)},
             Received{after,limit}=>Ok(serde_json::json!(map_sync::received(&db,&scope.account_id,after,limit)?)),
             Apply{frame,nonce,ciphertext}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(map_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(map_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext)?))},
             Import{decision,keep_local,now}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(map_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(map_sync::import_choice(&mut privileged,&scope,&decision,keep_local,&now)?))},
@@ -2638,7 +2639,7 @@ fn progress_sync_command(scope:project_metadata_sync::MetadataScope,request:prog
         Apply{frame,nonce,ciphertext}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"progress_storage_unavailable")?;Ok(serde_json::json!(progress_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext)?))},
         Decide{decision,now}=>Ok(serde_json::json!(progress_sync::decide(&mut db,&scope,&decision,&now)?)),
         Rebuild{project_id,stage_id}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root()?.join("nfprogress.db")).map_err(|_|"progress_storage_unavailable")?;progress_sync::rebuild(&mut privileged,&scope,&project_id,stage_id.as_deref())?;Ok(serde_json::Value::Null)},
-        Block{event_id,nonce,ciphertext,code}=>{if !matches!(code.as_str(),"invalid_progress_payload"|"decrypt_failed"|"progress_codec_unsupported"|"progress_resource_limit"|"progress_scope_mismatch"){return Err("invalid_progress_blocker".into())}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='progress' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext]).map_err(|_|"progress_storage_unavailable")?;Ok(serde_json::Value::Null)},
+        Block{event_id,nonce,ciphertext,code}=>{if !frame_compression::CODES.contains(&code.as_str()) && !matches!(code.as_str(),"invalid_progress_payload"|"decrypt_failed"|"progress_codec_unsupported"|"progress_resource_limit"|"progress_scope_mismatch"){return Err("invalid_progress_blocker".into())}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='progress' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext]).map_err(|_|"progress_storage_unavailable")?;Ok(serde_json::Value::Null)},
     }
 }
 
@@ -2653,7 +2654,7 @@ fn document_sync_command(scope:project_metadata_sync::MetadataScope,request:docu
             Pending{sealed,now}=>{document_sync::advance(&mut db,&scope.account_id,&now)?;Ok(serde_json::json!(document_sync::pending(&db,&scope.account_id,&scope.device_id,sealed)?))},
             Seal{event_id,frame,nonce,ciphertext}=>{document_sync::seal(&mut db,&scope.account_id,&event_id,&frame,&nonce,&ciphertext)?;Ok(serde_json::Value::Null)},
             Receipt{event_id,server_sequence,duplicate,now}=>{document_sync::receipt(&mut db,&scope.account_id,&scope.device_id,&event_id,server_sequence,duplicate,&now)?;Ok(serde_json::Value::Null)},
-            Block{event_id,nonce,ciphertext,code}=>{if !matches!(code.as_str(),"invalid_document_payload"|"decrypt_failed"|"document_codec_unsupported"|"document_resource_limit"|"document_unsupported_extension"|"document_unsupported_structure"|"document_scope_mismatch"){return Err(document_sync::Error::from("invalid_document_blocker".to_string()))}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='document' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext])?;Ok(serde_json::Value::Null)},
+            Block{event_id,nonce,ciphertext,code}=>{if !frame_compression::CODES.contains(&code.as_str()) && !matches!(code.as_str(),"invalid_document_payload"|"decrypt_failed"|"document_codec_unsupported"|"document_resource_limit"|"document_unsupported_extension"|"document_unsupported_structure"|"document_scope_mismatch"){return Err(document_sync::Error::from("invalid_document_blocker".to_string()))}db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='document' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",rusqlite::params![code,scope.account_id,event_id,nonce,ciphertext])?;Ok(serde_json::Value::Null)},
             Received{after,limit}=>Ok(serde_json::json!(document_sync::received(&db,&scope.account_id,after,limit)?)),
             Apply{frame,nonce,ciphertext}=>{drop(db);let mut privileged=sqlite::open_privileged_remote_apply_database(&sqlite_data_root().map_err(document_sync::Error::from)?.join("nfprogress.db"))?;Ok(serde_json::json!(document_sync::apply(&mut privileged,&scope,&frame,&nonce,&ciphertext)?))},
             Decide{decision,now}=>Ok(serde_json::json!(document_sync::decide(&mut db,&scope,&decision,&now)?)),
@@ -2830,6 +2831,12 @@ fn project_cover_command(scope:project_metadata_sync::MetadataScope,project_id:S
 fn list_received_project_metadata(scope:project_metadata_sync::MetadataScope,limit:i64,after_server_sequence:i64)->Result<Vec<project_metadata_sync::MetadataInboxItem>,String>{
     let connection=metadata_connection(&scope)?;
     project_metadata_sync::received_metadata(&connection,&scope.account_id,limit,after_server_sequence).map_err(|e|e.to_string())
+}
+
+#[tauri::command]
+fn record_project_metadata_compression_blocker(scope:project_metadata_sync::MetadataScope,event_id:String,nonce:Vec<u8>,ciphertext:Vec<u8>,code:String)->Result<(),String>{
+    let db=metadata_connection(&scope)?;
+    project_metadata_sync::compression_reader_blocker(&db,&scope.account_id,&event_id,&nonce,&ciphertext,&code).map_err(|e|e.to_string())
 }
 
 #[tauri::command]
@@ -6316,6 +6323,7 @@ pub fn run() {
             list_sealed_project_metadata_genesis,
             commit_project_metadata_upload_receipt,
             list_received_project_metadata,
+            record_project_metadata_compression_blocker,
             project_cover_command,
             apply_authenticated_project_metadata,
             read_project_metadata_authority,

@@ -3,6 +3,15 @@ name: SQLite sync substrate tests
 on:
   push:
     paths:
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'frontend/src/cloud/compressionCorpus.spec.ts'
+      - 'frontend/src/cloud/frameCompression*'
+      - 'frontend/src/cloud/pako.d.ts'
+      - 'frontend/src/cloud/__fixtures__/frameCompressionV1.json'
+      - 'frontend/src-tauri/src/frame_compression.rs'
+      - 'scripts/compression/**'
+      - 'frontend/public/licenses/C18-compression.txt'
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'
@@ -95,6 +104,15 @@ on:
       - '.github/workflows/sqlite-sync-tests.yml'
   pull_request:
     paths:
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'frontend/src/cloud/compressionCorpus.spec.ts'
+      - 'frontend/src/cloud/frameCompression*'
+      - 'frontend/src/cloud/pako.d.ts'
+      - 'frontend/src/cloud/__fixtures__/frameCompressionV1.json'
+      - 'frontend/src-tauri/src/frame_compression.rs'
+      - 'scripts/compression/**'
+      - 'frontend/public/licenses/C18-compression.txt'
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
       - 'frontend/src-tauri/src/note_sync.rs'

@@ -2376,6 +2376,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 name = "nfprogress-desktop"
 version = "5.3.9"
 dependencies = [
+ "flate2",
  "getrandom 0.3.4",
  "quick-xml 0.38.4",
  "reqwest",

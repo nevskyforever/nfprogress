@@ -537,6 +537,12 @@ pub fn frame(e: &Value) -> Result<Vec<u8>> {
     Ok(out)
 }
 pub fn unframe(f: &[u8], project: bool) -> Result<Value> {
+    let normalized;
+    let f = if f.len()>=20 && f[11]!=0 && [if project {12} else {13}].contains(&f[9]) && [1].contains(&f[10]) {
+        normalized=crate::frame_compression::normalize_authenticated_frame(f,&[if project {12} else {13}],&[1],MAX_FRAME_BYTES-20).map_err(str::to_string)?;
+        normalized.as_slice()
+    } else {f};
+
     if f.len() > MAX_FRAME_BYTES {
         return Err("game_resource_limit".into());
     }

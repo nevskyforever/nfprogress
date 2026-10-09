@@ -38,7 +38,7 @@ describe('C18 metadata codec and isolated E2EE', () => {
     for (const position of [8, 9, 10, 11]) {
       const unsupported = frameProjectMetadata(a)
       unsupported[position] = unsupported[position]! + 1
-      expect(() => unframeProjectMetadata(unsupported)).toThrow('invalid_project_metadata')
+      expect(() => unframeProjectMetadata(unsupported)).toThrow(position === 11 ? 'compression_invalid_stream' : 'invalid_project_metadata')
     }
   })
   it('rejects unknown fields, malformed types, invalid causal identity and tombstone', () => {

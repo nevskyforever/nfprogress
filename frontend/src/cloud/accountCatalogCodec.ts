@@ -1,3 +1,4 @@
+import { normalizeAuthenticatedFrame } from './frameCompression'
 import { canonical, timestamp } from './projectMetadataCodec';
 import { decryptAccountObject, encryptAccountObject, type AccountObjectEnvelope } from '@/crypto/accountObjectCrypto';
 import type { AccountMasterKey } from '@/crypto';
@@ -103,6 +104,8 @@ export function frameCatalogEvent(e: CatalogEvent): Uint8Array {
     return frame;
 }
 export function unframeCatalogEvent(frame: Uint8Array): CatalogEvent {
+  if (frame.length >= 20 && frame[11] !== 0 && [4,5,6,7].includes(frame[9]!) && [1].includes(frame[10]!)) frame = normalizeAuthenticatedFrame(frame, [4,5,6,7], [1], CATALOG_LIMITS.bytes)
+
     if (frame.length < 20 || frame.length > CATALOG_LIMITS.bytes + 20 || !magic.every((b, i) => frame[i] === b) || frame[8] !== 1 || frame[10] !== 1 || frame[11] !== 0)
         fail();
     const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);

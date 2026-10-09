@@ -1,3 +1,4 @@
+import { normalizeAuthenticatedFrame } from './frameCompression'
 import { canonical, timestamp } from './projectMetadataCodec'
 import { decryptObjectBytes, encryptObjectBytes, type AccountMasterKey, type ObjectCryptoEnvelope } from '@/crypto'
 
@@ -73,6 +74,8 @@ export function frameStructuralEvent(value: StructuralEvent): Uint8Array {
   return frame
 }
 export function unframeStructuralEvent(frame: Uint8Array): StructuralEvent {
+  if (frame.length >= 20 && frame[11] !== 0 && [2,3].includes(frame[9]!) && [1,2].includes(frame[10]!)) frame = normalizeAuthenticatedFrame(frame, [2,3], [1,2], MAX_STAGE_BYTES)
+
   if (frame.length < 20 || frame.length > MAX_STAGE_BYTES + 20 || !MAGIC.every((b, i) => frame[i] === b)
     || frame[8] !== 1 || ![2, 3].includes(frame[9]!) || ![1, 2].includes(frame[10]!) || frame[11] !== 0) fail()
   const sizes = new DataView(frame.buffer, frame.byteOffset, frame.byteLength)

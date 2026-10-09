@@ -1,3 +1,4 @@
+import { normalizeAuthenticatedFrame } from './frameCompression'
 import { canonical, timestamp } from './projectMetadataCodec'
 import { progressMicros, type ProgressFact } from './progressCodec'
 
@@ -156,6 +157,8 @@ export function frameGameEvent(event: GameEvent): Uint8Array {
   frame.set(payload, 20); return frame
 }
 export function unframeGameEvent(frame: Uint8Array, scope: 'project' | 'account'): GameEvent {
+  if (frame.length >= 20 && frame[11] !== 0 && ([GAME_CODEC[scope]] as number[]).includes(frame[9]!) && [1].includes(frame[10]!)) frame = normalizeAuthenticatedFrame(frame, [GAME_CODEC[scope]], [1], GAME_LIMITS.frameBytes-20)
+
   if (frame.length > GAME_LIMITS.frameBytes) fail('game_resource_limit')
   if (frame.length < 20 || !encoder.encode('WORTA-C1').every((b, i) => frame[i] === b) || frame[8] !== 1 || frame[9] !== GAME_CODEC[scope] || frame[10] !== 1 || frame[11] !== 0) fail('game_codec_unsupported')
   const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength)

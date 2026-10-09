@@ -1,3 +1,4 @@
+import { compressionBlocker } from './frameCompression'
 import {invoke} from '@tauri-apps/api/core'
 import {encryptedSyncV3Api} from '@/api/encryptedSyncV3'
 import {encryptObjectBytes,decryptObjectBytes} from '@/crypto'
@@ -128,7 +129,7 @@ export class GameSyncRuntime extends ProgressSyncRuntime {
           if(error instanceof StaleAuthContextError||error instanceof KeyNotProvisionedError||applying)throw error
           this.assertCurrent(context)
           const candidate=error instanceof Error?error.message:''
-          const code=['game_codec_not_activated','game_resource_limit','game_scope_mismatch'].includes(candidate)?candidate:frame?'invalid_game_payload':'decrypt_failed'
+          const code=compressionBlocker(error) ?? (['game_codec_not_activated','game_resource_limit','game_scope_mismatch'].includes(candidate)?candidate:frame?'invalid_game_payload':'decrypt_failed')
           await native(scope,{action:'block',event_id:row.event_id,nonce:row.nonce,ciphertext:row.ciphertext,code});this.assertCurrent(context)
           blocked.push(code);hasRemainingWork=true
         }finally{frame?.fill(0)}

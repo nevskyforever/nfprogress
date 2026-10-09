@@ -9803,7 +9803,7 @@ fn remote_apply_storage_error(error: StorageError) -> NoteSyncError {
 /// supplies a capability, and every mutable SQLite fact is re-checked inside
 /// the immediate transaction owned by the privileged connection.
 pub(crate) fn record_content_note_blocker(connection:&mut PrivilegedRemoteApplyConnection, command:&ApplyVerifiedReceivedNoteIpcCommand, code:&str)->Result<(),NoteSyncError> {
-    if !matches!(code,"decrypt_failed"|"invalid_note_payload") {return Err(NoteSyncError::InvalidEnvelope("invalid content blocker"))}
+    if !crate::frame_compression::CODES.contains(&code) && !matches!(code,"decrypt_failed"|"invalid_note_payload") {return Err(NoteSyncError::InvalidEnvelope("invalid content blocker"))}
     connection.execute_planned_once(|tx| {
         crate::content_note_sync::receipt(tx,command,None)?;
         tx.execute("UPDATE cloud_content_note_receipts SET blocker=?3 WHERE account_id=?1 AND event_id=?2 AND outcome='waiting'",rusqlite::params![command.account_id,command.event_id,code])?;
@@ -13547,4 +13547,13 @@ mod tests {
         );
         assert_no_note_outbox(&connection);
     }
+}
+
+/// Local diagnostic evidence only; no apply/ACK authority. Account/game blocker
+/// CHECK allowlists are historical, so precise frame failures use the existing
+/// generic Class-C application_metadata alongside their compatible blocker.
+pub(crate) fn record_frame_compression_blocker(tx:&rusqlite::Transaction<'_>,account:&str,event:&str,code:&str)->Result<(),rusqlite::Error>{
+    if !crate::frame_compression::CODES.contains(&code){return Err(rusqlite::Error::InvalidQuery);}
+    let key=format!("frame_compression_blocker:{}",serde_json::json!([account,event]));
+    tx.execute("INSERT INTO application_metadata(key,value,updated_at) VALUES(?1,?2,datetime('now')) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at",rusqlite::params![key,serde_json::json!({"code":code}).to_string()])?;Ok(())
 }

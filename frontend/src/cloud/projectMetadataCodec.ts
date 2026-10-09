@@ -1,3 +1,4 @@
+import { normalizeAuthenticatedFrame } from './frameCompression'
 import { validateCoverReference, type ProjectCoverReference } from './projectCoverReference'
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 import { decryptObjectBytes, encryptObjectBytes, type AccountMasterKey, type ObjectCryptoEnvelope } from '@/crypto'
@@ -99,6 +100,8 @@ export function frameProjectMetadata(value: ProjectMetadataEvent): Uint8Array {
   return frame
 }
 export function unframeProjectMetadata(frame: Uint8Array): ProjectMetadataEvent {
+  if (frame.length >= 20 && frame[11] !== 0 && [1].includes(frame[9]!) && [1,2].includes(frame[10]!)) frame = normalizeAuthenticatedFrame(frame, [1], [1,2], MAX_METADATA_BYTES)
+
   if (!(frame instanceof Uint8Array) || frame.length < 20 || frame.length > MAX_METADATA_BYTES + 20
     || !MAGIC.every((byte, i) => frame[i] === byte) || frame[8] !== 1 || frame[9] !== 1
     || ![1,2].includes(frame[10]!) || frame[11] !== 0) fail()

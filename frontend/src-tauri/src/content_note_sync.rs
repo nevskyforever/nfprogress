@@ -108,6 +108,12 @@ fn portable(n: &Value) -> Result<(), &'static str> {
     Ok(())
 }
 pub(crate) fn decode(frame: &[u8]) -> Result<ContentNote, &'static str> {
+    let normalized;
+    let frame = if frame.len()>=20 && frame[11]!=0 && [8].contains(&frame[9]) && [1].contains(&frame[10]) {
+        normalized=crate::frame_compression::normalize_authenticated_frame(frame,&[8],&[1],8388608-20).map_err(|e| e)?;
+        normalized.as_slice()
+    } else {frame};
+
     if frame.len() > 8388608 {
         return Err("content_note_resource_limit");
     }

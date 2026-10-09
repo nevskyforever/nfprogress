@@ -77,13 +77,22 @@ pub fn received(db:&mut Connection,scope:&metadata::MetadataScope,limit:i64)->Re
 /// Retain the encrypted source; failures never manufacture apply/ACK evidence.
 pub fn block(db:&mut Connection,scope:&metadata::MetadataScope,id:&str,n:&[u8],c:&[u8],code:&str)->Result<(),String> {
     assert_scope(db,scope)?;
-    if !matches!(code,"game_codec_not_activated"|"game_resource_limit"|"game_scope_mismatch"|"invalid_game_payload"|"decrypt_failed") {return Err("invalid_game_payload".into());}
+    if !crate::frame_compression::CODES.contains(&code) && !matches!(code,"game_codec_not_activated"|"game_resource_limit"|"game_scope_mismatch"|"invalid_game_payload"|"decrypt_failed") {return Err("invalid_game_payload".into());}
     let tx=db.transaction_with_behavior(TransactionBehavior::Immediate).map_err(sql)?;
     let key:Option<String>=tx.query_row("SELECT COALESCE((SELECT owner_key FROM cloud_game_events WHERE account_id=?1 AND event_id=?2),json_array(i.project_id,NULL)) FROM cloud_sync_inbox i JOIN cloud_sync_event_objects o USING(account_id,event_id) WHERE i.account_id=?1 AND i.event_id=?2 AND i.entity_type='project_game' AND o.nonce=?3 AND o.ciphertext=?4 UNION ALL SELECT 'account' FROM cloud_sync_account_inbox WHERE account_id=?1 AND event_id=?2 AND entity_type='account_game' AND canonical_user_id=?5 AND nonce=?3 AND ciphertext=?4",params![scope.account_id,id,n,c,scope.canonical_user_id],|r|r.get(0)).optional().map_err(sql)?;
     let key=key.ok_or("game_scope_mismatch")?;
     let proven:bool=tx.query_row("SELECT EXISTS(SELECT 1 FROM cloud_game_apply_ledger WHERE account_id=?1 AND event_id=?2)",params![scope.account_id,id],|r|r.get(0)).map_err(sql)?;
     if proven {return Err("game_exact_replay_mismatch".into());}
-    tx.execute("INSERT INTO cloud_game_blockers VALUES(?1,?2,?3,?4) ON CONFLICT(account_id,owner_key,event_id) DO UPDATE SET code=excluded.code",params![scope.account_id,key,id,code]).map_err(sql)?;
+    // Schema37 game blocker CHECK is frozen. Preserve the precise transport
+    // failure in generic local inbox support state, with the existing generic
+    // game blocker in the same transaction. No schema/authority change.
+    let game_code=if crate::frame_compression::CODES.contains(&code) {
+        tx.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='project_game'",params![code,scope.account_id,id]).map_err(sql)?;
+        tx.execute("UPDATE cloud_sync_account_inbox SET state='blocked',error_code='account_scope_rejected' WHERE account_id=?2 AND event_id=?3 AND entity_type='account_game' AND ?1 IS NOT NULL",params![code,scope.account_id,id]).map_err(sql)?;
+        crate::note_sync::record_frame_compression_blocker(&tx,&scope.account_id,id,code).map_err(sql)?;
+        "invalid_game_payload"
+    }else{code};
+    tx.execute("INSERT INTO cloud_game_blockers VALUES(?1,?2,?3,?4) ON CONFLICT(account_id,owner_key,event_id) DO UPDATE SET code=excluded.code",params![scope.account_id,key,id,game_code]).map_err(sql)?;
     tx.commit().map_err(sql)
 }
 use rusqlite::OptionalExtension;
@@ -178,6 +187,40 @@ mod tests {
         assert!(received(&mut db,&scope(),33).is_err());
         assert!(serde_json::from_value::<Request>(json!({"action":"begin","now":"now","payload":{"coins":999}})).is_err());
         assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_candidates",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        drop(db);std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn compressed_frame_blocker_is_durable_and_rotates_without_ack(){
+        let path=std::env::temp_dir().join(format!("game-reader-{}.db",metadata::new_event_id().unwrap()));
+        let mut db=crate::sqlite::open_database(&path).unwrap();
+        db.execute("UPDATE storage_ownership SET owner='sqlite' WHERE subsystem='game'",[]).unwrap();
+        db.execute("INSERT INTO cloud_sync_state(account_id,device_id,created_at,updated_at) VALUES('test',?1,'now','now')",[DEVICE]).unwrap();
+        db.execute("INSERT INTO cloud_account_bindings VALUES('test',?1,'now','now')",[USER]).unwrap();
+        let mut ids=Vec::new();
+        for sequence in 1..=35 {
+            let id=metadata::new_event_id().unwrap();ids.push(id.clone());
+            if sequence%2==0 {
+                db.execute("INSERT INTO cloud_sync_inbox(account_id,event_id,server_sequence,device_id,project_id,entity_id,entity_type,operation,sync_revision,updated_at,state,received_at) VALUES('test',?1,?2,?3,'p',?4,'project_game','event',1,'now','received','now')",params![id,sequence,DEVICE,format!("game:project:{id}")]).unwrap();
+                db.execute("INSERT INTO cloud_sync_event_objects VALUES('test',?1,1,1,?2,?3,'now')",params![id,vec![4u8;24],vec![5u8;32]]).unwrap();
+            }else{
+                db.execute("INSERT INTO cloud_sync_account_inbox(account_id,event_id,canonical_user_id,scope,server_sequence,device_id,entity_id,entity_type,operation,sync_revision,updated_at,crypto_version,aad_version,nonce,ciphertext,received_at) VALUES('test',?1,?2,'account',?3,?4,?5,'account_game','upsert',1,'now',2,2,?6,?7,'now')",params![id,USER,sequence,DEVICE,format!("game:{id}"),vec![4u8;24],vec![5u8;32]]).unwrap();
+            }
+        }
+        let first=received(&mut db,&scope(),32).unwrap();assert_eq!(first.len(),32);
+        for row in &first{block(&mut db,&scope(),row["event_id"].as_str().unwrap(),&[4u8;24],&[5u8;32],"compression_invalid_stream").unwrap();}
+        drop(db);let mut db=crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM application_metadata WHERE key LIKE 'frame_compression_blocker:%' AND value=json_object('code','compression_invalid_stream')",[],|r|r.get::<_,i64>(0)).unwrap(),32);
+        let next=received(&mut db,&scope(),8).unwrap();
+        for (row,id) in next[..3].iter().zip(&ids[32..]){assert_eq!(row["event_id"],*id);}
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_apply_ledger",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_blockers",[],|r|r.get::<_,i64>(0)).unwrap(),32);
+        assert!(block(&mut db,&scope(),&ids[0],&[6u8;24],&[5u8;32],"compression_invalid_stream").is_err());
+        assert!(received(&mut db,&scope(),33).is_err());
+        assert!(serde_json::from_value::<Request>(json!({"action":"begin","now":"now","payload":{"coins":999}})).is_err());
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_candidates",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        db.execute("UPDATE cloud_sync_state SET pull_cursor=35",[]).unwrap();
+        let ack=crate::note_sync::prepare_note_sync_ack(&mut db,&crate::note_sync::PrepareNoteSyncAckCommand{account_id:"test".into(),canonical_user_id:USER.into(),device_id:DEVICE.into()}).unwrap();
+        assert_eq!(ack.current_ack_cursor,0);assert_eq!(ack.candidate_cursor,0);
         drop(db);std::fs::remove_file(path).unwrap();
     }
 }

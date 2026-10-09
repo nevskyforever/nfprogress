@@ -1,3 +1,4 @@
+import { compressionBlocker } from './frameCompression'
 import { SQLiteProjectCoverRepository, type ProjectCoverRepository } from '@/infrastructure/sqlite/projectCoverRepository'
 import { encryptedCoversApi } from '@/api/encryptedCovers'
 import { encryptProjectCover, createProjectCoverBlobId } from './projectCoverCrypto'
@@ -383,6 +384,12 @@ export class ProjectMetadataMigrationRuntime {
             await this.covers?.command(scope, item.project_id, 'block', {
               event_id: item.event_id, reference: error.reference, code: 'cover_blob_invalid',
             }, now())
+            this.assertCurrent(context)
+          }
+          const compressionCode = compressionBlocker(error)
+          if (compressionCode) {
+            this.assertCurrent(context)
+            await this.native.compressionBlock(scope, item.event_id, Uint8Array.from(item.nonce), Uint8Array.from(item.ciphertext), compressionCode)
             this.assertCurrent(context)
           }
           blocked.push(item.event_id)

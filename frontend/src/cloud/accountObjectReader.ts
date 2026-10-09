@@ -1,3 +1,4 @@
+import { compressionBlocker, type CompressionCode } from './frameCompression'
 import { frameCatalogEvent, openCatalogEvent } from './accountCatalogCodec'
 import { canonicalizeSyncTimestamp } from './syncTimestamp'
 import { invoke } from '@tauri-apps/api/core'
@@ -16,7 +17,7 @@ export interface ReceivedAccountObject {
   source_device_id?:string;operation?:string;revision?:number;updated_at?:string;deleted_at?:string|null;
   entity_id: string; entity_type: string; crypto_version: number; aad_version: number; nonce: number[]; ciphertext: number[]
 }
-export type AccountReaderBlocker = 'account_entity_codec_not_activated' | 'account_scope_rejected' | 'decrypt_failed' | 'invalid_catalog_frame' | 'catalog_dependency_missing' | 'catalog_parent_unknown' | 'catalog_membership_changed' | 'catalog_project_unproven' | 'catalog_folder_has_members' | 'catalog_resource_limit' | 'catalog_dependency_conflict' | 'unsupported_catalog_source'
+export type AccountReaderBlocker = CompressionCode | 'account_entity_codec_not_activated' | 'account_scope_rejected' | 'decrypt_failed' | 'invalid_catalog_frame' | 'catalog_dependency_missing' | 'catalog_parent_unknown' | 'catalog_membership_changed' | 'catalog_project_unproven' | 'catalog_folder_has_members' | 'catalog_resource_limit' | 'catalog_dependency_conflict' | 'unsupported_catalog_source'
 export async function authenticateAccountObject(amk: AccountMasterKey, userId: string, row: ReceivedAccountObject): Promise<AccountReaderBlocker> {
   if (row.scope !== 'account' || row.canonical_user_id !== userId || !ACCOUNT_ENTITY_TYPES.includes(row.entity_type as typeof ACCOUNT_ENTITY_TYPES[number])
     || row.crypto_version !== 2 || row.aad_version !== 2) return 'account_scope_rejected'
@@ -71,7 +72,7 @@ export class AccountObjectReader extends ProjectMetadataMigrationRuntime {
         }
         catch (error) {
           if(error instanceof StaleAuthContextError || error instanceof KeyNotProvisionedError)throw error
-          code=typeof error==='string' && ['catalog_resource_limit','catalog_project_unproven','catalog_dependency_conflict','unsupported_catalog_source'].includes(error)?error as AccountReaderBlocker:error instanceof TypeError && error.message==='invalid_catalog_frame'?'invalid_catalog_frame':error instanceof Error && error.name==='CryptoError'?'decrypt_failed':'account_scope_rejected'
+          code=compressionBlocker(error) ?? (typeof error==='string' && ['catalog_resource_limit','catalog_project_unproven','catalog_dependency_conflict','unsupported_catalog_source'].includes(error)?error as AccountReaderBlocker:error instanceof TypeError && error.message==='invalid_catalog_frame'?'invalid_catalog_frame':error instanceof Error && error.name==='CryptoError'?'decrypt_failed':'account_scope_rejected')
         }
         this.assertCurrent(context)
         await this.accountInbox.block(scope, row, code)

@@ -64,6 +64,7 @@ const LEGACY_PROJECT_FIELDS: &[&str] = &[
 
 #[derive(Debug)]
 pub(crate) enum MetadataError {
+    Compression(&'static str),
     Invalid,
     Scope,
     Conflict,
@@ -77,6 +78,7 @@ impl From<rusqlite::Error> for MetadataError {
 impl std::fmt::Display for MetadataError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Compression(code) => write!(f, "{code}"),
             Self::Invalid => write!(f, "invalid_project_metadata"),
             Self::Scope => write!(f, "metadata_scope_mismatch"),
             Self::Conflict => write!(f, "metadata_conflict"),
@@ -2608,6 +2610,12 @@ pub(crate) fn commit_metadata_import_page(
 
 /// Independent native framing verifier; historical v1 is never rewritten.
 pub(crate) fn unframe_metadata_event(frame:&[u8])->Result<Value,MetadataError>{
+    let normalized;
+    let frame = if frame.len()>=20 && frame[11]!=0 && [1].contains(&frame[9]) && [1,2].contains(&frame[10]) {
+        normalized=crate::frame_compression::normalize_authenticated_frame(frame,&[1],&[1,2],MAX_BYTES).map_err(MetadataError::Compression)?;
+        normalized.as_slice()
+    } else {frame};
+
  if frame.len()<20||frame.len()>MAX_BYTES+20||&frame[..8]!=b"WORTA-C1"||frame[8]!=1||frame[9]!=1||!matches!(frame[10],1|2)||frame[11]!=0{return Err(MetadataError::Invalid)}
  let len=frame.len()-20;
  if u32::from_be_bytes(frame[12..16].try_into().unwrap()) as usize!=len||u32::from_be_bytes(frame[16..20].try_into().unwrap()) as usize!=len{return Err(MetadataError::Invalid)}
@@ -2632,4 +2640,10 @@ mod cover_vectors {
    if bad["version"]==2 {bad["metadata"].as_object_mut().unwrap().remove("unknown");bad["version"]=json!(1);assert!(decode_metadata_event(bad.to_string().as_bytes(),"project").is_err());}
   }
  }
+}
+
+/// Reader failure preserves the immutable inbox/object and leaves shared ACK hole.
+pub(crate) fn compression_reader_blocker(db:&Connection,a:&str,event:&str,nonce:&[u8],ciphertext:&[u8],code:&str)->Result<(),MetadataError>{
+    if !crate::frame_compression::CODES.contains(&code){return Err(MetadataError::Invalid);}
+    db.execute("UPDATE cloud_sync_inbox SET state='orphan',error_code=?1 WHERE account_id=?2 AND event_id=?3 AND entity_type='project_metadata' AND state IN ('received','orphan') AND EXISTS(SELECT 1 FROM cloud_sync_event_objects o WHERE o.account_id=?2 AND o.event_id=?3 AND o.nonce=?4 AND o.ciphertext=?5)",params![code,a,event,nonce,ciphertext])?;Ok(())
 }

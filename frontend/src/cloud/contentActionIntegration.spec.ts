@@ -1,5 +1,6 @@
 // @vitest-environment node
 import {describe,it,expect} from 'vitest'
+import {deflate} from 'pako'
 import {readFileSync} from 'node:fs'
 import {asAccountMasterKey,encryptObjectBytes,decryptObjectBytes} from '@/crypto'
 import {encryptAccountObject,decryptAccountObject} from '@/crypto/accountObjectCrypto'
@@ -45,7 +46,10 @@ describe('C18.5 whole codec and crypto registry',()=>{
    [[4,5,6,7],unframeCatalogEvent],[[8],unframeContentNote],[[9],unframeMapEvent],[[10],unframeDocumentEvent],
    [[11],unframeProgressEvent],[[12],f=>unframeGameEvent(f,'project')],[[13],f=>unframeGameEvent(f,'account')]]
   for(const [accepted,read] of readers)for(const f of frames){
-   if(accepted.includes(f[9]!))await read(f)
+   if(accepted.includes(f[9]!)){
+    const payload=deflate(f.subarray(20)),compressed=new Uint8Array(payload.length+20);compressed.set(f.subarray(0,20));compressed[11]=1;new DataView(compressed.buffer).setUint32(16,payload.length);compressed.set(payload,20)
+    expect(await read(compressed)).toEqual(await read(f))
+   }
    else await expect(Promise.resolve().then(()=>read(f))).rejects.toThrow()
   }
  })

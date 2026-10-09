@@ -1,3 +1,4 @@
+import { normalizeAuthenticatedFrame } from './frameCompression'
 import { canonical } from './projectMetadataCodec'
 import { decodeNoteSyncPlaintext, encodeNoteSyncPlaintext, type NoteSyncPlaintext, type NoteSyncRecord, type NoteSyncTombstone } from './noteSyncCodec'
 import { decodeNoteSyncResolutionV2, encodeNoteSyncResolutionV2, type NoteSyncResolutionV2 } from './noteSyncResolutionV2Codec'
@@ -89,6 +90,8 @@ export function frameContentNote(e: ContentNoteEvent): Uint8Array {
   return frame
 }
 export function unframeContentNote(frame: Uint8Array): ContentNoteEvent {
+  if (frame.length >= 20 && frame[11] !== 0 && [8].includes(frame[9]!) && [1].includes(frame[10]!)) frame = normalizeAuthenticatedFrame(frame, [8], [1], MAX_CONTENT_NOTE_BYTES)
+
   if (frame.length>MAX_CONTENT_NOTE_BYTES+20) fail('content_note_resource_limit')
   if (frame.length<20 || !MAGIC.every((b,i)=>frame[i]===b) || frame[8]!==1 || frame[9]!==8 || frame[10]!==1 || frame[11]!==0) fail('content_note_codec_unsupported')
   const sizes=new DataView(frame.buffer,frame.byteOffset,frame.byteLength)

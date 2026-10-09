@@ -1,22 +1,89 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 6 октября 2026 года.\
+**Дата:** 9 октября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **IN PROGRESS**.\
-**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01 — **REMOTELY ACCEPTED**; C18.6.02 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
-**Последняя независимая приёмка:** C18.6.01 implementation `5b4d54d3ae4de8bf801683f36f01dbdedb6612a1`; SQLite `37372599703` attempt2 и Cloud `37372599817` attempt4 — **SUCCESS**, все required jobs. C18.6/C18 остаются IN PROGRESS; последний полностью закрытый roadmap stage C17.\
+**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **CLOSED**; C18.7 — **IN PROGRESS**.\
+**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01/.02 — **REMOTELY ACCEPTED**; C18.6 — **CLOSED**; C18.7.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Последняя независимая приёмка:** C18.6.02 implementation `b361d72f7505d8e7de1139c3f2f697081d728b82`; SQLite `37438328166` — **SUCCESS** (Python/Rust); Cloud `37438328232` — **SUCCESS** (Frontend admin, PostgreSQL foundation/content-action/regressions). По авторитетной независимой приёмке C18.6.02 REMOTELY ACCEPTED и C18.6 CLOSED. C18/C18.7 IN PROGRESS; официальный прогресс **77.0%**, roadmap stage C17 остаётся последним полностью закрытым.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## C18.7.01 — compression gate / bounded substrate (9 октября 2026)
+
+**LOCAL COMPLETE / REMOTE CI PENDING**; starting implementation
+`b361d72f7505d8e7de1139c3f2f697081d728b82`. C18.6 CLOSED по независимой
+приёмке, C18.7/C18 IN PROGRESS, **77.0%**; C18 points не начислены.
+
+Проверены реальные TS/Rust frame encoders/readers IDs1–13, codec versions,
+лимиты, frame1/compression0 и действующие capability declarations. ID0/исторические
+Note1/resolution2 byte-compatible; writers **по-прежнему compression0**. Общий
+bounded transform подключён к readers всех families без broad codec refactor.
+
+Gate сравнил точные пакеты/лицензии и synthetic canonical corpus54cases:
+pako2.1.0 + flate2 1.1.9 выбраны для **ID1 = single RFC1950 zlib / RFC1951
+DEFLATE + Adler32**. Pako MIT AND Zlib, no runtime npm transitives. Native MIT/Zlib
+closure уже в lock: miniz_oxide0.8.9, adler2 2.0.1, simd-adler32 0.3.10,
+crc32fast1.5.0, cfg-if1.0.4, zlib-rs0.6.7; ZIP feature unification использует
+zlib-rs, новых crates нет. Notices включены в packaged frontend assets.
+Brotli-wasm3.0.1/native8.0.4 отклонены из-за WASM weight/window-budget API;
+Zstandard wrapper0.0.27 отклонён до admission: untrusted allocation API,
+неполная embedded-license evidence. IDs2+ не назначены.
+
+Frozen bounds: ID1 compressed≤1MiB; declared output≤8MiB−20 **и** прежнего
+entity ceiling; ratio≤512; window≤32KiB; output allocation exact declared+1;
+16KiB progress slices; no dictionary/concat/trailing/empty output; checksum и
+exact output length обязательны. Dormant policy: payload≥1024B, savings≥128B
+и≥10%, level6, independent event state; codecs1–13 canonical only. Cover/DOCX/
+external bytes/attachments/local support excluded. Side-channel review admits
+current private-client causal records without server reflection/oracle or shared
+state; new untrusted collaboration/reflection needs fresh gate. No credentials,
+cross-event/user/server dictionaries. Near-limit entropy that exceeds compressed
+input cap stays ID0; sealed bytes never recompressed/resealed.
+
+Failure сохраняет exact encrypted event, typed local blocker, не создаёт
+apply/ACK proof. Bounded retained rotation reused. Account/Game old CHECK
+allowlists не изменены: compatible generic blocker плюс exact code в существующей
+Class-C application_metadata, transactionally. Schema **38 unchanged**, Alembic
+unchanged, no new cursor/capability advertisement. C18.7.02 должен добавить
+explicit compression_ids/all-device gate до emission ID1; compression_zero=true
+не переопределён. Backend не декодирует plaintext.
+
+Shared TS/native vectors, including near-limit Document, hash/canonical proof,
+malformed streams/bombs/checksum/window/dictionary/length/unknown-ID/canonical
+negatives, restart/exact sealed-frame/ciphertext retry and ACK-prefix0/fairness
+proof. Chromium decodes identical portable JS module; no Node/Tauri production
+compression API. Android actual device/build proof остаётся отдельным gate,
+не заявлен как выполненный. Source/runtime/binary notices сохранены, source
+release obligations входят в прежний release gate. Native binary delta отдельно
+не измерен; frontend approximate bundle delta записана в evidence.
+
+Final local unions: frontend660 (657 broad + exact Node20.19.0 timeout retests;
+final vectors/corpus/metadata focus pass), native391 unique pass (387 broad +
+three corrected targets + new account blocker; existing headless hook executed
+by mandatory PG), SQLite Python486; PostgreSQL34+23+197=254, zero mandatory
+skips. Chromium five shared cases/two producers; typecheck/build/cargo/YAML/diff
+checks pass. No repeated broad loops, no assertions/timeouts weakened.
+Checks/counts and commands: `docs/cloud/C18_7_COMPRESSION_GATE.md`.
+Оба split workflows обновлены без потери existing union/timeout/Windows coverage;
+mandatory compression tests без skips. Нет writer activation/C18.8/telemetry,
+переноса paths, compression cover или изменения crypto/codec/schema authority.
+Release gate/final terminology audit/C21 local-Web-first сохранены.
+Next **только после независимой remote acceptance**: C18.7.02 — COMPRESSION
+CAPABILITY / WRITER ACTIVATION / MIXED ID0-ID1 ACCEPTANCE.
+
 ## C18.6.02 — local external integration boundary (6 октября 2026)
 
-**LOCAL COMPLETE / REMOTE CI PENDING**, starting SHA
-`5b4d54d3ae4de8bf801683f36f01dbdedb6612a1`. C18.6/C18 IN PROGRESS, **77.0%**.
+**REMOTELY ACCEPTED** (independent owner/GPT verification supplied9October2026),
+implementation `b361d72f7505d8e7de1139c3f2f697081d728b82`; SQLite
+`37438328166` SUCCESS (Python/Rust), Cloud `37438328232` SUCCESS (Frontend,
+foundation, content-action, regressions). **C18.6 CLOSED**, C18 IN PROGRESS,
+**77.0%**. Historical local implementation started at
+`5b4d54d3ae4de8bf801683f36f01dbdedb6612a1`.
 C18.6.01 independently REMOTELY ACCEPTED (exact evidence below).
 
 Native SQLite documents/document_bindings remain portable text + local Word

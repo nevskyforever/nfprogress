@@ -1,3 +1,4 @@
+import { compressionBlocker } from './frameCompression'
 import { encryptedSyncV3Api } from '@/api/encryptedSyncV3'
 import { KeyNotProvisionedError, type RuntimeKeyContext } from '@/auth/keyContext'
 import { StaleAuthContextError, type NormalUserAuthRuntime } from '@/auth/userAuth'
@@ -100,7 +101,7 @@ export class StageStructuralRuntime extends ProjectMetadataMigrationRuntime {
         } catch (error) {
           if (error instanceof StaleAuthContextError || error instanceof KeyNotProvisionedError) throw error
           this.assertCurrent(context)
-          await this.structural.block(scope, item.event_id, (error === 'metadata_scope_mismatch' || error instanceof TypeError && error.message === 'structural_scope_mismatch') ? 'structural_scope_mismatch' : error instanceof TypeError && error.message === 'invalid_stage_structure' ? 'invalid_stage_frame' : 'structural_authentication_failed')
+          await this.structural.block(scope, item.event_id, compressionBlocker(error) ?? ((error === 'metadata_scope_mismatch' || error instanceof TypeError && error.message === 'structural_scope_mismatch') ? 'structural_scope_mismatch' : error instanceof TypeError && error.message === 'invalid_stage_structure' ? 'invalid_stage_frame' : 'structural_authentication_failed'))
           blocked.push(item.event_id)
         }
       }

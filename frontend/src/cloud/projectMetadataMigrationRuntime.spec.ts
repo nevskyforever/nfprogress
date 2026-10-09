@@ -40,6 +40,7 @@ describe('explicit metadata migration runtime', () => {
       authEpoch: context.authEpoch, isCurrent: () => true, use: (action: (key: AccountMasterKey) => Promise<unknown>) => action(amk) })) }
     const status: MetadataMigrationStatus = { state: 'legacy_candidate_present', candidate_id: 'candidate', event_id: null, blockers: [], genesis_tips: 0 }
     const native = {
+      compressionBlock: vi.fn(async () => {}),
       readImport: vi.fn<ProjectMetadataMigrationRepository["readImport"]>(),
       commitImportPage: vi.fn<ProjectMetadataMigrationRepository["commitImportPage"]>(),
       capture: vi.fn(async () => 'candidate'), status: vi.fn(async () => status), prepare: vi.fn(async () => EVENT),

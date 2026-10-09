@@ -272,6 +272,12 @@ pub(crate) fn frame(e: &Event) -> Result<Vec<u8>, Error> {
     Ok(out)
 }
 pub(crate) fn unframe(bytes: &[u8]) -> Result<Event, Error> {
+    let normalized;
+    let bytes = if bytes.len()>=20 && bytes[11]!=0 && [2,3].contains(&bytes[9]) && [1,2].contains(&bytes[10]) {
+        normalized=crate::frame_compression::normalize_authenticated_frame(bytes,&[2,3],&[1,2],1024*1024).map_err(Error::Compression)?;
+        normalized.as_slice()
+    } else {bytes};
+
     if bytes.len() < 20
         || bytes.len() > 1024 * 1024 + 20
         || &bytes[..8] != b"WORTA-C1"
@@ -1749,7 +1755,7 @@ pub(crate) fn reader_blocker(
     event: &str,
     reason: &str,
 ) -> Result<(), Error> {
-    if !matches!(
+    if !crate::frame_compression::CODES.contains(&reason) && !matches!(
         reason,
         "invalid_stage_frame" | "structural_authentication_failed" | "structural_scope_mismatch"
     ) {

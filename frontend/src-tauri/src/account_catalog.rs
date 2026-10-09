@@ -247,6 +247,12 @@ pub(crate) fn frame(e: &Event) -> Result<Vec<u8>> {
     Ok(result)
 }
 pub(crate) fn unframe(raw: &[u8]) -> Result<Event> {
+    let normalized;
+    let raw = if raw.len()>=20 && raw[11]!=0 && [4,5,6,7].contains(&raw[9]) && [1].contains(&raw[10]) {
+        normalized=crate::frame_compression::normalize_authenticated_frame(raw,&[4,5,6,7],&[1],MAX_BYTES).map_err(Error::Code)?;
+        normalized.as_slice()
+    } else {raw};
+
     if raw.len() < 20
         || raw.len() > MAX_BYTES + 20
         || &raw[..8] != b"WORTA-C1"

@@ -1,3 +1,4 @@
+import { normalizeAuthenticatedFrame } from './frameCompression'
 import contract from './mapCodecV1.contract.json'
 import {canonical} from './projectMetadataCodec'
 import {canonicalizeSyncTimestamp} from './syncTimestamp'
@@ -114,6 +115,8 @@ export async function validateMapEvent(value:unknown):Promise<void>{
 }
 export async function frameMapEvent(e:MapEvent):Promise<Uint8Array>{await validateMapEvent(e);const body=encoder.encode(canonical(e));if(body.length+20>MAX_MAP_FRAME_BYTES)fail('map_resource_limit');const bytes=new Uint8Array(body.length+20);bytes.set([87,79,82,84,65,45,67,49,1,9,1,0]);const view=new DataView(bytes.buffer);view.setUint32(12,body.length);view.setUint32(16,body.length);bytes.set(body,20);return bytes}
 export async function unframeMapEvent(bytes:Uint8Array):Promise<MapEvent>{
+  if (bytes.length >= 20 && bytes[11] !== 0 && [9].includes(bytes[9]!) && [1].includes(bytes[10]!)) bytes = normalizeAuthenticatedFrame(bytes, [9], [1], MAX_MAP_FRAME_BYTES-20)
+
  if(bytes.length>MAX_MAP_FRAME_BYTES)fail('map_resource_limit');if(bytes.length<20||!bytes.subarray(0,12).every((b,i)=>b===[87,79,82,84,65,45,67,49,1,9,1,0][i]))fail('map_codec_unsupported')
  const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);if(view.getUint32(12)!==bytes.length-20||view.getUint32(16)!==bytes.length-20)fail()
  let raw:string,value:unknown;try{raw=decoder.decode(bytes.subarray(20));value=JSON.parse(raw)}catch{fail()}

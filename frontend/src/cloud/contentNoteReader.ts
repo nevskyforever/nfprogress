@@ -1,3 +1,4 @@
+import { compressionBlocker } from './frameCompression'
 import { StaleAuthContextError, type NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdentityRepository'
@@ -67,7 +68,7 @@ export class ContentNoteReader extends ProjectMetadataMigrationRuntime {
         } catch(error) {
           if(error instanceof StaleAuthContextError) throw error
           this.assertCurrent(context)
-          const code=frame ? 'invalid_note_payload' : 'decrypt_failed'
+          const code=compressionBlocker(error) ?? (frame ? 'invalid_note_payload' : 'decrypt_failed')
           await this.repository.block({account_id:accountId,canonical_user_id:context.userId,pulling_device_id:deviceId,event_id:row.event_id,
             server_sequence:row.server_sequence,source_device_id:row.source_device_id,crypto_version:1,aad_version:1,
             nonce:Array.from(envelope.nonce),ciphertext:Array.from(envelope.ciphertext),plaintext:[]},code)

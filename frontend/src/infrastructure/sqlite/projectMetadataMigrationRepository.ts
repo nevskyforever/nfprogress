@@ -48,6 +48,7 @@ export interface ProjectMetadataMigrationRepository {
   commitSealed(scope: MetadataScope, eventId: string, nonce: Uint8Array, ciphertext: Uint8Array): Promise<void>
   sealed(scope: MetadataScope): Promise<SealedMetadataGenesis[]>
   commitReceipt(scope: MetadataScope, eventId: string, serverSequence: number, duplicate: boolean, now: string): Promise<void>
+  compressionBlock(scope: MetadataScope, eventId: string, nonce: Uint8Array, ciphertext: Uint8Array, code: string): Promise<void>
   received(scope: MetadataScope, limit: number, after: number): Promise<ReceivedMetadataEvent[]>
   apply(scope: MetadataScope, projectId: string, plaintext: Uint8Array, nonce: Uint8Array, ciphertext: Uint8Array, now: string): Promise<'applied' | 'conflict_preserved' | 'orphan'>
   commitV3Page(scope: MetadataScope, since: number, page: V3PullResponse): Promise<CommitInboundPageResult>
@@ -96,6 +97,9 @@ export class SQLiteProjectMetadataMigrationRepository implements ProjectMetadata
   }
   commitReceipt(scope: MetadataScope, eventId: string, serverSequence: number, duplicate: boolean, now: string): Promise<void> {
     return invoke('commit_project_metadata_upload_receipt', { scope, eventId, serverSequence, duplicate, now })
+  }
+  compressionBlock(scope: MetadataScope, eventId: string, nonce: Uint8Array, ciphertext: Uint8Array, code: string): Promise<void> {
+    return invoke('record_project_metadata_compression_blocker', {scope, eventId, nonce: bytes(nonce), ciphertext: bytes(ciphertext), code})
   }
   received(scope: MetadataScope, limit: number, after: number): Promise<ReceivedMetadataEvent[]> {
     return invoke('list_received_project_metadata', { scope, limit, afterServerSequence: after })
