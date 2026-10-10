@@ -453,7 +453,35 @@ jobs:
       - name: Verify exact Web to Android assets and notices
         run: python3 scripts/compression/verify_platform_package.py --android frontend/android/app/src/main/assets/public
       - name: Ensure existing Android project SDK requirements
-        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          android_sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          if [[ -z "$android_sdk_root" || ! -d "$android_sdk_root" ]]; then
+            echo 'Android SDK root missing: set ANDROID_HOME or ANDROID_SDK_ROOT.' >&2
+            exit 1
+          fi
+          android_sdk_root="$(cd -- "$android_sdk_root" && pwd -P)"
+          shopt -s nullglob
+          candidates=("$android_sdk_root/cmdline-tools/latest/bin/sdkmanager" "$android_sdk_root"/cmdline-tools/*/bin/sdkmanager)
+          sdkmanager_path=''
+          for candidate in "${candidates[@]}"; do
+            [[ -f "$candidate" && -x "$candidate" ]] || continue
+            resolved="$(realpath "$candidate")"
+            if [[ "$resolved" != "$android_sdk_root/"* ]]; then
+              echo 'sdkmanager resolves outside the Android SDK root.' >&2
+              exit 1
+            fi
+            sdkmanager_path="$resolved"
+            break
+          done
+          if [[ -z "$sdkmanager_path" ]]; then
+            printf 'No executable sdkmanager under %s/cmdline-tools/*/bin/.\n' "$android_sdk_root" >&2
+            exit 1
+          fi
+          printf 'Android SDK root: %s\nsdkmanager: %s\n' "$android_sdk_root" "$sdkmanager_path"
+          "$sdkmanager_path" --sdk_root="$android_sdk_root" 'platforms;android-36' 'build-tools;35.0.0'
       - name: Build actual debug Android app from production assets
         run: ./gradlew --no-daemon :app:assembleDebug
         working-directory: frontend/android
