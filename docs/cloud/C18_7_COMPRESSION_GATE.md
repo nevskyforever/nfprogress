@@ -337,6 +337,11 @@ or C18 and do not poll Actions after push.
 
 ## C18.7.02 — explicit capability and production activation
 
+Independently **REMOTELY ACCEPTED**: SHA `87b9bf7d60cd223d3ca2f4ab3faea16dd7574178`;
+SQLite37973599074 SUCCESS (Python/Rust); Cloud37973599093 SUCCESS (Frontend admin,
+PostgreSQL foundation/content-action/regressions). The local results below record
+the implementation evidence before that remote verification.
+
 Independent .01 acceptance: SHA `087f22baec3cc2e59d4a76132a07a9ecc62715b1`,
 Cloud37942773598 SUCCESS, SQLite37942773576 SUCCESS. All earlier .01 constants,
 licenses, vectors and security decisions remain frozen; their writer-ID0 wording
@@ -506,3 +511,179 @@ variance; conservative reader barrier after an unsuccessful admission/seal;
 Android/device/release proof already left open by .01. After independent remote
 acceptance, proceed only to the remaining C18.7 platform/integration closure gate;
 do not self-close C18.7 or start the next stage here.
+
+
+## C18.7.03 — platform / distribution closure gate (10 October 2026)
+
+Independent prerequisite: **C18.7.02 REMOTELY ACCEPTED**, implementation
+`87b9bf7d60cd223d3ca2f4ab3faea16dd7574178`. SQLite37973599074 SUCCESS
+(Python/Rust); Cloud37973599093 SUCCESS (Frontend admin, PostgreSQL mandatory
+foundation/content-action, cloud/legacy regressions). C18.7/C18 IN PROGRESS,
+**77.0%**. This slice changes tests, distribution verification, workflows and
+records only. No production protocol, compression implementation or dependency
+pin changes. No C18.8 fixture or implementation.
+
+### Same production code and release inputs
+
+The clean `npm run build` includes TypeScript checking and Vite's empty-output
+production build. Pako remains exactly2.1.0 in package.json and package-lock;
+flate2 remains exactly1.1.9 in Cargo.toml/Cargo.lock. The production compression
+module imports only pako and its bundled JS internals: no Buffer, Node zlib,
+Tauri/native bridge, filesystem, network fetch, dynamic CDN or platform-specific
+compression branch. No rejected Brotli/Zstd runtime package/WASM is present.
+
+`verify_platform_package.py` checks every dist file, not a handwritten list of
+hashed bundle filenames. It rejects missing/modified/stale Android/APK assets,
+duplicate ZIP entries, altered notices, dependency pins, nonportable compression
+imports and unexpected rejected WASM. Only Capacitor's own bridge additions are
+allowed beyond dist. All expected files must match SHA-256 after extraction.
+Synthetic verifier tests exercise a valid package and invalid source notice,
+Android copy, APK and omitted production compression module.
+
+Source-controlled `frontend/public/licenses/C18-compression.txt` contains the
+pako MIT/Zlib notices and selected native closure notices (flate2, miniz_oxide,
+adler2, simd-adler32, crc32fast, cfg-if). The exact source notice flows through
+Vite dist, Capacitor public assets and APK. Tauri's `frontendDist` is still
+`../dist`, so its embedded Web resources use that same notice/code input; no
+separate desktop compression implementation or signed desktop bundle was built.
+Rust is the independent bounded reader, not a competing production ID1 writer.
+
+Application GPLv3 obligations remain unchanged. No public release occurs here.
+This proves pinned compression dependencies/notices are present in release inputs,
+not that every future public release/source-distribution obligation is satisfied.
+
+### Actual Android build and exact asset proof
+
+Existing Capacitor8 Android project, Gradle wrapper8.14.3, AGP8.13.0, Java21,
+compile/target SDK36, min SDK24. Capacitor8 CLI requires Node22 or newer; the new
+CI packaging job uses Node22.16.0 and official pinned setup-java/Node/checkout
+Actions. Local CLI used Node26.4.0; unchanged crypto tests used Node20.19.0.
+A task-isolated official Temurin21 JDK and Google Android SDK were installed;
+only platform36/build-tools35.0.0/platform-tools were needed. No system settings,
+release signing, APK publication or artifact-upload action changed.
+
+Commands:
+
+```sh
+npm --prefix frontend run build
+(cd frontend && npx --no-install cap sync android)
+python3 scripts/compression/verify_platform_package.py --android frontend/android/app/src/main/assets/public
+(cd frontend/android && ./gradlew --no-daemon :app:assembleDebug)
+python3 scripts/compression/verify_platform_package.py --android frontend/android/app/src/main/assets/public --apk frontend/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Capacitor sync PASS; Gradle `:app:assembleDebug` **BUILD SUCCESSFUL**,11m35s,
+166 tasks executed. Actual debug APK produced,8.3MiB; all103 dist files and
+notice match in its `assets/public/` directory. APK verifier PASS. Local APK
+SHA-256 `96bf035baeb0c82027fe7396e3503fc856010befe099777803e2d16dfab9e949`;
+this is a local debug artifact, not a reproducible-release/signing claim.
+The cold local build provides margin below the independent40-minute CI limit;
+remote setup/network variance still requires owner verification.
+
+Source/Web/Capacitor/APK notice SHA-256:
+`3c2e663f60f49bcff40988f306f4c7ca16c4ffd17ec8146212ecbe6622fc6eb9`.
+Web dist has103 files, all included by the verifier; manifest SHA-256
+`7f72af9b05ddc94054c290a0737889fd3ce9f1069b358a832d8cd0f60fc44861`.
+The digest describes this local build, not a frozen filename/canonical identity.
+Each remote build verifies its own freshly produced dist against its own APK.
+
+**Android runtime device execution: NOT CLAIMED.** No connected device/emulator
+or installed system image was available. The allowed section13 minimum is met by
+real APK build, exact production code identity and execution of the same pure-JS
+source/fixed vector file in Chromium. The isolated browser harness never mounts
+the user's app and introduces no production debug global. Five recipes exercise
+5 ID0 decodes,10 valid ID1 decodes (both TS/Rust fixed streams),10 checksum failures
+and exact output equality, including the near-8MiB boundary. These are source
+browser tests, not an Android WebView/device test. This is sufficient for the
+explicitly permitted build/code-identity gate; owner remote acceptance remains
+required. Device-specific WebView memory/performance behavior remains unmeasured.
+
+### Sticky barrier and retained history
+
+Real PostgreSQL tests retain all existing capability/migration assertions and
+add a server-committed admission with a discarded response followed by exact
+retry. No seal/upload occurs before the simulated interruption. The durable
+barrier remains true, sequence/ciphertext unchanged. A late legacy reader cannot
+pull or ACK; its cursor remains0. Fresh admission falls back to ID0 eligibility.
+Explicit ID1 upgrade restores reading of the retained original event. No guessed
+rollback, history rewrite, device expiry or false ACK/data loss.
+
+An account with only ID0 history continues ordinary push/pull/ACK with legacy
+readers. Explicit capability declarations and read-only eligibility checks alone
+do not set the barrier; only successful writer admission does. Existing cases
+also prove new-capable-device registration starts false until declaration and
+all-account eligibility is re-evaluated after late registration.
+
+The real production crypto/native acceptance now retains ID0→ID1→ID0→ID1
+Document history plus initial ID0 Metadata. Two distinct file-backed native
+SQLite devices reopen through the bridge on every operation, verify exact sealed
+retries and apply all four Document events, then observe empty repeat pulls.
+Four apply receipts and cursor5 on each device agree with five server events.
+Every stored nonce/ciphertext remains exactly equal to its original push bytes.
+No compression normalization/rewrite enters stored history; server sees no text.
+
+Alembic head remains `c18_compression_readers`; gate tests exercise fresh upgrade,
+populated old-registry upgrade/default-false columns, repeated upgrade, unchanged
+CHECK constraints, pre-admission downgrade and refusal after sticky admission.
+SQLite stays38. No migration/schema/capability/frame/entity/crypto/AAD change.
+
+### Validation and unchanged CI union
+
+Focused frontend13 files/103 tests PASS. Final existing Frontend admin selection:
+68 files/415 tests PASS. Chromium fixed production-module cases above PASS.
+Real PostgreSQL gate/migration11 + mixed acceptance1: **12 PASS**,93.54s,
+zero skips. Packaging verifier: **5 PASS**. Python SQLite CI selection:
+**491 PASS**,291.46s. Native `cargo test --lib -- --test-threads=2`:
+**393 PASS**,179.07s; the existing ignored IPC hook is actually invoked with
+`--ignored` by the real PostgreSQL bridge, not a skipped mandatory acceptance.
+Five native frame compression tests and compressed Document/blocker/ACK tests
+are included. TypeScript typecheck/build, cargo check, Python AST, YAML/coverage/
+path-filter checks and diff check PASS. Existing Vite chunk/import/sourcemap,
+Rust unused-code and Starlette deprecation warnings are unchanged.
+
+Focused commands (Python bytecode disabled; isolated task data and real test DB,
+never production user storage):
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 python -m pytest -q tests/test_c18_compression_distribution.py
+PYTHONDONTWRITEBYTECODE=1 python -m pytest -q -rs tests/test_cloud_c18_compression_gate.py tests/test_cloud_c18_compression_acceptance.py
+PYTHONDONTWRITEBYTECODE=1 cargo test --manifest-path frontend/src-tauri/Cargo.toml --lib frame_compression
+PYTHONDONTWRITEBYTECODE=1 cargo test --manifest-path frontend/src-tauri/Cargo.toml --lib -- --test-threads=2
+PYTHONDONTWRITEBYTECODE=1 cargo check --manifest-path frontend/src-tauri/Cargo.toml
+node scripts/compression/browser-vectors.mjs http://127.0.0.1:5175
+```
+
+The browser command uses an isolated Vite server stopped before subsequent
+frontend/crypto bridge commands. The focused Vitest selection is compression
+frame/writer/corpus, contentActionIntegration, documentSyncRuntime and the eight
+metadata/Stage/catalog/Note/Map/Document/Progress/Game codec suites,13 files103
+cases, one worker. Final Vitest files are exactly the Frontend admin workflow's
+68-file command, with one local worker. Python SQLite files are exactly the
+sqlite-python workflow command; the local runner redirects engine app data to
+task-only temporary storage. PostgreSQL collection uses the exact matrix tests
+and regression command with `--collect-only`, without executing their fixtures.
+
+The local Cloud equivalent for this distribution/test-only change executes the
+affected real PostgreSQL12 plus packaging5, Frontend admin415 and actual Android
+build/proof. It does not repeat the unchanged long PostgreSQL content/legacy
+unions already independently accepted at the baseline. Deterministic collection
+proves foundation46, content-action23, regressions202 (total271): old264 cases
+plus2 new barrier cases and5 packaging cases, no removed selection/family. All
+existing native/frontend workflow steps and matrix selections remain unchanged.
+New Android compression packaging is an independent40-minute job with its own
+Node/Java/SDK, build/sync/Gradle and exact-copy/APK verifier. No PostgreSQL setup
+inside Android and no Gradle work inside PostgreSQL. Existing job timeouts and
+Windows/native coverage unchanged. Both workflow push/PR filters cover Android,
+Capacitor config, verifier/tests and their own workflow files.
+
+Protected CPython312 artifacts retain their original bytes, sizes and mtimes.
+No telemetry, server decompression, path transport, cover/external/attachment
+compression, dictionary, new codec/compression ID or threshold change.
+
+C18.7.03 **LOCAL COMPLETE / REMOTE CI PENDING**. C18.7/C18 **IN PROGRESS**,
+**77.0%**. Release gate, final terminology audit and C21 local-Web-first preserved.
+Expected Actions: Cloud backend tests (including Android compression packaging);
+SQLite sync substrate tests. No Actions polling after push. Independent new-SHA
+acceptance, ordinary CI variance and unmeasured Android device/WebView behavior
+remain. Only after independent remote acceptance may the owner close C18.7 and
+begin C18.8.01 complete-project multi-device/all-entity acceptance.

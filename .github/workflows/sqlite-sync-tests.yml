@@ -11,6 +11,9 @@ on:
       - 'frontend/src/cloud/__fixtures__/frameCompressionV1.json'
       - 'frontend/src-tauri/src/frame_compression.rs'
       - 'scripts/compression/**'
+      - 'frontend/android/**'
+      - 'frontend/capacitor.config.ts'
+      - 'tests/test_c18_compression_distribution.py'
       - 'frontend/public/licenses/C18-compression.txt'
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
@@ -112,6 +115,9 @@ on:
       - 'frontend/src/cloud/__fixtures__/frameCompressionV1.json'
       - 'frontend/src-tauri/src/frame_compression.rs'
       - 'scripts/compression/**'
+      - 'frontend/android/**'
+      - 'frontend/capacitor.config.ts'
+      - 'tests/test_c18_compression_distribution.py'
       - 'frontend/public/licenses/C18-compression.txt'
       - 'nfprogress/core/sqlite/**'
       - 'frontend/src-tauri/src/sqlite.rs'
@@ -237,7 +243,7 @@ jobs:
             tests/test_c18_account_sqlite.py \
             tests/test_c18_catalog_sqlite.py tests/test_c18_content_note_sqlite.py tests/test_c18_map_sqlite.py tests/test_c18_document_sqlite.py tests/test_c18_progress_sqlite.py tests/test_c18_game_sqlite.py tests/test_c18_content_action_integration.py \
             tests/test_c15_7b_cross_runtime_udf_proof.py \
-            tests/test_application_metadata.py \
+            tests/test_application_metadata.py tests/test_c18_compression_distribution.py \
             tests/test_f8_recovery.py \
             tests/test_api.py
 

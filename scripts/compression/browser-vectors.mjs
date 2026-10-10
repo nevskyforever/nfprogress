@@ -16,9 +16,14 @@ try{
   const fixture=(await import('/src/cloud/__fixtures__/frameCompressionV1.json')).default
   const rows=[]
   for(const v of fixture.vectors){const input=new TextEncoder().encode(v.prefix+v.unit.repeat(v.repeat)+v.suffix)
+   const id0=decompressBounded(0,input,input.length,8*1024*1024-20)
+   if(id0.some((b,i)=>b!==input[i]))throw Error('browser ID0 mismatch')
    for(const key of ['ts_hex','rust_hex']){const compressed=Uint8Array.from(v[key].match(/../g).map(x=>parseInt(x,16)))
     const opened=decompressBounded(1,compressed,v.declared,8*1024*1024-20)
     if(opened.length!==input.length||opened.some((b,i)=>b!==input[i]))throw Error('browser vector mismatch')
+    const bad=compressed.slice();bad[bad.length-1]^=1
+    let rejected=false;try{decompressBounded(1,bad,v.declared,8*1024*1024-20)}catch(error){if(error.code!=='compression_invalid_stream')throw error;rejected=true}
+    if(!rejected)throw Error('browser checksum accepted')
    }
    rows.push({name:v.name,bytes:input.length})
   }

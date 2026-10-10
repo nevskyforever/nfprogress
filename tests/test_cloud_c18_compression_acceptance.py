@@ -102,7 +102,19 @@ def test_mixed_id0_id1_two_devices_upgrade_late_legacy_and_exact_retry(cloud_cli
             assert db.execute('SELECT COUNT(*) FROM cloud_document_apply_ledger').fetchone()[0]==3
             assert db.execute('SELECT COUNT(*) FROM cloud_document_events WHERE state!=\'applied\'').fetchone()[0]==0
             assert db.execute('SELECT pull_cursor FROM cloud_sync_state').fetchone()[0]==4
-    assert [i[1] for i in history]==[0,1,0]
+    assert declare(client,headers,d).status_code==204
+    assert authorize() is True
+    fourth=content('Fourth ID1 manuscript paragraph. '*100)
+    assert 'error' not in document(tmp_path,a,ia,user,'save',content=fourth,expected=heads(tmp_path,a,ia,user,pid))
+    history+=emit_compressed(client,tmp_path,token,a,ia,user,amk,True)
+    for path,identity in ((a,ia),(b,ib)):
+        assert receive(client,tmp_path,token,path,identity,user,amk)==['applied']
+        assert stored(path,pid)['content_json']==fourth
+        assert receive(client,tmp_path,token,path,identity,user,amk)==[]
+        with sqlite3.connect(path) as db:
+            assert db.execute('SELECT COUNT(*) FROM cloud_document_apply_ledger').fetchone()[0]==4
+            assert db.execute('SELECT pull_cursor FROM cloud_sync_state').fetchone()[0]==5
+    assert [i[1] for i in history]==[0,1,0,1]
     from base64 import urlsafe_b64decode
     with engine.connect() as db:
         for id,_,obj in history:
@@ -110,4 +122,4 @@ def test_mixed_id0_id1_two_devices_upgrade_late_legacy_and_exact_retry(cloud_cli
             decode=lambda value:urlsafe_b64decode(value+'='*(-len(value)%4))
             assert bytes(row.nonce)==decode(obj['nonce']) and bytes(row.ciphertext)==decode(obj['ciphertext'])
             assert b'portable manuscript paragraph' not in bytes(row.ciphertext)
-        assert db.execute(text('SELECT COUNT(*) FROM sync_events')).scalar_one()==4 # codec1 ID0 + codec10 ID0/1/0
+        assert db.execute(text('SELECT COUNT(*) FROM sync_events')).scalar_one()==5 # codec1 ID0 + codec10 ID0/1/0/1

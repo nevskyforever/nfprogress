@@ -1,21 +1,69 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
-**Дата:** 9 октября 2026 года.\
+**Дата:** 10 октября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
 **Официальный зачтённый прогресс:** **77.0%**.\
 **Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
 **Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **CLOSED**; C18.7 — **IN PROGRESS**.\
-**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01/.02 — **REMOTELY ACCEPTED**; C18.6 — **CLOSED**; C18.7.01 — **REMOTELY ACCEPTED**; C18.7.02 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
-**Последняя независимая приёмка:** C18.7.01 SHA `087f22baec3cc2e59d4a76132a07a9ecc62715b1`; Cloud `37942773598` — **SUCCESS**; SQLite `37942773576` — **SUCCESS**, по независимой owner/GPT приёмке. C18/C18.7 IN PROGRESS; официальный прогресс **77.0%**.\
+**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01/.02 — **REMOTELY ACCEPTED**; C18.6 — **CLOSED**; C18.7.01 — **REMOTELY ACCEPTED**; C18.7.02 — **REMOTELY ACCEPTED**; C18.7.03 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Последняя независимая приёмка:** C18.7.02 SHA `87b9bf7d60cd223d3ca2f4ab3faea16dd7574178`; SQLite `37973599074` SUCCESS (Python/Rust); Cloud `37973599093` SUCCESS (Frontend admin, PostgreSQL foundation/content-action/regressions), по независимой owner/GPT приёмке. C18.7/C18 IN PROGRESS, официальный **77.0%**.\
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## C18.7.03 — platform / distribution closure gate (10 октября 2026)
+
+**LOCAL COMPLETE / REMOTE CI PENDING**, starting HEAD/origin
+`87b9bf7d60cd223d3ca2f4ab3faea16dd7574178`.
+C18.7.02 **REMOTELY ACCEPTED**: SQLite37973599074 SUCCESS (Python/Rust),
+Cloud37973599093 SUCCESS (Frontend admin/foundation/content-action/regressions).
+C18.7/C18 **IN PROGRESS**; official **77.0%** unchanged.
+
+Production Web build/typecheck + Capacitor Android sync PASS. Actual existing
+Android `:app:assembleDebug` PASS (11m35s,166 tasks), local debug APK produced;
+all103 dist files match synced assets and APK. Source/Web/Android/APK notice
+SHA-256 `3c2e663f60f49bcff40988f306f4c7ca16c4ffd17ec8146212ecbe6622fc6eb9`.
+Pako2.1.0/flate2 1.1.9 pins/notices unchanged; pure-JS compression bundled, no
+Node/Tauri compression dependency, rejected runtime/CDN or second writer.
+Tauri frontendDist `../dist` still embeds the same Web inputs.
+
+**Android runtime device execution: NOT CLAIMED**: no connected device/emulator
+or system image available. Allowed build/code-identity minimum is proven along
+with same-source Chromium fixed vectors (5 ID0,10 TS/Rust ID1,10 checksum
+negatives). This is not on-device WebView testing; device memory/performance
+remains a risk for independent owner verification.
+
+Real PG12 PASS: committed sticky barrier survives lost admission response and
+crash before seal/upload, rejects legacy pull/ACK without cursor/data loss,
+explicit upgrade restores reading; only-ID0 account never gains barrier merely
+from declarations/read-only eligibility. Two native file-backed SQLite devices
+retain/apply ID0→ID1→ID0→ID1 with exact ciphertext retry, reopen and cursor5.
+Existing fresh/populated upgrade/downgrade/default/constraint tests pass.
+Alembic `c18_compression_readers`, SQLite38 and all production contracts unchanged.
+
+Frontend focused103/final Cloud frontend415 PASS; native focused5/full393 PASS
+(existing IPC hook actually executed by PG bridge); Python SQLite491 PASS;
+packaging5 PASS. Local Cloud affected PG12 + packaging/frontend/Android pass;
+unchanged long PG unions are not repeated after accepted baseline. Collection:
+foundation46/content-action23/regressions202, all old264 plus7 new cases retained.
+New independent Android packaging job uses official SHA-pinned Actions,
+Node22/Java21/SDK36 and own40-minute timeout. Existing PG/Windows/native steps,
+timeouts and coverage retained; both push/PR path filters cover new inputs.
+YAML/AST/coverage/typecheck/build/cargo/diff checks PASS, zero mandatory skips;
+protected pyc byte/size/mtime unchanged. No protocol/threshold/crypto/frame/codec,
+local schema, migration, telemetry, cover/external compression or C18.8 change.
+
+Evidence/commands/counts: `docs/cloud/C18_7_COMPRESSION_GATE.md`, C18.7.03 section.
+Release gate/final terminology audit/C21 local-Web-first preserved. No public
+release or blanket source-distribution compliance claim. Remaining independent
+remote acceptance and Android runtime risk; do not self-close C18.7. Next only
+after owner/GPT acceptance: C18.8.01 complete-project multi-device convergence.
+
 ## C18.7.02 — explicit compression capability / writer activation
 
-**LOCAL COMPLETE / REMOTE CI PENDING**; starting HEAD/origin `087f22baec3cc2e59d4a76132a07a9ecc62715b1`.
+**REMOTELY ACCEPTED**, implementation `87b9bf7d60cd223d3ca2f4ab3faea16dd7574178`, SQLite37973599074 SUCCESS, Cloud37973599093 SUCCESS; historical starting HEAD/origin `087f22baec3cc2e59d4a76132a07a9ecc62715b1`.
 C18.7.01 independently REMOTELY ACCEPTED: Cloud37942773598 SUCCESS,
 SQLite37942773576 SUCCESS. C18.7/C18 IN PROGRESS, official **77.0%** unchanged.
 

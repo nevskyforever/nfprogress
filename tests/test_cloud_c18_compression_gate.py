@@ -121,3 +121,53 @@ def test_capability_cannot_cross_account_or_count_unrelated_devices(cloud_client
     assert declare(client,owner,a).status_code==204
     assert client.get(PATH,headers=owner).json()==dict(ready=True,missing_devices=0)
     assert client.get(PATH,headers=other).json()==dict(ready=False,missing_devices=1)
+
+
+def test_failed_seal_lost_admission_response_barrier_is_sticky_and_recoverable(cloud_client):
+    """Admission is durable even with no subsequent upload; never guess rollback."""
+    client,engine=cloud_client;create_user(engine)
+    headers=_headers(login(client).json()['access_token']);a,b,legacy=[str(uuid4()) for _ in range(3)]
+    mode3(client,headers,[a,b])
+    assert client.post('/api/v1/cloud/projects/project-1',headers=headers).status_code==200
+    initial=_request(a,_event())
+    assert client.post('/api/v3/sync/encrypted/push',headers=headers,json=initial).status_code==200
+    for device in [a,b]:assert declare(client,headers,device).status_code==204
+    with engine.connect() as db:
+        original=db.execute(text('SELECT nonce,ciphertext FROM encrypted_objects')).one()
+        assert db.execute(text('SELECT compression_id1_required FROM sync_user_state')).scalar_one() is False
+    # Receive no usable response; server still commits. Crash before any seal/upload.
+    assert client.post(AUTHORIZE,headers=headers,json=dict(device_id=a)).status_code==200
+    retry=client.post(AUTHORIZE,headers=headers,json=dict(device_id=a))
+    assert retry.json()==dict(ready=True,missing_devices=0)
+    with engine.connect() as db:
+        assert db.execute(text('SELECT compression_id1_required FROM sync_user_state')).scalar_one() is True
+        assert db.execute(text('SELECT current_sequence FROM sync_user_state')).scalar_one()==1
+        assert db.execute(text('SELECT nonce,ciphertext FROM encrypted_objects')).one()==original
+    assert client.put(f'/api/v1/sync/devices/{legacy}',headers=headers).status_code==200
+    params=dict(device_id=legacy,since=0,protocol_version=3,encrypted_sync_version=3)
+    assert client.get('/api/v3/sync/encrypted/pull',headers=headers,params=params).json()['detail']['code']=='compression_reader_required'
+    assert client.post('/api/v3/sync/encrypted/ack',headers=headers,json=dict(device_id=legacy,cursor=1,protocol_version=3,encrypted_sync_version=3)).status_code==409
+    assert client.post(AUTHORIZE,headers=headers,json=dict(device_id=a)).json()['ready'] is False
+    with engine.connect() as db:
+        assert db.execute(text('SELECT last_ack_sequence FROM sync_devices WHERE device_id=:id'),dict(id=legacy)).scalar_one()==0
+        assert db.execute(text('SELECT current_sequence FROM sync_user_state')).scalar_one()==1
+    assert declare(client,headers,legacy).status_code==204
+    resumed=client.get('/api/v3/sync/encrypted/pull',headers=headers,params=params)
+    assert resumed.status_code==200 and len(resumed.json()['items'])==1
+    with engine.connect() as db:
+        assert db.execute(text('SELECT nonce,ciphertext FROM encrypted_objects')).one()==original
+        assert db.execute(text('SELECT COUNT(*) FROM sync_events')).scalar_one()==1
+
+
+def test_only_id0_history_never_sets_barrier_without_admission(cloud_client):
+    client,engine=cloud_client;create_user(engine)
+    headers=_headers(login(client).json()['access_token']);a,b=[str(uuid4()) for _ in range(2)]
+    mode3(client,headers,[a,b])
+    assert client.post('/api/v1/cloud/projects/project-1',headers=headers).status_code==200
+    assert client.post('/api/v3/sync/encrypted/push',headers=headers,json=_request(a,_event())).status_code==200
+    assert client.get('/api/v3/sync/encrypted/pull',headers=headers,params=dict(device_id=b,since=0,protocol_version=3,encrypted_sync_version=3)).status_code==200
+    assert client.post('/api/v3/sync/encrypted/ack',headers=headers,json=dict(device_id=b,cursor=1,protocol_version=3,encrypted_sync_version=3)).status_code==204
+    for device in [a,b]:assert declare(client,headers,device).status_code==204
+    assert client.get(PATH,headers=headers).json()['ready'] is True
+    with engine.connect() as db:
+        assert db.execute(text('SELECT compression_id1_required FROM sync_user_state')).scalar_one() is False
