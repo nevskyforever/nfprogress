@@ -5,13 +5,67 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 — **NOT REMOTELY ACCEPTED / CI FAILURE**; C21.1.05A — **LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
 **Последняя независимая приёмка:** C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
+
+## C21.1.05A — C17 ciphertext secret-scan flake repair
+
+Baseline clean6.0 HEAD == fetched origin/6.0 ==
+`eed5ed298838c32ddc8f526b4ad2992b4fecd6c4` (C21.1.05 implementation,
+`feat(c21): add browser retained history foundation`). Cloud run **38160417921
+FAILURE**, job **PostgreSQL mandatory (foundation)**, actual failing test
+`tests/test_cloud_c17_v2_two_device_acceptance.py::test_c17_real_cutover_two_file_backed_devices_continue_bidirectionally`;
+mandatory subset **1 failed, 45 passed**. The earlier supplied invite-test name
+and 100-pass count were incorrect; investigation made no changes until scope was
+corrected. C21.1.05 remains **NOT REMOTELY ACCEPTED**; no browser regression found.
+
+Confirmed CI offending path: `sealed['push']['items'][0]['object']['ciphertext']`,
+canonical base64url encoding of 357 opaque encrypted bytes containing the short
+sequence `amk`. Production crypto bridge constructs that field through existing
+sealNoteSyncEvent and encodeBase64Url; AMK is separate test-local bridge output,
+not part of push. Old scan of the entire serialized push falsely classified
+random encoded ciphertext as a plaintext secret. No actual plaintext AMK leak.
+
+Bounded TEST-ONLY correction replaces that one assertion with a structural check
+using existing nested extra-forbid v1/v2 push DTOs and recursive inspection of
+clear keys/values. Only exact validated items[index].object.nonce/ciphertext scalar
+paths are opaque; arbitrary metadata strings are still inspected. Known plaintext
+AMK byte-array/JSON/hex/base64/base64url forms and private title/content in clear
+values are rejected. Forbidden secret fields, including nested amk, remain rejected.
+One unsafe whole-body short-secret-token occurrence found and changed; neighboring
+C15 dictionary-key check and long plaintext-sentinel checks were not refactored.
+New deterministic cases intentionally exercise ciphertext containing amk, clear
+amk fields at five locations, concrete clear secret values and fake opaque keys.
+Existing bidirectional/cutover/retry/decrypt/native apply/ACK/DB-retention assertions
+remain unchanged. Regressions live in the already mandatory-selected C17 file;
+no workflow edits or soft failures. C21.1.05 retained-history implementation stays
+unchanged. No production/backend/DB/Alembic/native/Rust/frozen crypto/protocol change
+or dependency added. Official **84.0%**, C21 **IN PROGRESS**, no points.
+
+C21.1.05A **LOCAL COMPLETE / REMOTE CI PENDING**. Local deterministic security
+regressions **14 PASS**; exact previously failing C17 test **1 PASS**; whole changed
+file **15 PASS**; ONE final mandatory foundation subset (same19 files as CI)
+**60 PASS, failed0, skipped0** in1305.48s. This includes related C15/C17 real
+multi-device/decrypt/native apply/ACK acceptance; original46 tests plus14 new
+security cases. Local Python3.12/PostgreSQL16, CI Python3.13/PostgreSQL16.
+Affected Python syntax/imports, existing hard-failure CI selection and diff checks
+PASS. Existing Starlette/AnyIO deprecation warning only. Initial helper collection
+needed an isolated NFPROGRESS_DATA_DIR; after that test-only environment correction
+all final gates passed. Protected engine/game_data pyc hashes unchanged.
+No separate Rust/SQLite suite, Chromium or frontend build. Required existing native
+bridges compiled/executed only as part of the requested cross-runtime Python tests.
+After builds stopped, maintenance clean_generated dry-run audited outputs; only
+this task-created native target was removed, existing frontend/dist/main dependencies
+and other worktrees retained. Build-generated capabilities schema restored exactly
+to preflight HEAD; no native/generated change is part of the commit. Dedicated task
+PostgreSQL database/role and runtime directory removed; existing container retained.
+Remote acceptance remains pending for independent owner/GPT verification after
+publication. Do not advance to C21.1.06 or poll Actions.
 
 ## C21.1.05 — retained encrypted history / reader-proof foundation
 

@@ -1,18 +1,106 @@
 from __future__ import annotations
 
+import base64
 import json
 import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from backend.app.cloud.models import EncryptedObject, SyncDevice, SyncEvent, SyncUserState
+from backend.app.cloud.schemas import EncryptedSyncPushRequest, V2EncryptedSyncPushRequest
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
 from test_cloud_c15_headless_cross_runtime import (
     NOTE_ID, PROJECT_ID, _crypto_bridge, _native_bridge, _provision_device,
 )
 from test_cloud_encrypted_sync import _headers
+
+
+def _assert_note_push_has_no_clear_secrets(push: dict, amk: list[int], plaintexts: tuple[str, ...]) -> None:
+    """Inspect clear transport structure/values; only validated envelope scalars are opaque."""
+    assert len(amk) == 32 and all(type(byte) is int and 0 <= byte <= 255 for byte in amk)
+    assert push.get('protocol_version') in (1, 2)
+    assert push.get('encrypted_sync_version') == push['protocol_version']
+    model = EncryptedSyncPushRequest if push['protocol_version'] == 1 else V2EncryptedSyncPushRequest
+    try:
+        model.model_validate(push)  # Frozen extra='forbid' schemas include nested event/object fields.
+    except ValidationError:
+        raise AssertionError('Unexpected encrypted Note transport structure') from None
+    key = bytes(amk)
+    secrets = (*plaintexts, key.hex(), base64.b64encode(key).decode(),
+               base64.urlsafe_b64encode(key).decode().rstrip('='),
+               json.dumps(amk), json.dumps(amk, separators=(',', ':')))
+
+    def inspect(value: object, path: tuple = ()) -> None:
+        if isinstance(value, dict):
+            for name, child in value.items():
+                assert name.casefold() not in {'amk', 'account_master_key', 'password', 'recovery_key',
+                                               'access_token', 'refresh_token', 'authorization', 'plaintext'}
+                inspect(child, (*path, name))
+        elif isinstance(value, list):
+            assert value != amk
+            for index, child in enumerate(value):
+                inspect(child, (*path, index))
+        elif isinstance(value, str):
+            # Exact known wire paths only; an arbitrary metadata key named ciphertext is not exempt.
+            if len(path) == 4 and path[0] == 'items' and type(path[1]) is int and path[2] == 'object' and path[3] in {'nonce', 'ciphertext'}:
+                return
+            assert all(secret not in value for secret in secrets if secret)
+
+    inspect(push)
+
+
+def _secret_scan_push() -> dict:
+    return {'protocol_version': 1, 'encrypted_sync_version': 1,
+            'device_id': '11111111-1111-4111-8111-111111111111', 'items': [{
+                'event': {'event_id': '22222222-2222-4222-8222-222222222222',
+                          'project_id': 'project-1', 'entity_id': 'note-1', 'entity_type': 'note',
+                          'operation': 'upsert', 'revision': 1,
+                          'updated_at': '2026-09-23T00:00:00.000000Z', 'deleted_at': None},
+                'object': {'crypto_version': 1, 'aad_version': 1,
+                           'nonce': base64.urlsafe_b64encode(bytes(24)).decode().rstrip('='),
+                           'ciphertext': 'amkA' * 8}}]}
+
+
+def test_secret_scan_accepts_opaque_ciphertext_with_amk_substring():
+    push = _secret_scan_push()
+    assert 'amk' in json.dumps(push)  # Deterministically triggers the old false positive.
+    _assert_note_push_has_no_clear_secrets(push, list(range(32)), ('Private title', '<p>Private body</p>'))
+
+
+@pytest.mark.parametrize('location', ['root', 'item', 'event', 'object', 'nested_metadata'])
+def test_secret_scan_rejects_clear_amk_fields(location):
+    push = _secret_scan_push()
+    target = {'root': push, 'item': push['items'][0], 'event': push['items'][0]['event'],
+              'object': push['items'][0]['object']}.get(location)
+    if location == 'nested_metadata':
+        push['items'][0]['event']['metadata'] = {'amk': list(range(32))}
+    else:
+        target['amk'] = list(range(32))
+    with pytest.raises(AssertionError):
+        _assert_note_push_has_no_clear_secrets(push, list(range(32)), ())
+
+
+@pytest.mark.parametrize('representation', ['hex', 'base64', 'base64url', 'json', 'compact_json', 'title', 'content'])
+def test_secret_scan_rejects_plaintext_secrets_in_clear_values(representation):
+    push, amk = _secret_scan_push(), list(range(32))
+    secret = {'hex': bytes(amk).hex(), 'base64': base64.b64encode(bytes(amk)).decode(),
+              'base64url': base64.urlsafe_b64encode(bytes(amk)).decode().rstrip('='),
+              'json': json.dumps(amk), 'compact_json': json.dumps(amk, separators=(',', ':')),
+              'title': 'Private title', 'content': '<p>Private body</p>'}[representation]
+    push['items'][0]['event']['project_id'] = 'prefix-' + secret + '-suffix'
+    with pytest.raises(AssertionError):
+        _assert_note_push_has_no_clear_secrets(push, amk, ('Private title', '<p>Private body</p>'))
+
+
+def test_secret_scan_does_not_exempt_arbitrary_ciphertext_metadata():
+    push = _secret_scan_push()
+    push['items'][0]['event']['ciphertext'] = bytes(range(32)).hex()
+    with pytest.raises(AssertionError):
+        _assert_note_push_has_no_clear_secrets(push, list(range(32)), ())
 
 
 def _seal_note(tmp_path: Path, user_id: str, device_id: str, amk: list[int] | None,
@@ -41,8 +129,7 @@ def _seal_note(tmp_path: Path, user_id: str, device_id: str, amk: list[int] | No
     if parent is not None:
         request['parent_event_id'] = parent
     sealed = _crypto_bridge(tmp_path, request)
-    wire = json.dumps(sealed['push'])
-    assert title not in wire and content not in wire and 'amk' not in wire
+    _assert_note_push_has_no_clear_secrets(sealed['push'], sealed['amk'], (title, content))
     return sealed
 
 
