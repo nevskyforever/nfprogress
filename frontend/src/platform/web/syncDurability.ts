@@ -1,18 +1,23 @@
 import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from '@/api/encryptedSync'
-import { parseV2PullResponse, validateV2PushItem } from '@/api/encryptedSyncV2'
-import { parseV3Pull } from '@/api/encryptedSyncV3'
+import { parseV2PullResponse, parseV2PushResponse, validateV2PushItem } from '@/api/encryptedSyncV2'
+import { parseV3Pull, parseV3PushResponse } from '@/api/encryptedSyncV3'
 import type { CommitInboundPageResult, NoteSyncPullState } from '@/infrastructure/sqlite/noteSyncInboxRepository'
 import { BrowserPersistenceError, type runBrowserTransaction } from './persistence'
 
 export interface BrowserSyncScope { canonicalUserId: string; accountId: string; deviceId: string }
 export interface BrowserSyncCheckpoint extends NoteSyncPullState { proven_prefix: 0; next_local_ordinal: number }
-export interface BrowserSealedOutboxRecord {
+export interface BrowserOutboxRecord {
   record_version: 1; account_id: string; device_id: string; event_id: string
-  local_ordinal: number; protocol_version: 2 | 3; state: 'sealed'; raw_body: string
+  local_ordinal: number; protocol_version: 2 | 3; state: 'sealed' | 'accepted'; raw_body: string
 }
+export type BrowserSealedOutboxRecord = BrowserOutboxRecord & { state: 'sealed' }
 export interface BrowserReceivedInboxRecord {
   record_version: 1; account_id: string; device_id: string; event_id: string
   server_sequence: number; protocol_version: 2 | 3; state: 'received'; wire_item: string
+}
+export interface BrowserUploadReceipt {
+  record_version: 1; account_id: string; device_id: string; event_id: string
+  protocol_version: 2 | 3; server_sequence: number; duplicate: boolean
 }
 interface CursorRecord extends BrowserSyncCheckpoint { record_version: 1; account_id: string; device_id: string }
 type Schedule<T> = Parameters<typeof runBrowserTransaction<T>>[3]
@@ -125,14 +130,54 @@ function readCursor(tx: IDBTransaction, scope: BrowserSyncScope, ready: (state: 
     } catch (error) { fail(error) }
   }
 }
-function outbox(value: unknown, scope: BrowserSyncScope): BrowserSealedOutboxRecord {
+function outbox(value: unknown, scope: BrowserSyncScope): BrowserOutboxRecord {
   if (!exact(value, ['record_version','account_id','device_id','event_id','local_ordinal','protocol_version','state','raw_body'])) failure()
-  const row = value as BrowserSealedOutboxRecord
-  if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || row.state !== 'sealed' || !safe(row.local_ordinal, 1)) failure()
+  const row = value as BrowserOutboxRecord
+  if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !['sealed', 'accepted'].includes(row.state) || !safe(row.local_ordinal, 1)) failure()
   const parsed = validateBrowserSealedBody(row.raw_body, scope)
   if (parsed.eventId !== row.event_id || parsed.protocol !== row.protocol_version) failure()
   return row
 }
+export function validateBrowserUploadPair(value: unknown, receipt: unknown, scope: BrowserSyncScope): BrowserOutboxRecord {
+  const row = outbox(value, scope)
+  if (receipt === undefined) { if (row.state !== 'sealed') failure(); return row }
+  if (!exact(receipt, ['record_version','account_id','device_id','event_id','protocol_version','server_sequence','duplicate'])) failure()
+  const proof = receipt as BrowserUploadReceipt
+  if (row.state !== 'accepted' || proof.record_version !== 1 || proof.account_id !== row.account_id || proof.device_id !== row.device_id
+    || proof.event_id !== row.event_id || proof.protocol_version !== row.protocol_version || !safe(proof.server_sequence, 1) || typeof proof.duplicate !== 'boolean') failure()
+  return row
+}
+
+export function prepareBrowserUploadAcceptance(scope: BrowserSyncScope, expected: BrowserOutboxRecord, response: unknown): BrowserUploadReceipt {
+  scope = snapshotScope(scope)
+  const event = outbox(expected, scope)
+  try {
+    const parsed = event.protocol_version === 2 ? parseV2PushResponse(response, [event.event_id]) : parseV3PushResponse(response, [event.event_id])
+    const receipt = parsed.results[0]!
+    return { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, event_id: receipt.event_id,
+      protocol_version: event.protocol_version, server_sequence: receipt.server_sequence, duplicate: receipt.duplicate }
+  } catch { return failure('conflicting_record') }
+}
+
+/** Migration validation only; never transforms or repairs C21.1.03 v2 records. */
+export function validateBrowserV2SyncState(scopes: BrowserSyncScope[], outbound: unknown[], inbound: unknown[], checkpoints: unknown[]): void {
+  const scopeFor = (value: unknown): BrowserSyncScope => {
+    const id = (value as { account_id?: string } | null)?.account_id
+    return scopes.find(scope => scope.accountId === id) ?? failure()
+  }
+  const outgoing = outbound.map(value => { const row = outbox(value, scopeFor(value)); if (row.state !== 'sealed') failure(); return row })
+  const incoming = inbound.map(value => inbox(value, scopeFor(value)))
+  const states = checkpoints.map(value => cursor(value, scopeFor(value)))
+  for (const scope of scopes) {
+    const out = outgoing.filter(row => row.account_id === scope.accountId), received = incoming.filter(row => row.account_id === scope.accountId)
+    const state = states.find(row => row.account_id === scope.accountId)
+    if (!state) { if (out.length || received.length) failure(); continue }
+    const ordinal = out.reduce((max, row) => Math.max(max, row.local_ordinal), 0)
+    if (out.length !== ordinal || state.next_local_ordinal !== ordinal + 1 || state.pull_cursor !== received.reduce((max, row) => Math.max(max, row.server_sequence), 0)) failure()
+    for (const row of received) { const own = out.find(event => event.event_id === row.event_id); if (own) assertOwnEcho(own, wireJSON(row.wire_item) as WireItem) }
+  }
+}
+
 function inbox(value: unknown, scope: BrowserSyncScope): BrowserReceivedInboxRecord {
   if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item'])) failure()
   const row = value as BrowserReceivedInboxRecord
@@ -143,17 +188,17 @@ function inbox(value: unknown, scope: BrowserSyncScope): BrowserReceivedInboxRec
   return row
 }
 
-function assertOwnEcho(outbound: BrowserSealedOutboxRecord, incoming: WireItem): void {
+function assertOwnEcho(outbound: BrowserOutboxRecord, incoming: WireItem): void {
   const { device_id, server_sequence: _sequence, ...descriptor } = incoming.event
   const body = wireJSON(outbound.raw_body) as WirePage
   if (device_id !== outbound.device_id || immutableWireIdentity(body.items[0]) !== immutableWireIdentity({ event: descriptor, object: incoming.object })) failure('conflicting_record')
 }
 
-/** Dormant sealed/received durability only. No fetch, keys, plaintext, apply or ACK methods. */
+/** Dormant encrypted transport/upload proof durability. No fetch, keys, plaintext, apply or ACK methods. */
 export class BrowserSyncDurability {
   constructor(private readonly transaction: BrowserSyncTransaction) {}
 
-  enqueue(scope: BrowserSyncScope, bodies: readonly string[]): Promise<Array<{ status: 'enqueued' | 'already_enqueued'; item: BrowserSealedOutboxRecord }>> {
+  enqueue(scope: BrowserSyncScope, bodies: readonly string[]): Promise<Array<{ status: 'enqueued' | 'already_enqueued'; item: BrowserOutboxRecord }>> {
     scope = snapshotScope(scope)
     if (!Array.isArray(bodies)) failure()
     limitCheck(bodies.length)
@@ -161,23 +206,26 @@ export class BrowserSyncDurability {
     // Snapshot before IDB/await; caller mutation cannot change the identity being committed.
     const prepared = bodies.map(raw => ({ raw, ...validateBrowserSealedBody(raw, scope) }))
     if (prepared.reduce((total, item) => total + item.ciphertextBytes, 0) > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) failure()
-    return this.transaction(scope, ['outbox', 'inbox', 'cursors'], 'readwrite', (tx, result, fail) => {
+    return this.transaction(scope, ['outbox', 'inbox', 'cursors', 'receipts'], 'readwrite', (tx, result, fail) => {
       const store = tx.objectStore('outbox'), cursors = tx.objectStore('cursors')
       readCursor(tx, scope, state => {
         try {
-          const results: Array<{ status: 'enqueued' | 'already_enqueued'; item: BrowserSealedOutboxRecord }> = []
+          const results: Array<{ status: 'enqueued' | 'already_enqueued'; item: BrowserOutboxRecord }> = []
           const next = (index: number) => {
             if (index === prepared.length) { cursors.put(state); result(results); return }
-            const input = prepared[index]!, read = store.get([scope.accountId, input.eventId])
-            read.onsuccess = () => {
+            const input = prepared[index]!, read = store.get([scope.accountId, input.eventId]), proof = tx.objectStore('receipts').get([scope.accountId, input.eventId])
+            let ready = 0
+            const finish = () => {
+              if (++ready !== 2) return
               try {
                 if (read.result !== undefined) {
-                  const stored = outbox(read.result, scope)
+                  const stored = validateBrowserUploadPair(read.result, proof.result, scope)
                   if (immutableWireIdentity(wireJSON(stored.raw_body)) !== immutableWireIdentity(wireJSON(input.raw))) failure('conflicting_record')
                   results.push({ status: 'already_enqueued', item: stored })
                 } else {
+                  if (proof.result !== undefined) failure()
                   if (state.next_local_ordinal === Number.MAX_SAFE_INTEGER) failure()
-                  const item: BrowserSealedOutboxRecord = { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId,
+                  const item: BrowserOutboxRecord = { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId,
                     event_id: input.eventId, local_ordinal: state.next_local_ordinal++, protocol_version: input.protocol, state: 'sealed', raw_body: input.raw }
                   store.add(item)
                   results.push({ status: 'enqueued', item })
@@ -185,6 +233,7 @@ export class BrowserSyncDurability {
                 next(index + 1)
               } catch (error) { fail(error) }
             }
+            read.onsuccess = finish; proof.onsuccess = finish
           }
           next(0)
         } catch (error) { fail(error) }
@@ -192,13 +241,80 @@ export class BrowserSyncDurability {
     })
   }
 
-  listSealed(scope: BrowserSyncScope, limit = 200): Promise<BrowserSealedOutboxRecord[]> {
+  private listOutbound(scope: BrowserSyncScope, limit: number, eligibleOnly: boolean): Promise<BrowserOutboxRecord[]> {
+    scope = snapshotScope(scope); limitCheck(limit)
+    return this.transaction(scope, ['outbox', 'receipts'], 'readonly', (tx, result, fail) => {
+      const records: BrowserOutboxRecord[] = []
+      const request = tx.objectStore('outbox').index('ordinal').openCursor(accountRange(scope.accountId))
+      request.onsuccess = () => {
+        try {
+          const current = request.result
+          if (!current) { result(records); return }
+          const proof = tx.objectStore('receipts').get([scope.accountId, current.value.event_id])
+          proof.onsuccess = () => {
+            try {
+              const row = validateBrowserUploadPair(current.value, proof.result, scope)
+              if (!eligibleOnly || row.state === 'sealed') records.push(row)
+              if (records.length === limit) result(records)
+              else current.continue()
+            } catch (error) { fail(error) }
+          }
+        } catch (error) { fail(error) }
+      }
+    })
+  }
+  listSealed(scope: BrowserSyncScope, limit = 200): Promise<BrowserOutboxRecord[]> { return this.listOutbound(scope, limit, true) }
+  listOutbox(scope: BrowserSyncScope, limit = 200): Promise<BrowserOutboxRecord[]> { return this.listOutbound(scope, limit, false) }
+
+  readUploadReceipt(scope: BrowserSyncScope, eventId: string): Promise<BrowserUploadReceipt | null> {
     scope = snapshotScope(scope)
-    limitCheck(limit)
-    return this.transaction(scope, ['outbox'], 'readonly', (tx, result, fail) => {
-      // Read all states through ordinal, so corrupt/unknown state is never silently filtered away.
-      const request = tx.objectStore('outbox').index('ordinal').getAll(accountRange(scope.accountId), limit)
-      request.onsuccess = () => { try { result(request.result.map(value => outbox(value, scope))) } catch (error) { fail(error) } }
+    return this.transaction(scope, ['outbox', 'receipts'], 'readonly', (tx, result, fail) => {
+      const event = tx.objectStore('outbox').get([scope.accountId, eventId]), proof = tx.objectStore('receipts').get([scope.accountId, eventId])
+      let ready = 0
+      const finish = () => {
+        if (++ready !== 2) return
+        try {
+          if (event.result === undefined && proof.result === undefined) { result(null); return }
+          validateBrowserUploadPair(event.result, proof.result, scope)
+          result(proof.result ?? null)
+        } catch (error) { fail(error) }
+      }
+      event.onsuccess = finish; proof.onsuccess = finish
+    })
+  }
+
+  commitUploadAcceptance(scope: BrowserSyncScope, expectedEvent: BrowserOutboxRecord, response: unknown): Promise<'accepted' | 'already_accepted'> {
+    scope = snapshotScope(scope)
+    const expected = { ...expectedEvent }, receipt = prepareBrowserUploadAcceptance(scope, expected, response)
+    return this.transaction(scope, ['outbox', 'inbox', 'cursors', 'receipts'], 'readwrite', (tx, result, fail) => {
+      readCursor(tx, scope, () => {
+        const store = tx.objectStore('outbox'), proofs = tx.objectStore('receipts')
+        const event = store.get([scope.accountId, expected.event_id]), proof = proofs.get([scope.accountId, expected.event_id])
+        const sequence = proofs.index('server_sequence').get([scope.accountId, receipt.server_sequence])
+        const received = tx.objectStore('inbox').index('event').get([scope.accountId, expected.event_id])
+        const atSequence = tx.objectStore('inbox').get([scope.accountId, receipt.server_sequence])
+        let ready = 0
+        const finish = () => {
+          if (++ready !== 5) return
+          try {
+            if (event.result === undefined) failure('conflicting_record')
+            const row = validateBrowserUploadPair(event.result, proof.result, scope)
+            if (row.raw_body !== expected.raw_body || row.local_ordinal !== expected.local_ordinal || row.protocol_version !== expected.protocol_version
+              || row.event_id !== expected.event_id || row.account_id !== expected.account_id || row.device_id !== expected.device_id) failure('conflicting_record')
+            if (sequence.result !== undefined && sequence.result.event_id !== row.event_id) failure('conflicting_record')
+            if (received.result !== undefined) { const item = inbox(received.result, scope); if (item.server_sequence !== receipt.server_sequence) failure('conflicting_record'); assertOwnEcho(row, wireJSON(item.wire_item) as WireItem) }
+            if (atSequence.result !== undefined && inbox(atSequence.result, scope).event_id !== row.event_id) failure('conflicting_record')
+            if (proof.result !== undefined) {
+              if (proof.result.server_sequence !== receipt.server_sequence) failure('conflicting_record')
+              result('already_accepted'); return // duplicate is response diagnostics; keep the first receipt unchanged.
+            }
+            proofs.add(receipt)
+            store.put({ ...row, state: 'accepted' })
+            result('accepted')
+          } catch (error) { fail(error) }
+        }
+        event.onsuccess = finish; proof.onsuccess = finish; sequence.onsuccess = finish; received.onsuccess = finish; atSequence.onsuccess = finish
+      }, fail)
     })
   }
 
@@ -224,7 +340,7 @@ export class BrowserSyncDurability {
     scope = snapshotScope(scope)
     if (!safe(since)) failure()
     const page = validateBrowserInboundPage(rawPage, since, scope)
-    return this.transaction(scope, ['outbox', 'inbox', 'cursors'], 'readwrite', (tx, result, fail) => {
+    return this.transaction(scope, ['outbox', 'inbox', 'cursors', 'receipts'], 'readwrite', (tx, result, fail) => {
       const store = tx.objectStore('inbox'), cursors = tx.objectStore('cursors')
       readCursor(tx, scope, state => {
         try {
@@ -246,12 +362,16 @@ export class BrowserSyncDurability {
                 }
                 const item = page.items[index]!, seq = item.event.server_sequence!, event = item.event.event_id
                 const bySequence = store.get([scope.accountId, seq]), byEvent = store.index('event').get([scope.accountId, event])
-                const outbound = tx.objectStore('outbox').get([scope.accountId, event])
+                const outbound = tx.objectStore('outbox').get([scope.accountId, event]), proof = tx.objectStore('receipts').get([scope.accountId, event])
                 let received = 0
                 const finish = () => {
-                  if (++received !== 3) return
+                  if (++received !== 4) return
                   try {
-                    if (outbound.result !== undefined) assertOwnEcho(outbox(outbound.result, scope), item)
+                    if (outbound.result !== undefined) {
+                      assertOwnEcho(validateBrowserUploadPair(outbound.result, proof.result, scope), item)
+                      if (proof.result !== undefined && proof.result.server_sequence !== seq) failure('conflicting_record')
+                    }
+                    else if (proof.result !== undefined) failure()
                     if (bySequence.result !== undefined || byEvent.result !== undefined) {
                       const stored = inbox(bySequence.result, scope), sameEvent = inbox(byEvent.result, scope)
                       if (stored.event_id !== event || sameEvent.server_sequence !== seq
@@ -268,7 +388,7 @@ export class BrowserSyncDurability {
                 }
                 bySequence.onsuccess = finish
                 byEvent.onsuccess = finish
-                outbound.onsuccess = finish
+                outbound.onsuccess = finish; proof.onsuccess = finish
               }
               next(0)
             } catch (error) { fail(error) }

@@ -1,9 +1,9 @@
 import type { CloudIdentity, CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdentityRepository'
 import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } from '@/infrastructure/sqlite/cloudAccountBindingRepository'
-import { BrowserSyncDurability, type BrowserSyncScope } from './syncDurability'
+import { BrowserSyncDurability, validateBrowserV2SyncState, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 2
+export const WEB_DATABASE_VERSION = 3
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
@@ -15,10 +15,11 @@ const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<r
   ['outbox', ['account_id', 'event_id'], [['ordinal', ['account_id', 'device_id', 'local_ordinal'], true], ['state', ['account_id', 'state', 'local_ordinal'], false]]],
   ['inbox', ['account_id', 'server_sequence'], [['event', ['account_id', 'event_id'], true], ['state', ['account_id', 'state', 'server_sequence'], false]]],
   ['cursors', ['account_id', 'device_id'], []],
+  ['receipts', ['account_id', 'event_id'], [['server_sequence', ['account_id', 'server_sequence'], true]]],
 ]
 
 function validateSchema(database: IDBDatabase, transaction: IDBTransaction, version: number): void {
-  const schema = version === 1 ? SCHEMA.slice(0, 2) : SCHEMA
+  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : SCHEMA
   if (Array.from(database.objectStoreNames).sort().join(',') !== schema.map(([name]) => name).sort().join(',')) throw new BrowserPersistenceError('unsupported_version')
   for (const [name, key, indexes] of schema) {
     const store = transaction.objectStore(name)
@@ -120,29 +121,30 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || ![0, 1].includes(event.oldVersion)) {
+      if (failed || ![0, 1, 2].includes(event.oldVersion)) {
         request.transaction?.abort()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
       }
       try {
         const transaction = request.transaction!
-        if (event.oldVersion === 1) {
-          validateSchema(request.result, transaction, 1)
-          const identities = transaction.objectStore('identities').getAll()
-          const bindings = transaction.objectStore('accountBindings').getAll()
+        if (event.oldVersion > 0) {
+          validateSchema(request.result, transaction, event.oldVersion)
+          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, 5).map(([name]) => name)
+          const requests = names.map(name => transaction.objectStore(name).getAll())
           let received = 0
           const validate = () => {
-            if (++received !== 2) return
+            if (++received !== requests.length) return
             try {
-              if (identities.result.length !== bindings.result.length) throw new BrowserPersistenceError('corrupt_record')
-              for (const identity of identities.result as IdentityRecord[]) validateRecords(identity, bindings.result.find((b: BindingRecord) => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
+              const identities = requests[0]!.result as IdentityRecord[], bindings = requests[1]!.result as BindingRecord[]
+              if (identities.length !== bindings.length) throw new BrowserPersistenceError('corrupt_record')
+              for (const identity of identities) validateRecords(identity, bindings.find(b => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
+              if (event.oldVersion === 2) validateBrowserV2SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result)
             } catch (error) { transaction.abort(); fail(error) }
           }
-          identities.onsuccess = validate
-          bindings.onsuccess = validate
+          for (const read of requests) read.onsuccess = validate
         }
-        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : 2)) {
+        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : 5)) {
           const store = request.result.createObjectStore(name, { keyPath })
           for (const [index, path, unique] of indexes) store.createIndex(index, path, { unique })
         }

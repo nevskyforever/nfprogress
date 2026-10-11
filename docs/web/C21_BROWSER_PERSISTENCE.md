@@ -1,6 +1,6 @@
-# C21.1.02–C21.1.03 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.04 — Browser durable persistence / E2EE adapter contract
 
-Contract revision2, 2026-10-11. C21.1.03 remains dormant.
+Contract revision3, 2026-10-11. C21.1.04 remains dormant.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
 all required Cloud jobs SUCCESS; SQLite not triggered/not expected. C21 stays
@@ -9,13 +9,17 @@ IN PROGRESS, official WORTA ROADMAP SCORING v1.0 **84.0%**.
 ## Decision and limits
 
 Use one origin/profile-scoped IndexedDB database `worta-web`, with Web Locks
-exclusive writer ownership of `worta-web:writer`. Storage schema version **2**
-implements `identities`, `accountBindings`, `outbox`, `inbox`, and `cursors`.
+exclusive writer ownership of `worta-web:writer`. Storage schema version **3**
+implements `identities`, `accountBindings`, `outbox`, `inbox`, `cursors`, and
+upload-acceptance `receipts`. Protected-apply receipts remain unimplemented.
 Other stores below remain a **frozen semantic design**, not implemented stores.
 No full Web sync is enabled. Owner/GPT independently accepted C21.1.02 + .02A
 at `245938f009c1914f52ee32927efe2e722858faef`: Cloud **38137926976 SUCCESS**,
 all six required jobs, real Chromium persistence acceptance and contract tests
 SUCCESS; SQLite not triggered/not expected.
+C21.1.03 independently accepted at `8a9034782883baa2155a4bee2b2ed5952233c845`:
+Cloud **38143710650 SUCCESS**, all six jobs, persistence/syncDurability tests and
+real Chromium acceptance SUCCESS; SQLite not triggered/not expected.
 No dependency added. No byte/schema compatibility with native SQLite claimed.
 Existing Tauri/Capacitor factories and cloud runtime remain untouched.
 
@@ -84,10 +88,10 @@ No store is created speculatively before its implementing migration.
 | `identities` | `canonical_user_id`; unique `local_account_id`, unique `device_id` | Implemented v1: exactly canonical UUID user/account/device + `record_version: 1`. Random account/device generated internally once per canonical user. |
 | `accountBindings` | `local_account_id`; unique `canonical_user_id` | Implemented v1: immutable local-account→canonical-user mapping + record version. Created with identity in one transaction. |
 | `projectBindings` | `[account_id, project_id]`; `[account_id, bootstrap_id]` | Planned: exact device/lineage/mode/phase, remote state/high-water, cohort IDs/count/ordinal, pause/blocker code. No title/path/source binding. |
-| `outbox` | `[account_id,event_id]`; unique `ordinal` on `[account_id,device_id,local_ordinal]`, nonunique `state` on `[account_id,state,local_ordinal]` | Implemented schema2 / record1: account/device/event/ordinal, protocol2 or3, state `sealed`, exact `raw_body` from an existing singleton encrypted push. No unsealed plaintext or upload acceptance yet. Causal parent/base-tip proofs remain inside existing sealed frames; authority capture is deferred. |
+| `outbox` | `[account_id,event_id]`; unique `ordinal` on `[account_id,device_id,local_ordinal]`, nonunique `state` on `[account_id,state,local_ordinal]` | Implemented schema2 / record1: account/device/event/ordinal, protocol2 or3, state `sealed` or `accepted` (schema3), exact `raw_body` from an existing singleton encrypted push. Accepted requires its immutable upload receipt; no unsealed plaintext. Causal parent/base-tip proofs remain inside existing sealed frames; authority capture is deferred. |
 | `inbox` | `[account_id,server_sequence]`; unique `event` on `[account_id,event_id]`, nonunique `state` on `[account_id,state,server_sequence]` | Implemented schema2 / record1: receiving account/device, event/sequence, protocol2 or3, state `received`, exact metadata/encrypted envelope in `wire_item`. Wire validation is not crypto authentication or apply. Applied/orphan/blocked states and proofs deferred. |
 | `cursors` | `[account_id,device_id]`, no indexes | Implemented schema2 / record1: pull cursor, `next_local_ordinal` starting1; `ack_cursor` and `proven_prefix` reserved at0, with no advancement API. Pull expected-old CAS is inseparable from inbox commit. Never infer ACK from ciphertext receipt. |
-| `receipts` | `[account_id,event_id]`; `[account_id,server_sequence]` | Planned: immutable upload acceptance/protected-apply receipts and causal continuation proofs, frozen canonical references. |
+| `receipts` | `[account_id,event_id]`; unique `server_sequence` on `[account_id,server_sequence]` | Implemented schema3 / record1: exactly account/device/event IDs, protocol2 or3, server_sequence and first response duplicate diagnostic. Upload acceptance only. No protected-apply receipt, causal continuation, key/content/timestamp or arbitrary backend body. |
 | `ownerHeads` | `[account_id,owner_kind,owner_id]` | Planned: complete tip IDs/revisions/dependency/history pointers, not decrypted projections. Owner identity retains exact existing project/account crypto scope. |
 | `blockers` | `[account_id,event_id,code]`; `[account_id,state,server_sequence]` | Planned: orphan/conflict/dependency blocker references, sanitized enums; conflict versions retained in encrypted history, not silent LWW. |
 | `accountObjects` | `[account_id,event_id]`; `[account_id,entity_type,entity_id]` | Planned: encrypted Catalog types4–7 and Game12/13 account objects plus canonical owner/proof references; Metadata, Stage and Content variants use existing ownership/crypto rules. |
@@ -158,11 +162,16 @@ Unsynced data cannot be restored magically; browser/profile backups and encrypte
 recovery remain future product work, not automatic export/deployment in this slice.
 
 IDB version is separate from record version and C11/C15/C17/C18 wire/codec versions.
-Current v2 supports a new empty DB, an exact v2, or a forward versionchange
-upgrade from exact v1. It validates every v1 identity/binding pair and their
-indexes before committing the three added stores. Unknown/corrupt old records
+Current v3 supports a new empty DB, an exact v3, or forward versionchange
+upgrades from exact v1 or v2. It validates every v1 identity/binding pair and their
+indexes before committing the four added stores. Unknown/corrupt old records
 or any quota/request failure abort the entire migration, leaving v1 data/schema
-intact; no destructive recreation or clearing is attempted. Unknown future IDB version
+intact; no destructive recreation or clearing is attempted. The v2→v3 upgrade
+validates all five existing stores and every scope/record/envelope, contiguous
+retained local ordinals, allocator/pull positions and own-echo consistency. It
+adds only an empty upload-receipts store, leaves every old row/body unchanged, and
+rejects structurally corrupt/unknown v2 records without clearing anything. Opaque
+ciphertext authentication remains protected-reader work, not migration crypto. Unknown future IDB version
 raises a typed version blocker with no downgrade/delete. Known future upgrades
 must be incremental, versionchange-atomic, preserve immutable ciphertext and identity,
 validate old records before transforming, and abort on any unsupported record.
@@ -223,8 +232,9 @@ and corresponding invariant tests, not SQL translation.
 No C18 entities or Class C device-local bindings are redefined.
 
 C21.1.03 implements the dormant sealed/received transport boundary below.
-Protected apply, upload acceptance receipts, shared ACK and account-wide
-reconciliation remain separately accepted work before runtime activation.
+Upload acceptance receipts are implemented in C21.1.04 below. Protected apply,
+shared ACK and account-wide reconciliation remain separately accepted work before
+runtime activation.
 
 ## Implemented C21.1.03 repository boundary
 
@@ -253,9 +263,9 @@ transport shape, not a second protocol. Request batching/HTTP is not implemented
 Legacy transport1 writers are not added; existing historical Note snapshots and
 resolution payloads remain opaque and readable through current v2/v3 envelopes.
 
-Outbox remains `sealed`, inbox remains `received`. No sent marker, receipt,
-applied proof, retry deletion or history pruning is inferred from transport state.
-Upload receipt/accepted transitions require their own future atomic proof/store.
+Inbox remains `received`; outbox supports `sealed` and upload-proven `accepted`
+in schema3. No applied proof, retry deletion or history pruning is inferred from
+transport state. The upload-only receipt transition is implemented below.
 List order is local ordinal for outbox and server sequence for inbox, with bounded
 limits1–200; inbox supports `afterServerSequence`. Unknown record versions/state/
 envelopes reject reads while retaining all rows. Read indexes do not filter away
@@ -369,11 +379,90 @@ API requests0/page errors0. No user data or existing profile is touched.
 
 Cloud CI explicitly runs `persistence.spec.ts` and `syncDurability.spec.ts`, plus
 this same real Chromium acceptance with hard failures; existing dependencies and
-Chromium installation remain unchanged. C21.1.03 publication is **REMOTE CI PENDING**,
-expected Cloud backend tests; SQLite not expected. Codex does not poll Actions.
+Chromium installation remain unchanged. C21.1.03 publication is now **REMOTELY ACCEPTED** by the owner/GPT evidence
+above; the original pending status is superseded. Expected Cloud; SQLite not expected. Codex does not poll Actions.
 Physical quota exhaustion, power loss, Firefox/Safari, private-session survival,
 full native/backend suites and complete Web sync remain unclaimed future gates.
 
-Recommended next bounded C21.1.04: dormant immutable upload receipts and atomic
-sealed→accepted outbox transitions with exact idempotency/restart proof. No HTTP
-or ACK/apply/runtime activation; those remain separately accepted work.
+## Implemented C21.1.04 upload proof contract
+
+Authoritative evidence already exists in `V2PushResponse` / `V3PushResponse`:
+version headers, results `{event_id, server_sequence, duplicate}` and
+`current_cursor`. `parseV2PushResponse` and the unchanged v3 parser exported as
+`parseV3PushResponse` validate the exact expected event and positive safe sequence
+bounded by the returned high water. Server idempotency binds that event ID to the
+original metadata/encrypted bytes; a conflicting reuse is refused by the frozen
+protocol. Native `commit_note_sync_upload_acceptance` uses stable server sequence
+for replay, retaining the first duplicate diagnostic even if a later retry changes
+false→true. The browser follows those semantics. No server protocol changed.
+
+`commitUploadAcceptance(scope, expectedEvent, response)` is dormant infrastructure.
+A future uploader must obtain this response from the authenticated existing push
+for that exact stored body and current context. Persistence is not authentication;
+HTTP2xx alone, missing/reordered rows or a caller's guessed sequence is not proof.
+Expected event is a detached captured outbox DTO; its state is not authority.
+The method snapshots it and prepares the receipt through the existing parsers
+before IDB. The strict transaction revalidates binding/device, loads the saved row,
+checks exact original raw_body/event/protocol/local_ordinal/account/device, validates
+both durable halves, checks sequence collisions/own inbox evidence, and inserts
+receipt plus sealed→accepted update together. Completion is the success boundary.
+No HTTP, key/crypto work or async scheduling occurs inside the transaction.
+
+Receipt record1 contains exactly `record_version`, `account_id`, `device_id`,
+`event_id`, `protocol_version`, `server_sequence`, `duplicate`. Account/device and
+record version are local contextual/schema metadata, not invented server fields.
+The protocol is the validated existing header; event/sequence/duplicate come from
+the authoritative result. No client-generated receipt ID, timestamp, body hash,
+synthetic sequence, plaintext content, auth token, password, AMK or Recovery Key.
+Transient `current_cursor` is validated but not persisted or used to advance pull,
+ACK or proven prefix. Protected-apply receipts/outcomes are still planned.
+
+First commit returns `accepted`. Replay of the same immutable event/sequence returns
+`already_accepted` with no write, preserving original proof and body. Duplicate and
+server high water may vary between authoritative responses; neither changes stable
+identity. Conflicting sequence, wrong event/scope/device/body/ordinal/protocol,
+unknown event, or event/sequence collision fails closed. An accepted row missing its
+receipt, a receipt beside a sealed/missing row, unknown state/version or mismatched
+proof blocks reads/acceptance after reopen. Neither half is silently repaired.
+
+`listOutbox` retains known sealed/accepted rows in ordinal order. `listSealed`
+iterates rows and validates their receipt relationship before filtering accepted
+rows, rather than hiding unknown states behind a state index. `readUploadReceipt`
+validates the same pair, returns null only for a coherent unaccepted/absent event,
+and returns a detached immutable proof for accepted data. No delete/prune method.
+Outbox state is the only changed row field; original raw_body, event ID, protocol,
+ordinal and encrypted nonce/ciphertext remain unchanged. Enqueue replay of an
+already accepted event retains that accepted state and never reseals it.
+
+Server-success/local quota/abort/crash preserves sealed row and no receipt. The
+next network attempt must resend the exact original body/event/ciphertext; its
+authoritative duplicate result can commit normally. The new store lives in the
+same database and uses the existing exclusive Web Lock/lifecycle transaction drain.
+Logout/revocation denies stale access and retains valid proofs. ACK/proven prefix
+stay at0; no upload scheduler, HTTP orchestration, apply, conflict handling,
+reconciliation, editor/bootstrap or full Web sync is activated.
+
+C21.1.04 local evidence: receipt focused **7 PASS**, migration focused **4 PASS**,
+affected persistence/sync/v2/v3/native-adapter DTO tests **41 PASS / 5 files**.
+Real Chromium production-preview acceptance **33 scenarios PASS**: old encrypted
+state preserved by v2→v3; corrupt/quota upgrade rollback; atomic acceptance/replay/
+conflict; local quota/abort/real constraint failure and exact retry; reload/profile
+reopen; multi-tab/account isolation/logout; inconsistent halves and future schema
+retain proof/body. Failure injection stays in the disposable profile; native IDB
+and Web Locks are real. Server responses are fixed protocol fixtures here, not
+network activation or a claim of remote server acceptance. API requests0/page
+errors0. Physical power-loss/quota exhaustion and Firefox/Safari remain unclaimed.
+
+Cloud CI explicitly runs `persistence.spec.ts`, `syncDurability.spec.ts`,
+`uploadAcceptance.spec.ts`, `persistenceMigration.spec.ts`, and the same real Chromium
+acceptance with hard failures. No dependency/install changes. C21.1.04 publication
+is **REMOTE CI PENDING**; owner/GPT must verify the new SHA independently. Official
+**84.0%**, C21 **IN PROGRESS**. Expected Cloud; SQLite not expected. No Actions polling.
+
+Next bounded recommendation: dormant retained encrypted history/reader-proof
+repository; protected apply/shared ACK/reconciliation stay separate before activation.
+
+Final C21.1.04 typecheck/production build, production harness build, workflow YAML/
+explicit hard-failure coverage, script syntax and diff checks PASS. Existing large
+chunks/documentDocx import warnings remain. Protected pyc hashes unchanged; disposable
+profiles removed and task-owned preview stopped. Heavy native/backend suites not run.

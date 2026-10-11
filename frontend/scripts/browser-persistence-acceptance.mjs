@@ -74,7 +74,7 @@ try {
   assert.deepEqual(Object.keys(rows[0]).sort(), ['canonical_user_id', 'device_id', 'local_account_id', 'record_version'])
   assert.equal((await page.evaluate(() => nativeRows('accountBindings'))).length, 1)
   assert.deepEqual(original, seed)
-  cases.push('real v1 to v2 migration preserves exact identity/binding')
+  cases.push('real v1 to current schema migration preserves exact identity/binding')
   const scopeA = { canonicalUserId: users[0], accountId: original.local_account_id, deviceId: original.device_id }
   const object = { crypto_version: 1, aad_version: 1, nonce: Buffer.alloc(24, 3).toString('base64url'), ciphertext: Buffer.alloc(32, 7).toString('base64url') }
   const note = { event: { event_id: '55555555-5555-4555-8555-555555555555', project_id: 'opaque-project', entity_id: 'opaque-note', entity_type: 'note', operation: 'upsert', revision: 1, updated_at: '2026-10-11T00:00:00Z', deleted_at: null }, object }
@@ -383,12 +383,12 @@ try {
     await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject; r.onblocked = reject })
     globalThis.session = await c21.openBrowserPersistence(users[0])
   })
-  assert.deepEqual(await nativeSchema(), { version: 2, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox'] })
+  assert.deepEqual(await nativeSchema(), { version: 3, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox', 'receipts'] })
   assert.equal((await page.evaluate(() => nativeRows('identities'))).length, 1)
   assert.equal((await page.evaluate(() => nativeRows('accountBindings'))).length, 1)
   assert.deepEqual(await page.evaluate(async () => [await nativeRows('outbox'), await nativeRows('inbox'), await nativeRows('cursors')]), [[], [], []])
   await page.evaluate(() => session.close())
-  cases.push('fresh empty profile atomically creates the exact v2 five-store schema and identity/binding')
+  cases.push('fresh empty profile atomically creates the exact v3 six-store schema and identity/binding')
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
   const freshIdentity = await page.evaluate(() => session.read(users[0]))
   const freshScope = { canonicalUserId: users[0], accountId: freshIdentity.local_account_id, deviceId: freshIdentity.device_id }
@@ -399,6 +399,160 @@ try {
   assert.equal((await page.evaluate(scope => session.sync.listReceived(scope), freshScope))[0].protocol_version, 2)
   await page.evaluate(() => session.close())
   cases.push('transport2 to mixed transport3 replay compares immutable metadata/bytes and retains original received record')
+  // C21.1.03 v2 fixture containing every existing durable store, reconstructed only in this disposable profile.
+  const v2 = { identities: [{ ...seed, canonical_user_id: users[0], record_version: 1 }], accountBindings: [{ local_account_id: seed.local_account_id, canonical_user_id: users[0], record_version: 1 }], outbox: saved.outbox, inbox: saved.inbox, cursors: [savedCursorRow] }
+  await page.evaluate(async fixture => {
+    await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject; r.onblocked = reject })
+    const r = indexedDB.open(c21.WEB_DATABASE_NAME, 2)
+    r.onupgradeneeded = () => {
+      const identities = r.result.createObjectStore('identities', { keyPath: 'canonical_user_id' })
+      identities.createIndex('local_account_id', 'local_account_id', { unique: true }); identities.createIndex('device_id', 'device_id', { unique: true })
+      r.result.createObjectStore('accountBindings', { keyPath: 'local_account_id' }).createIndex('canonical_user_id', 'canonical_user_id', { unique: true })
+      const outbox = r.result.createObjectStore('outbox', { keyPath: ['account_id', 'event_id'] })
+      outbox.createIndex('ordinal', ['account_id', 'device_id', 'local_ordinal'], { unique: true }); outbox.createIndex('state', ['account_id', 'state', 'local_ordinal'])
+      const inbox = r.result.createObjectStore('inbox', { keyPath: ['account_id', 'server_sequence'] })
+      inbox.createIndex('event', ['account_id', 'event_id'], { unique: true }); inbox.createIndex('state', ['account_id', 'state', 'server_sequence'])
+      r.result.createObjectStore('cursors', { keyPath: ['account_id', 'device_id'] })
+    }
+    const db = await new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = reject })
+    try { await c21.runBrowserTransaction(db, Object.keys(fixture), 'readwrite', (tx, result) => {
+      for (const [store, rows] of Object.entries(fixture)) for (const row of rows) tx.objectStore(store).add(store === 'outbox' ? { ...row, record_version: 99 } : row)
+      result(undefined)
+    }) } finally { db.close() }
+  }, v2)
+  await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'corrupt_record')
+  assert.deepEqual(await nativeSchema(), { version: 2, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox'] })
+  assert.equal((await page.evaluate(() => nativeRows('outbox')))[0].record_version, 99)
+  await page.evaluate(async rows => {
+    const db = await new Promise(resolve => { const r = indexedDB.open(c21.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result) })
+    try { await c21.runBrowserTransaction(db, ['outbox'], 'readwrite', (tx, result) => { for (const row of rows) tx.objectStore('outbox').put(row); result(undefined) }) } finally { db.close() }
+  }, v2.outbox)
+  const receiptUpgradeQuota = await page.evaluate(async () => {
+    const create = IDBDatabase.prototype.createObjectStore
+    IDBDatabase.prototype.createObjectStore = function(name, ...args) { if (name === 'receipts') throw new DOMException('NOT_LOGGED', 'QuotaExceededError'); return create.call(this, name, ...args) }
+    try { await c21.openBrowserPersistence(users[0]); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBDatabase.prototype.createObjectStore = create }
+  })
+  assert.equal(receiptUpgradeQuota, 'quota_exceeded')
+  assert.deepEqual(await nativeSchema(), { version: 2, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox'] })
+  for (const [store, rows] of Object.entries(v2)) assert.deepEqual(await page.evaluate(store => nativeRows(store), store), rows)
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  for (const [store, rows] of Object.entries(v2)) assert.deepEqual(await page.evaluate(store => nativeRows(store), store), rows)
+  assert.deepEqual(await page.evaluate(() => nativeRows('receipts')), [])
+  cases.push('v2 to v3 preserves all five stores byte-for-byte; corrupt/quota upgrade failures leave v2 intact')
+  const expected = v2.outbox[0]
+  const uploadResponse = (row, sequence, duplicate = false) => ({ protocol_version: row.protocol_version, encrypted_sync_version: row.protocol_version, current_cursor: Math.max(2, sequence), results: [{ event_id: row.event_id, server_sequence: sequence, duplicate }] })
+  const commit = (row, response) => page.evaluate(({ scope, row, response }) => session.sync.commitUploadAcceptance(scope, row, response), { scope: scopeA, row, response })
+  const receiptRead = row => page.evaluate(({ scope, eventId }) => session.sync.readUploadReceipt(scope, eventId), { scope: scopeA, eventId: row.event_id })
+  const retained = () => page.evaluate(scope => session.sync.listOutbox(scope), scopeA)
+  assert.equal(await commit(expected, uploadResponse(expected, 1)), 'accepted')
+  const firstProof = await receiptRead(expected), acceptedRow = { ...expected, state: 'accepted' }
+  assert.deepEqual(await retained(), [acceptedRow, ...v2.outbox.slice(1)])
+  assert.deepEqual(await page.evaluate(scope => session.sync.listSealed(scope, 1), scopeA), [v2.outbox[1]])
+  assert.equal(firstProof.duplicate, false)
+  assert.equal(await commit(expected, uploadResponse(expected, 1)), 'already_accepted')
+  assert.equal(await commit(expected, { ...uploadResponse(expected, 1, true), current_cursor: 100 }), 'already_accepted')
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
+  cases.push('exact acceptance commits immutable receipt and retained accepted row; diagnostic replay keeps first proof and cursors')
+  const rejection = async (row, response) => {
+    const code = await page.evaluate(async ({ scope, row, response }) => { try { await session.sync.commitUploadAcceptance(scope, row, response); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, row, response })
+    assert.equal(code, 'conflicting_record')
+  }
+  await rejection(expected, uploadResponse(expected, 8))
+  await rejection({ ...expected, local_ordinal: 99 }, uploadResponse(expected, 1))
+  const changedExpectedBody = JSON.parse(expected.raw_body); changedExpectedBody.items[0].object.ciphertext = changed.items[0].object.ciphertext
+  await rejection({ ...expected, raw_body: JSON.stringify(changedExpectedBody) }, uploadResponse(expected, 1))
+  await rejection(v2.outbox[1], uploadResponse(v2.outbox[1], 1))
+  const unknownBody = JSON.parse(expected.raw_body); unknownBody.items[0].event.event_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+  const unknownExpected = { ...expected, event_id: unknownBody.items[0].event.event_id, raw_body: JSON.stringify(unknownBody) }
+  await rejection(unknownExpected, uploadResponse(unknownExpected, 4))
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  cases.push('conflicting sequence, exact-body/ordinal mismatch, sequence collision and unknown event fail closed')
+  const retryEvent = v2.outbox[2], authority = uploadResponse(retryEvent, 3)
+  const failedCommit = async mode => page.evaluate(async ({ scope, row, response, mode }) => {
+    const put = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function(value, ...args) {
+      if (this.name === 'outbox') {
+        if (mode === 'quota') throw new DOMException('NOT_LOGGED', 'QuotaExceededError')
+        if (mode === 'abort') this.transaction.abort()
+        if (mode === 'constraint') value = { ...value, local_ordinal: 1 }
+      }
+      return put.call(this, value, ...args)
+    }
+    try { await session.sync.commitUploadAcceptance(scope, row, response); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBObjectStore.prototype.put = put }
+  }, { scope: scopeA, row: retryEvent, response: authority, mode })
+  assert.equal(await failedCommit('quota'), 'quota_exceeded')
+  assert.equal(await failedCommit('abort'), 'storage_failed')
+  assert.equal(await failedCommit('constraint'), 'storage_failed')
+  assert.equal(await receiptRead(retryEvent), null)
+  assert.deepEqual((await retained())[2], retryEvent)
+  assert.equal(await commit(retryEvent, uploadResponse(retryEvent, 3, true)), 'accepted')
+  assert.equal((await receiptRead(retryEvent)).duplicate, true)
+  assert.equal((await retained())[2].raw_body, retryEvent.raw_body)
+  cases.push('server-success/local quota, explicit abort and real async constraint failure retain sealed retry bytes; duplicate response then commits')
+  await page.reload()
+  await page.evaluate(async users => { globalThis.users = users; globalThis.session = await c21.openBrowserPersistence(users[0]) }, users)
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  assert.deepEqual((await retained())[0], acceptedRow)
+  await context.close(); await start(); page = await tab()
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  assert.deepEqual((await retained())[0], acceptedRow)
+  cases.push('receipt and accepted state survive reload and browser/profile reopen with original raw body')
+  let competing = await tab()
+  await expectCode(competing, 'c21.openBrowserPersistence(users[0])', 'writer_busy')
+  await page.close(); page = competing
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  cases.push('competing tab cannot bypass receipt writer ownership; owner termination transfers durable proof')
+  await page.evaluate(async () => { globalThis.stale = session; await session.resetForLogout(); globalThis.session = await c21.openBrowserPersistence(users[1]) })
+  const currentB = await page.evaluate(() => session.read(users[1]))
+  const newScopeB = { canonicalUserId: users[1], accountId: currentB.local_account_id, deviceId: currentB.device_id }
+  assert.equal(await page.evaluate(async ({ scope, eventId }) => { try { await session.sync.readUploadReceipt(scope, eventId); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, eventId: expected.event_id }), 'account_mismatch')
+  assert.equal(await page.evaluate(({ scope, eventId }) => session.sync.readUploadReceipt(scope, eventId), { scope: newScopeB, eventId: expected.event_id }), null)
+  assert.equal(await page.evaluate(async ({ scope, row, response }) => { try { await session.sync.commitUploadAcceptance(scope, row, response); return 'unexpected_success' } catch (error) { return error.code } }, { scope: newScopeB, row: expected, response: uploadResponse(expected, 1) }), 'corrupt_record')
+  assert.equal(await page.evaluate(async ({ scope, eventId }) => { try { await stale.sync.readUploadReceipt(scope, eventId); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, eventId: expected.event_id }), 'closed')
+  await page.evaluate(async () => { await session.close(); globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  cases.push('receipt account isolation and logout revocation retain immutable acceptance proof')
+  const mutate = (store, action, value) => page.evaluate(async ({ store, action, value }) => {
+    await session.close()
+    const db = await new Promise(resolve => { const r = indexedDB.open(c21.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result) })
+    try { await c21.runBrowserTransaction(db, [store], 'readwrite', (tx, result) => { tx.objectStore(store)[action](value); result(undefined) }) } finally { db.close() }
+    globalThis.session = await c21.openBrowserPersistence(users[0])
+  }, { store, action, value })
+  await mutate('receipts', 'delete', [scopeA.accountId, expected.event_id])
+  assert.equal(await page.evaluate(async scope => { try { await session.sync.listSealed(scope); return 'unexpected_success' } catch (error) { return error.code } }, scopeA), 'corrupt_record')
+  assert.equal(await page.evaluate(async ({ scope, eventId }) => { try { await session.sync.readUploadReceipt(scope, eventId); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, eventId: expected.event_id }), 'corrupt_record')
+  await mutate('receipts', 'add', firstProof)
+  await mutate('outbox', 'put', expected)
+  assert.equal(await page.evaluate(async scope => { try { await session.sync.listSealed(scope); return 'unexpected_success' } catch (error) { return error.code } }, scopeA), 'corrupt_record')
+  assert.equal(await page.evaluate(async ({ scope, row, response }) => { try { await session.sync.commitUploadAcceptance(scope, row, response); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, row: expected, response: uploadResponse(expected, 1) }), 'corrupt_record')
+  assert.deepEqual((await page.evaluate(() => nativeRows('receipts'))).find(row => row.event_id === expected.event_id), firstProof)
+  await mutate('outbox', 'put', acceptedRow)
+  await mutate('outbox', 'put', { ...acceptedRow, state: 'unknown' })
+  assert.equal(await page.evaluate(async scope => { try { await session.sync.listSealed(scope); return 'unexpected_success' } catch (error) { return error.code } }, scopeA), 'corrupt_record')
+  await mutate('outbox', 'put', acceptedRow)
+  assert.deepEqual(await receiptRead(expected), firstProof)
+  assert.equal((await retained())[0].raw_body, expected.raw_body)
+  cases.push('missing receipt, receipt-with-sealed-row and unknown state fail after reopen/read without silent repair')
+  assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
+  await page.evaluate(() => session.close())
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
+  const retainedAccepted = await retained()
+  await page.evaluate(async () => {
+    await new Promise((resolve, reject) => {
+      const r = indexedDB.open(c21.WEB_DATABASE_NAME, c21.WEB_DATABASE_VERSION + 1)
+      r.onsuccess = () => { r.result.close(); resolve() }; r.onerror = reject
+    })
+  })
+  await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'unsupported_version')
+  assert.deepEqual(await page.evaluate(() => nativeRows('receipts')), retainedProofs)
+  assert.deepEqual(await page.evaluate(() => nativeRows('outbox')), retainedAccepted)
+  cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])
   console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: 0, pageErrors: 0 }))
 } finally {

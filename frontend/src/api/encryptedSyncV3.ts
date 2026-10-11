@@ -118,6 +118,8 @@ function encodeV3ProjectPush(deviceId: string, items: readonly V3MetadataPushIte
   return body
 }
 
+export { parsePush as parseV3PushResponse }
+
 function parsePush(value: unknown, expected: readonly string[]): V3PushResponse {
   if (!exact(value, ['protocol_version', 'encrypted_sync_version', 'results', 'current_cursor'])) fail()
   const result = value as V3PushResponse
