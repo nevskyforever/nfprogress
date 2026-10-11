@@ -1,12 +1,31 @@
 import type { CloudIdentity, CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdentityRepository'
 import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } from '@/infrastructure/sqlite/cloudAccountBindingRepository'
+import { BrowserSyncDurability, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 1
+export const WEB_DATABASE_VERSION = 2
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
-export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed'
+export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor'
+
+const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]> = [
+  ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
+  ['accountBindings', 'local_account_id', [['canonical_user_id', 'canonical_user_id', true]]],
+  ['outbox', ['account_id', 'event_id'], [['ordinal', ['account_id', 'device_id', 'local_ordinal'], true], ['state', ['account_id', 'state', 'local_ordinal'], false]]],
+  ['inbox', ['account_id', 'server_sequence'], [['event', ['account_id', 'event_id'], true], ['state', ['account_id', 'state', 'server_sequence'], false]]],
+  ['cursors', ['account_id', 'device_id'], []],
+]
+
+function validateSchema(database: IDBDatabase, transaction: IDBTransaction, version: number): void {
+  const schema = version === 1 ? SCHEMA.slice(0, 2) : SCHEMA
+  if (Array.from(database.objectStoreNames).sort().join(',') !== schema.map(([name]) => name).sort().join(',')) throw new BrowserPersistenceError('unsupported_version')
+  for (const [name, key, indexes] of schema) {
+    const store = transaction.objectStore(name)
+    if (JSON.stringify(store.keyPath) !== JSON.stringify(key) || store.autoIncrement || store.indexNames.length !== indexes.length
+      || indexes.some(([index, path, unique]) => !store.indexNames.contains(index) || store.index(index).unique !== unique || JSON.stringify(store.index(index).keyPath) !== JSON.stringify(path))) throw new BrowserPersistenceError('corrupt_record')
+  }
+}
 
 /** Bounded diagnostics only: never retain arbitrary storage error messages/data. */
 export class BrowserPersistenceError extends Error {
@@ -33,7 +52,7 @@ function validateRecords(identity: unknown, binding: unknown, user: string): Ide
   if (!i || !b || Object.keys(i).sort().join(',') !== 'canonical_user_id,device_id,local_account_id,record_version'
     || Object.keys(b).sort().join(',') !== 'canonical_user_id,local_account_id,record_version'
     || i.record_version !== 1 || b.record_version !== 1
-    || i.canonical_user_id !== user || b.canonical_user_id !== user
+    || !UUID.test(i.canonical_user_id) || i.canonical_user_id !== user || b.canonical_user_id !== user
     || i.local_account_id !== b.local_account_id || !UUID.test(i.local_account_id) || !UUID.test(i.device_id)) {
     throw new BrowserPersistenceError('corrupt_record')
   }
@@ -101,35 +120,42 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || event.oldVersion !== 0) {
+      if (failed || ![0, 1].includes(event.oldVersion)) {
         request.transaction?.abort()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
       }
-      const identities = request.result.createObjectStore('identities', { keyPath: 'canonical_user_id' })
-      identities.createIndex('local_account_id', 'local_account_id', { unique: true })
-      identities.createIndex('device_id', 'device_id', { unique: true })
-      const bindings = request.result.createObjectStore('accountBindings', { keyPath: 'local_account_id' })
-      bindings.createIndex('canonical_user_id', 'canonical_user_id', { unique: true })
+      try {
+        const transaction = request.transaction!
+        if (event.oldVersion === 1) {
+          validateSchema(request.result, transaction, 1)
+          const identities = transaction.objectStore('identities').getAll()
+          const bindings = transaction.objectStore('accountBindings').getAll()
+          let received = 0
+          const validate = () => {
+            if (++received !== 2) return
+            try {
+              if (identities.result.length !== bindings.result.length) throw new BrowserPersistenceError('corrupt_record')
+              for (const identity of identities.result as IdentityRecord[]) validateRecords(identity, bindings.result.find((b: BindingRecord) => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
+            } catch (error) { transaction.abort(); fail(error) }
+          }
+          identities.onsuccess = validate
+          bindings.onsuccess = validate
+        }
+        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : 2)) {
+          const store = request.result.createObjectStore(name, { keyPath })
+          for (const [index, path, unique] of indexes) store.createIndex(index, path, { unique })
+        }
+      } catch (error) { request.transaction?.abort(); fail(error) }
     }
     request.onsuccess = () => {
       const database = request.result
       if (failed) { database.close(); return }
       try {
-        if (database.version !== WEB_DATABASE_VERSION || Array.from(database.objectStoreNames).sort().join(',') !== 'accountBindings,identities') {
+        if (database.version !== WEB_DATABASE_VERSION) {
           throw new BrowserPersistenceError('unsupported_version')
         }
-        const transaction = database.transaction(STORES)
-        for (const [store, key, indexes] of [
-          ['identities', 'canonical_user_id', ['local_account_id', 'device_id']],
-          ['accountBindings', 'local_account_id', ['canonical_user_id']],
-        ] as const) {
-          const objectStore = transaction.objectStore(store)
-          if (objectStore.keyPath !== key || objectStore.autoIncrement || objectStore.indexNames.length !== indexes.length
-            || indexes.some(index => !objectStore.indexNames.contains(index) || !objectStore.index(index).unique || objectStore.index(index).keyPath !== index)) {
-            throw new BrowserPersistenceError('corrupt_record')
-          }
-        }
+        validateSchema(database, database.transaction(SCHEMA.map(([name]) => name)), WEB_DATABASE_VERSION)
         signal.removeEventListener('abort', cancel)
         resolve(database)
       } catch (error) { database.close(); fail(error) }
@@ -137,8 +163,9 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
   })
 }
 
-/** Dormant browser-only identity/binding repository. No full sync composition. */
+/** Dormant browser identity/binding and encrypted durability session. No full sync composition. */
 class BrowserPersistence implements CloudIdentityRepository, CloudAccountBindingRepository {
+  readonly sync: BrowserSyncDurability
   private active = true
   private readonly pending = new Map<IDBTransaction, Promise<unknown>>()
   private closeFlight: Promise<void> | undefined
@@ -149,6 +176,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     private readonly releaseWriter: () => void, private readonly writerFlight: () => Promise<unknown>,
     private readonly signal: AbortSignal, private readonly cleanup: () => void,
   ) {
+    this.sync = new BrowserSyncDurability((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     database.onversionchange = () => { void this.close() }
     database.onclose = () => { void this.close() }
     signal.addEventListener('abort', this.abort, { once: true })
@@ -158,12 +186,31 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     if (!this.active) throw new BrowserPersistenceError('closed')
     if (user !== this.user) throw new BrowserPersistenceError('account_mismatch')
   }
-  private transaction<T>(mode: 'readonly' | 'readwrite', schedule: Parameters<typeof runBrowserTransaction<T>>[3]): Promise<T> {
+  private transaction<T>(mode: 'readonly' | 'readwrite', schedule: Parameters<typeof runBrowserTransaction<T>>[3], stores = STORES): Promise<T> {
     this.check()
-    return runBrowserTransaction(this.database, STORES, mode, schedule, (transaction, completion) => {
+    return runBrowserTransaction(this.database, stores, mode, schedule, (transaction, completion) => {
       this.pending.set(transaction, completion)
       void completion.then(() => this.pending.delete(transaction), () => this.pending.delete(transaction))
     }).then(result => { this.check(); return result }, error => { this.check(); throw error })
+  }
+  private syncTransaction<T>(scope: BrowserSyncScope, stores: string[], mode: 'readonly' | 'readwrite', schedule: Parameters<typeof runBrowserTransaction<T>>[3]): Promise<T> {
+    this.check(scope.canonicalUserId)
+    return this.transaction(mode, (transaction, result, fail) => {
+      const identity = transaction.objectStore('identities').get(this.user)
+      const binding = transaction.objectStore('accountBindings').index('canonical_user_id').get(this.user)
+      let received = 0
+      const start = () => {
+        if (++received !== 2) return
+        try {
+          this.check(scope.canonicalUserId)
+          const value = validateRecords(identity.result, binding.result, this.user)
+          if (value.local_account_id !== scope.accountId || value.device_id !== scope.deviceId) throw new BrowserPersistenceError('account_mismatch')
+          schedule(transaction, result, fail)
+        } catch (error) { fail(error) }
+      }
+      identity.onsuccess = start
+      binding.onsuccess = start
+    }, [...STORES, ...stores])
   }
   private identity(create: boolean): Promise<CloudIdentity> {
     return this.transaction<CloudIdentity>(create ? 'readwrite' : 'readonly', (transaction, result, fail) => {

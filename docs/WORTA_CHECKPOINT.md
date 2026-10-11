@@ -5,13 +5,47 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 — **LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING**; C21.1.02A — **CI COVERAGE CORRECTION / REMOTE CI PENDING**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
-**Последняя независимая приёмка:** C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
+**Последняя независимая приёмка:** C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
+
+## C21.1.03 — browser encrypted outbox / inbox / cursor durability
+
+Starting clean branch6.0 HEAD == fetched origin/6.0 ==
+`245938f009c1914f52ee32927efe2e722858faef`.
+C21.1.02 / C21.1.02A **REMOTELY ACCEPTED** by owner/GPT:
+Cloud **38137926976 SUCCESS**, all six required jobs SUCCESS, real Chromium
+persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered /
+not expected. Foundation `f69110f569fab19596500acb60a315c9e126610b`, accepted
+coverage correction `245938f009c1914f52ee32927efe2e722858faef`.
+
+C21.1.03 **LOCAL COMPLETE / REMOTE CI PENDING**. IndexedDB2 adds encrypted
+`outbox`, `inbox`, `cursors`; forward v1 upgrade preserves identity/binding and
+aborts on incompatible records or storage failure. Dormant typed `session.sync`
+validates account/user/device in each transaction. Outbox stores immutable existing
+v2/v3 singleton transport bodies, reuses the first exact bytes/IDs on retry and
+allocates ordinals atomically. Mixed v3 project/account inbox shares the native
+account/device pull cursor; exact replay is checked, stale/conflicting pages abort.
+No decrypted content or keys persist. ACK/proven prefix stay0, no apply/ACK/HTTP or
+runtime activation. Missing checkpoint with retained encrypted records fails closed.
+New focused spec is explicitly selected by Cloud CI; existing real Chromium
+production-preview acceptance now proves migration/restart/retry/rollback/isolation.
+Final new focused **13 PASS**, new/foundation rerun **16 PASS / 2 files**; affected
+selection **57 PASS / 7 files**; real Chromium **24 scenarios PASS**, API requests0/
+page errors0. Typecheck/production build/workflow/script syntax/diff PASS. Initial
+validator definite-assignment compile error fixed; final checks pass. Existing
+large-chunk/documentDocx import warnings remain. Disposable profiles removed and
+task-owned preview stopped.
+Official **84.0%**; C21 **IN PROGRESS**, no C21 points. Frozen native/backend,
+crypto/AAD/frame/codec/compression/history/conflict contracts unchanged. No new
+dependencies or deployment. After publication Codex stops without polling Actions.
+Next recommendation only: C21.1.04 dormant immutable upload receipts and atomic
+sealed→accepted outbox transitions; protected apply/ACK/reconciliation remain
+separately accepted before Web activation.
 
 ## C21.1.02 — browser durable persistence / E2EE adapter contract (11 октября 2026)
 
@@ -20,7 +54,8 @@ SHA `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud **38127992242 SUCCESS**,
 all required Cloud jobs SUCCESS; SQLite not triggered / not expected.
 C21 Web **IN PROGRESS**; official **84.0%**, no C21 points awarded.
 
-C21.1.02 **LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING**. Owner/GPT supplied
+C21.1.02 **REMOTELY ACCEPTED** by the C21.1.03 acceptance record above. Historical
+pre-correction evidence: owner/GPT supplied
 Cloud run **38132043208 SUCCESS** (all six Cloud jobs); SQLite was not triggered
 and was not expected. That run did not execute the new persistence Vitest or the
 real-browser persistence acceptance, so it did not independently verify this
@@ -43,7 +78,7 @@ Firefox/Safari not run. At the original C21.1.02 publication, these tests were n
 in the remote curated/browser selection; the local proof was not independently
 accepted remote Web behavior.
 
-### C21.1.02A — remote CI coverage correction
+### C21.1.02A — remote CI coverage correction (REMOTELY ACCEPTED)
 
 Adds an explicit Cloud frontend invocation of
 `src/platform/web/persistence.spec.ts` and a real Playwright Chromium run of
@@ -53,10 +88,11 @@ existing lockfile-pinned Playwright tooling. Both commands are required hard
 failures; no new dependency or persistence-contract change. The previous
 `f69110f569fab19596500acb60a315c9e126610b` Cloud run **38132043208 SUCCESS**
 predated this remote coverage and therefore remains insufficient for independent
-acceptance. C21.1.02 and this correction stay **REMOTE ACCEPTANCE PENDING** until
-the new published SHA receives independent green Cloud verification. C21 remains
-**IN PROGRESS**; official progress remains exactly **84.0%**. Do not mark C21.1.02
-remotely accepted or start C21.1.03 in this correction.
+acceptance. Historical pending status is superseded by owner/GPT acceptance of
+`245938f009c1914f52ee32927efe2e722858faef`, Cloud **38137926976 SUCCESS**. C21 remains
+**IN PROGRESS**; official progress remains exactly **84.0%**. The historical
+correction did not declare remote acceptance or start C21.1.03; only the later
+independent owner/GPT evidence above establishes its acceptance.
 
 Desktop/Capacitor/native SQLite/Rust/PostgreSQL/crypto/AAD/codec/compression/ACK
 and conflict contracts unchanged. No new dependencies, deployment or telemetry.
@@ -540,12 +576,12 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
 
-**Current independent owner/GPT acceptance: C21.1.01**
-`0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8` — **REMOTELY ACCEPTED**.
-[Cloud backend tests 38127992242](https://github.com/nevskyforever/nfprogress/actions/runs/38127992242)
-**SUCCESS**, all required Cloud jobs SUCCESS. SQLite not triggered / not expected.
-C21 remains IN PROGRESS at **84.0%**. C21.1.02 published slice stays REMOTE CI
-PENDING, Codex does not poll Actions. Prior C18 acceptance below remains valid.
+**Current independent owner/GPT acceptance: C21.1.02 / C21.1.02A**
+`245938f009c1914f52ee32927efe2e722858faef` — **REMOTELY ACCEPTED**.
+[Cloud backend tests 38137926976](https://github.com/nevskyforever/nfprogress/actions/runs/38137926976)
+**SUCCESS**, all six required jobs, real Chromium and persistence contract tests
+SUCCESS. SQLite not triggered / not expected. C21 remains IN PROGRESS at **84.0%**.
+C21.1.03 stays REMOTE CI PENDING; Codex does not poll Actions. Prior C18 acceptance below remains valid.
 
 **Current C18.8 independent owner/GPT acceptance:** implementation
 `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958` — **REMOTELY ACCEPTED**.
@@ -997,11 +1033,11 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 **C16 Desktop Sync и C17 Shared Conflict Handling закрыты после независимой remote-приёмки.** C17 включал durable conflict preservation, frozen resolution v2, transport-v2 cutover, causal continuation и coordinated two-/three-device acceptance.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний независимо подтверждённый remote HEAD:** `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
+**Последний независимо подтверждённый remote HEAD:** `245938f009c1914f52ee32927efe2e722858faef`.
 **Official progress:** **84,0%**, WORTA ROADMAP SCORING v1.0.
 **Last CLOSED:** C18 Complete Project Sync.
 **Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**; C18 Complete Project Sync — **CLOSED**.
-**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **REMOTELY ACCEPTED**; C21.1.02 **LOCAL COMPLETE / REMOTE CI PENDING**. Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
+**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A **REMOTELY ACCEPTED**; C21.1.03 **LOCAL COMPLETE / REMOTE CI PENDING**. Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
 **Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; commit только после разрешённых gates, затем самостоятельный push без CI polling; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
