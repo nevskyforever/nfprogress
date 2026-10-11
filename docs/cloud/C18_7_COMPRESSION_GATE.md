@@ -2,7 +2,8 @@
 
 C18.7.01 status: **REMOTELY ACCEPTED** (SHA087f22baec3cc2e59d4a76132a07a9ecc62715b1;
 Cloud37942773598 / SQLite37942773576 SUCCESS). At the .01 baseline production
-writers remained **compression0**; .02 activation/evidence is recorded below. C18.7/C18 remain IN PROGRESS;
+writers remained **compression0**; .02/.03 activation/platform evidence is recorded below.
+C18.7 is now CLOSED by independent .03 acceptance; C18 remains IN PROGRESS;
 o roadmap points awarded, official progress **77.0%**.
 
 ## Accepted prerequisites
@@ -514,6 +515,14 @@ do not self-close C18.7 or start the next stage here.
 
 
 ## C18.7.03 — platform / distribution closure gate (10 October 2026)
+
+Independent final acceptance: implementation `5f463653e3dbc5a6dad91295c4f371caf158c83c`,
+SDK-path recovery `10b3a39a1197bbd9f30edb9a04cb09cda5e810bd`, Cloud38077802438
+SUCCESS (Frontend admin, Android packaging, PostgreSQL foundation/content-action
+and regressions). Actual hosted SDK resolution/assembleDebug/APK proof passed.
+SQLite not expected for recovery-only diff; accepted SQLite37973599074 remains
+applicable. **C18.7.03 REMOTELY ACCEPTED; C18.7 CLOSED** by owner/GPT. C18 remains
+IN PROGRESS,77.0%. The local evidence/status below records the pre-acceptance run.
 
 Independent prerequisite: **C18.7.02 REMOTELY ACCEPTED**, implementation
 `87b9bf7d60cd223d3ca2f4ab3faea16dd7574178`. SQLite37973599074 SUCCESS

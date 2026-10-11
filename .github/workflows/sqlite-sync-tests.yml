@@ -90,6 +90,7 @@ on:
       - 'tests/test_c18_metadata_sqlite.py'
       - 'tests/test_c18_cover_sqlite.py'
       - 'tests/test_cloud_c18_cover_acceptance.py'
+      - 'tests/test_cloud_c18_complete_project_acceptance.py'
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
@@ -194,6 +195,7 @@ on:
       - 'tests/test_c18_metadata_sqlite.py'
       - 'tests/test_c18_cover_sqlite.py'
       - 'tests/test_cloud_c18_cover_acceptance.py'
+      - 'tests/test_cloud_c18_complete_project_acceptance.py'
       - 'tests/test_c18_stage_sqlite.py'
       - 'tests/test_c18_account_sqlite.py'
       - 'tests/test_c18_catalog_sqlite.py'
@@ -332,3 +334,9 @@ jobs:
       - name: Run Game codec vectors
         shell: pwsh
         run: cargo test --manifest-path frontend\src-tauri\Cargo.toml --target x86_64-pc-windows-msvc game_
+
+      - name: Native cover dependency and materialization proof
+        run: cargo test --manifest-path frontend/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --lib cover_
+
+      - name: Native bounded compression and mixed-frame proof
+        run: cargo test --manifest-path frontend/src-tauri/Cargo.toml --target x86_64-pc-windows-msvc --lib frame_compression

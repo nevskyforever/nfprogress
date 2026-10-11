@@ -211,6 +211,10 @@ jobs:
               tests/test_cloud_c18_game_acceptance.py
               tests/test_cloud_c18_content_action_integration.py
               tests/test_cloud_c18_progress_acceptance.py
+          # Integrated history has its own service/budget; accepted families stay intact.
+          - shard: complete-project
+            tests: >-
+              tests/test_cloud_c18_complete_project_acceptance.py
     services:
       postgres:
         image: postgres:16
@@ -281,6 +285,10 @@ jobs:
       - name: Install frontend dependencies for production crypto bridge
         run: npm ci
         working-directory: frontend
+
+      - name: Prepare complete-project headless bridge before bounded IPC calls
+        if: matrix.shard == 'complete-project'
+        run: cargo test --manifest-path frontend/src-tauri/Cargo.toml --no-run
 
       - name: Verify native Note legacy and framed readers
         if: matrix.shard == 'foundation'
