@@ -153,6 +153,19 @@ opened from the Help menu in `main_UI.py`.
 
 ## Building
 
+* Reuse an existing worktree when practical. Remove task-created temporary clones
+  and worktrees only after verifying they contain no user files or unique work.
+* After multi-GB Rust/Android validation, stop builds and run
+  `python3 scripts/maintenance/clean_generated.py` (dry run). Use `--apply` only
+  for outputs no longer needed; it cleans this worktree only and reports other
+  worktrees without removing them. Keep main `node_modules`, user data and Git
+  history. Never use `git clean`, `git reset`, or blind worktree deletion.
+* For broad CI-equivalent local Cargo validation, use `CARGO_INCREMENTAL=0` to
+  avoid accumulating incremental variants and object files. Normal build
+  commands remain unchanged. The maintenance command also removes redundant
+  release-workspace dependencies and generated Android build outputs; stop
+  Gradle/Android Studio builds first. It never cleans global caches.
+
 * Do not run a full Nuitka build unless necessary.
 * Do not run builds for all platforms simultaneously unless the task requires it.
 * When changing build scripts, check the differences between Windows, macOS ARM, and macOS Intel.
