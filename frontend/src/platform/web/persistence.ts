@@ -7,7 +7,7 @@ export const WEB_DATABASE_VERSION = 3
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
-export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor'
+export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history'
 
 const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]> = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],

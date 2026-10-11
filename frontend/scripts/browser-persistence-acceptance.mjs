@@ -541,6 +541,81 @@ try {
   assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
   await page.evaluate(() => session.close())
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  // C21.1.05: query existing retained v3 data only. No premature head/apply write or schema.
+  const historyReferences = v2.outbox.map(row => {
+    const proofSequence = row.event_id === expected.event_id ? 1 : row.event_id === retryEvent.event_id ? 3 : 2
+    return { ...JSON.parse(row.raw_body).items[0].event, device_id: scopeA.deviceId, server_sequence: proofSequence }
+  })
+  const historyRead = target => target.evaluate(({ scope, references }) => session.sync.readRetainedHistory(scope, references), { scope: scopeA, references: historyReferences })
+  const historyFailure = (references, scope = scopeA, handle = 'session') => page.evaluate(async ({ scope, references, handle }) => {
+    try { await globalThis[handle].sync.readRetainedHistory(scope, references); return 'unexpected_success' } catch (error) { return error.code }
+  }, { scope, references, handle })
+  const allStores = ['identities', 'accountBindings', 'outbox', 'inbox', 'cursors', 'receipts']
+  const durableSnapshot = async () => Object.fromEntries(await Promise.all(allStores.map(async store => [store, await page.evaluate(store => nativeRows(store), store)])))
+  const historyBefore = await durableSnapshot()
+  const historySaved = await historyRead(page)
+  assert.equal(historySaved.length, 3)
+  assert.deepEqual(historySaved.map(row => row.reference), [...historyReferences].sort((a, b) => a.event_id < b.event_id ? -1 : 1))
+  assert.equal(historySaved.filter(row => row.inbox === null).length, 1)
+  assert.equal(historySaved.filter(row => row.outbox === null).length, 1) // received-only unaccepted own echo
+  assert.ok(historySaved.every(row => row.inbox === null || row.inbox.state === 'received'))
+  assert.deepEqual(await page.evaluate(({ scope, references }) => session.sync.readRetainedHistory(scope, [...references].reverse()), { scope: scopeA, references: historyReferences }), historySaved)
+  assert.deepEqual(await durableSnapshot(), historyBefore)
+  cases.push('retained mixed project/account history reads exact descriptors and ciphertext in deterministic order without modifying six v3 stores')
+  assert.equal(await historyFailure([{ ...historyReferences[0], event_id: users[3] }, historyReferences[1]]), 'missing_history')
+  assert.equal(await historyFailure([historyReferences[0], { ...historyReferences[0], revision: 2 }]), 'conflicting_record')
+  for (const change of [{ entity_id: 'wrong-owner' }, { project_id: 'wrong-project' }, { server_sequence: 4 }, { revision: 2 }]) assert.equal(await historyFailure([{ ...historyReferences[0], ...change }]), 'conflicting_record')
+  assert.equal(await historyFailure([{ ...historyReferences[1], canonical_user_id: users[1] }]), 'account_mismatch')
+  assert.deepEqual(await durableSnapshot(), historyBefore)
+  cases.push('missing/duplicate/conflicting revision, owner, sequence and cross-account references fail closed without partial history results or repair')
+  const abortHistory = await page.evaluate(async ({ scope, references }) => {
+    const get = IDBObjectStore.prototype.get
+    IDBObjectStore.prototype.get = function(...args) {
+      const request = get.apply(this, args)
+      if (this.name === 'outbox') this.transaction.abort()
+      return request
+    }
+    try { await session.sync.readRetainedHistory(scope, references); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBObjectStore.prototype.get = get }
+  }, { scope: scopeA, references: historyReferences })
+  assert.equal(abortHistory, 'storage_failed')
+  assert.deepEqual(await durableSnapshot(), historyBefore)
+  assert.deepEqual(await historyRead(page), historySaved)
+  cases.push('real IDB read transaction abort rejects whole history batch and preserves original retained records')
+  await page.reload()
+  await page.evaluate(async users => { globalThis.users = users; globalThis.session = await c21.openBrowserPersistence(users[0]) }, users)
+  assert.deepEqual(await historyRead(page), historySaved)
+  await context.close(); await start(); page = await tab()
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await historyRead(page), historySaved)
+  assert.deepEqual(await durableSnapshot(), historyBefore)
+  cases.push('retained encrypted references and deterministic history reads survive reload and disk profile/browser reopen unchanged')
+  competing = await tab()
+  await expectCode(competing, 'c21.openBrowserPersistence(users[0])', 'writer_busy')
+  await page.close(); page = competing
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await historyRead(page), historySaved)
+  cases.push('history repository shares exclusive native Web Locks; owner termination transfers access without losing encrypted records')
+  await page.evaluate(async () => { globalThis.stale = session; await session.resetForLogout(); globalThis.session = await c21.openBrowserPersistence(users[1]) })
+  assert.equal(await historyFailure(historyReferences), 'account_mismatch')
+  assert.equal(await historyFailure(historyReferences, newScopeB), 'account_mismatch') // account descriptor cannot cross canonical users
+  assert.equal(await historyFailure([historyReferences[0]], newScopeB), 'missing_history')
+  assert.equal(await historyFailure(historyReferences, scopeA, 'stale'), 'closed')
+  await page.evaluate(async () => { await session.close(); globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await historyRead(page), historySaved)
+  assert.deepEqual(await durableSnapshot(), historyBefore)
+  cases.push('logout revokes stale history handles; foreign account reads fail and encrypted data remains retained')
+  await mutate('receipts', 'delete', [scopeA.accountId, expected.event_id])
+  assert.equal(await historyFailure(historyReferences), 'corrupt_record')
+  await mutate('receipts', 'add', firstProof)
+  await mutate('inbox', 'put', { ...historySaved[0].inbox, record_version: 99 })
+  assert.equal(await historyFailure(historyReferences), 'corrupt_record')
+  await mutate('inbox', 'put', historySaved[0].inbox)
+  assert.deepEqual(await historyRead(page), historySaved)
+  assert.deepEqual(await durableSnapshot(), historyBefore)
+  assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
+  assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
+  cases.push('unknown retained record and broken acceptance half fail after reopen; no automatic repair, schema/head writes, apply proof or ACK advancement')
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
   const retainedAccepted = await retained()
   await page.evaluate(async () => {

@@ -1,6 +1,6 @@
-# C21.1.02–C21.1.04 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.05 — Browser durable persistence / E2EE adapter contract
 
-Contract revision3, 2026-10-11. C21.1.04 remains dormant.
+Contract revision4, 2026-10-11. C21.1.05 remains dormant; IDB schema stays3.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
 all required Cloud jobs SUCCESS; SQLite not triggered/not expected. C21 stays
@@ -456,7 +456,9 @@ errors0. Physical power-loss/quota exhaustion and Firefox/Safari remain unclaime
 Cloud CI explicitly runs `persistence.spec.ts`, `syncDurability.spec.ts`,
 `uploadAcceptance.spec.ts`, `persistenceMigration.spec.ts`, and the same real Chromium
 acceptance with hard failures. No dependency/install changes. C21.1.04 publication
-is **REMOTE CI PENDING**; owner/GPT must verify the new SHA independently. Official
+is **REMOTELY ACCEPTED** by owner/GPT: `16ce1e09d0043076aa2112845b776ca6b38ee807`,
+Cloud **38151133406 SUCCESS**, all six required jobs, upload acceptance/migration
+contract tests and real Chromium SUCCESS; SQLite not triggered/not expected. Official
 **84.0%**, C21 **IN PROGRESS**. Expected Cloud; SQLite not expected. No Actions polling.
 
 Next bounded recommendation: dormant retained encrypted history/reader-proof
@@ -466,3 +468,109 @@ Final C21.1.04 typecheck/production build, production harness build, workflow YA
 explicit hard-failure coverage, script syntax and diff checks PASS. Existing large
 chunks/documentDocx import warnings remain. Protected pyc hashes unchanged; disposable
 profiles removed and task-owned preview stopped. Heavy native/backend suites not run.
+
+
+## C21.1.05 native authority audit and read-only retained-history foundation
+
+Accepted starting local/fetched origin6.0: `16ce1e09d0043076aa2112845b776ca6b38ee807`.
+C21.1.04 independent acceptance above supersedes its historical pending status.
+**C21.1.05 LOCAL COMPLETE / REMOTE CI PENDING**. Official84.0%, C21 IN PROGRESS.
+
+Inspected production `noteSyncInboxDecrypt`, `noteSyncInboxApply`,
+`noteSyncResolutionInboxApply`, `accountObjectReader`, `contentNoteReader`,
+Document/Map runtimes/codecs, SQLite remote-apply repository, native `note_sync.rs`,
+`content_note_sync.rs`, `account_catalog.rs`, Document/Map/Progress/Game apply,
+Metadata/Stage/Cover contracts, SQL017/023/024/032 and C17/C18 frozen designs.
+The exact account domain is local account binding to canonical user; source device
+and pulling device are distinct. Transport server_sequence/revision/time never
+establish causality, a winning tip or successful protected apply.
+
+| Existing authority family | Existing owner and complete-history semantics retained |
+| --- | --- |
+| Note / Resolution / Content Note | Local account, project ID, Note entity ID; immutable parent/revision history, complete conflict event/version tips, conflict-group generation. Resolution requires the complete sorted resolved_event_ids/primary+additional parents and exact parent proofs, not merely the selected Note. Content Note retains bootstrap/metadata/stage dependency references and uses the same Note history engine, with its additional frame/envelope receipt. Map-derived Notes belong to Map authority. |
+| Metadata / Cover / Stage / Stage order | Existing project/bootstrap identity and entity types remain distinct; Metadata entity_id equals project_id, Stage has its own entity ID, stage_order its fixed ID. Structural parents/generation, metadata/stage-head membership and cover encrypted-blob/reference dependencies stay in their existing authenticated frames/contracts. Cover is not invented as a new transport owner. |
+| Document | Local account/project/stable document entity ID; stage relation can move and belongs to authenticated history, not a new independent owner. Full parents/revision/generation plus bootstrap/metadata/stage dependency event IDs and prior dependency branches must remain retained. |
+| Map | Local account/project and exact existing `project-map` or `stage-map-<sha256>` entity ID. All current sorted event tips, parent ancestry and bootstrap/metadata/stage references; map and derived Notes share one apply unit. |
+| Progress | Local account/project/project-or-stage owner; complete causal parent tips and retained entry/chain facts, bootstrap/metadata/stage proofs. No inferred revision winner or independently stored progress-order authority. |
+| Catalog | Local account and canonical-user account scope, exact entity_type/entity_id (folder, folder_order, folder_membership, project_order). Complete sorted parent_event_ids/current tips, revision AND generation; folder/membership dependency maps and project bootstrap+metadata proof tuples remain distinct. |
+| Game | Account owner is native `account`; project owner is canonical `[project_id,stage_id]`. Per-action transport entity IDs (`game:<event>` / `game:project:<event>` / stage action IDs) are NOT authority owner keys. Retained parent/action/dependency/reward proofs and concurrent tips are essential. |
+
+Native Note/Resolution/Content, Map/Document/Progress/Game authority mutation
+rechecks scope, exact envelope/frame and dependencies, then changes retained history,
+complete tips, ledger/proof and inbox classification inside the same protected
+transaction (and projection if authorized). Catalog also commits full tips, retained
+canonical frame/envelope, dependency classification and apply ledger together;
+its account inbox can remain `received`, so that state alone is not an apply proof.
+An authentication-only account probe explicitly returns
+`account_entity_codec_not_activated`; Note decrypt status `validated` is likewise
+transient validation, not durable apply/ACK proof. Native SQL histories may contain
+plaintext under their existing storage contract; no such projection/frame is copied
+into browser IDB.
+
+**Architectural boundary:** encrypted transport descriptors do not expose these
+complete authenticated parents/dependencies/owner structures. A generic browser
+head derived from revision/server_sequence or Game entity_id would be lossy.
+Writing an authoritative complete head without the future protected-apply unit
+would split the frozen invariant. This slice therefore exposes NO head write,
+CAS, persisted reader/applied proof, or fake intermediate proof state. IDB stays
+**3**, exactly the six implemented stores. No v3→v4 upgrade or `ownerHeads` store
+is introduced; ownerHeads remains planned for its actual atomic implementation.
+No blockers/accountObjects/encryptedBlobs/projectBindings store is created.
+
+`session.sync.readRetainedHistory(scope, references)` is a dormant read repository.
+References reuse the exact existing `V3Descriptor | AccountDescriptor` transport
+identity (also covering v2 Note descriptors), including event/source device,
+server_sequence, exact project OR canonical-user account scope, entity type/ID,
+operation, revision and timestamps. They are query metadata, not persisted records
+or authenticated reader output. Strict known keys reject content/error/token fields.
+No browser owner-kind enum or normalized cross-family causal model is introduced.
+
+A bounded nonempty batch (max200 unique events) snapshots caller primitives before
+IDB, orders references lexically by event ID and validates account/device/session
+binding plus checkpoint inside ONE readonly transaction over existing stores.
+It resolves each event through accepted outbox+immutable receipt and/or the received
+inbox event index; the original raw_body/wire_item strings are returned unchanged.
+Existing v2/v3 validators check descriptors/envelopes; an own echo must exactly
+match source device, metadata, ciphertext and receipt sequence. A sealed event
+alone is not accepted history; a matching received echo remains readable without
+promoting that local sealed row. Upload-only accepted history and received-only
+peer history retain their distinct evidence. Returned DTOs contain no apply status.
+No copies are written to a second history store.
+
+The pure `validateBrowserRetainedHistory` helper enforces the same retained-pair
+and exact-reference boundary. Neither helper authenticates ciphertext nor proves
+parents/dependencies or complete-tip membership. Every supplied branch is returned;
+there is no visible-winner filtering, inferred completeness or maximum-revision
+selection. Missing history throws bounded `missing_history`, never empty authority.
+Duplicate event references, wrong owner/revision/sequence/device, cross-account
+substitution, missing acceptance halves, unknown versions/states or conflicting
+own ciphertext fail closed. A batch either returns all references after transaction
+completion or rejects; it cannot return a partially verified prefix. No auto-repair,
+pruning or deletion. Reload/log-out keeps all original encrypted history.
+
+A future protected reader must decrypt/authenticate under the existing draining
+lease outside IDB, retain family-specific complete tips/parents/dependencies, and
+atomically recheck immutable references/current complete heads while committing
+history+heads+applied proof+inbox transition. Receipt/download alone cannot authorize
+that transaction or ACK. That implementation needs separate independent acceptance;
+no runtime/key/HTTP/editor/reconciliation/conflict/orphan/projection activation here.
+ACK and proven prefix remain0.
+
+Local acceptance: new retained-history spec **19 PASS**; affected persistence,
+syncDurability, uploadAcceptance, migration and v2/v3 contracts **49 PASS / 6 files**.
+Existing migration validation remains **4 PASS** within that selection; new v3→v4
+migration is not applicable. Real production-preview Chromium **40 scenarios PASS**:
+all previous migration/receipt proofs plus unchanged six-store v3 reads, exact
+mixed account/project references, upload-only/received-only retention, canonical
+read order, missing/conflicting references, real read-transaction abort, reload and
+disk-profile reopen, Web Locks ownership transfer, account isolation/revocation,
+unknown/broken durable records and future-schema rejection. API requests0/page
+errors0; disposable protocol/ciphertext fixtures are not crypto/apply proof.
+Cloud explicitly runs retainedHistory.spec.ts alongside the existing four C21 specs
+and this expanded Chromium harness with hard failures. No new dependency or native/
+backend/crypto/AAD/frame/codec/compression contract change. Typecheck, production
+build, production harness build, workflow YAML/coverage, script syntax and diff
+checks PASS. Existing large-chunk/documentDocx import warnings remain. Protected
+pyc hashes unchanged; disposable profiles removed and task preview stopped.
+Physical power loss/quota exhaustion, other browsers, native/backend heavy suites,
+full frontend suites and protected apply remain unclaimed/not run.

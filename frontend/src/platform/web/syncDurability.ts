@@ -1,3 +1,4 @@
+import type { AccountDescriptor, V3Descriptor } from '@/api/encryptedSyncV3'
 import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from '@/api/encryptedSync'
 import { parseV2PullResponse, parseV2PushResponse, validateV2PushItem } from '@/api/encryptedSyncV2'
 import { parseV3Pull, parseV3PushResponse } from '@/api/encryptedSyncV3'
@@ -19,6 +20,15 @@ export interface BrowserUploadReceipt {
   record_version: 1; account_id: string; device_id: string; event_id: string
   protocol_version: 2 | 3; server_sequence: number; duplicate: boolean
 }
+/** Existing transport identity only; never a complete-head or authenticated apply proof. */
+export type BrowserEncryptedHistoryReference = V3Descriptor | AccountDescriptor
+export interface BrowserRetainedEncryptedHistory {
+  reference: BrowserEncryptedHistoryReference
+  outbox: BrowserOutboxRecord | null
+  receipt: BrowserUploadReceipt | null
+  inbox: BrowserReceivedInboxRecord | null
+}
+
 interface CursorRecord extends BrowserSyncCheckpoint { record_version: 1; account_id: string; device_id: string }
 type Schedule<T> = Parameters<typeof runBrowserTransaction<T>>[3]
 export type BrowserSyncTransaction = <T>(scope: BrowserSyncScope, stores: string[], mode: 'readonly' | 'readwrite', schedule: Schedule<T>) => Promise<T>
@@ -194,6 +204,44 @@ function assertOwnEcho(outbound: BrowserOutboxRecord, incoming: WireItem): void 
   if (device_id !== outbound.device_id || immutableWireIdentity(body.items[0]) !== immutableWireIdentity({ event: descriptor, object: incoming.object })) failure('conflicting_record')
 }
 
+function historyReference(value: BrowserEncryptedHistoryReference, scope: BrowserSyncScope): BrowserEncryptedHistoryReference {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) failure()
+  const account = 'scope' in value
+  const keys = ['event_id','device_id','server_sequence','entity_id','entity_type','operation','revision','updated_at','deleted_at',
+    ...(account ? ['canonical_user_id','scope'] : ['project_id'])]
+  if (!exact(value, keys) || !safe(value.server_sequence, 1) || !safe(value.revision, 1)
+    || !keys.filter(key => !['server_sequence','revision','deleted_at'].includes(key)).every(key => typeof (value as unknown as Record<string, unknown>)[key] === 'string')
+    || !(value.deleted_at === null || typeof value.deleted_at === 'string')
+    || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.event_id)) failure()
+  if (account && (value.scope !== 'account' || value.canonical_user_id !== scope.canonicalUserId)) throw new BrowserPersistenceError('account_mismatch')
+  // All descriptor semantics are checked against the existing validated retained wire item below.
+  return Object.freeze({ ...value })
+}
+
+/** Pure retained-wire validation. No decryption, ancestry/head inference, or apply claim. */
+export function validateBrowserRetainedHistory(
+  scope: BrowserSyncScope, reference: BrowserEncryptedHistoryReference,
+  outbound: unknown, receipt: unknown, inbound: unknown,
+): BrowserRetainedEncryptedHistory {
+  scope = snapshotScope(scope); reference = historyReference(reference, scope)
+  let outgoing: BrowserOutboxRecord | null = null, received: BrowserReceivedInboxRecord | null = null
+  if (outbound !== undefined || receipt !== undefined) outgoing = validateBrowserUploadPair(outbound, receipt, scope)
+  if (inbound !== undefined) received = inbox(inbound, scope)
+  if (outgoing && outgoing.event_id !== reference.event_id || received && received.event_id !== reference.event_id) failure('conflicting_record')
+  if (outgoing && received) {
+    assertOwnEcho(outgoing, wireJSON(received.wire_item) as WireItem)
+    if (receipt !== undefined && (receipt as BrowserUploadReceipt).server_sequence !== received.server_sequence) failure('conflicting_record')
+  }
+  const accepted = outgoing?.state === 'accepted' ? outgoing : null
+  if (!accepted && !received) throw new BrowserPersistenceError('missing_history')
+  const descriptor = received ? (wireJSON(received.wire_item) as WireItem).event : {
+    ...(wireJSON(accepted!.raw_body) as WirePage).items[0]!.event,
+    device_id: accepted!.device_id, server_sequence: (receipt as BrowserUploadReceipt).server_sequence,
+  }
+  if (immutableWireIdentity(descriptor) !== immutableWireIdentity(reference)) failure('conflicting_record')
+  return { reference, outbox: accepted, receipt: accepted ? receipt as BrowserUploadReceipt : null, inbox: received }
+}
+
 /** Dormant encrypted transport/upload proof durability. No fetch, keys, plaintext, apply or ACK methods. */
 export class BrowserSyncDurability {
   constructor(private readonly transaction: BrowserSyncTransaction) {}
@@ -314,6 +362,35 @@ export class BrowserSyncDurability {
           } catch (error) { fail(error) }
         }
         event.onsuccess = finish; proof.onsuccess = finish; sequence.onsuccess = finish; received.onsuccess = finish; atSequence.onsuccess = finish
+      }, fail)
+    })
+  }
+
+  /** One bound read snapshot for every requested branch; never infer missing history as empty authority. */
+  readRetainedHistory(scope: BrowserSyncScope, references: readonly BrowserEncryptedHistoryReference[]): Promise<BrowserRetainedEncryptedHistory[]> {
+    scope = snapshotScope(scope)
+    if (!Array.isArray(references)) failure()
+    limitCheck(references.length)
+    const expected = references.map(reference => historyReference(reference, scope)).sort((a, b) => a.event_id < b.event_id ? -1 : a.event_id > b.event_id ? 1 : 0)
+    if (new Set(expected.map(reference => reference.event_id)).size !== expected.length) failure('conflicting_record')
+    return this.transaction(scope, ['outbox', 'inbox', 'receipts', 'cursors'], 'readonly', (tx, result, fail) => {
+      readCursor(tx, scope, () => {
+        const history: BrowserRetainedEncryptedHistory[] = new Array(expected.length)
+        let completed = 0
+        expected.forEach((reference, index) => {
+          const outgoing = tx.objectStore('outbox').get([scope.accountId, reference.event_id])
+          const proof = tx.objectStore('receipts').get([scope.accountId, reference.event_id])
+          const incoming = tx.objectStore('inbox').index('event').get([scope.accountId, reference.event_id])
+          let ready = 0
+          const finish = () => {
+            if (++ready !== 3) return
+            try {
+              history[index] = validateBrowserRetainedHistory(scope, reference, outgoing.result, proof.result, incoming.result)
+              if (++completed === expected.length) result(history)
+            } catch (error) { fail(error) }
+          }
+          outgoing.onsuccess = finish; proof.onsuccess = finish; incoming.onsuccess = finish
+        })
       }, fail)
     })
   }
