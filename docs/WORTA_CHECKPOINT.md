@@ -5,15 +5,52 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
-**Последняя независимая приёмка:** owner/GPT supplied acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
+**Последняя независимая приёмка:** C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## C21.1.02 — browser durable persistence / E2EE adapter contract (11 октября 2026)
+
+C21.1.01 **REMOTELY ACCEPTED** by independent owner/GPT evidence:
+SHA `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud **38127992242 SUCCESS**,
+all required Cloud jobs SUCCESS; SQLite not triggered / not expected.
+C21 Web **IN PROGRESS**; official **84.0%**, no C21 points awarded.
+
+C21.1.02 **LOCAL COMPLETE / REMOTE CI PENDING**. Frozen browser contract:
+`docs/web/C21_BROWSER_PERSISTENCE.md`. Browser-native IndexedDB v1 identity/binding
+foundation, atomic strict transactions, one origin-wide Web Locks writer,
+typed fail-closed errors, logout/AbortSignal/pagehide/versionchange access revocation.
+Only pseudonymous canonical identity metadata persists; no tokens/passwords/AMK/
+Recovery Key/decrypted content. No complete browser sync repositories or activation.
+Local gates: focused platform/auth/binding/key/runtime/session **7 files/57 PASS**;
+new persistence affected rerun **3/3 PASS**. Real Chromium IndexedDB/Web Locks
+**13 scenarios PASS**: reload/process restart, account isolation, atomic abort/quota/
+constraint failure, corrupt/future version rejection, logout/AbortSignal revocation,
+multi-tab exclusion/owner termination. Browser API requests0/page errors0; disposable
+profile removed. Typecheck/build/script syntax/diff PASS; protected pyc hashes
+unchanged. Existing production runtime paths unchanged, legacy app smoke retained.
+Initial failure was a failure-injection API-descriptor restoration issue in harness,
+fixed locally. Native/heavy suites/deployment/physical quota exhaustion/power-loss/
+Firefox/Safari not run. New tests not in current remote curated/browser selection;
+local proof is not independently accepted remote Web behavior.
+
+Desktop/Capacitor/native SQLite/Rust/PostgreSQL/crypto/AAD/codec/compression/ACK
+and conflict contracts unchanged. No new dependencies, deployment or telemetry.
+Web First C21 → C22 → C23 → PF6.0/RC; C19/C20 after first Desktop+Web release.
+Registration/release gate, owner stabilization and final terminology audit retained.
+Next bounded **C21.1.03**: dormant encrypted outbox/inbox/cursor adapters with exact
+retry, atomic rollback and restart proof; protected apply/ACK/authority work remains
+separately bounded before full Web activation.
+
 ## C21.1.01 — local Web baseline / platform boundary (11 октября 2026)
+
+**REMOTELY ACCEPTED**: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`; Cloud
+**38127992242 SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered /
+not expected. Prior local/pending status below is historical and superseded.
 
 C18.8 **CLOSED / REMOTELY ACCEPTED**, C18 Complete Project Sync **CLOSED**,
 accepted SHA `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`, Cloud **38123427926 SUCCESS**,
@@ -21,7 +58,7 @@ SQLite **38123427916 SUCCESS**. Evidence explicitly supplied by owner/GPT;
 Codex did not poll remote CI. Historical pending C18 records below are superseded
 by this acceptance, not rewritten. C18 +7.0 points → official **84.0%**.
 
-C21 Web **IN PROGRESS**; C21.1.01 **LOCAL COMPLETE / REMOTE CI PENDING**.
+C21 Web **IN PROGRESS**; C21.1.01 **Historical LOCAL COMPLETE / REMOTE CI PENDING — superseded by remote acceptance above**.
 Local plain-browser production baseline, exhaustive native dependency inventory,
 HTTP/browser vs native adapter contract and minimal fail-closed entry guards:
 `docs/web/C21_WEB_BASELINE.md`. No native/backend/schema/crypto changes, new
@@ -40,8 +77,8 @@ message translations and protected pyc hashes unchanged; diff check PASS.
 Web First remains **C21 → C22 → C23 → PF6.0/RC**; C19/C20 follow the first
 Desktop+Web release. C21 points not awarded. Registration remains CLOSED;
 post-RC owner stabilization, terminology audit and explicit public-release
-decision remain mandatory. Next bounded slice: C21.1.02 browser durable
-persistence/E2EE adapter design and fail-closed acceptance contract, locally.
+decision remain mandatory. Historical next step was C21.1.02 browser durable
+persistence/E2EE adapter design; current continuation is C21.1.03 above.
 
 ## C18.8.01 — complete project multi-device acceptance (11 октября 2026)
 
@@ -483,14 +520,21 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
 
+**Current independent owner/GPT acceptance: C21.1.01**
+`0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8` — **REMOTELY ACCEPTED**.
+[Cloud backend tests 38127992242](https://github.com/nevskyforever/nfprogress/actions/runs/38127992242)
+**SUCCESS**, all required Cloud jobs SUCCESS. SQLite not triggered / not expected.
+C21 remains IN PROGRESS at **84.0%**. C21.1.02 published slice stays REMOTE CI
+PENDING, Codex does not poll Actions. Prior C18 acceptance below remains valid.
+
 **Current C18.8 independent owner/GPT acceptance:** implementation
 `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958` — **REMOTELY ACCEPTED**.
 - [Cloud backend tests 38123427926](https://github.com/nevskyforever/nfprogress/actions/runs/38123427926) — **SUCCESS**.
 - [SQLite sync substrate tests 38123427916](https://github.com/nevskyforever/nfprogress/actions/runs/38123427916) — **SUCCESS**.
 
 Relevant required jobs independently verified green as supplied in the task.
-C18.8/C18 CLOSED; official **84.0%**. C21.1.01 remote CI is pending after
-publication and must not be polled by Codex. Earlier pending records are historical.
+C18.8/C18 CLOSED; official **84.0%**. Historical C21.1.01 CI-pending state
+is superseded by independent acceptance above. Earlier pending records are historical.
 
 ### Historical C18.6.01 status — superseded by current C18.8 acceptance
 
@@ -933,11 +977,11 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 **C16 Desktop Sync и C17 Shared Conflict Handling закрыты после независимой remote-приёмки.** C17 включал durable conflict preservation, frozen resolution v2, transport-v2 cutover, causal continuation и coordinated two-/three-device acceptance.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний независимо подтверждённый remote HEAD:** `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`.
+**Последний независимо подтверждённый remote HEAD:** `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 **Official progress:** **84,0%**, WORTA ROADMAP SCORING v1.0.
 **Last CLOSED:** C18 Complete Project Sync.
 **Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**; C18 Complete Project Sync — **CLOSED**.
-**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **LOCAL COMPLETE / REMOTE CI PENDING**. Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
+**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **REMOTELY ACCEPTED**; C21.1.02 **LOCAL COMPLETE / REMOTE CI PENDING**. Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
 **Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; commit только после разрешённых gates, затем самостоятельный push без CI polling; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
