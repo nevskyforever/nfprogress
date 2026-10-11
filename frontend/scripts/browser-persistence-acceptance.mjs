@@ -15,14 +15,12 @@ const unexpected = []
 async function start() {
   context = await chromium.launchPersistentContext(directory, { headless: true })
   context.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) unexpected.push('API request') })
-  await context.route(`${origin}/c21-harness`, route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>C21 persistence acceptance</title>' }))
 }
 async function tab() {
   const page = await context.newPage()
   page.on('pageerror', () => unexpected.push('pageerror'))
-  await page.goto(`${origin}/c21-harness`)
+  await page.goto(`${origin}/scripts/browser-persistence-harness.html`)
   await page.evaluate(async users => {
-    globalThis.c21 = await import('/src/platform/web/persistence.ts')
     globalThis.users = users
     globalThis.nativeRows = async store => {
       const db = await new Promise((resolve, reject) => {
@@ -60,7 +58,7 @@ try {
   cases.push('first open atomically creates allowlisted identity/binding')
 
   await page.reload()
-  await page.evaluate(async users => { globalThis.c21 = await import('/src/platform/web/persistence.ts'); globalThis.users = users; globalThis.session = await c21.openBrowserPersistence(users[0]) }, users)
+  await page.evaluate(async users => { globalThis.users = users; globalThis.session = await c21.openBrowserPersistence(users[0]) }, users)
   assert.deepEqual(await page.evaluate(() => session.read(users[0])), original)
   cases.push('reload identity durability')
 

@@ -5,7 +5,7 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 — **LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING**; C21.1.02A — **CI COVERAGE CORRECTION / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
 **Последняя независимая приёмка:** C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
@@ -20,7 +20,11 @@ SHA `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud **38127992242 SUCCESS**,
 all required Cloud jobs SUCCESS; SQLite not triggered / not expected.
 C21 Web **IN PROGRESS**; official **84.0%**, no C21 points awarded.
 
-C21.1.02 **LOCAL COMPLETE / REMOTE CI PENDING**. Frozen browser contract:
+C21.1.02 **LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING**. Owner/GPT supplied
+Cloud run **38132043208 SUCCESS** (all six Cloud jobs); SQLite was not triggered
+and was not expected. That run did not execute the new persistence Vitest or the
+real-browser persistence acceptance, so it did not independently verify this
+slice's persistence contract. Frozen browser contract:
 `docs/web/C21_BROWSER_PERSISTENCE.md`. Browser-native IndexedDB v1 identity/binding
 foundation, atomic strict transactions, one origin-wide Web Locks writer,
 typed fail-closed errors, logout/AbortSignal/pagehide/versionchange access revocation.
@@ -35,8 +39,24 @@ profile removed. Typecheck/build/script syntax/diff PASS; protected pyc hashes
 unchanged. Existing production runtime paths unchanged, legacy app smoke retained.
 Initial failure was a failure-injection API-descriptor restoration issue in harness,
 fixed locally. Native/heavy suites/deployment/physical quota exhaustion/power-loss/
-Firefox/Safari not run. New tests not in current remote curated/browser selection;
-local proof is not independently accepted remote Web behavior.
+Firefox/Safari not run. At the original C21.1.02 publication, these tests were not
+in the remote curated/browser selection; the local proof was not independently
+accepted remote Web behavior.
+
+### C21.1.02A — remote CI coverage correction
+
+Adds an explicit Cloud frontend invocation of
+`src/platform/web/persistence.spec.ts` and a real Playwright Chromium run of
+`scripts/browser-persistence-acceptance.mjs` against an isolated production Vite
+preview bundle of the actual persistence module. Chromium is installed from the
+existing lockfile-pinned Playwright tooling. Both commands are required hard
+failures; no new dependency or persistence-contract change. The previous
+`f69110f569fab19596500acb60a315c9e126610b` Cloud run **38132043208 SUCCESS**
+predated this remote coverage and therefore remains insufficient for independent
+acceptance. C21.1.02 and this correction stay **REMOTE ACCEPTANCE PENDING** until
+the new published SHA receives independent green Cloud verification. C21 remains
+**IN PROGRESS**; official progress remains exactly **84.0%**. Do not mark C21.1.02
+remotely accepted or start C21.1.03 in this correction.
 
 Desktop/Capacitor/native SQLite/Rust/PostgreSQL/crypto/AAD/codec/compression/ACK
 and conflict contracts unchanged. No new dependencies, deployment or telemetry.
