@@ -1,3 +1,4 @@
+import { requireDesktopRuntime } from '@/platform/runtime'
 import { diagnostics } from '@/diagnostics/service'
 import { apiRequest } from './client'
 import { invoke } from '@tauri-apps/api/core'
@@ -139,7 +140,10 @@ export const projectsApi = {
     return apiRequest<void>(`/api/projects/folders/${encodeURIComponent(folderId)}`, { method: 'DELETE' })
   },
 
-  reorderFolders(folderIds:string[]):Promise<void>{return invoke('reorder_project_folders',{folderIds})},
+  async reorderFolders(folderIds: string[]): Promise<void> {
+    requireDesktopRuntime()
+    return invoke('reorder_project_folders', { folderIds })
+  },
 
   reorder(projectIds: string[]): Promise<Project[]> {
     if (desktopRuntime()) return invoke<Project[]>('reorder_projects', { projectIds })

@@ -4,7 +4,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { diagnostics } from './service'
 import permissions from '../../src-tauri/capabilities/main.json'
-vi.mock('@/platform/runtime',()=>({currentPlatform:()=> 'tauri'}))
+vi.mock('@/platform/runtime',()=>({currentPlatform:()=> 'tauri',requireDesktopRuntime:()=>undefined}))
 vi.mock('@tauri-apps/api/core',()=>({invoke:vi.fn()}))
 vi.mock('@tauri-apps/plugin-dialog',()=>({save:vi.fn()}))
 vi.mock('@tauri-apps/plugin-clipboard-manager',()=>({writeText:vi.fn()}))

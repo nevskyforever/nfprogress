@@ -1,4 +1,4 @@
-import { currentPlatform } from '@/platform/runtime'
+import { currentPlatform, requireDesktopRuntime } from '@/platform/runtime'
 import { correlationId, sanitizeContext, safeError, type DiagnosticEvent, type Operation, type Subsystem } from './events'
 export interface DiagnosticStats { count: number; bytes: number; last_event_at: string | null; write_failed?: boolean }
 export interface DiagnosticAdapter {
@@ -6,17 +6,18 @@ export interface DiagnosticAdapter {
   text(copy: boolean): Promise<string>; clear(): Promise<void>; export(): Promise<boolean>; copy(text: string): Promise<void>
 }
 const desktop: DiagnosticAdapter = {
-  async append(events) { const { invoke } = await import('@tauri-apps/api/core'); await invoke('append_diagnostics', { events }) },
-  async stats() { const { invoke } = await import('@tauri-apps/api/core'); return invoke('diagnostic_stats') },
-  async text(copy) { const { invoke } = await import('@tauri-apps/api/core'); return invoke('diagnostic_text', { copy }) },
-  async clear() { const { invoke } = await import('@tauri-apps/api/core'); await invoke('clear_diagnostics') },
+  async append(events) { requireDesktopRuntime(); const { invoke } = await import('@tauri-apps/api/core'); await invoke('append_diagnostics', { events }) },
+  async stats() { requireDesktopRuntime(); const { invoke } = await import('@tauri-apps/api/core'); return invoke('diagnostic_stats') },
+  async text(copy) { requireDesktopRuntime(); const { invoke } = await import('@tauri-apps/api/core'); return invoke('diagnostic_text', { copy }) },
+  async clear() { requireDesktopRuntime(); const { invoke } = await import('@tauri-apps/api/core'); await invoke('clear_diagnostics') },
   async export() {
+    requireDesktopRuntime()
     const { save } = await import('@tauri-apps/plugin-dialog')
     const path = await save({ defaultPath: 'worta-diagnostics.jsonl', filters: [{ name: 'JSONL', extensions: ['jsonl'] }] })
     if (!path) return false
     const { invoke } = await import('@tauri-apps/api/core'); await invoke('export_diagnostics', { path }); return true
   },
-  async copy(text) { const { writeText } = await import('@tauri-apps/plugin-clipboard-manager'); await writeText(text) },
+  async copy(text) { requireDesktopRuntime(); const { writeText } = await import('@tauri-apps/plugin-clipboard-manager'); await writeText(text) },
 }
 export class Diagnostics {
   private writeFailed = false

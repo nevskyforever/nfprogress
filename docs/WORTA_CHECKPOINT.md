@@ -2,20 +2,50 @@
 
 **Дата:** 11 октября 2026 года.\
 **Методика:** WORTA ROADMAP SCORING v1.0.\
-**Официальный зачтённый прогресс:** **77.0%**.\
-**Последний полностью закрытый этап:** **C17 Shared Conflict Handling**.\
+**Официальный зачтённый прогресс:** **84.0%**.\
+**Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C18 Complete Project Sync — **IN PROGRESS**; C18.4 — **CLOSED**; C18.5.01–.07 — **REMOTELY ACCEPTED**; C18.5 — **CLOSED**; C18.6 — **CLOSED**; C18.7 — **CLOSED**; C18.8 — **IN PROGRESS**.\
-**Текущий статус C18.5:** **CLOSED** по независимой финальной приёмке; C18.6.01/.02 — **REMOTELY ACCEPTED**; C18.6 — **CLOSED**; C18.7.01 — **REMOTELY ACCEPTED**; C18.7.02 — **REMOTELY ACCEPTED**; C18.7.03 — **REMOTELY ACCEPTED**; C18.8.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
-**Последняя независимая приёмка:** C18.7.03 implementation `5f463653e3dbc5a6dad91295c4f371caf158c83c`, SDK recovery `10b3a39a1197bbd9f30edb9a04cb09cda5e810bd`; Cloud `38077802438` SUCCESS (Frontend admin, Android compression packaging, PostgreSQL foundation/content-action/regressions). Android SDK/build/sync/exact-assets/assembleDebug/APK notice checks SUCCESS. SQLite not expected for workflow-only recovery; accepted C18.7.02 SQLite `37973599074` SUCCESS remains applicable. C18.7 CLOSED по независимой owner/GPT приёмке; C18.8/C18 IN PROGRESS, официальный **77.0%**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
+**Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
+**Последняя независимая приёмка:** owner/GPT supplied acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
+## C21.1.01 — local Web baseline / platform boundary (11 октября 2026)
+
+C18.8 **CLOSED / REMOTELY ACCEPTED**, C18 Complete Project Sync **CLOSED**,
+accepted SHA `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`, Cloud **38123427926 SUCCESS**,
+SQLite **38123427916 SUCCESS**. Evidence explicitly supplied by owner/GPT;
+Codex did not poll remote CI. Historical pending C18 records below are superseded
+by this acceptance, not rewritten. C18 +7.0 points → official **84.0%**.
+
+C21 Web **IN PROGRESS**; C21.1.01 **LOCAL COMPLETE / REMOTE CI PENDING**.
+Local plain-browser production baseline, exhaustive native dependency inventory,
+HTTP/browser vs native adapter contract and minimal fail-closed entry guards:
+`docs/web/C21_WEB_BASELINE.md`. No native/backend/schema/crypto changes, new
+dependencies, production provisioning or deployment. Static-only Web still
+requires a separately bounded durable browser persistence/E2EE runtime design;
+local Python HTTP API proof is not public encrypted Web acceptance.
+Final local checks: frontend CI-equivalent union 112 files/695 cases;
+694 initially PASS, Node26 admin webstorage environment failure resolved by
+only affected 5/5 rerun. Typecheck/build PASS; production Chromium smoke PASS,
+11 application routes + admin login, absent Tauri/native Capacitor, JS errors0,
+API-failure gate and explicit native-feature restrictions verified. Rapid reloads
+exposed retained Python API SQLite-mirror/metadata latency; sequential networkidle
+gates PASS. No backend repair or load-stress acceptance claimed. All five existing
+message translations and protected pyc hashes unchanged; diff check PASS.
+
+Web First remains **C21 → C22 → C23 → PF6.0/RC**; C19/C20 follow the first
+Desktop+Web release. C21 points not awarded. Registration remains CLOSED;
+post-RC owner stabilization, terminology audit and explicit public-release
+decision remain mandatory. Next bounded slice: C21.1.02 browser durable
+persistence/E2EE adapter design and fail-closed acceptance contract, locally.
+
 ## C18.8.01 — complete project multi-device acceptance (11 октября 2026)
 
-**LOCAL COMPLETE / REMOTE CI PENDING**, original starting HEAD/origin
+**Historical LOCAL COMPLETE / REMOTE CI PENDING — superseded by the C18.8 independent acceptance above.** Original starting HEAD/origin
 `10b3a39a1197bbd9f30edb9a04cb09cda5e810bd` (clean6.0 baseline).
 Продолжено после отдельного storage-maintenance commit
 `a3da1f431baf7676a2277c13baf5300e4a76a711`: все шесть незавершённых C18.8
@@ -418,7 +448,7 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 
 После успешно завершённого и разрешённого локального commit Codex самостоятельно выполняет `git push origin 6.0`; обычный push больше не требует ручного действия пользователя. После push Codex не ждёт GitHub Actions и не проверяет workflow через `gh`, GitHub API, браузер или другой polling. Codex сообщает published SHA и ожидаемые workflow/jobs, считает опубликованный slice `REMOTE CI PENDING` и завершает задачу. Независимую проверку remote SHA и GitHub Actions выполняет GPT-чат. Собственный commit/push Codex не даёт права объявить roadmap stage `CLOSED` или изменить официальный процент. ChatGPT сообщает пользователю рекомендуемые модель/thinking и необходимость нового Codex-чата вне копируемого task prompt; эти инструкции не включаются в task prompts. Сохранять это правило во всех следующих checkpoint.
 
-**Permanent execution notes:** C18.4.03 is the inserted UX/diagnostics slice; account-object v2 contract + transport/reader readiness is **C18.4.04**; actual catalog durable substrate, explicit migration and writers are the next bounded **C18.4.05**, with no scoring change. When C21 Web begins, **first** build locally in a browser, audit every Tauri/desktop-only dependency, define/repair browser adapters and stabilize Web locally; **only then** deploy Web/backend to VPS/production infrastructure. C21 is not implemented here. Preserve these notes during checkpoint compaction.
+**Permanent execution notes:** C18.4.03 is the inserted UX/diagnostics slice; account-object v2 contract + transport/reader readiness is **C18.4.04**; actual catalog durable substrate, explicit migration and writers are the next bounded **C18.4.05**, with no scoring change. When C21 Web begins, **first** build locally in a browser, audit every Tauri/desktop-only dependency, define/repair browser adapters and stabilize Web locally; **only then** deploy Web/backend to VPS/production infrastructure. C21.1.01 now establishes the local baseline only; C21 remains IN PROGRESS. Preserve these notes during checkpoint compaction.
 
 Для новых ограниченных implementation slices предпочтительны иерархические номера `C<stage>.<substage>.<slice-two-digits>`: `C18.3.01`, `C18.3.02`, `C18.4.01`. Третий компонент содержит две цифры. Исторические `C18.1`, `C18.2` и C17 H/E identifiers не переименовываются. Нумерация служит организации работы, не вводит веса roadmap и не создаёт проценты для отдельных slices; scoring остаётся stage-based.
 
@@ -452,6 +482,17 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 | C15.7B           | `9578706b9e86a12daceb42a3b69bdc8e60921ce9` | Atomic encrypted inbox remote apply |
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
+
+**Current C18.8 independent owner/GPT acceptance:** implementation
+`8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958` — **REMOTELY ACCEPTED**.
+- [Cloud backend tests 38123427926](https://github.com/nevskyforever/nfprogress/actions/runs/38123427926) — **SUCCESS**.
+- [SQLite sync substrate tests 38123427916](https://github.com/nevskyforever/nfprogress/actions/runs/38123427916) — **SUCCESS**.
+
+Relevant required jobs independently verified green as supplied in the task.
+C18.8/C18 CLOSED; official **84.0%**. C21.1.01 remote CI is pending after
+publication and must not be polled by Codex. Earlier pending records are historical.
+
+### Historical C18.6.01 status — superseded by current C18.8 acceptance
 
 **Текущая независимая приёмка C18.6.01:** implementation
 `5b4d54d3ae4de8bf801683f36f01dbdedb6612a1` — **REMOTELY ACCEPTED**.
@@ -538,9 +579,10 @@ Remote results относятся к correction SHA и подтверждают 
 - C15: 20,0 / 20,0 → 70,0%.
 - C16 Desktop Sync: +3,0 → 73,0% (**CLOSED**).
 - C17 Shared Conflict Handling: +4,0 → **77,0%** (**CLOSED** после независимой remote-приёмки).
-- C18–RC: осталось 23,0 процентных пункта; следующий этап — C18 Complete Project Sync.
+- C18 Complete Project Sync: +7,0 → **84,0%** (**CLOSED** по независимой C18.8 приёмке).
+- C21–RC и C19/C20: осталось 16,0 процентных пункта; следующий этап — C21 Web.
 
-**Официальный прогресс сейчас 77,0%; осталось 23,0 процентных пункта.** Веса и WORTA ROADMAP SCORING v1.0 не менялись.
+**Официальный прогресс сейчас 84,0%; осталось 16,0 процентных пункта.** Веса и WORTA ROADMAP SCORING v1.0 не менялись.
 
 ## 7. История прежних оценок
 
@@ -884,18 +926,18 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 ## 45. Правило ответа на вопрос «сколько процентов?»
 
-Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт, следующий незавершённый этап и условие следующего прибавления. Текущий ответ: **77,0%; последний закрытый этап — C17; C18 Complete Project Sync начат как design/contract work, не закрыт и после полного закрытия добавит 7,0 пункта.** Не менять процент из-за объёма локальной работы или неподтверждённого результата.
+Только WORTA ROADMAP SCORING v1.0. Называть последний закрытый этап, точный зачёт, следующий незавершённый этап и условие следующего прибавления. Текущий ответ: **84,0%; последний закрытый этап — C18 Complete Project Sync; C21 Web IN PROGRESS, после независимого полного закрытия добавит 4,0 пункта.** Не менять процент из-за объёма локальной работы или неподтверждённого результата.
 
 ## 46. Точка продолжения в новом чате — ТЕКУЩЕЕ СОСТОЯНИЕ
 
 **C16 Desktop Sync и C17 Shared Conflict Handling закрыты после независимой remote-приёмки.** C17 включал durable conflict preservation, frozen resolution v2, transport-v2 cutover, causal continuation и coordinated two-/three-device acceptance.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний независимо подтверждённый remote HEAD:** `d6c6dd39cb479c2dcaf560622f1eb692dcaddaf1`.
-**Official progress:** **77,0%**, WORTA ROADMAP SCORING v1.0.
-**Last CLOSED:** C17 Shared Conflict Handling / Conflict Resolution.
-**Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**.
-**Current:** C18 Complete Project Sync — **IN PROGRESS / C18.1 CONTRACT FROZEN LOCALLY**. Следующее начисление возможно после полного закрытия C18 (+7,0 пункта).
+**Последний независимо подтверждённый remote HEAD:** `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`.
+**Official progress:** **84,0%**, WORTA ROADMAP SCORING v1.0.
+**Last CLOSED:** C18 Complete Project Sync.
+**Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**; C18 Complete Project Sync — **CLOSED**.
+**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **LOCAL COMPLETE / REMOTE CI PENDING**. Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
 **Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; commit только после разрешённых gates, затем самостоятельный push без CI polling; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX
@@ -904,9 +946,9 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 
 **Практический чек-лист перед КАЖДЫМ новым prompt или оценкой отчёта:**
 
-1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C16 и C17 закрыты после independently verified remote acceptance; C18.1 — только локально замороженный design-контракт, C18 не закрыт.
+1. Проверить последнее сообщение пользователя и самый свежий `=== CODEX TASK RESULT ===`: что реально выполнено, что только написано, что не запускалось и что уже выполняется. C16/C17/C18 закрыты после independently verified remote acceptance; C18.8 accepted SHA `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`, C21 Web IN PROGRESS.
 2. Всегда разделять: **independently verified remote** / **Codex-reported local** / **not run or unknown**.
-3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **77,0%**. C16 (+3,0) и C17 (+4,0) закрыты; Web First меняет порядок исполнения, но не номера, веса или формулу.
+3. WORTA ROADMAP SCORING v1.0 не импровизировать. Сейчас **84,0%**. C16 (+3,0), C17 (+4,0) и C18 (+7,0) закрыты; Web First меняет порядок исполнения, но не номера, веса или формулу.
 4. Выбирать минимальный достаточный следующий slice. Не повторять уже закрытый локальный scope без изменения, которое могло его сломать.
 5. **Terra Medium first.** Sol Medium/High только по конкретной доказанной необходимости или на отдельный финальный security audit.
 6. TEST BUDGET: focused tests → минимальный fix → repeat только затронутого → один full CI-equivalent pass перед общим commit.

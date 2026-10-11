@@ -23,6 +23,13 @@ export function currentPlatform(): RuntimePlatform {
   return runtimePlatform
 }
 
+/** Reject unsupported native operations before importing a Tauri plugin. */
+export function requireDesktopRuntime(): void {
+  if (currentPlatform() !== 'tauri') {
+    throw new Error('Доступно только в desktop-приложении.')
+  }
+}
+
 export function isNativeMobile(): boolean {
   return runtimePlatform === 'ios' || runtimePlatform === 'android'
 }
