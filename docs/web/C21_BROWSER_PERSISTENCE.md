@@ -1,6 +1,6 @@
-# C21.1.02–C21.1.08 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.09 — Browser durable persistence / E2EE adapter contract
 
-Contract revision7, 2026-10-12. IDB schema5 implements dormant imported coverless Metadata protected apply.
+Contract revision8, 2026-10-13. IDB schema5 implements dormant imported coverless Metadata protected apply.
 C21.1.06 remains the broader BLOCKED / NOT LOCAL COMPLETE umbrella.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
@@ -711,7 +711,9 @@ separate. Do not infer admission/authority from the existence of a prepared row.
 
 C21.1.07 **REMOTELY ACCEPTED** by owner/GPT at
 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**,
-all six required jobs SUCCESS. C21.1.08 **LOCAL COMPLETE / REMOTE CI PENDING**.
+all six required jobs SUCCESS. C21.1.08 **REMOTELY ACCEPTED** at
+`720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**,
+all six required jobs SUCCESS; owner/GPT supplied independent acceptance.
 C21.1.06 broader umbrella remains **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.
 Official **84.0%**, C21 **IN PROGRESS**, no points. Earlier schema/slice statements
 above describe their historical implementations and are superseded here.
@@ -823,3 +825,162 @@ Cloud explicitly selects both new specs with current C21 specs and hard-failure
 Chromium. No heavy PostgreSQL/Rust/SQLite suite needed/run; no dependencies,
 native/backend/crypto/AAD/frame/compression/frozen contract changes. Browser strict
 is a durability hint; physical power loss and other browsers are not tested.
+
+## C21.1.09 — complete local capture prerequisite audit / STOP
+
+2026-10-13. **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.
+Accepted C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`,
+Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS, independently
+supplied by owner/GPT. Imported coverless Metadata protected apply is REMOTELY
+ACCEPTED; C21.1.07 remains accepted. Broader C21.1.06 remains NOT LOCAL COMPLETE.
+Official **84.0%**, C21 **IN PROGRESS**, no points. Clean starting local HEAD ==
+fetched origin/6.0 == accepted SHA. Acceptance recorded in checkpoint first.
+
+### Browser local authority evidence
+
+The missing prerequisite is a **durable canonical browser project-source repository**
+with exhaustive family membership/deletion/dependency coverage and an immutable
+source snapshot/revision token checked atomically against capture commit. None of
+that is supplied by the existing encrypted transport DB or its ordinal allocator.
+There is no new capture producer, cohort-status API, record format or schema here.
+
+| Family / dependent state | Current Web path | Durable browser authority / exhaustive capture |
+| --- | --- | --- |
+| Projects | PlatformProjectReadRepository → ApiProjectReadRepository → projectsApi list/get (`infrastructure/projects/projectReadRepository.ts`, `infrastructure/api/projectReadRepository.ts`, `api/projects.ts`) | Absent. HTTP results and Pinia project/currentProject refs are views; projectBindings records only explicit lineage. |
+| Legacy Notes | getNotesRepository selects ApiNotesRepository on Web (`infrastructure/notes/notesRepository.ts`); api/notes.ts uses project/stage scoped GET/PATCH/DELETE | Absent. No durable browser Notes payload table or exhaustive source revision. |
+| Metadata | PlatformProjectMetadataRepository → ApiProjectMetadataRepository → projectsApi.updateMetadata | Absent for local upload-existing source. Imported ownerHeads/applied inbox prove authenticated retained remote history, not every current mutable local project field or local candidate. |
+| Stage / Stage order | projectsApi createStage/updateStage/deleteStage/reorderStages → compatibility HTTP | Absent. Stage list/order in project DTO is not a frozen browser source transaction. |
+| Documents | api/documents.ts Web list/get/save/progress → compatibility HTTP | Absent. Browser save sends content without native expectedHeads; editor refs are transient. localStorage remembers selection/scroll/zoom/typewriter state only. |
+| Maps | ApiNotesRepository mindMap/saveMindMap → api/notes.ts project/stage HTTP | Absent. Editor data and a fetched map cannot prove complete map membership, annotations, derived Notes or source CAS. |
+| Content Notes | Same Web notes API, including stage scope; native ContentNote runtime/writer is separate | Absent. No browser Content Note candidates, stable document scopes or causal/local source repository. |
+| Progress | PlatformProgressRepository → ApiProgressRepository → projectsApi record/deleteProgress | Absent. No browser immutable progress journal/chain or complete project/stage source snapshot. |
+| Project Game | api/game.ts Web /api/game/state and command endpoints | Absent. No browser canonical Game action ledger, owner/reward/dependency/capture source. |
+| Project-scoped dependencies | Stage relations/order, map-derived Notes/annotations, document scopes, completion/reward links and project/catalog relations are API/native data | Absent as one complete browser project snapshot; IDs found in envelopes do not prove local source membership. |
+| Deleted objects / tombstones | HTTP delete operations; retained sync envelopes may contain individual deletes | Absent as exhaustive browser-local deletion journal. Existing transport history proves only those events already retained, not every pre-existing local deletion or future mutation boundary. |
+
+Evidence is code inspection, not a claim that user data does not exist elsewhere.
+`Run Web.sh` launches Python-compatible development FastAPI with host test_data;
+backend/app/routers/{projects,notes,documents,game}.py delegate to host Services,
+and backend/app/dependencies.py:get_services returns app.state.services. Durable
+host-side data, if present, is NOT browser-owned IDB authority. Separate HTTP list/get
+responses cannot participate in an IDB source+cohort transaction or provide a complete
+cross-family immutable source token; taking another GET after async sealing is a race.
+HTTP capture is also outside this slice's no-network boundary.
+
+`stores/projects.ts` uses ordinary Vue refs; `stores/cloudSession.ts:initialize`
+returns unavailable outside Tauri. Production IDB creation is exclusively in
+platform/web/persistence.ts with exactly the eight accepted v5 stores. Those retain
+identity/account binding, sealed/accepted outbox, received/applied encrypted inbox,
+cursors, receipts, lineage and imported Metadata authority/proofs. They contain no
+mutable local project/Note/Stage/Document/Map/Progress/Game source tables. Browser
+storage usage elsewhere is navigation, language/theme, search/workspace preference
+or editor position, not manuscript/project authority. No Pinia persistence plugin
+or existing local payload/CAS repository supplies the missing capture boundary.
+
+Therefore complete deterministic browser-local enumeration is **NOT POSSIBLE**
+with current adapters. Atomic source snapshot/CAS with encrypted cohort insertion
+is **NOT AVAILABLE**. Web Locks protect cooperating durability writers, not mutations
+made by host Services or UI/editor buffers. A staged encrypted plan cannot revalidate
+an absent durable source. Current sealed rows, receipts, highest ordinal, timestamps,
+visible objects or imported Metadata proof are expressly not substitutes.
+
+### Exact native invariant inspected
+
+`frontend/src-tauri/src/note_sync.rs` and
+`frontend/src/infrastructure/sqlite/cloudProjectBootstrapRepository.ts`:
+
+- `CloudProjectBootstrapRecord` has project/account/device/bootstrap/mode/phase,
+  remote state/high-water, initial_event_count, initial_local_ordinal_hi,
+  initial_max_server_sequence and bounded reason. Preparation checks local SQLite
+  project existence, current device and Notes preflight before creating upload lineage.
+  Registration checks exact immutable IDs, transitions prepared→registered only,
+  preserves an already active remote state and uses MAX for remote high-water.
+- `capture_initial_note_sync_intents` (5236) begins SQLite IMMEDIATE, validates
+  account/device/project/bootstrap and upload_existing mode, and returns the ORIGINAL
+  record for captured/completing/ready/paused without recapture. First capture requires
+  registered + remote_state **initializing**, complete successful Note preflight and
+  no existing cloud_sync_project_bindings row. Registered/active alone is not that
+  native initial-capture admission condition.
+- Within that SAME transaction it inserts project binding, selects ALL current
+  `notes WHERE project_id=? ORDER BY id`, creates one initial upsert intent per row,
+  allocates account/device ordinals and freezes count/high-water plus captured phase.
+  Any missing/unsupported intent or SQL failure aborts binding, every intent/outbox
+  allocation and phase together. Empty initial Notes yields count0/high-water0.
+- `initial_event_count` is **notes.len() at that capture**, not every project object,
+  current outbox count, current accepted count or history count. Preflight (5040)
+  rejects Stage/map-derived Notes and non-html formats. C18 family-specific Metadata,
+  Stage, Document, Map, Content Note, Progress and Game capture paths remain distinct;
+  do not redefine the C16 Note cohort as generic all-family project capture.
+- `initial_local_ordinal_hi` is maximum ordinal returned by those initial intents,
+  not a snapshot of a global highest ordinal. `next_local_ordinal` (5497) uses
+  account/device MAX(non-legacy outbox ordinal)+1 inside the owning SQL transaction.
+  Cohort membership additionally requires exact account/device/project, entity_type
+  note, positive ordinal and ordinal<=frozen high-water; unrelated lower ordinals
+  do not count. Creating later work must not alter count/boundary.
+- Native intents are initially **unsealed**, with snapshot_json/mutation_generation.
+  Unsealed edits can coalesce into the same event/ordinal; sealing uses expected
+  mutation generation. A new mutation after sealing creates a new event/ordinal
+  (delete after a sealed initial event links its parent and exceeds frozen high-water).
+  Frozen cohort membership is not an immutable plaintext image while unsealed.
+  Browser outbox currently begins at sealed immutable bytes and must not copy native
+  plaintext intent persistence or promise identical coalescing without its source proof.
+- Capture's actual SQL enumerates current Notes rows, not a tombstone table or all
+  historical deletes. Delete/tombstone evidence belongs to retained mutation history
+  and writer rules; absent rows cannot be inferred as captured initial Notes. Any
+  future browser source must expose the applicable deletion history explicitly.
+- `read_initial_note_cohort_status` (5292) counts the exact scoped Note/ordinal subset,
+  accepted rows with upload receipts, and COALESCE(MAX(receipt server_sequence),0).
+  Complete means event_count==frozen initial_event_count AND accepted_count==event_count.
+  Neither global pull/current_cursor nor unrelated/post-boundary receipts prove it.
+  `commit_note_sync_upload_acceptance` (7126) validates exact account/device/event,
+  stable positive sequence, sealed-envelope consistency and accepted receipt replay;
+  the first duplicate diagnostic is retained. Web additionally records protocol2/3.
+- `initial_max_server_sequence` remains NULL at capture and during partial upload.
+  `mark_cloud_project_bootstrap_completing` (5325) first reads a COMPLETE cohort,
+  then in a separate IMMEDIATE transaction rechecks immutable scope and stores that
+  cohort's max sequence with completing phase. It is not registration high-water or
+  global cursor. This is an observed two-transaction native method, not an invented
+  browser full-record CAS/atomicity guarantee. Repeating on unchanged membership/
+  immutable receipts yields the same boundary. No markCompleting producer added.
+- Ready separately requires active remote evidence and durable ACK past max(remote
+  high-water, initial max sequence); no browser ready producer follows from capture.
+
+Inspected native regressions (read, NOT run):
+bootstrap_capture_is_atomic_complete_and_idempotent;
+file_backed_restart_reuses_bootstrap_token_and_initial_event_ids;
+bootstrap_capture_rolls_back_binding_and_every_intent_on_failure;
+edits_and_deletes_during_bootstrap_preserve_ordered_durable_work;
+unsupported_note_blocks_before_token_and_before_capture;
+accepted_cohort_completion_ready_and_pause_resume_are_durable.
+C18 native capture entry points inspected: project_metadata_sync::capture_legacy_candidate,
+stage_sync::capture_candidate, document_sync::begin, map_sync::begin,
+content_note_writer::begin, progress_sync::capture and game_migration::capture.
+They consume SQLite local sources/dependencies, not browser local authority.
+
+### Bounded outcome and next prerequisite
+
+**STOP BEFORE IMPLEMENTATION.** Schema remains5, projectBinding record1 unchanged;
+upload_existing stays prepared/registered, count0/ordinalHI0/maxSequenceNULL.
+Imported captured/active lineage is its existing zero-cohort import contract, not
+local upload capture. Metadata ownerHeads and applied inbox proof remain unchanged.
+No cohort/status/completing/ready API, new store, migration, sealing, source writes,
+HTTP, ACK/proven advancement or protected-apply expansion. No Cover/self-echo work.
+No backend/PostgreSQL/native/frozen contract/dependency changes.
+
+Next separately authorized bounded prerequisite: design and independently review a
+canonical encrypted browser LOCAL project-source repository, starting with explicit
+project + eligible Legacy Note authority and source-version/CAS/deletion coverage,
+with an honest family eligibility matrix. Other syncable local families/dependencies
+must be represented or explicitly unsupported before any complete-project capture
+claim. Keep local source storage separate from sync plaintext; require one actual
+source+encrypted-cohort commit boundary or a proven atomic revision-token protocol.
+Do not add that substrate/store/dependency under this documentation-only stop.
+
+Local checks: source/usage/native-test inspection, documentation reference/status
+consistency, unchanged production/workflow scope, protected pyc hashes and
+`git diff --check` PASS. Runtime focused/migration/affected adapter tests, Chromium,
+typecheck and production/heavy builds NOT RUN for docs-only STOP; nothing skipped
+or softened, no runtime PASS inferred from prior accepted C21.1.08. No API requests
+made or browser session launched; page-error count N/A. Existing Cloud docs/cloud/**
+filter matches this audit publication; SQLite filter does not. After publishing,
+audit CI PENDING — NOT POLLED; audit acceptance cannot make capture LOCAL COMPLETE.

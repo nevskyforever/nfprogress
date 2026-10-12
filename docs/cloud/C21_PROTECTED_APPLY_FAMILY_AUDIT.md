@@ -27,12 +27,55 @@ protected apply/heads/applied proofs and conflict/orphan remain separate. No fam
 is implemented by treating mere projectBindings existence as success. C21.1.07
 REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
 
+## C21.1.09 complete local initial capture audit / prerequisite stop
+
+2026-10-13. Owner/GPT independently accepted C21.1.08 at
+`720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**,
+all six required jobs SUCCESS. Imported coverless Metadata apply and C21.1.07
+lineage prerequisite REMOTELY ACCEPTED. Official84.0%, C21 IN PROGRESS.
+
+**C21.1.09 BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE** under its
+explicit source-authority STOP rule. Web Project/Metadata/Progress repositories
+select API adapters; Legacy/Content Notes and Maps use project/stage scoped HTTP;
+Documents and Game use compatibility HTTP. Pinia/editor refs and browser storage
+preferences are not a durable exhaustive source. Run Web.sh's host Python backend
+may retain data, but no complete source revision/CAS is atomically shared with
+browser IDB. Existing v5 transport/proof stores cannot enumerate never-sealed
+objects, unpublished local changes, all family dependencies or pre-existing deletions.
+Imported Metadata proof is remote-history proof, not upload-existing local authority.
+
+Exact native Note capture uses IMMEDIATE transaction over canonical SQLite Notes,
+new project binding, unsealed intents/outbox ordinals and captured boundary.
+Count=Notes rows at capture; HI=max(initial allocated ordinals); cohort requires
+account/device/project + note kind + positive ordinal<=HI. Preflight rejects
+Stage/map-derived/non-html Notes; other C18 families have separate capture semantics.
+Native unsealed edits may coalesce in the same initial membership; sealed follow-ups
+get new ordinals. Tombstones cannot be reconstructed from missing UI rows.
+Max accepted sequence is persisted at completing only after full scoped cohort
+receipt proof; global cursor is insufficient. Detailed family/source matrix,
+actual SQL invariants and read-only inspected crash/retry/delete tests are in
+[the browser contract's C21.1.09 section](../web/C21_BROWSER_PERSISTENCE.md#c21109--complete-local-capture-prerequisite-audit--stop).
+
+Docs/checkpoint ONLY. v5/eight stores and projectBinding record1 unchanged;
+upload_existing remains prepared/registered with 0/0/NULL, no capture/cohort-status/
+completing/ready API or fake source/count. Metadata ownerHeads/applied proof unchanged.
+No Cover/blob store, native self-echo candidate proof, network, ACK/proven advance
+or upload-existing protected apply. Broader C21.1.06 NOT LOCAL COMPLETE persists.
+
+Next independently authorize canonical encrypted browser project/Legacy Note local
+source with durable deletion/dependency membership and source snapshot/CAS; document
+other-family eligibility before claiming complete-project capture. No substrate
+implementation hidden in this audit. Local documentation/source/status/diff/pyc
+checks only; runtime suites/Chromium/build NOT RUN. Cloud audit CI expected after
+push, SQLite not expected, no Actions polling. Audit publication is not capture
+LOCAL COMPLETE and awards no roadmap points.
+
 ## C21.1.08 bounded imported Metadata implementation update
 
 Owner/GPT independently accepted C21.1.07 at
 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**,
 all six required jobs SUCCESS. Durable imported-lineage prerequisite accepted.
-C21.1.08 **LOCAL COMPLETE / REMOTE CI PENDING**: schema5 ownerHeads record1,
+C21.1.08 **REMOTELY ACCEPTED** (720aea2d8857de572a706e6332180a08e8d79727, Cloud38293629801 SUCCESS, all six required jobs): schema5 ownerHeads record1,
 Metadata project owner, complete ordered causal tips/history metadata, inbox record2
 with exact applied proof and unchanged wire. Current normal-user/binding/draining
 key lease + frozen Metadata authentication/codec runs before IDB; private opaque
