@@ -181,7 +181,7 @@ export function validateBrowserV2SyncState(scopes: BrowserSyncScope[], outbound:
     return scopes.find(scope => scope.accountId === id) ?? failure()
   }
   const outgoing = outbound.map(value => { const row = outbox(value, scopeFor(value)); if (row.state !== 'sealed') failure(); return row })
-  const incoming = inbound.map(value => inbox(value, scopeFor(value)))
+  const incoming = inbound.map(value => validateBrowserInboxRecord(value, scopeFor(value)))
   const states = checkpoints.map(value => cursor(value, scopeFor(value)))
   for (const scope of scopes) {
     const out = outgoing.filter(row => row.account_id === scope.accountId), received = incoming.filter(row => row.account_id === scope.accountId)
@@ -213,7 +213,7 @@ export function validateBrowserV3SyncState(scopes: BrowserSyncScope[], outbound:
   validateBrowserV2SyncState(scopes, rows.map(row => ({ ...row, state: 'sealed' })), inbound, checkpoints)
 }
 
-function inbox(value: unknown, scope: BrowserSyncScope): BrowserInboxRecord {
+export function validateBrowserInboxRecord(value: unknown, scope: BrowserSyncScope): BrowserInboxRecord {
   const applied = (value as BrowserInboxRecord)?.state === 'applied'
   if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item', ...(applied ? ['applied_proof'] : [])])) failure()
   const row = value as BrowserInboxRecord
@@ -256,7 +256,7 @@ export function validateBrowserRetainedHistory(
   scope = snapshotScope(scope); reference = historyReference(reference, scope)
   let outgoing: BrowserOutboxRecord | null = null, received: BrowserInboxRecord | null = null
   if (outbound !== undefined || receipt !== undefined) outgoing = validateBrowserUploadPair(outbound, receipt, scope)
-  if (inbound !== undefined) received = inbox(inbound, scope)
+  if (inbound !== undefined) received = validateBrowserInboxRecord(inbound, scope)
   if (outgoing && outgoing.event_id !== reference.event_id || received && received.event_id !== reference.event_id) failure('conflicting_record')
   if (outgoing && received) {
     assertOwnEcho(outgoing, wireJSON(received.wire_item) as WireItem)
@@ -380,8 +380,8 @@ export class BrowserSyncDurability {
             if (row.raw_body !== expected.raw_body || row.local_ordinal !== expected.local_ordinal || row.protocol_version !== expected.protocol_version
               || row.event_id !== expected.event_id || row.account_id !== expected.account_id || row.device_id !== expected.device_id) failure('conflicting_record')
             if (sequence.result !== undefined && sequence.result.event_id !== row.event_id) failure('conflicting_record')
-            if (received.result !== undefined) { const item = inbox(received.result, scope); if (item.server_sequence !== receipt.server_sequence) failure('conflicting_record'); assertOwnEcho(row, wireJSON(item.wire_item) as WireItem) }
-            if (atSequence.result !== undefined && inbox(atSequence.result, scope).event_id !== row.event_id) failure('conflicting_record')
+            if (received.result !== undefined) { const item = validateBrowserInboxRecord(received.result, scope); if (item.server_sequence !== receipt.server_sequence) failure('conflicting_record'); assertOwnEcho(row, wireJSON(item.wire_item) as WireItem) }
+            if (atSequence.result !== undefined && validateBrowserInboxRecord(atSequence.result, scope).event_id !== row.event_id) failure('conflicting_record')
             if (proof.result !== undefined) {
               if (proof.result.server_sequence !== receipt.server_sequence) failure('conflicting_record')
               result('already_accepted'); return // duplicate is response diagnostics; keep the first receipt unchanged.
@@ -444,7 +444,7 @@ export class BrowserSyncDurability {
         try {
           const current = request.result
           if (!current) { result(records); return }
-          const row = inbox(current.value, scope) // Unknown state/version cannot disappear behind a received-only index filter.
+          const row = validateBrowserInboxRecord(current.value, scope) // Unknown state/version cannot disappear behind a received-only index filter.
           if (row.state === 'received') records.push(row)
           if (records.length === limit) result(records)
           else current.continue()
@@ -490,7 +490,7 @@ export class BrowserSyncDurability {
                     }
                     else if (proof.result !== undefined) failure()
                     if (bySequence.result !== undefined || byEvent.result !== undefined) {
-                      const stored = inbox(bySequence.result, scope), sameEvent = inbox(byEvent.result, scope)
+                      const stored = validateBrowserInboxRecord(bySequence.result, scope), sameEvent = validateBrowserInboxRecord(byEvent.result, scope)
                       if (stored.event_id !== event || sameEvent.server_sequence !== seq
                         || immutableWireIdentity(wireJSON(stored.wire_item)) !== immutableWireIdentity(item)) failure('conflicting_record')
                       replayed++

@@ -1,6 +1,6 @@
-# C21.1.02–C21.1.09 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.10 — Browser durable persistence / E2EE adapter contract
 
-Contract revision8, 2026-10-13. IDB schema5 implements dormant imported coverless Metadata protected apply.
+Contract revision9, 2026-10-13. IDB schema6 adds dormant encrypted canonical local Project/Legacy Note source; imported coverless Metadata protected apply remains unchanged.
 C21.1.06 remains the broader BLOCKED / NOT LOCAL COMPLETE umbrella.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
@@ -10,9 +10,9 @@ IN PROGRESS, official WORTA ROADMAP SCORING v1.0 **84.0%**.
 ## Decision and limits
 
 Use one origin/profile-scoped IndexedDB database `worta-web`, with Web Locks
-exclusive writer ownership of `worta-web:writer`. Storage schema version **5**
+exclusive writer ownership of `worta-web:writer`. Storage schema version **6**
 implements `identities`, `accountBindings`, `outbox`, `inbox`, `cursors`,
-upload-acceptance `receipts`, dormant `projectBindings`, and Metadata-only `ownerHeads`.
+upload-acceptance `receipts`, dormant `projectBindings`, Metadata-only `ownerHeads`, and canonical `localProjects`/`localNotes`.
 Applied Metadata proof is part of the versioned inbox row; no separate apply-receipt store.
 Other stores below remain a **frozen semantic design**, not implemented stores.
 No full Web sync is enabled. Owner/GPT independently accepted C21.1.02 + .02A
@@ -95,6 +95,8 @@ No store is created speculatively before its implementing migration.
 | `cursors` | `[account_id,device_id]`, no indexes | Implemented schema2 / record1: pull cursor, `next_local_ordinal` starting1; `ack_cursor` and `proven_prefix` reserved at0, with no advancement API. Pull expected-old CAS is inseparable from inbox commit. Never infer ACK from ciphertext receipt. |
 | `receipts` | `[account_id,event_id]`; unique `server_sequence` on `[account_id,server_sequence]` | Implemented schema3 / record1: exactly account/device/event IDs, protocol2 or3, server_sequence and first response duplicate diagnostic. Upload acceptance only. No protected-apply receipt, causal continuation, key/content/timestamp or arbitrary backend body. |
 | `ownerHeads` | `[account_id,owner_kind,owner_id]` | Implemented schema5 / record1, Metadata only: owner_kind project_metadata, owner_id project_id; exact bootstrap, complete sorted tips and bounded retained-history proof references with per-event revision/generation. No decrypted projection. |
+| `localProjects` | `[account_id,project_id]`, no indexes | Implemented schema6 / record1: device, safe project-wide source revision, deleted classification, authenticated opaque native Project payload + complete membership manifest. |
+| `localNotes` | `[account_id,project_id,note_id]`; unique `identity` on `[account_id,note_id]` | Implemented schema6 / record1: stable membership/device, last changed source revision, native Note revision, live/deleted classification, encrypted full native Note or minimal routing tombstone. Primary-key prefix provides complete project enumeration; identity index prevents moving/duplicating a Note across projects. |
 | `blockers` | `[account_id,event_id,code]`; `[account_id,state,server_sequence]` | Planned: orphan/conflict/dependency blocker references, sanitized enums; conflict versions retained in encrypted history, not silent LWW. |
 | `accountObjects` | `[account_id,event_id]`; `[account_id,entity_type,entity_id]` | Planned: encrypted Catalog types4–7 and Game12/13 account objects plus canonical owner/proof references; Metadata, Stage and Content variants use existing ownership/crypto rules. |
 | `encryptedBlobs` | `[account_id,blob_id]` | Planned: authenticated ciphertext/nonce/hash/size for covers and immutable blob versions; no absolute Word/Scrivener paths. |
@@ -984,3 +986,135 @@ or softened, no runtime PASS inferred from prior accepted C21.1.08. No API reque
 made or browser session launched; page-error count N/A. Existing Cloud docs/cloud/**
 filter matches this audit publication; SQLite filter does not. After publishing,
 audit CI PENDING — NOT POLLED; audit acceptance cannot make capture LOCAL COMPLETE.
+
+## C21.1.10 — local source design preflight
+
+Accepted C21.1.09 audit `be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud
+38310226431 SUCCESS, all six required jobs SUCCESS, owner/GPT supplied. Capture
+remains blocked/not implemented; official84.0%, C21 IN PROGRESS.
+
+Canonical Legacy Note source must retain the native payload fields: id, project_id,
+stage_id, source_type, source_map_id, source_node_id, content_format, title, content,
+checklist(id/text/checked), color, pinned, archived, sort_order, tags, created_at,
+updated_at, metadata, and native local revision. NoteSyncRecord owns every field
+except native local revision; that revision must remain distinct from project-wide
+source revision and future cloud event revision. Nullable routing fields are retained,
+not dropped. This slice admits only project-owned HTML, null Stage/map/node routing;
+Stage/plain/map-derived sources are rejected, not silently converted. Stable Note
+ID must be unique per account across project membership. Display title/system tags,
+owner labels and stage names are UI projections, not canonical Legacy source.
+Native update allows only title/content/tags/checklist/color/pinned/archived,
+increments local Note revision and timestamp; delete retains route+deleted_at in
+sync intent then removes live Notes row. Native initial capture enumerates live
+Notes, not historic never-cloud-visible deletes. Local minimal deletion membership
+may remain as a tombstone, but future initial cohort must not invent cloud-delete
+publication for a never-published Note. Deleted projects cannot be captured.
+
+Project source preserves the native ProjectRecord identity/scalars/nullable timestamps
+and its opaque JSON payload; unsupported populated other-family content is refused,
+not removed. No Stage/Document/Map/Progress/Game/Cover authority is introduced.
+Existing RuntimeKeyContext provides current account AMK without a cloud project
+binding. Existing object helpers use crypto1/AAD1 and stable canonical-user/project/
+entity tuples (project_metadata and note). Versioned local plaintext wrappers are
+inside ciphertext and cannot be mistaken for cloud frames; helpers, key derivation,
+AAD bytes, wire/frame/codec and key lifecycle remain unchanged. No anonymous-key or
+plaintext fallback. Crypto and payload validation occur outside live IDB transactions.
+
+
+### C21.1.10 implemented local source / LOCAL COMPLETE
+
+`session.localSource.bind(auth, accountBindings, keys)` is the dormant entry point.
+It uses the normal-user runtime, authoritative account binding and draining AMK lease;
+no cloud project registration is needed. Schema6 adds ONLY the two local stores above.
+Record1 project ciphertext contains native id/name/goal/infinite/unit/status/nullable
+created_at/updated_at/payload, lifecycle and sorted complete member IDs. Record1 Note
+ciphertext contains all 19 native fields listed above, or minimal route/deleted_at plus
+native local revision. Existing crypto1/AAD1 object helpers and project_metadata/note
+stable tuples are reused unchanged; local-format1 is an encrypted source wrapper,
+not a cloud frame/event/AAD/key protocol. Random authenticated nonces, canonical
+bounded JSON, fatal UTF8 decoding, exact-key/source validators; buffers/key copies zeroed.
+Only IDs/device/revision/deletion/routing metadata are clear. No plaintext durable.
+Current authenticated unlocked account is mandatory; anonymous editing is not enabled.
+
+`createProject` rejects duplicates. `initializeProject` accepts a trusted explicitly
+complete project+Notes snapshot, validates ALL rows before one atomic write, and is
+never called by production composition. No discovery/network/automatic HTTP import.
+Exact identical initialization retry at source revision1 returns1 and preserves
+original ciphertext; conflicting/partial retry or retry after a later mutation rejects.
+The caller must guarantee the supplied set is complete: the repository cannot prove
+completeness of an external HTTP/source dataset. It makes that explicit complete set
+canonical, never merges it with UI cache or a partial collection. All member IDs,
+live and tombstone, are covered by the encrypted project manifest.
+
+Narrow APIs: createNote, updateNote(native editable seven fields), tombstoneNote,
+replaceProject, deleteProject, readSnapshot, withDecryptedSnapshot, assertSnapshot.
+No raw put, move, restore, import merge, cloud seal/capture/readiness producer.
+Creation commits source revision1. Each subsequent authoritative project/Note mutation
+increments it exactly once in the SAME strict transaction as its row writes. Native
+Note revision starts0/increments on update/delete separately; local source revision
+is never a cloud revision, timestamp, ordinal, server sequence or cursor. Null resets
+and native color normalization are preserved. Pure reads/exact init retry do not increment.
+Stable Note identity is unique per account, including deleted membership. A second
+project cannot claim an existing ID; rejected moves never remove the original row.
+Deleted project source rejects snapshots/future capture. Bound project deletion is
+unsupported (no cloud deletion semantics); unbound deletion retains encrypted evidence
+and advances its source revision. No resurrection/reuse API is provided.
+
+Native bootstrap selects live canonical Notes; physically deleted never-cloud-visible
+Notes do not produce initial cloud delete events. The browser retains minimal local
+routing tombstones ONLY as deletion/membership/non-reuse evidence. Snapshot includes
+them; a future initial live cohort MUST filter state=live, not manufacture publication
+of deleted-before-capture Notes. No current tombstone is an outbox obligation. Later
+cloud-visible delete obligations require a separately implemented capture/sync boundary.
+
+ReadSnapshot retrieves Project AND ALL project-prefix Note rows in ONE readonly
+transaction, validates/decrypts outside it, authenticates full membership, and returns
+one immutable encrypted snapshot ordered by stable Note ID with an opaque verified
+WeakMap token. No plaintext is retained in the token. Full native payloads can be
+consumed temporarily via withDecryptedSnapshot outside any IDB transaction. Bounds:
+4000 members, 8MiB per encrypted source payload, JSON depth64; excess refuses a complete
+snapshot/initialization, never truncates. Clear metadata cannot quietly replace missing
+members or fabricate a tombstone. Pure current CAS passes; changed revision/row/membership,
+foreign scope, forged token, stale auth/key/session and deleted project fail closed.
+
+`assertLocalSourceInTransaction` synchronously schedules full Project+membership
+revalidation in a caller's SAME future source+outbox+projectBindings transaction.
+It compares exact revision and encrypted rows as well as current scope/lease. This is
+an infrastructure assertion primitive, not a public arbitrary mutation callback.
+Future flow can read R → prepare crypto outside IDB → re-enter one transaction →
+assert R → write cohort. C21.1.10 does NOT write that cohort or binding phase.
+Mutation prepares authenticated replacement bytes outside IDB, rechecks the full
+expected-old token inside the strict transaction, then queues all writes. Success
+requires transaction completion; request abort/quota/auth invalidation/key lock/close
+never reports a partially committed mutation.
+
+v5→v6 validates exact eight-store schema, immutable identity/binding, all transport/
+receipt/cursor invariants, every applied inbox proof, all Metadata head ancestry and
+matching imported bootstrap/proof links. Detached received views permit the old
+transport validator without modifying any applied row. This is STRUCTURAL validation,
+not AEAD or wire-digest recomputation during versionchange. No key or async crypto in
+upgrade. All eight original rows/bodies/proofs/heads remain exactly preserved; new
+locals start EMPTY, no inferred source. Corrupt structural v5, forced abort and quota
+roll back the whole upgrade. Future version refuses downgrade without clear/recreate.
+
+Validation: local authority34, local migration14, affected C21 persistence/receipts/
+lineage/Metadata122 tests PASS. Production Chromium acceptance98 cases PASS, real IDB/
+Web Locks and actual sodium/auth/account/key runtime, zero application API requests,
+zero page errors. Includes preserved applied v5 fixture, source initialization abort,
+Note/revision rollback, full membership missing-row refusal, current/stale future CAS,
+reload/profile reopen/account/device/logout/multitab, no durable plaintext, no sync writes.
+Harness synthetic Metadata sequences now follow prior immutable receipt sequences as
+well as pull position; this corrects fixture collision without relaxing production rules.
+Typecheck and production build PASS (existing chunk/dynamic-import warnings only).
+Cloud workflow explicitly runs both new specs plus mandatory real Chromium entry point.
+SQLite NOT EXPECTED; remote CI PENDING — NOT POLLED; no skipped/softened gates.
+
+C21.1.10 LOCAL COMPLETE, remote acceptance pending. C21.1.09 audit REMOTELY ACCEPTED
+at be235b79e977f9f14aa573e9a606499f6aa687de / Cloud38310226431 all6SUCCESS;
+its capture remains NOT IMPLEMENTED / BLOCKED / NOT LOCAL COMPLETE. Local repository
+is dormant, NOT wired to editor/UI. HTTP compatibility remains non-authoritative;
+no transport, outbox/receipt, projectBinding, ACK/proven prefix or protected-apply
+semantics changed. Other local families and Cover remain unsupported. C21.1.06 broader
+NOT LOCAL COMPLETE; official84.0%, C21 IN PROGRESS, no new points. Next bounded slice:
+independently review explicit eligible Legacy Note source consumption and atomic
+initial capture using this snapshot/CAS, with no complete-project/multi-family claim.

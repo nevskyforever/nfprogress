@@ -5,13 +5,56 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 / C21.1.05A — **REMOTELY ACCEPTED**; C21.1.06 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 — **REMOTELY ACCEPTED**; C21.1.08 — **REMOTELY ACCEPTED**; C21.1.09 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 / C21.1.05A — **REMOTELY ACCEPTED**; C21.1.06 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 — **REMOTELY ACCEPTED**; C21.1.08 — **REMOTELY ACCEPTED**; C21.1.09 blocker/audit — **REMOTELY ACCEPTED**, capture — **BLOCKED / NOT LOCAL COMPLETE**; C21.1.10 — **LOCAL COMPLETE / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
-**Последняя независимая приёмка:** C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. Prior C21.1.07 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. C21.1.06 prerequisite audit `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`, Cloud `38258729038` **SUCCESS**, all six required jobs SUCCESS; audit accepted, implementation remains BLOCKED / NOT LOCAL COMPLETE. Prior C21.1.05 / C21.1.05A accepted repair `af407f751cbda2898eb881f90fdd08177e2b28d3`, implementation `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud `38165641607` **SUCCESS**, all six required jobs SUCCESS (Frontend admin; PostgreSQL cloud and legacy regressions; mandatory foundation; mandatory content-action; mandatory complete-project; Android compression packaging). C21.1.05 and C21.1.05A **REMOTELY ACCEPTED** by owner/GPT. Prior C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
+**Последняя независимая приёмка:** C21.1.09 blocker/audit `be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, capture NOT IMPLEMENTED / NOT LOCAL COMPLETE. Prior  C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. Prior C21.1.07 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. C21.1.06 prerequisite audit `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`, Cloud `38258729038` **SUCCESS**, all six required jobs SUCCESS; audit accepted, implementation remains BLOCKED / NOT LOCAL COMPLETE. Prior C21.1.05 / C21.1.05A accepted repair `af407f751cbda2898eb881f90fdd08177e2b28d3`, implementation `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud `38165641607` **SUCCESS**, all six required jobs SUCCESS (Frontend admin; PostgreSQL cloud and legacy regressions; mandatory foundation; mandatory content-action; mandatory complete-project; Android compression packaging). C21.1.05 and C21.1.05A **REMOTELY ACCEPTED** by owner/GPT. Prior C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
+
+## C21.1.10 — canonical browser local-source preflight
+
+Owner/GPT independently accepted the C21.1.09 blocker/audit at
+`be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**,
+all six required jobs SUCCESS. Audit REMOTELY ACCEPTED; C21.1.09 capture remains
+BLOCKED / NOT IMPLEMENTED / NOT LOCAL COMPLETE. C21.1.08 REMOTELY ACCEPTED;
+C21.1.06 broader umbrella NOT LOCAL COMPLETE. Starting clean6.0 HEAD == fetched
+origin/6.0 == accepted SHA. Official **84.0%**, C21 **IN PROGRESS**, no points.
+Acceptance recorded first. Only dormant local Project/eligible Legacy Note source,
+deletions, project-wide source revision and atomic snapshot/CAS are authorized.
+No capture, sync/network/ready, protected-apply expansion or editor activation.
+
+### C21.1.10 bounded local outcome
+
+LOCAL COMPLETE; remote CI PENDING — NOT POLLED. Same IDB schema6 adds ONLY
+localProjects/localNotes record1, preserving all eight v5 stores exactly and creating
+EMPTY new local stores. Complete native Project/eligible Legacy Note payloads encrypted
+with existing current normal-user/account AMK leases and crypto1/AAD1 helpers; no new
+crypto/key/frame/dependency. Stable account/project/Note membership and minimal local
+routing tombstones; source revision1, every authoritative mutation +1 in same strict
+transaction. Full ordered readonly snapshot authenticates complete member manifest;
+opaque token and full expected-old CAS usable inside same future source/outbox/binding
+transaction. Exact complete initialization retry at revision1 is byte-stable; stale/
+conflicting mutation/partial import/move/deleted project refuses without writes.
+Native initial cohort includes live Notes only; deleted-before-cloud membership never
+invents a cloud-delete event. Canonical Note local revision/all19fields preserved.
+
+Dormant repository; production UI/editor/HTTP unchanged, no automatic HTTP import,
+network/capture/cohort-status/completing/ready/outbox/projectBindings/ACK/proven changes.
+No other-family authority, Cover/native candidate/self-echo or protected apply expansion.
+C21.1.09 capture still NOT IMPLEMENTED / BLOCKED / NOT LOCAL COMPLETE; accepted audit
+accurate. C21.1.06 broader NOT LOCAL COMPLETE. Official **84.0%**, C21 **IN PROGRESS**.
+
+Checks: focused local34, migration14, affected C21122 PASS; real Chromium98 cases
+PASS (actual IDB/Web Locks/auth/crypto, API0/page errors0), including applied v5 head/
+proof preservation, forced upgrade/write rollback, no plaintext, missing-member failure,
+reload/profile/account/device/logout/multitab/future CAS. Typecheck/build PASS with
+existing warnings; workflow/syntax/diff/protected pyc checks PASS. Cloud explicitly
+covers both new specs and hard-failing browser harness; Cloud EXPECTED, SQLite NOT
+EXPECTED. No heavy/native/PostgreSQL/full-suite validation run; no gate skipped/softened.
+Next separately authorized bounded slice: eligible Legacy source consumption and atomic
+initial capture with same-transaction source CAS; complete-project sync remains deferred.
 
 ## C21.1.09 — initial cohort capture preflight
 
@@ -905,12 +948,12 @@ polls Actions и не ждёт CI. Published correction SHA сообщается
 
 ## 2. GitHub Actions — последний независимо подтверждённый статус
 
-**Current independent owner/GPT acceptance: C21.1.08 imported Metadata apply**
-`720aea2d8857de572a706e6332180a08e8d79727`, Cloud38293629801 **SUCCESS**,
+**Current independent owner/GPT acceptance: C21.1.09 blocker/audit**
+`be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud38310226431 **SUCCESS**,
 all six required jobs SUCCESS. C21.1.08 and C21.1.07 REMOTELY ACCEPTED; prior audit accepted, C21.1.06 implementation BLOCKED /
 NOT LOCAL COMPLETE. C21.1.05/.05A REMOTELY ACCEPTED at repair
 `af407f751cbda2898eb881f90fdd08177e2b28d3`, Cloud38165641607 SUCCESS.
-C21.1.09 BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE; local authority substrate absent. C21 IN PROGRESS, official84.0%.
+C21.1.09 audit REMOTELY ACCEPTED, capture BLOCKED / NOT LOCAL COMPLETE. C21.1.10 local Project/Legacy Note substrate LOCAL COMPLETE, remote CI PENDING — NOT POLLED; dormant, no capture/UI activation. C21 IN PROGRESS, official84.0%.
 Owner/GPT supplies independent verification; Codex does not poll Actions.
 
 **Current C18.8 independent owner/GPT acceptance:** implementation
@@ -1363,11 +1406,11 @@ WORTA распространяется по GNU GPLv3. Для C18, C21, C22 и �
 **C16 Desktop Sync и C17 Shared Conflict Handling закрыты после независимой remote-приёмки.** C17 включал durable conflict preservation, frozen resolution v2, transport-v2 cutover, causal continuation и coordinated two-/three-device acceptance.
 
 **Repo/branch:** `nevskyforever/nfprogress`, `6.0`.
-**Последний независимо подтверждённый remote HEAD:** `720aea2d8857de572a706e6332180a08e8d79727` (C21.1.08, Cloud38293629801 SUCCESS, all six jobs).
+**Последний независимо подтверждённый remote HEAD:** `be235b79e977f9f14aa573e9a606499f6aa687de` (C21.1.09 blocker/audit, Cloud38310226431 SUCCESS, all six jobs).
 **Official progress:** **84,0%**, WORTA ROADMAP SCORING v1.0.
 **Last CLOSED:** C18 Complete Project Sync.
 **Now:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling — **CLOSED**; C18 Complete Project Sync — **CLOSED**.
-**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A **REMOTELY ACCEPTED**; C21.1.03 **REMOTELY ACCEPTED**; C21.1.04 **REMOTELY ACCEPTED** (owner/GPT Cloud38151133406; supersedes original pending record); C21.1.05 / .05A **REMOTELY ACCEPTED** at `af407f751cbda2898eb881f90fdd08177e2b28d3`, Cloud38165641607 SUCCESS (all six jobs); C21.1.06 **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 **REMOTELY ACCEPTED** (Cloud38285007363); C21.1.08 **REMOTELY ACCEPTED** (Cloud38293629801 SUCCESS, all six required jobs). Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
+**Current:** C18.8/C18 **CLOSED / REMOTELY ACCEPTED**; C21 Web **IN PROGRESS**, C21.1.01 **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A **REMOTELY ACCEPTED**; C21.1.03 **REMOTELY ACCEPTED**; C21.1.04 **REMOTELY ACCEPTED** (owner/GPT Cloud38151133406; supersedes original pending record); C21.1.05 / .05A **REMOTELY ACCEPTED** at `af407f751cbda2898eb881f90fdd08177e2b28d3`, Cloud38165641607 SUCCESS (all six jobs); C21.1.06 **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 **REMOTELY ACCEPTED** (Cloud38285007363); C21.1.08 **REMOTELY ACCEPTED** (Cloud38293629801 SUCCESS, all six required jobs). C21.1.09 audit **REMOTELY ACCEPTED** (Cloud38310226431 SUCCESS), capture **BLOCKED / NOT LOCAL COMPLETE**; C21.1.10 canonical local authority **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Следующее начисление возможно только после полного независимого закрытия C21 (+4,0 пункта).
 **Hard rules:** E2EE/lease; frozen crypto/protocol v1; account-wide reconciliation before pull/ACK; unsupported Notes fail closed; no silent data loss/merge/LWW; no reset/clean/checkout; no unrelated changes; commit только после разрешённых gates, затем самостоятельный push без CI polling; exact `passed/failed/not run/skipped`; не увеличивать процент до independently verified CLOSED.
 
 ## 47. МЕТОДИКА РАБОТЫ — ПРЯМОЕ ОБЯЗАТЕЛЬНОЕ УКАЗАНИЕ ДЛЯ СЛЕДУЮЩЕГО АССИСТЕНТА И CODEX

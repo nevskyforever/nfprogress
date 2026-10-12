@@ -27,6 +27,43 @@ protected apply/heads/applied proofs and conflict/orphan remain separate. No fam
 is implemented by treating mere projectBindings existence as success. C21.1.07
 REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
 
+## C21.1.10 canonical local Project/Legacy Note substrate update
+
+C21.1.09 blocker/audit independently accepted at
+`be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**,
+all six required jobs SUCCESS. Audit REMOTELY ACCEPTED; capture remains BLOCKED /
+NOT LOCAL COMPLETE. Official84.0%, C21 IN PROGRESS. The older source-absence statements
+below describe that accepted audit baseline.
+
+C21.1.10 LOCAL COMPLETE; remote CI PENDING — NOT POLLED. Schema6 adds localProjects/
+localNotes record1 in the same database, encrypted complete native Project + eligible
+project-owned HTML Legacy Note payloads, stable identity/deletion membership and
+safe project-wide source revision. Existing authenticated account AMK leases/object
+helpers protect payloads; no new crypto/frame/AAD/dependency. A single readonly
+transaction produces complete ordered source snapshot; opaque token revalidates
+revision AND all encrypted membership rows inside the same future cohort transaction.
+Every local mutation atomically advances source revision with its writes; stale CAS,
+abort/quota/revocation fail closed. Native Note revision remains separately preserved.
+Native initial capture selects live Notes; local minimal tombstones provide membership
+and ID non-reuse evidence, never an invented cloud-delete event for a historic
+never-cloud-visible deletion. Deleted projects cannot supply capture source.
+
+This closes ONLY the eligible local source storage/snapshot prerequisite. Repository
+remains dormant; production HTTP/editor stores are NOT redirected or imported.
+Stage/non-html/map-derived Notes and populated other-family payloads reject. No
+cohort capture/outbox/binding phase, cloud-visible delete obligation, native captured
+candidate/self-echo reconciliation, Cover material, full-family apply, transport or
+ACK/proven readiness proof is implemented. Imported Metadata protection is unchanged.
+C21.1.06 broader remains NOT LOCAL COMPLETE, C21.1.09 capture remains blocked.
+
+Local authority34 + migration14 + affected C21122 tests, real Chromium98 cases,
+typecheck/build PASS; no plaintext durable, application API0/page errors0; old v5
+applied Metadata proof/head/receipts and all eight stores exactly preserved. New specs
+explicitly in Cloud workflow and real browser acceptance mandatory. SQLite not expected;
+no backend/native/frozen contract changes. Next bounded slice: review explicit Legacy
+source consumption and same-transaction initial capture; no complete-project claim.
+See [current local authority contract](../web/C21_BROWSER_PERSISTENCE.md#c21110-implemented-local-source--local-complete).
+
 ## C21.1.09 complete local initial capture audit / prerequisite stop
 
 2026-10-13. Owner/GPT independently accepted C21.1.08 at
