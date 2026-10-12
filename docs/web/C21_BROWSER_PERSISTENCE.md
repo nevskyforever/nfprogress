@@ -1,6 +1,7 @@
-# C21.1.02–C21.1.05 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.06 — Browser durable persistence / E2EE adapter contract
 
-Contract revision4, 2026-10-11. C21.1.05 remains dormant; IDB schema stays3.
+Contract revision5, 2026-10-12. C21.1.05 remains dormant; IDB schema stays3.
+C21.1.06 stopped at prerequisite audit; no protected apply implemented.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
 all required Cloud jobs SUCCESS; SQLite not triggered/not expected. C21 stays
@@ -574,3 +575,28 @@ checks PASS. Existing large-chunk/documentDocx import warnings remain. Protected
 pyc hashes unchanged; disposable profiles removed and task preview stopped.
 Physical power loss/quota exhaustion, other browsers, native/backend heavy suites,
 full frontend suites and protected apply remain unclaimed/not run.
+
+
+## C21.1.06 prerequisite stop — no protected apply implementation
+
+C21.1.05/.05A independently accepted by owner/GPT at repair
+`af407f751cbda2898eb881f90fdd08177e2b28d3` (implementation
+`eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`), Cloud38165641607 SUCCESS,
+all six required jobs SUCCESS. Historical pending status above is superseded.
+Official84.0%, C21 IN PROGRESS.
+
+Actual family matrix and native prerequisite evidence:
+[Protected apply family audit](../cloud/C21_PROTECTED_APPLY_FAMILY_AUDIT.md).
+Metadata apply checks the installation's durable project binding/bootstrap record
+inside its transaction; typed account binding and possession of an authenticated
+Metadata frame are insufficient. The planned projectBindings foundation is absent
+from browser v3. Per the task's explicit additional-store STOP rule, no v4,
+ownerHeads, verifier/apply API or applied proof is created. Cover material is another
+specific prerequisite; account-only subcases were not conflated with project ones.
+
+C21.1.06 **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**. All existing
+schema/stores/raw bodies/receipts/received inbox and cursors remain unchanged.
+No premature proof/head write, new store, plaintext projection, network or ACK.
+No new runtime tests/builds/CI specs, since there is no production implementation.
+Review/authorize a bounded dormant binding/bootstrap-lineage persistence prerequisite
+before resuming family-specific atomic protected apply. No points awarded.
