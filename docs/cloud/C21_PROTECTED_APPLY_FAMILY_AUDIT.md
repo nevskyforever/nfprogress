@@ -25,7 +25,42 @@ markReady or pause/resume until durable apply/ACK readiness proofs exist. The st
 is not account-wide registry reconciliation or entity authority. Cover material,
 protected apply/heads/applied proofs and conflict/orphan remain separate. No family
 is implemented by treating mere projectBindings existence as success. C21.1.07
-LOCAL COMPLETE / REMOTE CI PENDING; official84.0%, C21 IN PROGRESS.
+REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
+
+## C21.1.08 bounded imported Metadata implementation update
+
+Owner/GPT independently accepted C21.1.07 at
+`83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**,
+all six required jobs SUCCESS. Durable imported-lineage prerequisite accepted.
+C21.1.08 **LOCAL COMPLETE / REMOTE CI PENDING**: schema5 ownerHeads record1,
+Metadata project owner, complete ordered causal tips/history metadata, inbox record2
+with exact applied proof and unchanged wire. Current normal-user/binding/draining
+key lease + frozen Metadata authentication/codec runs before IDB; private opaque
+plan and one strict transaction recheck full scope/lineage/bootstrap/expected head,
+all retained ancestry and immutable wire/receipt sources, then CLEAN only writes
+head+proof+inbox state atomically. Genesis create1/1/no parents, exact causal tips,
+native revision/generation; replay never rolls back descendant authority.
+No plaintext projection/reconciliation or native active-authority/readiness claim.
+
+Eligible ONLY explicit import_remote/captured/active, Metadata codec1/2 without a non-null Cover reference.
+Upload-existing complete capture remains unavailable. Non-null Cover explicitly blocked; codec2 null/removal follows native no-material
+semantics and is eligible without adding a blob store.
+Self-echo remains received because native captured candidate/pending decision proof
+is absent, even with exact accepted upload evidence. Conflict/orphan/rejected/local
+incompatibility retain encrypted history without ordinary applied proof or blockers.
+No separate apply store, upload-receipt overload, other family, network, ACK/proven
+advancement or ready transition. All prior v4 rows preserved and ownerHeads empty
+on upgrade. Future schema/corrupt rows fail closed, no fabricated lineage/authority.
+
+Local focused41/migration8/affectedC2173/existing Metadata35 PASS; actual Chromium80
+PASS, API0/pageerrors0, auth/key/session/write abort/quota rollback, reload/profile
+and isolation/lock transfer. Typecheck/build/workflow/diff PASS. Cloud explicit hard
+coverage; SQLite not expected. **C21.1.06 remains BLOCKED BEFORE IMPLEMENTATION /
+NOT LOCAL COMPLETE**, Cover material/upload capture and other protected families
+remain future prerequisites. Official84.0%, C21 IN PROGRESS, no points.
+
+The following first-prerequisite stop records the C21.1.06 schema3 preflight;
+C21.1.07/.08 updates above supersede its browser storage absence.
 
 ## First blocking prerequisite: durable project binding and bootstrap lineage
 
@@ -167,7 +202,7 @@ Cloud workflow already watches docs/cloud/**; this audit publication triggers
 Cloud but cannot make unimplemented C21.1.06 locally complete. SQLite not expected.
 Codex does not poll Actions or remotely accept the implementation.
 
-Next bounded proposal: independently review/authorize dormant browser
+Historical C21.1.06 next bounded proposal (subsequently implemented/accepted in C21.1.07):
 projectBindings/bootstrap-lineage persistence and readiness-proof lifetime/CAS,
 using the existing native DTO/registry rules, with no network/bootstrap activation.
 After that foundation is accepted, resume family-specific protected apply; separately

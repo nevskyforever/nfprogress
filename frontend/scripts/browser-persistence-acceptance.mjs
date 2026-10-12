@@ -1,4 +1,4 @@
-/** Real Chromium IDB/Web Locks acceptance on a disposable disk profile; no app/API/native mocks. */
+/** Real Chromium IDB/Web Locks on a disposable disk profile; isolated auth transport fixtures, actual storage/crypto runtimes. */
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -383,12 +383,12 @@ try {
     await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject; r.onblocked = reject })
     globalThis.session = await c21.openBrowserPersistence(users[0])
   })
-  assert.deepEqual(await nativeSchema(), { version: 4, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox', 'projectBindings', 'receipts'] })
+  assert.deepEqual(await nativeSchema(), { version: 5, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox', 'ownerHeads', 'projectBindings', 'receipts'] })
   assert.equal((await page.evaluate(() => nativeRows('identities'))).length, 1)
   assert.equal((await page.evaluate(() => nativeRows('accountBindings'))).length, 1)
   assert.deepEqual(await page.evaluate(async () => [await nativeRows('outbox'), await nativeRows('inbox'), await nativeRows('cursors')]), [[], [], []])
   await page.evaluate(() => session.close())
-  cases.push('fresh empty profile atomically creates the exact v4 seven-store schema and identity/binding')
+  cases.push('fresh empty profile atomically creates the exact v5 eight-store schema and identity/binding')
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
   const freshIdentity = await page.evaluate(() => session.read(users[0]))
   const freshScope = { canonicalUserId: users[0], accountId: freshIdentity.local_account_id, deviceId: freshIdentity.device_id }
@@ -614,7 +614,7 @@ try {
   assert.deepEqual(await historyRead(page), historySaved)
   assert.deepEqual(await durableSnapshot(), historyBefore)
   assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
-  assert.deepEqual(await nativeSchema(), { version: 4, stores: [...allStores, 'projectBindings'].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 5, stores: [...allStores, 'projectBindings', 'ownerHeads'].sort() })
   cases.push('unknown retained record and broken acceptance half fail after reopen; no automatic repair, schema/head writes, apply proof or ACK advancement')
   // Accepted C21 v3 fixture: all six old stores, including immutable accepted bodies/receipts.
   const v3 = await durableSnapshot()
@@ -677,10 +677,10 @@ try {
   assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
   assert.deepEqual(await durableSnapshot(), v3)
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
-  assert.deepEqual(await nativeSchema(), { version: 4, stores: [...allStores, 'projectBindings'].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 5, stores: [...allStores, 'projectBindings', 'ownerHeads'].sort() })
   assert.deepEqual(await durableSnapshot(), v3)
   assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), [])
-  cases.push('real v3 to v4 preserves all six stores including accepted ciphertext/receipts; corrupt/quota/request-abort/blocked-upgrade failures preserve intact v3, projectBindings starts empty')
+  cases.push('real v3 to current v5 preserves all six legacy stores including accepted ciphertext/receipts; corrupt/quota/request-abort/blocked-upgrade failures preserve intact v3, projectBindings starts empty')
   const projectId = note.event.project_id
   const projectRead = () => page.evaluate(({ scope, id }) => session.projects.read(scope, id), { scope: scopeA, id: projectId })
   assert.equal(await projectRead(), null)
@@ -778,6 +778,237 @@ try {
   assert.deepEqual(await durableSnapshot(), v3)
   assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
   cases.push('unknown/unproven lineage records fail after reopen without repair; durable metadata contains only native IDs/lifecycle fields, ACK/proven remain zero')
+  const metadataMutate = (store, action, value) => page.evaluate(async ({ store, action, value }) => {
+    const db = await new Promise((resolve, reject) => { const r = indexedDB.open(c21.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = reject })
+    try { await c21.runBrowserTransaction(db, [store], 'readwrite', (tx, result) => { tx.objectStore(store)[action](value); result(undefined) }) } finally { db.close() }
+  }, { store, action, value })
+  // v4 fixture contains exactly the seven accepted legacy stores and their bytes.
+  const seven = [...allStores, 'projectBindings']
+  const oldV4 = await page.evaluate(async stores => Object.fromEntries(await Promise.all(stores.map(async store => [store, await nativeRows(store)]))), seven)
+  await page.evaluate(async ({ stores, rows }) => {
+    await session.close()
+    const db = await new Promise(resolve => { const r = indexedDB.open(c21.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result) })
+    const schema = stores.map(name => { const s = db.transaction(name).objectStore(name); return { name, keyPath: s.keyPath, indexes: Array.from(s.indexNames, name => { const i = s.index(name); return { name, keyPath: i.keyPath, unique: i.unique } }) } })
+    db.close()
+    await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject })
+    const r = indexedDB.open(c21.WEB_DATABASE_NAME, 4)
+    r.onupgradeneeded = () => { for (const s of schema) { const store = r.result.createObjectStore(s.name, { keyPath: s.keyPath }); for (const i of s.indexes) store.createIndex(i.name, i.keyPath, { unique: i.unique }) } }
+    const legacy = await new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = reject })
+    try { await c21.runBrowserTransaction(legacy, stores, 'readwrite', (tx, result) => {
+      for (const [store, records] of Object.entries(rows)) for (const row of records) tx.objectStore(store).add(store === 'projectBindings' ? { ...row, record_version: 99 } : row)
+      result(undefined)
+    }) } finally { legacy.close() }
+  }, { stores: seven, rows: oldV4 })
+  await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'corrupt_record')
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: seven.sort() })
+  for (const row of oldV4.projectBindings) await metadataMutate('projectBindings', 'put', row)
+  const v4Failure = async kind => page.evaluate(async kind => {
+    const create = IDBDatabase.prototype.createObjectStore, getAll = IDBObjectStore.prototype.getAll
+    if (kind === 'quota') IDBDatabase.prototype.createObjectStore = function(name, ...args) { if (name === 'ownerHeads') throw new DOMException('fixture', 'QuotaExceededError'); return create.call(this, name, ...args) }
+    else IDBObjectStore.prototype.getAll = function(...args) { const request = getAll.apply(this, args); if (this.name === 'projectBindings') this.transaction.abort(); return request }
+    try { await c21.openBrowserPersistence(users[0]); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBDatabase.prototype.createObjectStore = create; IDBObjectStore.prototype.getAll = getAll }
+  }, kind)
+  assert.equal(await v4Failure('quota'), 'quota_exceeded')
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: seven.sort() })
+  assert.equal(await v4Failure('request_abort'), 'storage_failed')
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: seven.sort() })
+  await page.evaluate(async () => { globalThis.v4Blocker = await new Promise(resolve => { const r = indexedDB.open(c21.WEB_DATABASE_NAME, 4); r.onsuccess = () => resolve(r.result) }) })
+  await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'upgrade_blocked')
+  await page.evaluate(() => v4Blocker.close())
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: seven.sort() })
+  for (const store of seven) assert.deepEqual(await page.evaluate(store => nativeRows(store), store), oldV4[store])
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await page.evaluate(() => nativeRows('ownerHeads')), [])
+  for (const store of seven) assert.deepEqual(await page.evaluate(store => nativeRows(store), store), oldV4[store])
+  cases.push('real v4→v5 validates all seven stores; corrupt lineage/quota/request-abort/blocked upgrade preserve v4 exactly; ownerHeads starts empty without fabricated proof')
+  await page.evaluate(async scope => {
+    globalThis.scopeA = scope
+    globalThis.meta = await c21.metadataFixture(session, scope)
+    globalThis.metadataWire = async (event, seq) => {
+      const lease = meta.keys.leaseForAccount(scope.accountId)
+      const object = await lease.use(amk => c21.sealProjectMetadataEvent(amk, event))
+      const h = event.header
+      try { return { event: { event_id: h.event_id, device_id: h.device_id, server_sequence: seq, project_id: h.project_id, entity_id: h.entity_id, entity_type: 'project_metadata', operation: h.operation === 'delete' ? 'delete' : 'upsert', revision: h.revision, updated_at: h.updated_at, deleted_at: event.deleted_at }, object: { crypto_version: 1, aad_version: 1, nonce: c21.encodeBase64Url(object.nonce), ciphertext: c21.encodeBase64Url(object.ciphertext) } } }
+      finally { object.nonce.fill(0); object.ciphertext.fill(0) }
+    }
+  }, scopeA)
+  const peer = users[3], stamp = '2026-10-12T00:00:00.000000Z'
+  const metadataEvent = (id, project = importedProject, boot = importedBootstrap, operation = 'create', parents = [], revision = 1, generation = 1) => ({ version: 1, header: { account_id: users[0], bootstrap_id: boot, device_id: peer, entity_id: project, event_id: id, generation, operation, parent_event_ids: parents, project_id: project, revision, updated_at: stamp }, metadata: operation === 'delete' ? null : { name: 'PRIVATE_METADATA_SENTINEL', goal: null, infinite: true, unit: 'symbols', deadline: null, status: 'active', personal_goal: 1, auto_freeze: false, streak_enabled: false, work_method: 'manual', stages_enabled: false, combine_stage_mindmaps: false }, deleted_at: operation === 'delete' ? stamp : null })
+  const eid = i => `abcdef00-0000-4000-8000-${String(i).padStart(12, '0')}`
+  const events = [metadataEvent(eid(1)), metadataEvent(eid(2), importedProject, importedBootstrap, 'update', [eid(1)], 2, 3), metadataEvent(eid(3), importedProject, importedBootstrap, 'update', [eid(2)], 3, 4),
+    metadataEvent(eid(4)), metadataEvent(eid(5), importedProject, importedBootstrap, 'update', [eid(1)], 2, 2),
+    metadataEvent(eid(6), importedProject, importedBootstrap, 'update', [eid(99)], 2, 2), metadataEvent(eid(7), importedProject, importedBootstrap, 'update', [eid(3)], 4, 4),
+    metadataEvent(eid(8), importedProject, importedBootstrap, 'update', [eid(3)], 5, 5), metadataEvent(eid(9), importedProject, users[2]),
+    metadataEvent(eid(10), 'missing-lineage', users[2]), metadataEvent(eid(11), projectId, registeredLineage.bootstrap_id),
+    { ...metadataEvent(eid(12), 'coverless-codec2-project', eid(97)), version: 2, metadata: { ...metadataEvent(eid(12)).metadata, cover_reference: null } },
+    metadataEvent(eid(13), importedProject, importedBootstrap, 'update', [eid(3)], 4, 5), metadataEvent(eid(14), importedProject, importedBootstrap, 'update', [eid(3)], 4, 5),
+    { ...metadataEvent(eid(15), 'own-metadata-project', users[2]), header: { ...metadataEvent(eid(15), 'own-metadata-project', users[2]).header, device_id: scopeA.deviceId } },
+    metadataEvent(eid(16), importedProject, importedBootstrap, 'delete', [eid(13)], 5, 6),
+    { ...metadataEvent(eid(17)), version: 2, metadata: { ...metadataEvent(eid(17)).metadata, cover_reference: { version: 1, blob_id: eid(98), crypto_version: 1, aad_version: 1, mime_type: 'image/jpeg', plaintext_size: 4, key_fingerprint: '0'.repeat(64), envelope_sha256: '1'.repeat(64) } } }]
+  await page.evaluate(({ scope, bootstrap }) => session.projects.importRemote(scope, { project_id: 'own-metadata-project', bootstrap_id: bootstrap, remote_state: 'active', remote_high_water: 0 }), { scope: scopeA, bootstrap: users[2] })
+  await page.evaluate(({ scope, bootstrap }) => session.projects.importRemote(scope, { project_id: 'coverless-codec2-project', bootstrap_id: bootstrap, remote_state: 'active', remote_high_water: 0 }), { scope: scopeA, bootstrap: eid(97) })
+  const metadataBindingsSaved = await page.evaluate(() => nativeRows('projectBindings'))
+  const metadataStart = saved.cursor.pull_cursor
+  const wires = await page.evaluate(async ({ events, start }) => { const result = []; for (let i = 0; i < events.length; i++) result.push(await metadataWire(events[i], start + i + 1)); return result }, { events, start: metadataStart })
+  // A source-equal event with accepted outbox/receipt is still missing native candidate/decision proof.
+  const ownWire = wires[14], { device_id: _ownDevice, server_sequence: _ownSeq, ...ownDescriptor } = ownWire.event
+  const ownBody = JSON.stringify({ protocol_version: 3, encrypted_sync_version: 3, device_id: scopeA.deviceId, items: [{ event: ownDescriptor, object: ownWire.object }] })
+  const ownQueued = await page.evaluate(({ scope, body }) => session.sync.enqueue(scope, [body]), { scope: scopeA, body: ownBody })
+  await page.evaluate(({ scope, row, sequence }) => session.sync.commitUploadAcceptance(scope, row, { protocol_version: 3, encrypted_sync_version: 3, results: [{ event_id: row.event_id, server_sequence: sequence, duplicate: false }], current_cursor: sequence }), { scope: scopeA, row: ownQueued[0].item, sequence: ownWire.event.server_sequence })
+  const metaPage = JSON.stringify({ protocol_version: 3, encrypted_sync_version: 3, items: wires, next_cursor: metadataStart + wires.length, has_more: false })
+  await page.evaluate(({ scope, since, raw }) => session.sync.commitInboundPage(scope, since, raw), { scope: scopeA, since: metadataStart, raw: metaPage })
+  const metaApply = index => page.evaluate(({ scope, ref }) => session.metadata.apply(scope, ref, meta.auth, meta.bindings, meta.keys), { scope: scopeA, ref: wires[index].event })
+  const metaReject = async (index, code) => {
+    const before = await metadataSnapshot()
+    assert.equal(await page.evaluate(async ({ scope, ref }) => { try { await session.metadata.apply(scope, ref, meta.auth, meta.bindings, meta.keys); return 'unexpected_success' } catch (error) { return error.code ?? 'untyped_failure' } }, { scope: scopeA, ref: wires[index].event }), code)
+    assert.deepEqual(await metadataSnapshot(), before)
+  }
+  const metadataSnapshot = () => page.evaluate(async stores => Object.fromEntries(await Promise.all(stores.map(async store => [store, await nativeRows(store)]))), [...seven, 'ownerHeads'])
+  const metaHead = () => page.evaluate(({ scope, project }) => session.metadata.readHead(scope, project), { scope: scopeA, project: importedProject })
+  await metaReject(1, 'missing_history')
+  cases.push('authenticated latest update cannot become first authority; missing causal parents leave received and empty head')
+  assert.equal(await metaApply(0), 'applied')
+  const firstHead = await metaHead(), firstApplied = (await page.evaluate(() => nativeRows('inbox'))).find(row => row.event_id === eid(1))
+  assert.deepEqual(firstHead.tip_event_ids, [eid(1)]); assert.equal(firstApplied.state, 'applied'); assert.equal(firstApplied.record_version, 2)
+  assert.equal(firstApplied.wire_item, JSON.stringify(wires[0])); assert.match(firstApplied.applied_proof.wire_digest, /^[0-9a-f]{64}$/)
+  cases.push('actual frozen Metadata decrypt/frame/codec creates valid imported genesis and atomic head+proof+applied inbox; original ciphertext wire unchanged')
+  assert.equal(await metaApply(1), 'applied')
+  assert.equal(await metaApply(2), 'applied')
+  assert.deepEqual((await metaHead()).tip_event_ids, [eid(3)]); assert.equal((await metaHead()).history.length, 3)
+  const descendant = await metadataSnapshot()
+  assert.equal(await metaApply(0), 'already_applied'); assert.deepEqual(await metadataSnapshot(), descendant)
+  cases.push('causal next updates retain full encrypted ancestry and advance exact revision/generation; old applied replay cannot rewrite descendant authority')
+  await metaReject(3, 'metadata_conflict'); cases.push('concurrent genesis rejects without choosing latest sequence or discarding branch')
+  await metaReject(4, 'metadata_conflict'); cases.push('stale-parent branch rejects with complete tips preserved')
+  await metaReject(5, 'missing_history'); cases.push('unknown-parent orphan remains received without blocker or authority mutation')
+  await metaReject(6, 'metadata_rejected'); cases.push('non-increasing generation rejects')
+  await metaReject(7, 'metadata_rejected'); cases.push('non-native revision increment rejects')
+  await metaReject(8, 'conflicting_record'); cases.push('authenticated wrong bootstrap cannot cross imported lineage')
+  await metaReject(9, 'missing_history'); cases.push('missing durable project lineage cannot be inferred from decrypted event')
+  await metaReject(10, 'ineligible_lineage'); cases.push('upload_existing registered lineage rejects protected apply')
+  assert.equal(await metaApply(11), 'applied'); cases.push('authenticated Metadata codec2 null Cover follows native no-material rule and commits coverless imported genesis')
+  await metaReject(16, 'cover_material_unavailable'); cases.push('actual authenticated non-null Cover reference blocks until retained encrypted material prerequisite exists')
+  await metaReject(14, 'self_echo_unavailable'); cases.push('exact own-source outbox+accepted receipt+identical ciphertext/sequence insufficient without native candidate/decision proof')
+  // Prepare both clean siblings against the same complete expected-old head.
+  await page.evaluate(async ({ scope, refs }) => { globalThis.planA = await session.metadata.prepareVerified(scope, refs[0], meta.auth, meta.bindings, meta.keys); globalThis.planB = await session.metadata.prepareVerified(scope, refs[1], meta.auth, meta.bindings, meta.keys) }, { scope: scopeA, refs: [wires[12].event, wires[13].event] })
+  const beforeRollback = await metadataSnapshot()
+  const abortApply = async kind => page.evaluate(async ({ scope, kind }) => {
+    const put = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function(...args) {
+      if (this.name === 'inbox' && kind === 'quota') throw new DOMException('fixture', 'QuotaExceededError')
+      const request = put.apply(this, args)
+      if (this.name === 'inbox') {
+        if (kind === 'abort') this.transaction.abort()
+        if (kind === 'key_lock') void meta.keys.lock()
+        if (kind === 'logout') void meta.auth.logout()
+        if (kind === 'close') void session.close()
+      }
+      return request
+    }
+    try { await session.metadata.commitVerifiedImportedMetadataApply(scope, planA); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBObjectStore.prototype.put = put }
+  }, { scope: scopeA, kind })
+  assert.equal(await abortApply('abort'), 'storage_failed'); assert.deepEqual(await metadataSnapshot(), beforeRollback)
+  cases.push('real IDB abort after both writes queued rolls back authority/proof/inbox together')
+  assert.equal(await abortApply('quota'), 'quota_exceeded'); assert.deepEqual(await metadataSnapshot(), beforeRollback)
+  cases.push('quota after head write queued rolls back entire protected apply')
+  assert.equal(await abortApply('key_lock'), 'closed'); assert.deepEqual(await metadataSnapshot(), beforeRollback)
+  cases.push('key lock during queued apply aborts before commit; received ciphertext and authority retained')
+  await page.evaluate(async scope => { await meta.keys.dispose(); globalThis.meta = await c21.metadataFixture(session, scope) }, scopeA)
+  // Reprepare under a fresh actual key context; no stale token may be reused.
+  await page.evaluate(async ({ scope, refs }) => { globalThis.planA = await session.metadata.prepareVerified(scope, refs[0], meta.auth, meta.bindings, meta.keys); globalThis.planB = await session.metadata.prepareVerified(scope, refs[1], meta.auth, meta.bindings, meta.keys) }, { scope: scopeA, refs: [wires[12].event, wires[13].event] })
+  assert.equal(await abortApply('logout'), 'closed'); assert.deepEqual(await metadataSnapshot(), beforeRollback)
+  cases.push('auth logout during live write aborts apply and revokes prepared plans')
+  await page.evaluate(async scope => { await meta.keys.dispose(); globalThis.meta = await c21.metadataFixture(session, scope) }, scopeA)
+  await page.evaluate(async ({ scope, refs }) => { globalThis.planA = await session.metadata.prepareVerified(scope, refs[0], meta.auth, meta.bindings, meta.keys); globalThis.planB = await session.metadata.prepareVerified(scope, refs[1], meta.auth, meta.bindings, meta.keys) }, { scope: scopeA, refs: [wires[12].event, wires[13].event] })
+  assert.equal(await abortApply('close'), 'closed'); assert.deepEqual(await metadataSnapshot(), beforeRollback)
+  cases.push('session close during queued Metadata writes aborts both stores before releasing writer lock')
+  await page.evaluate(async scope => { await meta.keys.dispose(); globalThis.session = await c21.openBrowserPersistence(users[0]); globalThis.meta = await c21.metadataFixture(session, scope) }, scopeA)
+  await page.evaluate(async ({ scope, refs }) => { globalThis.planA = await session.metadata.prepareVerified(scope, refs[0], meta.auth, meta.bindings, meta.keys); globalThis.planB = await session.metadata.prepareVerified(scope, refs[1], meta.auth, meta.bindings, meta.keys) }, { scope: scopeA, refs: [wires[12].event, wires[13].event] })
+  assert.equal(await page.evaluate(scope => session.metadata.commitVerifiedImportedMetadataApply(scope, planA), scopeA), 'applied')
+  const siblingHead = await metadataSnapshot()
+  await expectCode(page, 'session.metadata.commitVerifiedImportedMetadataApply(scopeA, planB)', 'stale_authority')
+  assert.deepEqual(await metadataSnapshot(), siblingHead)
+  assert.equal(await page.evaluate(scope => session.metadata.commitVerifiedImportedMetadataApply(scope, planA), scopeA), 'already_applied')
+  cases.push('complete expected-old CAS rejects stale prepared sibling; exact same token replay is idempotent')
+  // Exact applied event with new valid ciphertext but identical header must fail durable wire digest replay.
+  const changedEvent = structuredClone(events[0]); changedEvent.metadata.name = 'CHANGED_PRIVATE_SENTINEL'
+  const changedWire = await page.evaluate(({ event, seq }) => metadataWire(event, seq), { event: changedEvent, seq: wires[0].event.server_sequence })
+  await metadataMutate('inbox', 'put', { ...firstApplied, wire_item: JSON.stringify(changedWire) })
+  await metaReject(0, 'conflicting_record')
+  await metadataMutate('inbox', 'put', firstApplied)
+  cases.push('valid re-encryption of changed payload with same event/header rejected by immutable wire digest, no replay success')
+  // Removing any retained ancestor is a hard hole even while head proof is present.
+  const parentRow = firstApplied
+  await metadataMutate('inbox', 'delete', [scopeA.accountId, parentRow.server_sequence])
+  await metaReject(15, 'missing_history')
+  await metadataMutate('inbox', 'add', parentRow)
+  cases.push('missing encrypted ancestor rejects despite durable head/proof; no empty-history fallback')
+  // A locally pending encrypted Metadata candidate blocks peer apply; no compatible-local-state guess.
+  const ownOutbox = (await page.evaluate(() => nativeRows('outbox'))).find(row => row.event_id === eid(15))
+  const pending = JSON.parse(ownOutbox.raw_body)
+  pending.items[0].event.project_id = importedProject; pending.items[0].event.entity_id = importedProject
+  await metadataMutate('outbox', 'put', { ...ownOutbox, raw_body: JSON.stringify(pending) })
+  await metaReject(15, 'local_incompatible')
+  await metadataMutate('outbox', 'put', ownOutbox)
+  cases.push('pending local Metadata state blocks peer clean apply rather than inferring native candidate compatibility')
+  await page.evaluate(async ({ scope, ref }) => { globalThis.staleBindingPlan = await session.metadata.prepareVerified(scope, ref, meta.auth, meta.bindings, meta.keys) }, { scope: scopeA, ref: wires[15].event })
+  await metadataMutate('projectBindings', 'put', { ...importedLineage, remote_high_water: 10 })
+  const changedBindingState = await metadataSnapshot()
+  await expectCode(page, 'session.metadata.commitVerifiedImportedMetadataApply(scopeA, staleBindingPlan)', 'stale_lineage')
+  assert.deepEqual(await metadataSnapshot(), changedBindingState)
+  await metadataMutate('projectBindings', 'put', importedLineage)
+  cases.push('exact persisted lineage snapshot CAS rejects changed registration high-water without touching Metadata authority/proof')
+  const ownReceived = (await page.evaluate(() => nativeRows('inbox'))).find(row => row.event_id === eid(15))
+  await metadataMutate('inbox', 'delete', [scopeA.accountId, ownReceived.server_sequence])
+  await metaReject(14, 'missing_history')
+  await metadataMutate('inbox', 'add', ownReceived)
+  cases.push('accepted upload receipt/ciphertext alone cannot become inbox applied proof')
+  const beforeChangedReplay = await metadataSnapshot()
+  for (const changed of [{ revision: 2 }, { server_sequence: 999 }, { device_id: scopeA.deviceId }]) {
+    await metadataMutate('inbox', 'put', { ...firstApplied, wire_item: JSON.stringify({ ...wires[0], event: { ...wires[0].event, ...changed } }) })
+    await metaReject(0, 'corrupt_record')
+    await metadataMutate('inbox', 'put', firstApplied)
+  }
+  assert.deepEqual(await metadataSnapshot(), beforeChangedReplay)
+  cases.push('changed applied descriptor/revision/sequence/source-device replay rejects immutable proof, no authority rewrite')
+  assert.equal(await metaApply(15), 'applied')
+  assert.equal((await metaHead()).history.find(p => p.event_id === eid(16)).operation, 'delete')
+  const receivedOnly = await page.evaluate(scope => session.sync.listReceived(scope, 200), scopeA)
+  assert.equal(receivedOnly.some(row => row.state !== 'received' || row.event_id === eid(16)), false)
+  const afterDelete = await metadataSnapshot()
+  assert.equal(await metaApply(0), 'already_applied'); assert.deepEqual(await metadataSnapshot(), afterDelete)
+  cases.push('clean authenticated tombstone advances causal authority atomically; applied rows excluded from received listing and old replay preserves deletion')
+  const finalMeta = await metadataSnapshot()
+  assert.equal(JSON.stringify(finalMeta).includes('PRIVATE_METADATA_SENTINEL'), false)
+  assert.equal(JSON.stringify(finalMeta).includes('CHANGED_PRIVATE_SENTINEL'), false)
+  assert.equal((await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA)).ack_cursor, 0)
+  assert.equal((await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA)).proven_prefix, 0)
+  assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), metadataBindingsSaved)
+  assert.equal((await page.evaluate(({ scope, id }) => session.projects.evaluateReadiness(scope, id), { scope: scopeA, id: importedProject })).ready, false)
+  cases.push('all encrypted history retained; no plaintext/key/token persisted; ACK/proven0, imported binding and project readiness unchanged')
+  await page.reload()
+  await page.evaluate(async ({ users, scope }) => { globalThis.users = users; globalThis.scopeA = scope; globalThis.session = await c21.openBrowserPersistence(users[0]); globalThis.meta = await c21.metadataFixture(session, scope) }, { users, scope: scopeA })
+  assert.deepEqual(await metadataSnapshot(), finalMeta)
+  assert.equal(await metaApply(0), 'already_applied')
+  await context.close(); await start(); page = await tab()
+  await page.evaluate(async scope => { globalThis.scopeA = scope; globalThis.session = await c21.openBrowserPersistence(users[0]); globalThis.meta = await c21.metadataFixture(session, scope) }, scopeA)
+  assert.deepEqual(await metadataSnapshot(), finalMeta)
+  assert.equal(await metaApply(0), 'already_applied')
+  cases.push('atomic Metadata authority/proof/immutable ciphertext survive reload and full Chromium disk-profile reopen; exact replay remains stable')
+  competing = await tab(); await expectCode(competing, 'c21.openBrowserPersistence(users[0])', 'writer_busy')
+  await page.close(); page = competing
+  await page.evaluate(async scope => { globalThis.scopeA = scope; globalThis.session = await c21.openBrowserPersistence(users[0]); globalThis.meta = await c21.metadataFixture(session, scope) }, scopeA)
+  assert.deepEqual(await metadataSnapshot(), finalMeta)
+  cases.push('Web Locks termination transfers imported Metadata authority intact')
+  await page.evaluate(async () => { globalThis.staleMetadata = session; await session.resetForLogout(); globalThis.session = await c21.openBrowserPersistence(users[1]) })
+  await expectCode(page, 'staleMetadata.metadata.readHead(scopeA, "imported-project")', 'closed')
+  await expectCode(page, 'session.metadata.readHead(scopeA, "imported-project")', 'account_mismatch')
+  assert.equal(await page.evaluate(({ scope, id }) => session.metadata.readHead(scope, id), { scope: newScopeB, id: importedProject }), null)
+  await page.evaluate(async scope => { await session.close(); globalThis.session = await c21.openBrowserPersistence(users[0]); globalThis.meta = await c21.metadataFixture(session, scope) }, scopeA)
+  assert.deepEqual(await metadataSnapshot(), finalMeta)
+  cases.push('Metadata account/device isolation and stale logout handles fail closed without erasing another account history')
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
   const retainedAccepted = await retained()
   const retainedBindings = await page.evaluate(() => nativeRows('projectBindings'))
@@ -791,6 +1022,7 @@ try {
   assert.deepEqual(await page.evaluate(() => nativeRows('receipts')), retainedProofs)
   assert.deepEqual(await page.evaluate(() => nativeRows('outbox')), retainedAccepted)
   assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), retainedBindings)
+  assert.deepEqual(await metadataSnapshot(), finalMeta)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])
   console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: 0, pageErrors: 0 }))

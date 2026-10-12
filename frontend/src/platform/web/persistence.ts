@@ -1,14 +1,15 @@
-import { BrowserProjectBindings } from './projectBindings'
+import { BrowserImportedMetadataApply } from './importedMetadataApply'
+import { BrowserProjectBindings, validateBrowserProjectBinding } from './projectBindings'
 import type { CloudIdentity, CloudIdentityRepository } from '@/infrastructure/sqlite/cloudIdentityRepository'
 import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } from '@/infrastructure/sqlite/cloudAccountBindingRepository'
 import { BrowserSyncDurability, validateBrowserV2SyncState, validateBrowserV3SyncState, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 4
+export const WEB_DATABASE_VERSION = 5
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
-export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition'
+export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible'
 
 const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]> = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
@@ -18,10 +19,11 @@ const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<r
   ['cursors', ['account_id', 'device_id'], []],
   ['receipts', ['account_id', 'event_id'], [['server_sequence', ['account_id', 'server_sequence'], true]]],
   ['projectBindings', ['account_id', 'project_id'], [['bootstrap', ['account_id', 'bootstrap_id'], true]]],
+  ['ownerHeads', ['account_id','owner_kind','owner_id'], []],
 ]
 
 function validateSchema(database: IDBDatabase, transaction: IDBTransaction, version: number): void {
-  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : version === 3 ? SCHEMA.slice(0, 6) : SCHEMA
+  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : version === 3 ? SCHEMA.slice(0, 6) : version === 4 ? SCHEMA.slice(0, 7) : SCHEMA
   if (Array.from(database.objectStoreNames).sort().join(',') !== schema.map(([name]) => name).sort().join(',')) throw new BrowserPersistenceError('unsupported_version')
   for (const [name, key, indexes] of schema) {
     const store = transaction.objectStore(name)
@@ -104,6 +106,19 @@ export function runBrowserTransaction<T>(
   return completion
 }
 
+/** Validate the seventh legacy store without inferring Metadata authority. */
+export function validateBrowserV4ProjectState(scopes: BrowserSyncScope[], rows: unknown[]): void {
+  const projects = new Set<string>(), bootstraps = new Set<string>()
+  for (const value of rows) {
+    const scope = scopes.find(s => s.accountId === (value as { account_id?: string })?.account_id)
+    if (!scope) throw new BrowserPersistenceError('corrupt_record')
+    const row = validateBrowserProjectBinding(value, scope)
+    const project = JSON.stringify([row.account_id, row.project_id]), bootstrap = JSON.stringify([row.account_id, row.bootstrap_id])
+    if (projects.has(project) || bootstraps.has(bootstrap)) throw new BrowserPersistenceError('corrupt_record')
+    projects.add(project); bootstraps.add(bootstrap)
+  }
+}
+
 function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest, failed = false
@@ -126,7 +141,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || ![0, 1, 2, 3].includes(event.oldVersion)) {
+      if (failed || ![0, 1, 2, 3, 4].includes(event.oldVersion)) {
         abortUpgrade()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
@@ -135,7 +150,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
         const transaction = request.transaction!
         if (event.oldVersion > 0) {
           validateSchema(request.result, transaction, event.oldVersion)
-          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, event.oldVersion === 2 ? 5 : 6).map(([name]) => name)
+          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : 7).map(([name]) => name)
           const requests = names.map(name => transaction.objectStore(name).getAll())
           let received = 0
           const validate = () => {
@@ -145,12 +160,13 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
               if (identities.length !== bindings.length) throw new BrowserPersistenceError('corrupt_record')
               for (const identity of identities) validateRecords(identity, bindings.find(b => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
               if (event.oldVersion === 2) validateBrowserV2SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result)
-              if (event.oldVersion === 3) validateBrowserV3SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result, requests[5]!.result)
+              if (event.oldVersion >= 3) validateBrowserV3SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result, requests[5]!.result)
+              if (event.oldVersion === 4) validateBrowserV4ProjectState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[6]!.result)
             } catch (error) { abortUpgrade(); fail(error) }
           }
           for (const read of requests) read.onsuccess = validate
         }
-        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : event.oldVersion === 2 ? 5 : 6)) {
+        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : 7)) {
           const store = request.result.createObjectStore(name, { keyPath })
           for (const [index, path, unique] of indexes) store.createIndex(index, path, { unique })
         }
@@ -175,6 +191,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
 class BrowserPersistence implements CloudIdentityRepository, CloudAccountBindingRepository {
   readonly sync: BrowserSyncDurability
   readonly projects: BrowserProjectBindings
+  readonly metadata: BrowserImportedMetadataApply
   private active = true
   private readonly pending = new Map<IDBTransaction, Promise<unknown>>()
   private closeFlight: Promise<void> | undefined
@@ -187,6 +204,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   ) {
     this.sync = new BrowserSyncDurability((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.projects = new BrowserProjectBindings((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
+    this.metadata = new BrowserImportedMetadataApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.sync)
     database.onversionchange = () => { void this.close() }
     database.onclose = () => { void this.close() }
     signal.addEventListener('abort', this.abort, { once: true })

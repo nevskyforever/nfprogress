@@ -1,3 +1,28 @@
 import * as persistence from '../src/platform/web/persistence'
+import { NormalUserAuthRuntime } from '../src/auth/userAuth'
+import { AuthoritativeAccountBinding } from '../src/auth/accountBinding'
+import { RuntimeKeyContext } from '../src/auth/keyContext'
+import { asAccountMasterKey, wrapAmkWithPassphrase } from '../src/crypto'
+import { encodeBase64Url } from '../src/api/base64url'
+import { sealProjectMetadataEvent } from '../src/cloud/projectMetadataCodec'
+import type { CurrentUserCryptoRecord } from '../src/api/accountCrypto'
 
-Object.assign(globalThis, { c21: persistence })
+// Isolated harness only: synthetic normal-user transport, actual auth/binding/key runtime and crypto.
+// No test key or passphrase is ever stored in IndexedDB or included in production application composition.
+async function metadataFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, scope: { canonicalUserId: string; accountId: string; deviceId: string }) {
+  const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-access', refresh_token: 'fixture-refresh', access_expires_in: 60 }), refresh: async () => { throw Error('fixture_no_refresh') }, logout: async () => {}, me: async () => ({ id: scope.canonicalUserId, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: '2026-10-12T00:00:00.000000Z' }) })
+  await auth.login('fixture', 'fixture')
+  const bindings = new AuthoritativeAccountBinding(auth, session)
+  const amk = asAccountMasterKey(new Uint8Array(32).fill(77))
+  const wrapped = await wrapAmkWithPassphrase(amk, 'disposable-fixture-passphrase')
+  const record: CurrentUserCryptoRecord = { provisioned: true, password: { ...wrapped, kdf: { ...wrapped.kdf, salt: encodeBase64Url(wrapped.kdf.salt) }, nonce: encodeBase64Url(wrapped.nonce), ciphertext: encodeBase64Url(wrapped.ciphertext) }, recovery: null }
+  const keys = new RuntimeKeyContext(auth, bindings, { get: async () => record })
+  await keys.unlockWithPassphrase(scope.accountId, 'disposable-fixture-passphrase')
+  amk.fill(0); wrapped.ciphertext.fill(0); wrapped.nonce.fill(0); wrapped.kdf.salt.fill(0)
+  return { auth, bindings, keys }
+}
+async function nativeRows(store: string): Promise<unknown[]> {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
+  try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
+}
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, metadataFixture, sealProjectMetadataEvent, encodeBase64Url } })

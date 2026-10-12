@@ -1,7 +1,7 @@
-# C21.1.02–C21.1.07 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.08 — Browser durable persistence / E2EE adapter contract
 
-Contract revision6, 2026-10-12. IDB schema4 implements dormant project lineage.
-C21.1.06 remains blocked/not implemented; no protected apply.
+Contract revision7, 2026-10-12. IDB schema5 implements dormant imported coverless Metadata protected apply.
+C21.1.06 remains the broader BLOCKED / NOT LOCAL COMPLETE umbrella.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
 all required Cloud jobs SUCCESS; SQLite not triggered/not expected. C21 stays
@@ -10,9 +10,10 @@ IN PROGRESS, official WORTA ROADMAP SCORING v1.0 **84.0%**.
 ## Decision and limits
 
 Use one origin/profile-scoped IndexedDB database `worta-web`, with Web Locks
-exclusive writer ownership of `worta-web:writer`. Storage schema version **4**
+exclusive writer ownership of `worta-web:writer`. Storage schema version **5**
 implements `identities`, `accountBindings`, `outbox`, `inbox`, `cursors`,
-upload-acceptance `receipts`, and dormant `projectBindings`. Protected-apply receipts remain unimplemented.
+upload-acceptance `receipts`, dormant `projectBindings`, and Metadata-only `ownerHeads`.
+Applied Metadata proof is part of the versioned inbox row; no separate apply-receipt store.
 Other stores below remain a **frozen semantic design**, not implemented stores.
 No full Web sync is enabled. Owner/GPT independently accepted C21.1.02 + .02A
 at `245938f009c1914f52ee32927efe2e722858faef`: Cloud **38137926976 SUCCESS**,
@@ -90,10 +91,10 @@ No store is created speculatively before its implementing migration.
 | `accountBindings` | `local_account_id`; unique `canonical_user_id` | Implemented v1: immutable local-account→canonical-user mapping + record version. Created with identity in one transaction. |
 | `projectBindings` | `[account_id,project_id]`; unique `bootstrap` on `[account_id,bootstrap_id]` | Implemented schema4 / record1: exact native lineage/status fields. upload_existing prepared/registered; explicit import_remote captured/active with zero local cohort. Capture/completing/ready/pause/blocked producers deferred; no title/path/content or arbitrary reason. |
 | `outbox` | `[account_id,event_id]`; unique `ordinal` on `[account_id,device_id,local_ordinal]`, nonunique `state` on `[account_id,state,local_ordinal]` | Implemented schema2 / record1: account/device/event/ordinal, protocol2 or3, state `sealed` or `accepted` (schema3), exact `raw_body` from an existing singleton encrypted push. Accepted requires its immutable upload receipt; no unsealed plaintext. Causal parent/base-tip proofs remain inside existing sealed frames; authority capture is deferred. |
-| `inbox` | `[account_id,server_sequence]`; unique `event` on `[account_id,event_id]`, nonunique `state` on `[account_id,state,server_sequence]` | Implemented schema2 / record1: receiving account/device, event/sequence, protocol2 or3, state `received`, exact metadata/encrypted envelope in `wire_item`. Wire validation is not crypto authentication or apply. Applied/orphan/blocked states and proofs deferred. |
+| `inbox` | `[account_id,server_sequence]`; unique `event` on `[account_id,event_id]`, nonunique `state` on `[account_id,state,server_sequence]` | Implemented schema2 / record1: receiving account/device, event/sequence, protocol2 or3, state `received`, exact metadata/encrypted envelope in `wire_item`. Wire validation is not crypto authentication or apply. Schema5 adds record2 `applied` with exact non-plaintext Metadata proof, preserving wire_item. Orphan/conflict/blocked producers deferred. |
 | `cursors` | `[account_id,device_id]`, no indexes | Implemented schema2 / record1: pull cursor, `next_local_ordinal` starting1; `ack_cursor` and `proven_prefix` reserved at0, with no advancement API. Pull expected-old CAS is inseparable from inbox commit. Never infer ACK from ciphertext receipt. |
 | `receipts` | `[account_id,event_id]`; unique `server_sequence` on `[account_id,server_sequence]` | Implemented schema3 / record1: exactly account/device/event IDs, protocol2 or3, server_sequence and first response duplicate diagnostic. Upload acceptance only. No protected-apply receipt, causal continuation, key/content/timestamp or arbitrary backend body. |
-| `ownerHeads` | `[account_id,owner_kind,owner_id]` | Planned: complete tip IDs/revisions/dependency/history pointers, not decrypted projections. Owner identity retains exact existing project/account crypto scope. |
+| `ownerHeads` | `[account_id,owner_kind,owner_id]` | Implemented schema5 / record1, Metadata only: owner_kind project_metadata, owner_id project_id; exact bootstrap, complete sorted tips and bounded retained-history proof references with per-event revision/generation. No decrypted projection. |
 | `blockers` | `[account_id,event_id,code]`; `[account_id,state,server_sequence]` | Planned: orphan/conflict/dependency blocker references, sanitized enums; conflict versions retained in encrypted history, not silent LWW. |
 | `accountObjects` | `[account_id,event_id]`; `[account_id,entity_type,entity_id]` | Planned: encrypted Catalog types4–7 and Game12/13 account objects plus canonical owner/proof references; Metadata, Stage and Content variants use existing ownership/crypto rules. |
 | `encryptedBlobs` | `[account_id,blob_id]` | Planned: authenticated ciphertext/nonce/hash/size for covers and immutable blob versions; no absolute Word/Scrivener paths. |
@@ -163,8 +164,9 @@ Unsynced data cannot be restored magically; browser/profile backups and encrypte
 recovery remain future product work, not automatic export/deployment in this slice.
 
 IDB version is separate from record version and C11/C15/C17/C18 wire/codec versions.
-Current v4 supports a new empty DB, an exact v4, or non-destructive forward
-versionchange upgrades from exact v1/v2/v3. v3→v4 validates all six old stores
+Current v5 supports a new empty DB, an exact v5, or non-destructive forward
+versionchange upgrades from exact v1/v2/v3/v4. v4→v5 validates all seven old stores
+and adds only empty ownerHeads (see C21.1.08 below). Historical v3→v4 validates all six old stores
 and every receipt/outbox relationship, own echo and checkpoint, then adds only
 empty projectBindings; no binding is inferred from events. Earlier v1/v2 gates follow. It validates every v1 identity/binding pair and their
 indexes before committing the four added stores. Unknown/corrupt old records
@@ -609,9 +611,9 @@ before resuming family-specific atomic protected apply. No points awarded.
 Accepted audit baseline `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`:
 owner/GPT Cloud **38258729038 SUCCESS**, all six required jobs SUCCESS. Audit
 accepted; **C21.1.06 remains BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.
-C21.1.05/.05A remain REMOTELY ACCEPTED. C21.1.07 **LOCAL COMPLETE / REMOTE CI PENDING**,
+C21.1.05/.05A remain REMOTELY ACCEPTED. C21.1.07 **REMOTELY ACCEPTED** (83d6f40c971163d07e1077049df225f4c9fe8964, Cloud38285007363 SUCCESS, all six required jobs),
 official84.0%, C21 IN PROGRESS. Historical schema3/audit statements above are prior
-slice records; schema4 and the implemented store table describe current code.
+slice records; schema5 and the C21.1.08 section describe current code.
 
 `session.projects` exposes ONLY `prepare`, `importRemote`, `read`, `list`,
 `confirmRegistration` and `evaluateReadiness`. Each read/write uses the existing
@@ -703,3 +705,121 @@ blob material and protected apply remain separately bounded. C21.1.06 is NOT com
 no points awarded. After independent C21.1.07 acceptance, review the imported-lineage
 protected-apply boundary and upload capture prerequisite; ACK/ready and Cover stay
 separate. Do not infer admission/authority from the existence of a prepared row.
+
+
+## C21.1.08 — imported Metadata protected apply (current schema5)
+
+C21.1.07 **REMOTELY ACCEPTED** by owner/GPT at
+`83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**,
+all six required jobs SUCCESS. C21.1.08 **LOCAL COMPLETE / REMOTE CI PENDING**.
+C21.1.06 broader umbrella remains **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.
+Official **84.0%**, C21 **IN PROGRESS**, no points. Earlier schema/slice statements
+above describe their historical implementations and are superseded here.
+
+Only Project Metadata codec1/2 without a non-null Cover reference, exact persisted installation lineage
+`import_remote/captured/active`, and clean transitions are implemented. Account,
+canonical user, receiving device, project and bootstrap are checked against existing
+identity/account/project bindings. Upload-existing prepared/registered/active is
+ineligible: no complete capture/cohort proof. Other families, full Web sync,
+HTTP/coordinator activation, ACK, readiness, projection/adoption/reconciliation,
+Cover material and conflict/orphan persistence are absent. This encrypted authority
+proof is not native `authority_view().state == active`, which additionally requires
+visible/reconciled local projection; it cannot unlock dependent families or readiness.
+
+`session.metadata.prepareVerified` uses current NormalUserAuthRuntime,
+AuthoritativeAccountBinding and real RuntimeKeyContext draining lease. It reads
+exact expected-old head/lineage and retained history, then authenticates each required
+encrypted ancestor/event outside IDB with the existing object AEAD/AAD, Metadata
+frame/decompression/canonical codec. Descriptor/account/project/entity/event/source,
+operation/tombstone/revision and bootstrap must match. Temporary nonce/ciphertext,
+wire-digest input/output and lease-key copies are zeroed; existing Metadata opener
+clears decrypted bytes. Decoded Metadata objects are transient only. No title,
+content, plaintext hash, key, passphrase, token or error body is stored. The opaque
+frozen token has no data fields; module-private WeakMap provenance binds it to the
+originating repository and current auth/key context. A caller-supplied `clean` DTO
+cannot enter commit. The returned plan contains only authority/proof identifiers
+and encrypted snapshots, never decoded Metadata.
+
+Owner key is native Metadata project scope: `[account_id,'project_metadata',project_id]`.
+Head record1 has account/device/owner/bootstrap, complete sorted `tip_event_ids`, and
+sorted `history` containing exact proof/reference metadata for EVERY retained ancestor.
+Per-event revision/generation/parents are retained, rather than one highest revision,
+sequence, timestamp or LWW winner. Graph validation proves parent existence, native
+revision=max(parent revision)+1, generation>max(parent generation), create1/1/no parents,
+genesis-resolution parents all true genesis, and exact causal maxima. Bounds are
+200 history references and 64 parents/tips; over-limit data fails closed without pruning.
+This clean-only producer writes one resulting causal tip; validation never collapses
+an existing complete multi-tip set or authorizes an incomplete resolution.
+
+Inbox received record1 is unchanged. Applied record2 preserves ALL original fields
+and exact `wire_item`, changes state to `applied`, and adds `applied_proof` record1:
+protocol2/3, Metadata codec1/2 version, native owner kind, local account/project/bootstrap/event/source device,
+server sequence, operation, revision, generation, ordered parent IDs, exact transport
+descriptor and SHA-256 `wire_digest` over canonical protocol+descriptor+encrypted
+nonce/ciphertext envelope. Proof1 fixes verification to frozen frame1/Metadata codec1/2,
+crypto1/AAD1. Hash input is ciphertext/transport only, never plaintext. This binds
+replay to the exact envelope, not only an authenticated header. Upload receipt remains
+separate, immutable and unchanged. Original wire is never rewritten/deleted at apply.
+
+`commitVerifiedImportedMetadataApply` performs ONE strict readwrite transaction over
+identity/account/project bindings, ownerHeads, inbox, outbox, receipts and cursors.
+Current canonical scope/auth/key context is rechecked; exact imported lineage and
+bootstrap, full expected-old head and registration snapshot, immutable inbox
+identity/sequence/protocol/wire, every retained ancestor/source/receipt and current
+local candidate incompatibility are revalidated synchronously. No crypto, timers,
+fetch or await run in this transaction. CLEAN only queues head replacement and
+inbox applied proof/state together; success means transaction completion. Auth
+invalidation/session close abort immediately; key-current checks precede writes
+and run again on write request success. Abort/quota/constraint/lifecycle failure
+preserves old head, received row and encrypted history; no partial proof.
+
+No head means ONLY native create revision1/generation1/empty parents can establish
+initial authority. An imported latest update must wait for causal predecessors.
+Next clean event must cover the exact COMPLETE current tips and have verified applied
+parent history with native revision/generation. Missing history/orphan, conflicting
+create/stale branch, invalid parent transition or incompatible local state aborts:
+received remains received, no blocker/conflict engine or head mutation. Retained
+conflicting ciphertext is not discarded or marked ordinary applied. Conflict-preserved
+history required for future full resolutions remains a separate authorized slice.
+
+Exact applied replay returns `already_applied`, verifies existing proof and matching
+history entry, and does not rewrite the head even after descendants/deletion. Changed
+ciphertext, header, descriptor, protocol, sequence, bootstrap or proof rejects.
+Retained-history reads accept validated received OR applied inbox plus the existing
+accepted outbox/receipt sources. `listReceived` validates primary-key cursor entries, so unknown states fail closed
+and applied entries cannot consume its received page limit; inbound-page replay preserves applied
+records/proofs and original wire instead of resetting state.
+
+Self-echo is closed as `self_echo_unavailable`: native also requires exact captured
+candidate or pending decision/payload/state (`project_metadata_sync.rs:462–513`),
+which browser transport/lineage does not persist. Even accepted outbox+matching
+receipt+identical ciphertext/source/sequence cannot invent that proof. Missing inbox
+with upload proof alone is `missing_history`. Pending local Metadata transport
+conservatively returns `local_incompatible`. No lost-response receipt synthesis here.
+Metadata codec2 with explicit null/removal follows the native no-material rule
+(`project_cover_sync.rs:102`) and is eligible. Authenticated non-null Cover returns
+`cover_material_unavailable`; the reference cannot be stripped or applied without
+the separately planned retained verified encrypted material.
+
+v4→v5 validates exact physical seven-store schema and every old identity/binding,
+outbox/body, inbox/wire/received state, cursor/allocator, receipt pair and project
+lineage row, including unique project/bootstrap identities. Adds ONLY empty
+ownerHeads. Existing rows, bytes, accepted state, proofs, lineage, cursors and ACK0
+remain unchanged. No head/applied proof is inferred. Invalid old state, quota,
+request abort or blocked upgrade rolls back to v4. Future schema is refused without
+repair/downgrade. Earlier v1/v2/v3 upgrades add only the missing authorized stores.
+
+Local verification: focused Metadata **41 PASS**, v4 migration **8 PASS**, affected
+C21 **73 PASS** across7 files; existing Metadata codec/runtime/bootstrap/compression
+**35 PASS**. Real production Chromium **80 scenarios PASS**, actual auth/binding/key
+runtime with disposable synthetic transport, actual AEAD/codec and actual native
+IndexedDB/Web Locks; **API requests0/page errors0**. Covers migration and failure
+rollback, genesis/causal/delete/replay/stale CAS, conflicts/orphans/generation/revision,
+lineage/Cover/self-echo/receipt/local incompatibility, auth/key/session revoke, retained
+ciphertext/no plaintext/ACK0, reload and full disk-profile reopen/isolation/lock transfer.
+Unit scheduling driver is not a storage durability claim; real rollback is Chromium.
+Typecheck, production/harness build, workflow/script syntax and diff checks PASS.
+Cloud explicitly selects both new specs with current C21 specs and hard-failure
+Chromium. No heavy PostgreSQL/Rust/SQLite suite needed/run; no dependencies,
+native/backend/crypto/AAD/frame/compression/frozen contract changes. Browser strict
+is a durability hint; physical power loss and other browsers are not tested.

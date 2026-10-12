@@ -1,3 +1,4 @@
+import { validateBrowserMetadataProof, type BrowserMetadataProof } from './metadataApplyRecords'
 import type { AccountDescriptor, V3Descriptor } from '@/api/encryptedSyncV3'
 import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from '@/api/encryptedSync'
 import { parseV2PullResponse, parseV2PushResponse, validateV2PushItem } from '@/api/encryptedSyncV2'
@@ -16,6 +17,8 @@ export interface BrowserReceivedInboxRecord {
   record_version: 1; account_id: string; device_id: string; event_id: string
   server_sequence: number; protocol_version: 2 | 3; state: 'received'; wire_item: string
 }
+export interface BrowserAppliedInboxRecord extends Omit<BrowserReceivedInboxRecord, 'record_version' | 'state'> { record_version: 2; state: 'applied'; applied_proof: BrowserMetadataProof }
+export type BrowserInboxRecord = BrowserReceivedInboxRecord | BrowserAppliedInboxRecord
 export interface BrowserUploadReceipt {
   record_version: 1; account_id: string; device_id: string; event_id: string
   protocol_version: 2 | 3; server_sequence: number; duplicate: boolean
@@ -26,7 +29,7 @@ export interface BrowserRetainedEncryptedHistory {
   reference: BrowserEncryptedHistoryReference
   outbox: BrowserOutboxRecord | null
   receipt: BrowserUploadReceipt | null
-  inbox: BrowserReceivedInboxRecord | null
+  inbox: BrowserInboxRecord | null
 }
 
 interface CursorRecord extends BrowserSyncCheckpoint { record_version: 1; account_id: string; device_id: string }
@@ -38,7 +41,6 @@ const exact = (value: unknown, keys: readonly string[]): boolean => typeof value
 const safe = (n: unknown, minimum = 0): n is number => Number.isSafeInteger(n) && (n as number) >= minimum
 const limitCheck = (n: number) => { if (!safe(n, 1) || n > 200) failure() }
 const accountRange = (account: string) => IDBKeyRange.bound([account], [account, []])
-const range = (account: string, after = 0) => IDBKeyRange.bound([account, after], [account, Number.MAX_SAFE_INTEGER], true, false)
 function snapshotScope(scope: BrowserSyncScope): BrowserSyncScope {
   if (!exact(scope, ['canonicalUserId', 'accountId', 'deviceId'])) failure()
   if (!Object.values(scope).every(value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value))) throw new BrowserPersistenceError('account_mismatch')
@@ -173,6 +175,7 @@ export function prepareBrowserUploadAcceptance(scope: BrowserSyncScope, expected
 
 /** Migration validation only; never transforms or repairs C21.1.03 v2 records. */
 export function validateBrowserV2SyncState(scopes: BrowserSyncScope[], outbound: unknown[], inbound: unknown[], checkpoints: unknown[]): void {
+  if (inbound.some(value => (value as BrowserReceivedInboxRecord)?.record_version !== 1 || (value as BrowserReceivedInboxRecord)?.state !== 'received')) failure()
   const scopeFor = (value: unknown): BrowserSyncScope => {
     const id = (value as { account_id?: string } | null)?.account_id
     return scopes.find(scope => scope.accountId === id) ?? failure()
@@ -210,13 +213,18 @@ export function validateBrowserV3SyncState(scopes: BrowserSyncScope[], outbound:
   validateBrowserV2SyncState(scopes, rows.map(row => ({ ...row, state: 'sealed' })), inbound, checkpoints)
 }
 
-function inbox(value: unknown, scope: BrowserSyncScope): BrowserReceivedInboxRecord {
-  if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item'])) failure()
-  const row = value as BrowserReceivedInboxRecord
-  if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || row.state !== 'received' || !safe(row.server_sequence, 1)) failure()
-  const item = wireJSON(row.wire_item) as WireItem
+function inbox(value: unknown, scope: BrowserSyncScope): BrowserInboxRecord {
+  const applied = (value as BrowserInboxRecord)?.state === 'applied'
+  if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item', ...(applied ? ['applied_proof'] : [])])) failure()
+  const row = value as BrowserInboxRecord
+  if (row.record_version !== (applied ? 2 : 1) || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !['received','applied'].includes(row.state) || !safe(row.server_sequence, 1)) failure()
+  const item = wireJSON(row.wire_item, true) as WireItem
   validatePage({ protocol_version: row.protocol_version, encrypted_sync_version: row.protocol_version, items: [item], next_cursor: row.server_sequence, has_more: false }, row.server_sequence - 1, scope.canonicalUserId)
   if (item.event.event_id !== row.event_id || item.event.server_sequence !== row.server_sequence) failure()
+  if (row.state === 'applied') {
+    const proof = validateBrowserMetadataProof(row.applied_proof, scope)
+    if (proof.protocol_version !== row.protocol_version || proof.event_id !== row.event_id || proof.server_sequence !== row.server_sequence || immutableWireIdentity(proof.reference) !== immutableWireIdentity(item.event)) failure()
+  }
   return row
 }
 
@@ -246,7 +254,7 @@ export function validateBrowserRetainedHistory(
   outbound: unknown, receipt: unknown, inbound: unknown,
 ): BrowserRetainedEncryptedHistory {
   scope = snapshotScope(scope); reference = historyReference(reference, scope)
-  let outgoing: BrowserOutboxRecord | null = null, received: BrowserReceivedInboxRecord | null = null
+  let outgoing: BrowserOutboxRecord | null = null, received: BrowserInboxRecord | null = null
   if (outbound !== undefined || receipt !== undefined) outgoing = validateBrowserUploadPair(outbound, receipt, scope)
   if (inbound !== undefined) received = inbox(inbound, scope)
   if (outgoing && outgoing.event_id !== reference.event_id || received && received.event_id !== reference.event_id) failure('conflicting_record')
@@ -430,8 +438,18 @@ export class BrowserSyncDurability {
     if (!safe(afterServerSequence)) failure()
     return this.transaction(scope, ['inbox'], 'readonly', (tx, result, fail) => {
       if (afterServerSequence === Number.MAX_SAFE_INTEGER) { result([]); return }
-      const request = tx.objectStore('inbox').getAll(range(scope.accountId, afterServerSequence), limit)
-      request.onsuccess = () => { try { result(request.result.map(value => inbox(value, scope))) } catch (error) { fail(error) } }
+      const records: BrowserReceivedInboxRecord[] = []
+      const request = tx.objectStore('inbox').openCursor(IDBKeyRange.bound([scope.accountId, afterServerSequence], [scope.accountId, Number.MAX_SAFE_INTEGER], true, false))
+      request.onsuccess = () => {
+        try {
+          const current = request.result
+          if (!current) { result(records); return }
+          const row = inbox(current.value, scope) // Unknown state/version cannot disappear behind a received-only index filter.
+          if (row.state === 'received') records.push(row)
+          if (records.length === limit) result(records)
+          else current.continue()
+        } catch (error) { fail(error) }
+      }
     })
   }
 
