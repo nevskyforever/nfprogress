@@ -7,6 +7,26 @@ C21.1.05 / .05A independently accepted by owner/GPT at repair
 `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud **38165641607 SUCCESS**,
 all six required jobs SUCCESS. Official84.0%, C21 IN PROGRESS.
 
+## C21.1.07 prerequisite implementation update
+
+Owner/GPT accepted this audit at `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`,
+Cloud **38258729038 SUCCESS**, all six required jobs SUCCESS. C21.1.06 remains
+BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE; acceptance covers audit accuracy.
+C21.1.07 now implements schema4 projectBindings record1 and dormant explicit
+preparation/import/registration CAS/read operations. The first durable-lineage
+storage prerequisite is implemented; the schema3 absence below is historical.
+See [current browser contract](../web/C21_BROWSER_PERSISTENCE.md).
+
+Prepared/registered upload lineage is NOT an admitted native project binding:
+atomic complete Note capture/cohort proof is still absent, so capture/completing
+are unavailable. Explicit import follows native captured/active/zero-cohort lineage;
+future authenticated coordinator owns registry provenance. No caller ready flag,
+markReady or pause/resume until durable apply/ACK readiness proofs exist. The store
+is not account-wide registry reconciliation or entity authority. Cover material,
+protected apply/heads/applied proofs and conflict/orphan remain separate. No family
+is implemented by treating mere projectBindings existence as success. C21.1.07
+LOCAL COMPLETE / REMOTE CI PENDING; official84.0%, C21 IN PROGRESS.
+
 ## First blocking prerequisite: durable project binding and bootstrap lineage
 
 Native Metadata apply checks the installation's existing project binding and

@@ -383,12 +383,12 @@ try {
     await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject; r.onblocked = reject })
     globalThis.session = await c21.openBrowserPersistence(users[0])
   })
-  assert.deepEqual(await nativeSchema(), { version: 3, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox', 'receipts'] })
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'outbox', 'projectBindings', 'receipts'] })
   assert.equal((await page.evaluate(() => nativeRows('identities'))).length, 1)
   assert.equal((await page.evaluate(() => nativeRows('accountBindings'))).length, 1)
   assert.deepEqual(await page.evaluate(async () => [await nativeRows('outbox'), await nativeRows('inbox'), await nativeRows('cursors')]), [[], [], []])
   await page.evaluate(() => session.close())
-  cases.push('fresh empty profile atomically creates the exact v3 six-store schema and identity/binding')
+  cases.push('fresh empty profile atomically creates the exact v4 seven-store schema and identity/binding')
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
   const freshIdentity = await page.evaluate(() => session.read(users[0]))
   const freshScope = { canonicalUserId: users[0], accountId: freshIdentity.local_account_id, deviceId: freshIdentity.device_id }
@@ -439,7 +439,7 @@ try {
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
   for (const [store, rows] of Object.entries(v2)) assert.deepEqual(await page.evaluate(store => nativeRows(store), store), rows)
   assert.deepEqual(await page.evaluate(() => nativeRows('receipts')), [])
-  cases.push('v2 to v3 preserves all five stores byte-for-byte; corrupt/quota upgrade failures leave v2 intact')
+  cases.push('v2 to current schema preserves all five stores byte-for-byte; corrupt/quota upgrade failures leave v2 intact')
   const expected = v2.outbox[0]
   const uploadResponse = (row, sequence, duplicate = false) => ({ protocol_version: row.protocol_version, encrypted_sync_version: row.protocol_version, current_cursor: Math.max(2, sequence), results: [{ event_id: row.event_id, server_sequence: sequence, duplicate }] })
   const commit = (row, response) => page.evaluate(({ scope, row, response }) => session.sync.commitUploadAcceptance(scope, row, response), { scope: scopeA, row, response })
@@ -561,7 +561,7 @@ try {
   assert.ok(historySaved.every(row => row.inbox === null || row.inbox.state === 'received'))
   assert.deepEqual(await page.evaluate(({ scope, references }) => session.sync.readRetainedHistory(scope, [...references].reverse()), { scope: scopeA, references: historyReferences }), historySaved)
   assert.deepEqual(await durableSnapshot(), historyBefore)
-  cases.push('retained mixed project/account history reads exact descriptors and ciphertext in deterministic order without modifying six v3 stores')
+  cases.push('retained mixed project/account history reads exact descriptors and ciphertext in deterministic order without modifying six encrypted durability stores')
   assert.equal(await historyFailure([{ ...historyReferences[0], event_id: users[3] }, historyReferences[1]]), 'missing_history')
   assert.equal(await historyFailure([historyReferences[0], { ...historyReferences[0], revision: 2 }]), 'conflicting_record')
   for (const change of [{ entity_id: 'wrong-owner' }, { project_id: 'wrong-project' }, { server_sequence: 4 }, { revision: 2 }]) assert.equal(await historyFailure([{ ...historyReferences[0], ...change }]), 'conflicting_record')
@@ -614,10 +614,173 @@ try {
   assert.deepEqual(await historyRead(page), historySaved)
   assert.deepEqual(await durableSnapshot(), historyBefore)
   assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
-  assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: [...allStores, 'projectBindings'].sort() })
   cases.push('unknown retained record and broken acceptance half fail after reopen; no automatic repair, schema/head writes, apply proof or ACK advancement')
+  // Accepted C21 v3 fixture: all six old stores, including immutable accepted bodies/receipts.
+  const v3 = await durableSnapshot()
+  await page.evaluate(async fixture => {
+    await session.close()
+    await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject })
+    const open = indexedDB.open(c21.WEB_DATABASE_NAME, 3)
+    open.onupgradeneeded = () => {
+      const db = open.result
+      const identities = db.createObjectStore('identities', { keyPath: 'canonical_user_id' })
+      identities.createIndex('local_account_id', 'local_account_id', { unique: true }); identities.createIndex('device_id', 'device_id', { unique: true })
+      db.createObjectStore('accountBindings', { keyPath: 'local_account_id' }).createIndex('canonical_user_id', 'canonical_user_id', { unique: true })
+      const outbox = db.createObjectStore('outbox', { keyPath: ['account_id','event_id'] })
+      outbox.createIndex('ordinal', ['account_id','device_id','local_ordinal'], { unique: true }); outbox.createIndex('state', ['account_id','state','local_ordinal'])
+      const inbox = db.createObjectStore('inbox', { keyPath: ['account_id','server_sequence'] })
+      inbox.createIndex('event', ['account_id','event_id'], { unique: true }); inbox.createIndex('state', ['account_id','state','server_sequence'])
+      db.createObjectStore('cursors', { keyPath: ['account_id','device_id'] })
+      db.createObjectStore('receipts', { keyPath: ['account_id','event_id'] }).createIndex('server_sequence', ['account_id','server_sequence'], { unique: true })
+    }
+    const db = await new Promise((resolve, reject) => { open.onsuccess = () => resolve(open.result); open.onerror = reject })
+    try { await c21.runBrowserTransaction(db, Object.keys(fixture), 'readwrite', (tx, result) => {
+      for (const [store, rows] of Object.entries(fixture)) for (const row of rows) tx.objectStore(store).add(store === 'receipts' ? { ...row, record_version: 99 } : row)
+      result(undefined)
+    }) } finally { db.close() }
+  }, v3)
+  await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'corrupt_record')
+  assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
+  for (const store of allStores.filter(store => store !== 'receipts')) assert.deepEqual(await page.evaluate(store => nativeRows(store), store), v3[store])
+  await page.evaluate(async proofs => {
+    const db = await new Promise(resolve => { const r = indexedDB.open(c21.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result) })
+    try { await c21.runBrowserTransaction(db, ['receipts'], 'readwrite', (tx, result) => { for (const row of proofs) tx.objectStore('receipts').put(row); result(undefined) }) } finally { db.close() }
+  }, v3.receipts)
+  await page.evaluate(async () => {
+    globalThis.upgradeBlocker = await new Promise(resolve => { const r = indexedDB.open(c21.WEB_DATABASE_NAME, 3); r.onsuccess = () => resolve(r.result) })
+  })
+  await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'upgrade_blocked')
+  await page.evaluate(() => upgradeBlocker.close())
+  assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
+  assert.deepEqual(await durableSnapshot(), v3)
+  const lineageUpgradeAbort = await page.evaluate(async () => {
+    const getAll = IDBObjectStore.prototype.getAll
+    IDBObjectStore.prototype.getAll = function(...args) {
+      const request = getAll.apply(this, args)
+      if (this.name === 'outbox') this.transaction.abort()
+      return request
+    }
+    try { await c21.openBrowserPersistence(users[0]); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBObjectStore.prototype.getAll = getAll }
+  })
+  assert.equal(lineageUpgradeAbort, 'storage_failed')
+  assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
+  assert.deepEqual(await durableSnapshot(), v3)
+  const lineageUpgradeQuota = await page.evaluate(async () => {
+    const create = IDBDatabase.prototype.createObjectStore
+    IDBDatabase.prototype.createObjectStore = function(name, ...args) { if (name === 'projectBindings') throw new DOMException('NOT_LOGGED', 'QuotaExceededError'); return create.call(this, name, ...args) }
+    try { await c21.openBrowserPersistence(users[0]); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBDatabase.prototype.createObjectStore = create }
+  })
+  assert.equal(lineageUpgradeQuota, 'quota_exceeded')
+  assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
+  assert.deepEqual(await durableSnapshot(), v3)
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await nativeSchema(), { version: 4, stores: [...allStores, 'projectBindings'].sort() })
+  assert.deepEqual(await durableSnapshot(), v3)
+  assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), [])
+  cases.push('real v3 to v4 preserves all six stores including accepted ciphertext/receipts; corrupt/quota/request-abort/blocked-upgrade failures preserve intact v3, projectBindings starts empty')
+  const projectId = note.event.project_id
+  const projectRead = () => page.evaluate(({ scope, id }) => session.projects.read(scope, id), { scope: scopeA, id: projectId })
+  assert.equal(await projectRead(), null)
+  assert.deepEqual(await page.evaluate(scope => session.projects.list(scope), scopeA), [])
+  assert.deepEqual(await historyRead(page), historySaved)
+  assert.equal(await projectRead(), null)
+  cases.push('retained encrypted events, accepted upload receipts and retained-history reads cannot implicitly create project lineage')
+  const preparedLineage = await page.evaluate(({ scope, id }) => session.projects.prepare(scope, { project_id: id, mode: 'upload_existing' }), { scope: scopeA, id: projectId })
+  assert.equal(preparedLineage.phase, 'prepared'); assert.equal(preparedLineage.remote_state, null)
+  assert.match(preparedLineage.bootstrap_id, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+  assert.deepEqual(await projectRead(), preparedLineage)
+  assert.deepEqual(await page.evaluate(({ scope, id }) => session.projects.prepare(scope, { project_id: id, mode: 'upload_existing' }), { scope: scopeA, id: projectId }), preparedLineage)
+  const projectFailure = (operation, args) => page.evaluate(async ({ operation, args }) => {
+    try { await session.projects[operation](...args); return 'unexpected_success' } catch (error) { return error.code ?? 'untyped_failure' }
+  }, { operation, args })
+  const registrationEvidence = { remote_state: 'initializing', remote_high_water: 5 }
+  const registeredLineage = await page.evaluate(({ scope, expected, evidence }) => session.projects.confirmRegistration(scope, expected, evidence), { scope: scopeA, expected: preparedLineage, evidence: registrationEvidence })
+  assert.deepEqual(registeredLineage, { ...preparedLineage, phase: 'registered', ...registrationEvidence })
+  assert.deepEqual(await page.evaluate(({ scope, expected, evidence }) => session.projects.confirmRegistration(scope, expected, evidence), { scope: scopeA, expected: preparedLineage, evidence: registrationEvidence }), registeredLineage)
+  assert.equal(await projectFailure('confirmRegistration', [scopeA, preparedLineage, { ...registrationEvidence, remote_high_water: 6 }]), 'stale_lineage')
+  assert.equal(await projectFailure('confirmRegistration', [scopeA, { ...preparedLineage, bootstrap_id: users[3] }, registrationEvidence]), 'conflicting_record')
+  assert.equal(await projectFailure('confirmRegistration', [scopeA, { ...preparedLineage, device_id: scopeA.accountId }, registrationEvidence]), 'corrupt_record')
+  assert.equal(await projectFailure('confirmRegistration', [scopeA, registeredLineage, { ...registrationEvidence, ready: true }]), 'corrupt_record')
+  assert.equal(await projectFailure('prepare', [scopeA, { project_id: projectId, mode: 'upload_existing', phase: 'ready', initial_event_count: 3 }]), 'corrupt_record')
+  assert.deepEqual(await projectRead(), registeredLineage)
+  cases.push('explicit upload-existing preparation generates immutable v4 lineage; exact registration CAS/retry succeeds, stale/wrong-lineage/device/phase/cohort updates reject')
+  const abortLineage = await page.evaluate(async ({ scope, expected }) => {
+    const put = IDBObjectStore.prototype.put
+    IDBObjectStore.prototype.put = function(...args) {
+      const request = put.apply(this, args)
+      if (this.name === 'projectBindings') this.transaction.abort()
+      return request
+    }
+    try { await session.projects.confirmRegistration(scope, expected, { remote_state: 'active', remote_high_water: 8 }); return 'unexpected_success' } catch (error) { return error.code }
+    finally { IDBObjectStore.prototype.put = put }
+  }, { scope: scopeA, expected: registeredLineage })
+  assert.equal(abortLineage, 'storage_failed')
+  assert.deepEqual(await projectRead(), registeredLineage)
+  assert.deepEqual(await durableSnapshot(), v3)
+  cases.push('real IDB abort after queued project lineage replacement leaves old phase/high-water and six encrypted stores unchanged')
+  const importedProject = 'imported-project', importedBootstrap = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+  const remoteDescriptor = { project_id: importedProject, bootstrap_id: importedBootstrap, remote_state: 'active', remote_high_water: 9 }
+  const importedLineage = await page.evaluate(({ scope, descriptor }) => session.projects.importRemote(scope, descriptor), { scope: scopeA, descriptor: remoteDescriptor })
+  assert.deepEqual(importedLineage, { record_version: 1, account_id: scopeA.accountId, device_id: scopeA.deviceId, project_id: importedProject, bootstrap_id: importedBootstrap, mode: 'import_remote', phase: 'captured', remote_state: 'active', remote_high_water: 9, initial_event_count: 0, initial_local_ordinal_hi: 0, initial_max_server_sequence: null, blocked_reason: null })
+  assert.deepEqual(await page.evaluate(({ scope, descriptor }) => session.projects.importRemote(scope, descriptor), { scope: scopeA, descriptor: remoteDescriptor }), importedLineage)
+  assert.deepEqual(await page.evaluate(async ({ scope, id, ignoredCandidate }) => {
+    const uuid = crypto.randomUUID
+    crypto.randomUUID = () => ignoredCandidate
+    try { return await session.projects.prepare(scope, { project_id: id, mode: 'upload_existing' }) }
+    finally { crypto.randomUUID = uuid }
+  }, { scope: scopeA, id: projectId, ignoredCandidate: importedBootstrap }), registeredLineage)
+  assert.equal(await projectFailure('importRemote', [scopeA, { ...remoteDescriptor, project_id: 'other-project' }]), 'conflicting_record')
+  assert.equal(await projectFailure('importRemote', [scopeA, { ...remoteDescriptor, bootstrap_id: users[3] }]), 'conflicting_record')
+  assert.equal(await projectFailure('importRemote', [scopeA, { ...remoteDescriptor, project_id: projectId }]), 'conflicting_record')
+  assert.equal(await projectFailure('importRemote', [scopeA, { ...remoteDescriptor, remote_state: 'initializing' }]), 'corrupt_record')
+  assert.deepEqual(await page.evaluate(({ scope, id }) => session.projects.evaluateReadiness(scope, id), { scope: scopeA, id: projectId }), { ready: false, code: 'capture_proof_unavailable', required_cursor: 5 })
+  assert.deepEqual(await page.evaluate(({ scope, id }) => session.projects.evaluateReadiness(scope, id), { scope: scopeA, id: importedProject }), { ready: false, code: 'ack_proof_unavailable', required_cursor: 9 })
+  assert.deepEqual(await page.evaluate(() => ['capture','markCompleting','markReady','setPaused','setPhase','patch'].map(name => name in session.projects)), [false,false,false,false,false,false])
+  assert.deepEqual(await durableSnapshot(), v3)
+  cases.push('explicit remote import is captured/active with zero local cohort; conflicting project/bootstrap reuse rejects; no capture/completing/ready/pause or arbitrary patch API and readiness remains blocked')
+  const bindingsSaved = await page.evaluate(scope => session.projects.list(scope), scopeA)
+  assert.deepEqual(bindingsSaved.map(row => row.project_id), [importedProject, projectId].sort())
+  await page.reload()
+  await page.evaluate(async users => { globalThis.users = users; globalThis.session = await c21.openBrowserPersistence(users[0]) }, users)
+  assert.deepEqual(await page.evaluate(scope => session.projects.list(scope), scopeA), bindingsSaved)
+  await context.close(); await start(); page = await tab()
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await page.evaluate(scope => session.projects.list(scope), scopeA), bindingsSaved)
+  cases.push('explicit project lineage survives reload and disk-profile/browser reopen with exact immutable fields, lifecycle and deterministic ordering')
+  competing = await tab()
+  await expectCode(competing, 'c21.openBrowserPersistence(users[0])', 'writer_busy')
+  await page.close(); page = competing
+  await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await projectRead(), registeredLineage)
+  await page.evaluate(async () => { globalThis.staleLineage = session; await session.resetForLogout(); globalThis.session = await c21.openBrowserPersistence(users[1]) })
+  assert.equal(await projectFailure('read', [scopeA, projectId]), 'account_mismatch')
+  assert.equal(await page.evaluate(({ scope, id }) => session.projects.read(scope, id), { scope: newScopeB, id: projectId }), null)
+  assert.deepEqual(await page.evaluate(scope => session.projects.list(scope), newScopeB), [])
+  assert.equal(await page.evaluate(async ({ scope, expected }) => { try { await staleLineage.projects.confirmRegistration(scope, expected, { remote_state: 'active', remote_high_water: 8 }); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, expected: registeredLineage }), 'closed')
+  assert.equal(await page.evaluate(async ({ scope, id }) => { try { await staleLineage.projects.prepare(scope, { project_id: id, mode: 'upload_existing' }); return 'unexpected_success' } catch (error) { return error.code } }, { scope: scopeA, id: 'stale-project' }), 'closed')
+  assert.equal(await projectFailure('prepare', [{ ...newScopeB, deviceId: scopeA.deviceId }, { project_id: projectId, mode: 'upload_existing' }]), 'account_mismatch')
+  await page.evaluate(async () => { await session.close(); globalThis.session = await c21.openBrowserPersistence(users[0]) })
+  assert.deepEqual(await page.evaluate(scope => session.projects.list(scope), scopeA), bindingsSaved)
+  assert.deepEqual(await durableSnapshot(), v3)
+  cases.push('project bindings obey native Web Locks ownership transfer, account/device isolation and stale logout handle rejection without erasure')
+  await mutate('projectBindings', 'put', { ...registeredLineage, record_version: 99 })
+  assert.equal(await projectFailure('read', [scopeA, projectId]), 'corrupt_record')
+  assert.equal(await projectFailure('confirmRegistration', [scopeA, registeredLineage, registrationEvidence]), 'corrupt_record')
+  await mutate('projectBindings', 'put', registeredLineage)
+  await mutate('projectBindings', 'put', { ...registeredLineage, phase: 'ready' })
+  assert.equal(await projectFailure('list', [scopeA]), 'corrupt_record')
+  await mutate('projectBindings', 'put', registeredLineage)
+  assert.deepEqual(await page.evaluate(scope => session.projects.list(scope), scopeA), bindingsSaved)
+  assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), bindingsSaved)
+  assert.deepEqual(await durableSnapshot(), v3)
+  assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
+  cases.push('unknown/unproven lineage records fail after reopen without repair; durable metadata contains only native IDs/lifecycle fields, ACK/proven remain zero')
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
   const retainedAccepted = await retained()
+  const retainedBindings = await page.evaluate(() => nativeRows('projectBindings'))
   await page.evaluate(async () => {
     await new Promise((resolve, reject) => {
       const r = indexedDB.open(c21.WEB_DATABASE_NAME, c21.WEB_DATABASE_VERSION + 1)
@@ -627,6 +790,7 @@ try {
   await expectCode(page, 'c21.openBrowserPersistence(users[0])', 'unsupported_version')
   assert.deepEqual(await page.evaluate(() => nativeRows('receipts')), retainedProofs)
   assert.deepEqual(await page.evaluate(() => nativeRows('outbox')), retainedAccepted)
+  assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), retainedBindings)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])
   console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: 0, pageErrors: 0 }))

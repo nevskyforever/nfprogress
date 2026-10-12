@@ -45,6 +45,8 @@ function snapshotScope(scope: BrowserSyncScope): BrowserSyncScope {
   return Object.freeze({ ...scope })
 }
 
+export { snapshotScope as snapshotBrowserSyncScope }
+
 /** Comparison follows native metadata/encrypted-byte equality, independent of JSON key order. */
 export function immutableWireIdentity(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(immutableWireIdentity).join(',')}]`
@@ -186,6 +188,26 @@ export function validateBrowserV2SyncState(scopes: BrowserSyncScope[], outbound:
     if (out.length !== ordinal || state.next_local_ordinal !== ordinal + 1 || state.pull_cursor !== received.reduce((max, row) => Math.max(max, row.server_sequence), 0)) failure()
     for (const row of received) { const own = out.find(event => event.event_id === row.event_id); if (own) assertOwnEcho(own, wireJSON(row.wire_item) as WireItem) }
   }
+}
+
+/** Non-destructive v3 upgrade validation, including every immutable upload receipt and own echo. */
+export function validateBrowserV3SyncState(scopes: BrowserSyncScope[], outbound: unknown[], inbound: unknown[], checkpoints: unknown[], proofs: unknown[]): void {
+  const scopeFor = (value: unknown) => scopes.find(scope => scope.accountId === (value as { account_id?: string } | null)?.account_id) ?? failure()
+  const rows = outbound.map(value => validateBrowserUploadPair(value, proofs.find(proof => (proof as BrowserUploadReceipt)?.account_id === (value as BrowserOutboxRecord)?.account_id && (proof as BrowserUploadReceipt)?.event_id === (value as BrowserOutboxRecord)?.event_id), scopeFor(value)))
+  const sequences = new Set<string>(), events = new Set<string>()
+  for (const proof of proofs) {
+    const scope = scopeFor(proof), receipt = proof as BrowserUploadReceipt
+    const row = rows.find(row => row.account_id === receipt.account_id && row.event_id === receipt.event_id)
+    validateBrowserUploadPair(row, proof, scope)
+    const key = JSON.stringify([receipt.account_id, receipt.server_sequence]), eventKey = JSON.stringify([receipt.account_id, receipt.event_id])
+    if (sequences.has(key) || events.has(eventKey)) failure()
+    sequences.add(key); events.add(eventKey)
+    const atSequence = inbound.find(value => (value as BrowserReceivedInboxRecord)?.account_id === receipt.account_id && (value as BrowserReceivedInboxRecord)?.server_sequence === receipt.server_sequence) as BrowserReceivedInboxRecord | undefined
+    const echo = inbound.find(value => (value as BrowserReceivedInboxRecord)?.account_id === receipt.account_id && (value as BrowserReceivedInboxRecord)?.event_id === receipt.event_id) as BrowserReceivedInboxRecord | undefined
+    if (atSequence && atSequence.event_id !== receipt.event_id || echo && echo.server_sequence !== receipt.server_sequence) failure()
+  }
+  // Detached validation copies only; all original stored rows/bodies/proofs remain byte-for-byte unchanged.
+  validateBrowserV2SyncState(scopes, rows.map(row => ({ ...row, state: 'sealed' })), inbound, checkpoints)
 }
 
 function inbox(value: unknown, scope: BrowserSyncScope): BrowserReceivedInboxRecord {

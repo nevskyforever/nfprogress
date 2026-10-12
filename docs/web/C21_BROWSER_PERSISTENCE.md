@@ -1,7 +1,7 @@
-# C21.1.02–C21.1.06 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.07 — Browser durable persistence / E2EE adapter contract
 
-Contract revision5, 2026-10-12. C21.1.05 remains dormant; IDB schema stays3.
-C21.1.06 stopped at prerequisite audit; no protected apply implemented.
+Contract revision6, 2026-10-12. IDB schema4 implements dormant project lineage.
+C21.1.06 remains blocked/not implemented; no protected apply.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
 all required Cloud jobs SUCCESS; SQLite not triggered/not expected. C21 stays
@@ -10,9 +10,9 @@ IN PROGRESS, official WORTA ROADMAP SCORING v1.0 **84.0%**.
 ## Decision and limits
 
 Use one origin/profile-scoped IndexedDB database `worta-web`, with Web Locks
-exclusive writer ownership of `worta-web:writer`. Storage schema version **3**
-implements `identities`, `accountBindings`, `outbox`, `inbox`, `cursors`, and
-upload-acceptance `receipts`. Protected-apply receipts remain unimplemented.
+exclusive writer ownership of `worta-web:writer`. Storage schema version **4**
+implements `identities`, `accountBindings`, `outbox`, `inbox`, `cursors`,
+upload-acceptance `receipts`, and dormant `projectBindings`. Protected-apply receipts remain unimplemented.
 Other stores below remain a **frozen semantic design**, not implemented stores.
 No full Web sync is enabled. Owner/GPT independently accepted C21.1.02 + .02A
 at `245938f009c1914f52ee32927efe2e722858faef`: Cloud **38137926976 SUCCESS**,
@@ -88,7 +88,7 @@ No store is created speculatively before its implementing migration.
 | --- | --- | --- |
 | `identities` | `canonical_user_id`; unique `local_account_id`, unique `device_id` | Implemented v1: exactly canonical UUID user/account/device + `record_version: 1`. Random account/device generated internally once per canonical user. |
 | `accountBindings` | `local_account_id`; unique `canonical_user_id` | Implemented v1: immutable local-account→canonical-user mapping + record version. Created with identity in one transaction. |
-| `projectBindings` | `[account_id, project_id]`; `[account_id, bootstrap_id]` | Planned: exact device/lineage/mode/phase, remote state/high-water, cohort IDs/count/ordinal, pause/blocker code. No title/path/source binding. |
+| `projectBindings` | `[account_id,project_id]`; unique `bootstrap` on `[account_id,bootstrap_id]` | Implemented schema4 / record1: exact native lineage/status fields. upload_existing prepared/registered; explicit import_remote captured/active with zero local cohort. Capture/completing/ready/pause/blocked producers deferred; no title/path/content or arbitrary reason. |
 | `outbox` | `[account_id,event_id]`; unique `ordinal` on `[account_id,device_id,local_ordinal]`, nonunique `state` on `[account_id,state,local_ordinal]` | Implemented schema2 / record1: account/device/event/ordinal, protocol2 or3, state `sealed` or `accepted` (schema3), exact `raw_body` from an existing singleton encrypted push. Accepted requires its immutable upload receipt; no unsealed plaintext. Causal parent/base-tip proofs remain inside existing sealed frames; authority capture is deferred. |
 | `inbox` | `[account_id,server_sequence]`; unique `event` on `[account_id,event_id]`, nonunique `state` on `[account_id,state,server_sequence]` | Implemented schema2 / record1: receiving account/device, event/sequence, protocol2 or3, state `received`, exact metadata/encrypted envelope in `wire_item`. Wire validation is not crypto authentication or apply. Applied/orphan/blocked states and proofs deferred. |
 | `cursors` | `[account_id,device_id]`, no indexes | Implemented schema2 / record1: pull cursor, `next_local_ordinal` starting1; `ack_cursor` and `proven_prefix` reserved at0, with no advancement API. Pull expected-old CAS is inseparable from inbox commit. Never infer ACK from ciphertext receipt. |
@@ -163,8 +163,10 @@ Unsynced data cannot be restored magically; browser/profile backups and encrypte
 recovery remain future product work, not automatic export/deployment in this slice.
 
 IDB version is separate from record version and C11/C15/C17/C18 wire/codec versions.
-Current v3 supports a new empty DB, an exact v3, or forward versionchange
-upgrades from exact v1 or v2. It validates every v1 identity/binding pair and their
+Current v4 supports a new empty DB, an exact v4, or non-destructive forward
+versionchange upgrades from exact v1/v2/v3. v3→v4 validates all six old stores
+and every receipt/outbox relationship, own echo and checkpoint, then adds only
+empty projectBindings; no binding is inferred from events. Earlier v1/v2 gates follow. It validates every v1 identity/binding pair and their
 indexes before committing the four added stores. Unknown/corrupt old records
 or any quota/request failure abort the entire migration, leaving v1 data/schema
 intact; no destructive recreation or clearing is attempted. The v2→v3 upgrade
@@ -600,3 +602,104 @@ No premature proof/head write, new store, plaintext projection, network or ACK.
 No new runtime tests/builds/CI specs, since there is no production implementation.
 Review/authorize a bounded dormant binding/bootstrap-lineage persistence prerequisite
 before resuming family-specific atomic protected apply. No points awarded.
+
+
+## Implemented C21.1.07 installation-lineage contract
+
+Accepted audit baseline `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`:
+owner/GPT Cloud **38258729038 SUCCESS**, all six required jobs SUCCESS. Audit
+accepted; **C21.1.06 remains BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.
+C21.1.05/.05A remain REMOTELY ACCEPTED. C21.1.07 **LOCAL COMPLETE / REMOTE CI PENDING**,
+official84.0%, C21 IN PROGRESS. Historical schema3/audit statements above are prior
+slice records; schema4 and the implemented store table describe current code.
+
+`session.projects` exposes ONLY `prepare`, `importRemote`, `read`, `list`,
+`confirmRegistration` and `evaluateReadiness`. Each read/write uses the existing
+session-owned transaction wrapper, revalidating canonical user/account/device
+identity+binding in the SAME IDB transaction. Writes request strict durability;
+transaction completion is success. No raw DB/store handle, generic patch/setPhase,
+delete or rebinding method. Account/project key and unique account/bootstrap index
+retain immutable account_id/project_id/device_id/bootstrap_id/mode. Project IDs
+retain existing opaque nonempty bounded transport identity; UUIDs are canonical,
+bootstrap IDs specifically lowercase UUIDv4 with native variant bits. No title/path
+is converted into an ID. Native semantic DTO reused type-only, with no native IPC.
+
+Record1 contains exactly record_version plus the twelve native fields:
+account_id, project_id, device_id, bootstrap_id, mode, phase, remote_state,
+initial_event_count, initial_local_ordinal_hi, remote_high_water,
+initial_max_server_sequence, blocked_reason. All counters follow nonnegative safe
+integer bounds. This slice has no complete atomic editor/capture evidence: cohort
+count/ordinal stay0 and initial_max_server_sequence staysnull. blocked_reason stays
+null; there is no existing native blocked producer to port and arbitrary reason
+strings are forbidden. No creation/update timestamps or backend bodies persisted.
+
+| Operation | Durable effect / authority boundary |
+| --- | --- |
+| prepare(scope,{project_id,mode:upload_existing}) | Explicit install/preparation action generates UUIDv4 outside IDB; creates prepared/null remote state with zero cohort. Existing same scoped project/mode returns original row in any supported phase, ignoring the unused new candidate UUID. No local projection is created. Future trusted coordinator must perform actual project existence/eligibility preflight before invoking it; persistence is not that preflight proof. |
+| importRemote(scope,{project_id,bootstrap_id,remote_state:active,remote_high_water}) | Exact explicit inputs from a future authenticated remote registry/coordinator; creates native import_remote/captured/active with zero local cohort. No network, project shell, name or plaintext metadata. DTO is not cryptographically authenticated by this repository. Same immutable imported lineage retries return original record, preserving its first high-water; different lineage/mode rejects. |
+| confirmRegistration(scope,expected,evidence) | Exact native registration evidence fields only: remote_state initializing/active and safe remote_high_water. prepared→registered or same registered/import-captured phase; high-water uses native max(old,reply), active cannot regress. All fields of expected-old record are CAS-checked. Exact desired record already present is idempotent; another high-water/phase or lineage is stale/conflicting. No independent remote-field patch. Future authenticated coordinator is responsible for evidence provenance. |
+| read/list | Detached validated exact record / complete account-scoped list in primary-key project order. No arbitrary page limit silently hides projects. Wrong scope/device, unsupported record/version/state/fields or corrupted rows fail closed, never auto-repair. |
+| evaluateReadiness | Read-only `{ready:false,code,required_cursor}`; missing_lineage, registration_required, capture_proof_unavailable or ack_proof_unavailable. No persistent ready flag or account-wide readiness claim. |
+
+Native upload capture atomically scans ALL eligible current Notes, creates their
+initial intents AND project binding, then freezes cohort count/local-ordinal high.
+Existing browser sealed outbox/receipts cannot prove that capture included every
+Note or freeze a missing captured cohort. Thus upload_existing registered cannot
+advance to captured/completing, even when remote_state=active or counters/high-water
+are zero. Prepared/registered rows prove a prepared lineage, not an admitted project
+binding for protected apply. Explicit import captured follows the native zero-local-
+cohort subset; it proves explicit installation lineage, not entity authority/apply.
+No fake empty-cohort completion inferred from pull cursor/receipt acceptance.
+
+Native markReady requires active remote and durable ACK >= max(remote_high_water,
+initial_max_server_sequence), after coordinator reconciliation/bounded sync. Browser
+ACK/proven prefix are reserved0 with no applied/ACK proofs. A zero required cursor
+does not manufacture verified cycle completion. **No markReady/capture/markCompleting
+API exists**, and no record1 producer/reader admits an unproven ready/completing or
+upload-captured record. Native pause/resume is EXACTLY ready→paused→ready, with no
+previous-phase field. **No setPaused API** until readiness exists; prepared/registered
+cannot pause, and no invented resume-to-registered state. Native phase enum retained
+in DTO typing; unsupported later states need a separately accepted proof/record
+extension, not silently normalized success. No blocked/orphan/conflict record engine.
+
+A successful v3→v4 versionchange validates identity/binding scopes, exact body/envelope
+records, checkpoint/allocator positions and all upload receipts, rejects orphan/
+missing/duplicate/sequence-conflicting proof halves, and leaves all six old stores
+byte-for-byte untouched. Validation may use detached sealed-state copies only to
+reuse earlier invariant checks; persisted accepted rows remain accepted. Quota/corrupt/request-abort/blocked-versionchange upgrades abort entirely; no clearing. Fresh v4 has exactly7
+stores; projectBindings starts EMPTY after migration despite retained project events.
+Future DB version refuses downgrade. All project lifecycle operations share existing
+Web Locks, session revocation/drain and typed bounded storage errors. Logout never
+erases lineage. No plaintext, password, AMK/Recovery Key, tokens or arbitrary error
+messages. No ownerHeads/applied proof/inbox transition, HTTP or bootstrap activation.
+
+Local evidence: projectBindings **23 PASS**, new v3-migration **4 PASS**; affected
+persistence/syncDurability/retainedHistory/uploadAcceptance/old migration plus native
+bootstrap-coordinator TS contracts **58 PASS / 6 files**. Existing coordinator tests
+exercise native ordering, partial cohort, import, pause and registry gate semantics;
+that coordinator is NOT connected to the browser repository. Initial UUID-negative
+fixture was corrected (it had accidentally supplied a valid UUIDv4). Real migration
+request-abort testing exposed an opener double-abort page error; guarded upgrade
+abort preserves the original bounded failure even if the transaction already ended.
+Final curated C21 invocation **73 PASS / 7 files**; all final gates pass.
+Real production-preview Chromium **48 scenarios PASS**: all prior encrypted durability
+proofs plus actual v3 upgrade/rollback, empty binding store/no transport synthesis,
+explicit create/import and UUID/project uniqueness, exact registration CAS/replay,
+wrong lineage/device/stale/caller ready/cohort fields, real transaction abort, reload/
+disk-profile reopen, account isolation/Web Locks transfer/logout, unknown/unproven
+records and future-version retention. A final preparation replay case additionally
+proves unused candidate UUID collision cannot reset/conflict existing lineage.
+API requests0/page errors0. Protocol/remote evidence are disposable fixtures, not
+network activation or proof that a DTO authenticated itself. No mocked IDB/Web Locks.
+Typecheck and production build PASS; existing chunk/documentDocx warnings remain.
+Cloud explicitly selects the new lineage and migration specs with existing C21 specs
+and the expanded Chromium harness, all hard failures. No dependencies/native/backend/
+frozen crypto/AAD/frame/codec/compression changes. Other browsers, physical power-loss/
+quota exhaustion, full suites and heavy PostgreSQL/Rust/SQLite not run.
+
+First durable-lineage STORE prerequisite is implemented. Remaining upload capture/
+readiness evidence, account-wide authenticated registry reconciliation, Cover encrypted
+blob material and protected apply remain separately bounded. C21.1.06 is NOT complete;
+no points awarded. After independent C21.1.07 acceptance, review the imported-lineage
+protected-apply boundary and upload capture prerequisite; ACK/ready and Cover stay
+separate. Do not infer admission/authority from the existence of a prepared row.
