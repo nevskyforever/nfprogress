@@ -1,3 +1,5 @@
+import { makeHistoryCandidate,nextNoteHead,historyRange } from './noteHistory'
+import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteCandidate } from './noteHistoryRecords'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { RuntimeKeyContext } from '@/auth/keyContext'
@@ -14,7 +16,7 @@ import { immutableWireIdentity, readBrowserSyncCursor, snapshotBrowserSyncScope,
 export interface InitialLegacyNotePlan { readonly verifiedInitialLegacyNotePlan: unique symbol }
 export interface InitialLegacyCohortStatus { event_count: number; accepted_count: number; complete: boolean; max_server_sequence: number }
 export interface InitialLegacyCaptureResult { status: 'captured' | 'already_captured'; binding: BrowserProjectBinding }
-interface PreparedEvent { noteId: string; eventId: string; raw: string }
+interface PreparedEvent { noteId: string; eventId: string; raw: string; candidate:BrowserNoteCandidate }
 interface Plan { owner: BrowserInitialNoteCaptureRuntime; scope: BrowserSyncScope; binding: BrowserProjectBinding; source: LocalSourceToken; sourceRevision: number; events: PreparedEvent[]; current: () => boolean }
 const plans = new WeakMap<object, Plan>()
 const same = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b)
@@ -98,7 +100,7 @@ export class BrowserInitialNoteCaptureRuntime {
             object = await encryptObjectBytes(amk, context, bytes)
             const raw = encodeV2Push({ protocol_version: 2, encrypted_sync_version: 2, device_id: scope.deviceId, items: [{ event: { ...p.event, entity_type: 'note', operation: 'upsert', deleted_at: null }, object: { crypto_version: 1, aad_version: 1, nonce: encodeBase64Url(object.nonce), ciphertext: encodeBase64Url(object.ciphertext) } }] })
             const sealed = validateBrowserSealedBody(raw, scope)
-            result.push({ noteId: p.noteId, eventId: sealed.eventId, raw })
+            result.push({ noteId: p.noteId, eventId: sealed.eventId, raw, candidate:await makeHistoryCandidate(scope,expected,2,scope.deviceId,JSON.parse(raw).items[0],p.plaintext,'initial_capture',snapshot.notes.find(n=>n.note_id===p.noteId)!) })
             if (!current()) fail('closed')
           } finally { bytes?.fill(0); object?.nonce.fill(0); object?.ciphertext.fill(0) }
         }
@@ -116,17 +118,17 @@ export class BrowserInitialNoteCaptureRuntime {
     if (!p || p.owner !== this || !same(p.scope, scope)) fail('conflicting_record')
     if (!p.current()) fail('closed')
     let unsubscribe: (() => void) | undefined
-    return this.transaction<InitialLegacyCaptureResult>(scope, ['localProjects','localNotes','projectBindings','outbox','inbox','cursors','receipts'], 'readwrite', (tx, result, abort) => {
+    return this.transaction<InitialLegacyCaptureResult>(scope, ['localProjects','localNotes','projectBindings','outbox','inbox','cursors','receipts',NOTE_HISTORY_STORE], 'readwrite', (tx, result, abort) => {
       unsubscribe = this.auth.onInvalidated(() => abort(new BrowserPersistenceError('closed')))
-      const binding = tx.objectStore('projectBindings').get([scope.accountId,p.binding.project_id]), out = tx.objectStore('outbox').getAll(range(scope.accountId)), receipts = tx.objectStore('receipts').getAll(range(scope.accountId)), incoming = tx.objectStore('inbox').getAll(range(scope.accountId))
+      const binding = tx.objectStore('projectBindings').get([scope.accountId,p.binding.project_id]), out = tx.objectStore('outbox').getAll(range(scope.accountId)), receipts = tx.objectStore('receipts').getAll(range(scope.accountId)), incoming = tx.objectStore('inbox').getAll(range(scope.accountId)), history=tx.objectStore(NOTE_HISTORY_STORE).getAll(historyRange(scope,p.binding.project_id))
       let reads = 0
-      const finish = () => { if (++reads !== 4) return; try {
+      const finish = () => { if (++reads !== 5) return; try {
         if (!p.current()) fail('closed')
         const old = validateBrowserProjectBinding(binding.result, scope)
         if (old.phase === 'captured' && old.mode === 'upload_existing') {
           matchesCaptured(old, p.binding)
           const cohort = deriveInitialLegacyCohort(scope, old, out.result, receipts.result)
-          if (!same(cohort.rows.map(r => ({ noteId: JSON.parse(r.raw_body).items[0].event.entity_id, eventId: r.event_id, raw: r.raw_body })), p.events)) fail('conflicting_record')
+          if (!same(cohort.rows.map(r => ({ noteId: JSON.parse(r.raw_body).items[0].event.entity_id, eventId: r.event_id, raw: r.raw_body })), p.events.map(e=>({noteId:e.noteId,eventId:e.eventId,raw:e.raw})))) fail('conflicting_record')
           result({ status: 'already_captured', binding: old }); return // No current source read/re-capture.
         }
         eligible(old); if (!same(old, p.binding)) fail('stale_lineage')
@@ -151,7 +153,10 @@ export class BrowserInitialNoteCaptureRuntime {
             const target = validateBrowserProjectBinding({ ...old, phase: 'captured', initial_event_count: count, initial_local_ordinal_hi: count ? end - 1 : 0 }, scope)
             // Check exact proof against the rows before queueing any changes.
             deriveInitialLegacyCohort(scope, target, [...rows,...additions], receipts.result)
-            const writes = additions.map(r => tx.objectStore('outbox').add(r))
+            const oldHistory=validateNoteHistorySet(scope,history.result)
+            if(oldHistory.some(r=>p.events.some(e=>e.noteId===r.note_id)))fail('conflicting_record')
+            const historyWrites=p.events.flatMap(e=>[tx.objectStore(NOTE_HISTORY_STORE).add(e.candidate),tx.objectStore(NOTE_HISTORY_STORE).add(nextNoteHead(scope,target,[e.candidate],e.eventId))])
+            const writes = [...historyWrites,...additions.map(r => tx.objectStore('outbox').add(r))]
             if (count) writes.push(tx.objectStore('cursors').put({ ...state, next_local_ordinal: end }))
             writes.push(tx.objectStore('projectBindings').put(target))
             writes.forEach(w => { w.onsuccess = () => { if (!p.current()) abort(new BrowserPersistenceError('closed')) } })
@@ -159,7 +164,7 @@ export class BrowserInitialNoteCaptureRuntime {
           } catch (e) { abort(e) } }, abort)
         }, abort)
       } catch (e) { abort(e) } }
-      binding.onsuccess = finish; out.onsuccess = finish; receipts.onsuccess = finish; incoming.onsuccess = finish
+      binding.onsuccess = finish; out.onsuccess = finish; receipts.onsuccess = finish; incoming.onsuccess = finish; history.onsuccess=finish
     }).finally(() => unsubscribe?.())
   }
   async capture(scope: BrowserSyncScope, expected: BrowserProjectBinding): Promise<InitialLegacyCaptureResult> {

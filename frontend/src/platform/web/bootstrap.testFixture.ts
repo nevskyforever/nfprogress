@@ -1,3 +1,4 @@
+import { BrowserLegacyNoteHistory } from './noteHistory'
 import { BrowserLegacyNoteApply } from './legacyNoteApply'
 // Shared scheduling-contract fixture only. Real IDB/HTTP is validated in Chromium.
 import { afterAll, beforeAll, vi } from 'vitest'
@@ -21,9 +22,9 @@ afterAll(() => { amk.fill(0); vi.unstubAllGlobals() })
 export async function fixture(ids = ['z','a']) {
   const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-token', refresh_token: 'fixture-refresh', access_expires_in: 60 }), logout: async () => {}, refresh: vi.fn(), me: async () => ({ id: scope.canonicalUserId, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: at }) }); await auth.login('fixture','fixture')
   const context = auth.requireContext(); let current = true, abortWrite = false, closed = false
-  const db: Record<string, unknown[]> & {outbox: unknown[];inbox: unknown[];receipts: unknown[];projectBindings: unknown[];cursors: unknown[]} = { localProjects: [], localNotes: [], outbox: [], inbox: [], receipts: [], projectBindings: [], cursors: [], ownerHeads: [] }
+  const db: Record<string, unknown[]> & {outbox: unknown[];inbox: unknown[];receipts: unknown[];projectBindings: unknown[];cursors: unknown[]} = { localProjects: [], localNotes: [], outbox: [], inbox: [], receipts: [], projectBindings: [], cursors: [], ownerHeads: [], legacyNoteHistory: [] }
   const calls: { mode: string; stores: string[] }[] = [], copies: Uint8Array[] = []
-  const key = (name: string, value: unknown) => { const r = value as Record<string,unknown>; return name === 'localNotes' ? [r.account_id,r.project_id,r.note_id] : ['outbox','receipts'].includes(name) ? [r.account_id,r.event_id] : name === 'inbox' ? [r.account_id,r.server_sequence] : name === 'cursors' ? [r.account_id,r.device_id] : [r.account_id,r.project_id] }
+  const key = (name: string, value: unknown) => { const r = value as Record<string,unknown>; return name === 'legacyNoteHistory' ? [r.account_id,r.project_id,r.note_id,r.record_kind,r.record_id] : name === 'localNotes' ? [r.account_id,r.project_id,r.note_id] : ['outbox','receipts'].includes(name) ? [r.account_id,r.event_id] : name === 'inbox' ? [r.account_id,r.server_sequence] : name === 'cursors' ? [r.account_id,r.device_id] : [r.account_id,r.project_id] }
   const eq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   const transaction: BrowserSyncTransaction = (s, stores, mode, schedule) => new Promise((resolve,reject) => {
     calls.push({ mode, stores }); if (closed) { reject(new BrowserPersistenceError('closed')); return }; if (!eq(s,scope)) { reject(new BrowserPersistenceError('account_mismatch')); return }
@@ -46,10 +47,11 @@ export async function fixture(ids = ['z','a']) {
   const capture = new BrowserInitialNoteCapture(transaction,localOwner,projects).bind(auth,bindings as never,keys as never)
   await local.initializeProject(scope,{ project: project(), notes: ids.map(id => ({ state: 'live', note: note(id) })) })
   const prepared = await projects.prepare(scope,{ project_id: 'p', mode: 'upload_existing' }), registered = await projects.confirmRegistration(scope,prepared,{ remote_state: 'initializing', remote_high_water: 0 })
+  const noteHistory = new BrowserLegacyNoteHistory(transaction,()=>!closed).bind(auth,bindings as never,keys as never)
   const notes = new BrowserLegacyNoteApply(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const registry = new BrowserAccountRegistry(transaction, () => !closed).bind(auth,bindings as never,keys as never)
   const completion = new BrowserBootstrapCompletion(transaction, () => !closed).bind(auth,bindings as never,keys as never)
   const mutate = async () => local.updateNote(scope,(await local.readSnapshot(scope,'p')).token,'a',{ title: 'LATER_PRIVATE' },at)
   const accept = async (row: unknown, sequence: number) => sync.commitUploadAcceptance(scope,row as never,{ protocol_version: 2, encrypted_sync_version: 2, current_cursor: sequence, results: [{ event_id: (row as {event_id: string}).event_id, server_sequence: sequence, duplicate: false }] })
-  return { notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
+  return { noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
 }

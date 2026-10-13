@@ -426,8 +426,8 @@ history and local source CAS; otherwise stop that event. Positive ACK/proven for
 
 ### C21.1.14 implemented boundary after the native audit
 
-PARTIAL LOCAL COMPLETE / conflict preservation and own-head peer-child prerequisites
-BLOCKED; remote CI PENDING — NOT POLLED. Schema6/ten stores unchanged. Explicit retained
+REMOTELY ACCEPTED PARTIAL:65e4fe4cc712162e1436970f9f6a62afbe9416d8,
+Cloud38402330568 SUCCESS, all six required jobs (owner supplied). Schema6/ten stores unchanged. Explicit retained
 Legacy Note reader uses normal auth/account/key/session, frozen codec/object crypto,
 opaque plans and same-transaction private source mutation. Active imported captured and
 upload completing with full complete receipt proof admitted; fresh registry not required
@@ -461,3 +461,88 @@ mandatory coverage; SQLite NOT EXPECTED, no skips or CI polling. C21.1.06 NOT LO
 COMPLETE, official84.0%, C21 IN PROGRESS. Next proposed bounded substrate: encrypted
 immutable local candidates/conflict versions with full causal tips/generation/decision
 and own-head clean-source history, before any ACK aggregation or ready transition.
+
+## C21.1.15 native mapping before implementation
+
+C21.1.14 accepted partial:65e4fe4cc712162e1436970f9f6a62afbe9416d8,
+Cloud38402330568 SUCCESS, all six required jobs SUCCESS, owner supplied.
+Audit sources: note_sync.rs prepare_legacy_note_intent_with_id(5769+), initial capture
+(5236+), sealed generation CAS(6370+), read_entity_sync_head(5515+), visible snapshot
+comparison(4997+), preserved conflict(7744+), ACK(6693+), Resolution validation(8040+).
+Tests inspected: initial capture/retry/source mutation; sealed-next-parent(12539+),
+coalescing update/delete generation; conflict preservation/restart/later coalescing
+(1614+), deletion/tombstone conflicts, multi-tip historical generations, stale decisions,
+self-echo/Resolution and rollback. No production edits preceded this table.
+
+| Native durable structure | Bounded Web equivalent | Creation/immutability/ACK |
+| --- | --- | --- |
+| Sealed initial outbox + intent snapshot generation1 | Immutable candidate in one new Legacy-only history store; frozen encrypted C15 item/header, local source anchor for NEW capture | Same source-CAS/outbox/counter TX; no receipt required to preserve history; historical event immutable |
+| Applied causal history snapshot(local payload revision0) | Authenticated encrypted retained event candidate, peer projection anchor | Same peer authority+inbox TX; old explicit first use can reconstruct event from exact outcome/wire, never current content |
+| cloud_sync_entities current head + sealed own head | Compact head record with linear head and complete sorted causal frontier; every tip backed by candidate | Expected-old whole Note history CAS; no latest-sequence/LWW; unresolved branches retained |
+| conflict groups/versions/tips | Tagged group record in SAME store, references independent immutable candidates; random persisted UUID, common parent, tip revision, per-member introduction generation/source/sequence, complete tips | Atomic inbox+candidate+group+head; starts1, +1 for distinct compatible sibling; exact replay no generation change |
+| local_unsealed intent + snapshot + mutation_generation + ordinal | NOT approximated: current Web has no unsealed outbox/intents/ordinal producer | Starts1 per newly allocated event; coalescing same event increments generation independent of cloud/local revisions; blocked portion until exact writer/allocator bridge |
+| user decision/pending Resolution v2 | Existing open group identity, exact common parent/tips/generation/source/sequence retained; no decision or Resolution generated | Future frozen Resolution needs complete tip equality, current conflict generation, max revision+1 and local publication/generation proof |
+
+Native conflict_preserved is individually ACK-safe ONLY with exact same-account/Note
+remote version, group, preserved marker and >=2 complete tips. Both immutable branches
+survive later mutable edits; ordinary conflict/rejected/orphan remain blocking. Native
+retains canonical local branch on conflict. Local-unsealed preservation cannot be
+claimed by assigning source_revision or native Note payload revision to generation.
+Sealed ordinary Legacy outbox is not automatically a local_unsealed conflict version;
+only applied causal history or a real unsealed intent qualifies. No Content writer reuse.
+
+Plan structural necessity: v7 adds ONE tagged legacyNoteHistory store (candidate/head/
+group), no generic family store or new dependencies. v6 ten stores preserved exactly;
+no migration inference. New initial capture adds immutable source-at-capture anchor;
+old cohort backfill decrypts exact initial outbox/cohort proof only, anchor unavailable
+if it was not durably retained. Never synthesize historical local anchor from current
+Note. Clean own continuation needs exact anchor/receipt; absent historical anchor or
+post-seal local mutation stays explicitly unproven. Peer-applied sibling conflicts can
+be represented with independently recoverable encrypted versions and exact native
+open-group tips; local unsealed/delete-edit cases without Native intent material STOP.
+No positive prefix, ACK, ready, other-family apply/capture or Resolution activation.
+
+### C21.1.15 implemented coverage and precise remaining stop
+
+PARTIAL LOCAL COMPLETE / local-unsealed writer/generation/allocator and missing old
+capture anchors BLOCKED; remote CI PENDING — NOT POLLED. v7 ONE new tagged
+legacyNoteHistory store with immutable candidate, expected-old compact head and open
+group records. Ten v6 stores preserved exactly; structurally validated, no inference,
+no crypto across versionchange. Candidate history wire + optional exact encrypted
+source anchor is independently authenticated with existing AMK/Note tuple/codec; data
+survives later local edits. New initial capture commits history/head with sealed outbox,
+source CAS and counters. Generation1 from native initial intent, peer null; never reuse
+local/source/cloud revision as generation. Old explicit cohort backfill from exact
+immutable event/cohort evidence succeeds, missing local anchor stays unavailable.
+
+Clean new own-head continuation with exact anchor/receipt implemented; dirty current
+source stops without destroying old parent. Peer clean apply and native-qualified
+remote-applied sibling conflict retain exact independent versions. Random persisted
+group UUID, common parent/tip revision, complete deterministic tips, member source/
+sequence/introduction generation and current conflict generation; canonical local Note
+unchanged. New compatible sibling increments generation once; replay stable. Later
+local edit cannot destroy old versions. Applied update vs peer delete, applied delete
+vs peer update and concurrent deletes retained. Active linear descendant frontier and
+frozen group Resolution tips separate; unresolved branches never discarded. Different
+fork while native first group remains open stays unproven, no second safe group.
+
+Strict inbox4 conflict-preserved proof ties exact retained event to current complete
+candidate/group/version/sequence/outcome joins. Individually native ACK-safe for this
+qualified preserved subset, not a generic conflict marker. old1/2/3 byte-compatible.
+No positive prefix/ACK/cursor/ready/Resolution operation. Resolution group/tips/generation/
+source/material data retained; future decision/local publication proofs not invented.
+
+Local-unsealed conflict STOP remains exact: Native unsealed outbox + intent snapshot,
+reserved ordinal and same-event generation/coalescing producer are not represented by
+current Web localNotes mutations or sealed-only transport outbox. Creating those requires
+a separately bounded native-equivalent writer/allocator bridge; no guessed generation,
+fake candidate from current state or unreviewed outbox lifecycle redesign. Old initial
+source-at-capture anchor absent also remains unavailable. Genesis/rejected/orphan and
+unsupported resolution remain blocking. Other families/Cover unchanged, full-project
+capture/apply absent. .06 NOT LOCAL COMPLETE, official84.0%, C21 IN PROGRESS; no points.
+
+Local evidence: history20/conflict+own21/migration13/Legacy31+proof19/ACK18/affected278
+=400 unique tests PASS; Chromium145, existing registry16/completion16, new candidate/
+conflict/apply0, ACK0/unrelatedAPI0/page errors0; typecheck/build/workflow/syntax/diff/pyc
+PASS, existing warnings only. Mandatory Cloud specs and Chromium; SQLite NOT EXPECTED.
+No skips, dependencies or frozen backend/PG/native/protocol/crypto changes, no CI polling.

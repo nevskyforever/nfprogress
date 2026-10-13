@@ -1,3 +1,4 @@
+import { validateNoteHistorySet, type BrowserNoteCandidate, type BrowserNoteConflictGroup } from './noteHistoryRecords'
 import { BrowserPersistenceError } from './persistence'
 import { validateBrowserInboxRecord, immutableWireIdentity, type BrowserSyncScope, type BrowserSyncCheckpoint } from './syncDurability'
 import { validateBrowserMetadataHead } from './metadataApplyRecords'
@@ -5,7 +6,7 @@ import { validateBrowserProjectBinding, type BrowserProjectBinding } from './pro
 
 export type BrowserAckPrerequisiteCode = 'registry_reconciliation_required' | 'bootstrap_completion_unavailable' | 'pull_required' | 'protected_apply_required' | 'unsupported_family_proof' | 'ack_proof_unavailable'
 export interface BrowserAckInventory {
-  note_received_only: number; note_applied: number; note_self_echo: number; received_only: number; metadata_authority_only: number; missing_next_sequence: boolean
+  note_conflict_preserved:number; note_received_only: number; note_applied: number; note_self_echo: number; received_only: number; metadata_authority_only: number; missing_next_sequence: boolean
   unsupported_families: string[]; first_unproven_sequence: number | null; proven_prefix: 0
 }
 export interface BrowserAckPrerequisites {
@@ -14,12 +15,13 @@ export interface BrowserAckPrerequisites {
 }
 function corrupt(): never { throw new BrowserPersistenceError('corrupt_record') }
 /** Exact durable record inventory. Metadata authority is NOT a general native apply/ACK ledger. */
-export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: BrowserSyncCheckpoint, inbound: unknown[], heads: unknown[], bindings: BrowserProjectBinding[]): BrowserAckInventory {
+export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: BrowserSyncCheckpoint, inbound: unknown[], heads: unknown[], bindings: BrowserProjectBinding[],history:unknown[]=[]): BrowserAckInventory {
   if (cursor.ack_cursor !== 0 || cursor.proven_prefix !== 0 || !Number.isSafeInteger(cursor.pull_cursor) || cursor.pull_cursor < 0) corrupt()
   const rows = inbound.map(v => validateBrowserInboxRecord(v,scope)), sequences = new Set<number>(), events = new Set<string>()
+  const noteHistory=validateNoteHistorySet(scope,history)
   const owners = heads.map(v => validateBrowserMetadataHead(v,scope))
   if (new Set(owners.map(h=>h.owner_id)).size !== owners.length) corrupt()
-  const inventory: BrowserAckInventory = {note_received_only:0,note_applied:0,note_self_echo:0,received_only:0,metadata_authority_only:0,missing_next_sequence:cursor.pull_cursor>0&&!rows.some(r=>r.server_sequence===1),unsupported_families:[],first_unproven_sequence:cursor.pull_cursor>0?1:null,proven_prefix:0}
+  const inventory: BrowserAckInventory = {note_conflict_preserved:0,note_received_only:0,note_applied:0,note_self_echo:0,received_only:0,metadata_authority_only:0,missing_next_sequence:cursor.pull_cursor>0&&!rows.some(r=>r.server_sequence===1),unsupported_families:[],first_unproven_sequence:cursor.pull_cursor>0?1:null,proven_prefix:0}
   const families = new Set<string>()
   for (const r of rows) {
     if (r.server_sequence > cursor.pull_cursor || sequences.has(r.server_sequence) || events.has(r.event_id)) corrupt()
@@ -27,6 +29,12 @@ export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: Brow
     const event = JSON.parse(r.wire_item).event
     if (r.state === 'received') { inventory.received_only++; if(event.entity_type==='note'&&['upsert','delete'].includes(event.operation))inventory.note_received_only++ }
     else if(r.state==='note_proven'){const binding=bindings.find(b=>b.project_id===r.note_proof.header.project_id);if(!binding)corrupt();const lineage=validateBrowserProjectBinding(binding,scope);if(lineage.bootstrap_id!==r.note_proof.bootstrap_id||lineage.remote_state!=='active'||!(lineage.mode==='import_remote'&&lineage.phase==='captured'||lineage.mode==='upload_existing'&&lineage.phase==='completing'))corrupt();if(r.note_proof.outcome==='applied')inventory.note_applied++;else inventory.note_self_echo++}
+    else if(r.state==='note_conflict_preserved'){
+      const p=r.note_conflict_proof,b=bindings.find(b=>b.project_id===p.header.project_id),g=noteHistory.find((h):h is BrowserNoteConflictGroup=>h.record_kind==='group'&&h.group_id===p.group_id),c=noteHistory.find((h):h is BrowserNoteCandidate=>h.record_kind==='candidate'&&h.event_id===r.event_id),m=g?.members.find(m=>m.event_id===r.event_id)
+      if(!b||b.bootstrap_id!==p.bootstrap_id||b.remote_state!=='active'||!g||g.bootstrap_id!==b.bootstrap_id||g.project_id!==p.header.project_id||g.note_id!==p.header.entity_id||!c||c.origin!=='peer'||!m||m.source!=='remote'||m.server_sequence!==r.server_sequence||m.conflict_generation!==p.conflict_generation||immutableWireIdentity(c.header)!==immutableWireIdentity(p.header))corrupt()
+      for(const member of g.members){const incoming=rows.find(r=>r.event_id===member.event_id);if(!incoming||incoming.server_sequence!==member.server_sequence)corrupt();if(member.source==='remote_applied'){if(incoming.state!=='note_proven')corrupt()}else if(incoming.state!=='note_conflict_preserved'||incoming.note_conflict_proof.group_id!==g.group_id||incoming.note_conflict_proof.conflict_generation!==member.conflict_generation)corrupt()}
+      inventory.note_conflict_preserved++
+    }
     else {
       const proof = r.applied_proof, head = owners.find(h=>h.owner_id===proof.project_id), binding = bindings.find(b=>b.project_id===proof.project_id)
       if (!head || !binding) corrupt()
@@ -34,7 +42,7 @@ export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: Brow
       if (lineage.mode !== 'import_remote' || lineage.phase !== 'captured' || lineage.remote_state !== 'active' || head.bootstrap_id!==lineage.bootstrap_id || !head.history.some(p=>immutableWireIdentity(p)===immutableWireIdentity(proof))) corrupt()
       inventory.metadata_authority_only++
     }
-    if (event.entity_type !== 'project_metadata' && r.state!=='note_proven') families.add(event.entity_type)
+    if (event.entity_type !== 'project_metadata' && r.state!=='note_proven'&&r.state!=='note_conflict_preserved') families.add(event.entity_type)
   }
   for (const h of owners) for (const p of h.history) if (!rows.some(r=>r.state==='applied' && r.event_id===p.event_id && immutableWireIdentity(r.applied_proof)===immutableWireIdentity(p))) corrupt()
   inventory.unsupported_families=[...families].sort()

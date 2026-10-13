@@ -12,11 +12,11 @@ export function validateBrowserV5State(scopes: BrowserSyncScope[], stores: unkno
   const [outbound, inbound, cursors, receipts, bindings, heads] = stores as [unknown[],unknown[],unknown[],unknown[],unknown[],unknown[]]
   const scopeFor = (value: unknown) => scopes.find(s => s.accountId === (value as { account_id?: string })?.account_id) ?? bad()
   const inbox = inbound.map(value => validateBrowserInboxRecord(value, scopeFor(value)))
-  if(inbox.some(row=>row.state==='note_proven'))bad() // v5 never contained the new v6-only runtime outcome.
+  if(inbox.some(row=>['note_proven','note_conflict_preserved'].includes(row.state)))bad() // v5 never contained the new v6-only runtime outcome.
   // Detached received views validate legacy transport invariants without erasing applied state/proof.
   validateBrowserV3SyncState(scopes, outbound, inbox.map(row => {
     if (row.state === 'received') return structuredClone(row)
-    if (row.state === 'note_proven') return bad()
+    if (row.state === 'note_proven'||row.state==='note_conflict_preserved') return bad()
     const { applied_proof: _proof, ...received } = row
     return { ...received, record_version: 1, state: 'received' }
   }), cursors, receipts)

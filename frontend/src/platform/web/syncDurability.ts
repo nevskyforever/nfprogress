@@ -1,4 +1,4 @@
-import { validateBrowserNoteProof, type BrowserNoteProof } from './noteApplyRecords'
+import { validateBrowserNoteProof, validateBrowserNoteConflictProof, type BrowserNoteConflictProof, type BrowserNoteProof } from './noteApplyRecords'
 import { validateBrowserMetadataProof, type BrowserMetadataProof } from './metadataApplyRecords'
 import type { AccountDescriptor, V3Descriptor } from '@/api/encryptedSyncV3'
 import { MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES } from '@/api/encryptedSync'
@@ -20,7 +20,8 @@ export interface BrowserReceivedInboxRecord {
 }
 export interface BrowserAppliedInboxRecord extends Omit<BrowserReceivedInboxRecord, 'record_version' | 'state'> { record_version: 2; state: 'applied'; applied_proof: BrowserMetadataProof }
 export interface BrowserNoteInboxRecord extends Omit<BrowserReceivedInboxRecord, 'record_version' | 'state'> { record_version: 3; state: 'note_proven'; note_proof: BrowserNoteProof }
-export type BrowserInboxRecord = BrowserReceivedInboxRecord | BrowserAppliedInboxRecord | BrowserNoteInboxRecord
+export interface BrowserNoteConflictInboxRecord extends Omit<BrowserReceivedInboxRecord,'record_version'|'state'> {record_version:4;state:'note_conflict_preserved';note_conflict_proof:BrowserNoteConflictProof}
+export type BrowserInboxRecord = BrowserReceivedInboxRecord | BrowserAppliedInboxRecord | BrowserNoteInboxRecord | BrowserNoteConflictInboxRecord
 export interface BrowserUploadReceipt {
   record_version: 1; account_id: string; device_id: string; event_id: string
   protocol_version: 2 | 3; server_sequence: number; duplicate: boolean
@@ -216,10 +217,10 @@ export function validateBrowserV3SyncState(scopes: BrowserSyncScope[], outbound:
 }
 
 export function validateBrowserInboxRecord(value: unknown, scope: BrowserSyncScope): BrowserInboxRecord {
-  const applied = (value as BrowserInboxRecord)?.state === 'applied', note = (value as BrowserInboxRecord)?.state === 'note_proven'
-  if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item', ...(applied ? ['applied_proof'] : note ? ['note_proof'] : [])])) failure()
+  const applied = (value as BrowserInboxRecord)?.state === 'applied', note = (value as BrowserInboxRecord)?.state === 'note_proven', conflict=(value as BrowserInboxRecord)?.state==='note_conflict_preserved'
+  if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item', ...(applied ? ['applied_proof'] : note ? ['note_proof'] : conflict ? ['note_conflict_proof'] : [])])) failure()
   const row = value as BrowserInboxRecord
-  if (row.record_version !== (applied ? 2 : note ? 3 : 1) || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !['received','applied','note_proven'].includes(row.state) || !safe(row.server_sequence, 1)) failure()
+  if (row.record_version !== (applied ? 2 : note ? 3 : conflict ? 4 : 1) || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !['received','applied','note_proven','note_conflict_preserved'].includes(row.state) || !safe(row.server_sequence, 1)) failure()
   const item = wireJSON(row.wire_item, true) as WireItem
   validatePage({ protocol_version: row.protocol_version, encrypted_sync_version: row.protocol_version, items: [item], next_cursor: row.server_sequence, has_more: false }, row.server_sequence - 1, scope.canonicalUserId)
   if (item.event.event_id !== row.event_id || item.event.server_sequence !== row.server_sequence) failure()
@@ -228,6 +229,7 @@ export function validateBrowserInboxRecord(value: unknown, scope: BrowserSyncSco
     if (proof.protocol_version !== row.protocol_version || proof.event_id !== row.event_id || proof.server_sequence !== row.server_sequence || immutableWireIdentity(proof.reference) !== immutableWireIdentity(item.event)) failure()
   }
   if(row.state==='note_proven'){const proof=validateBrowserNoteProof(row.note_proof,scope);if(proof.protocol_version!==row.protocol_version||proof.reference.event_id!==row.event_id||proof.reference.server_sequence!==row.server_sequence||immutableWireIdentity(proof.reference)!==immutableWireIdentity(item.event))failure()}
+  if(row.state==='note_conflict_preserved'){const proof=validateBrowserNoteConflictProof(row.note_conflict_proof,scope);if(proof.protocol_version!==row.protocol_version||immutableWireIdentity(proof.reference)!==immutableWireIdentity(item.event))failure()}
   return row
 }
 

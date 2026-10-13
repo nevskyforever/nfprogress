@@ -1586,3 +1586,121 @@ localAuthority/sync/ACK/bootstrap/registry regressions and Chromium; SQLite NOT 
 No skips, dependencies or backend/PG/native/frozen semantics changes; no remote CI polling.
 Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; complete-project/Cover/
 other families/conflict/resolution and positive cross-family ACK remain future slices.
+
+## C21.1.15 durable candidate/conflict history
+
+**PARTIAL LOCAL COMPLETE / local unsealed history and missing old capture anchors BLOCKED;
+remote CI PENDING — NOT POLLED.** C21.1.14 accepted partial at
+65e4fe4cc712162e1436970f9f6a62afbe9416d8, Cloud38402330568 SUCCESS, all six required
+jobs SUCCESS (owner supplied). Accepted clean apply/self-echo and correct conflict stop.
+Native structure/generation/group/ACK/Resolution mapping precedes implementation:
+[family audit](../cloud/C21_PROTECTED_APPLY_FAMILY_AUDIT.md).
+
+Structural necessity authorizes IDB7: ONE new legacyNoteHistory store, compound key
+[account_id,project_id,note_id,record_kind,record_id], unique event index [account_id,event_id]
+only for candidate records. Tagged exact allowlists keep immutable candidates separate
+from mutable CAS heads/groups; not a generic other-family store. v6 exact ten-store
+schema/data structural validation precedes upgrade; all existing bytes stay unchanged.
+Includes transport/receipt/cursor invariants, scopes, lineage, exact Metadata proof/head
+joins, received1/Metadata2/Note3, encrypted local record envelopes and source ownership/
+revision relationships. No AMK or async crypto in versionchange; semantic AEAD checked
+by current authorized runtimes. No plaintext conversion, synthetic candidate/group/head
+or inferred proof. New store empty. Corrupt/quota/abort leaves v6 valid; v1–v5 direct
+upgrade paths preserved, repeat v7 opens stable, future8 refuses downgrade.
+
+Candidate record1: account/installation/project/Note/bootstrap, event/source device,
+protocol, exact frozen Legacy header(parent/cloud revision/operation), origin,
+mutation_generation1 for fixed initial capture or null for peer (never revision/source/
+server sequence), immutable encrypted wire_item and SHA256 wire/record digests. New
+capture/peer apply may retain exact encrypted local projection anchor + its digest;
+old peer outcome may provide its original projection digest, without inventing an anchor.
+The encrypted event independently reconstructs native cloud-visible version/local payload
+revision0. Current normal auth/account/key/session leases authenticate retained ciphertext,
+strict header/codec/routing, full source-anchor payload/ownership where present and exact
+integrity digests; temporary byte/nonce/cipher/key buffers cleared. SHA detects corruption,
+not independent author authenticity; no new crypto/AAD/frame/compression primitive.
+
+Initial capture creates candidate + initial head in SAME strict source-CAS/outbox/
+allocator/captured counters TX, so server receipt is not a candidate-creation boundary.
+Source anchor is the actual verified encrypted historical source read before sealing;
+never read current Note later to fabricate it. Native initial new event generation1 is
+explicit constant from initial prepare intent contract; not generation=revision. Existing
+accepted/sealed cohort can be explicitly backfilled from exact initial interval, immutable
+body/receipt proof and frozen AEAD/codec. No current local source read in backfill.
+Historical event projection reconstructs exactly; missing original local anchor stays
+missing. Initial replay never reseals/rewrites candidate. Generic transport.enqueue is
+not a reviewed post-capture Note writer and cannot invent generation/projection history.
+
+Peer apply atomically stores immutable candidate, projected source anchor, compact head
+and Note3 proof with local authority. Own-head continuation requires correct historical
+sealed parent/project/Note/bootstrap/header, accepted receipt/wire and exact source anchor;
+source change fails closed, historical parent remains recoverable. Old initial backfill
+without source anchor reports candidate_history_unavailable for clean continuation.
+Old explicitly used Note3 outcomes may reconstruct peer event history/known original
+projection digest from their exact retained proof, never current content. Source revision
+and native local Note revision remain distinct from cloud revision and mutation generation.
+
+Head record1 has linear_head_event_id and COMPLETE sorted causal frontier tip_event_ids,
+plus independent Web head_revision for expected-old CAS, not native mutation/conflict
+generation. Every tip backed by immutable candidate; direct parent/revision ownership
+validated, duplicates/dangling parents rejected. Consumed ancestor leaves frontier; an
+unresolved unrelated branch stays. Native active linear child may advance while existing
+conflict group retains its original Resolution tip set; no branch is silently dropped.
+Head replacement and all candidate/group/inbox/source effects occur through ONE strict
+full expected-old inventory/history/source transaction; crypto/network outside IDB.
+
+Conflict group record1 uses native persisted random UUIDv4, exact common parent,
+tip_revision, conflict_generation starting1, open lifecycle and complete sorted member/
+tip set. Native remote_applied current head and incoming sibling versions are independently
+recoverable encrypted candidates; member stores native version_id (applied:/remote:),
+source, exact server sequence and introduction generation. Canonical local Note remains
+unchanged. First group requires clean exact prior projected source and applied evidence;
+existing compatible group can preserve new sibling even after later local edit because
+old versions are independent. Each distinct sibling adds one immutable version/tip and
+increments current group generation once; exact replay changes nothing. Native permits
+ONE open group per Note: a different fork cannot become a second safe group while the
+first remains unresolved. Descendant/current frontier and frozen group tips remain
+separate, preserving future Resolution context. No resolved/decision shortcut.
+
+Native-qualified applied update vs remote delete, applied delete vs remote update and
+concurrent deletes preserve each encrypted tombstone/version and exact identity. Local
+unsealed edit/delete is a DIFFERENT source: Native needs actual unsealed outbox event,
+reserved ordinal, intent mutation_generation/coalescing and independent snapshot.
+Those producers/lifecycle/allocator records are absent in current Web. Current mutable
+localNotes + source_revision cannot replace them; stop that portion before fake local
+candidate/generation/publication evidence. No broad outbox lifecycle redesign in this
+bounded store slice. Dirty local source, genesis conflict, unsupported Resolution,
+rejected and orphan remain received/unproven. Orphan can retry after exact dependency.
+
+New inbox4/state note_conflict_preserved/note_conflict_proof is an explicit separate
+variant. Strict account/bootstrap/protocol/reference/header/mutation/wire/outcome digests,
+group identity and preservation generation bind exact retained event. Original wire_item
+unchanged. Runtime validates current complete group/version/sequence/outcome joins;
+received1, Metadata-applied2 and Note-proven3 remain byte-compatible. v6 migration never
+accepts a fabricated future4 or creates it from received rows. Group proof can be
+individually native ACK-safe with exact preserved versions and >=2 full tips; not aggregate
+prefix or an ACK request. Readonly inventory adds note_conflict_preserved and verifies
+complete joins, while ACK/proven0/ack_eligible:false/ready:false are mandatory even for
+all-proven Note fixtures. No phase ready, registry request from apply, orchestrator,
+Resolution send/UI, other-family capture/apply or complete-project claim.
+
+Future frozen Resolution v2 needs exact group ID/current conflict generation/full tip IDs,
+common parent, per-tip header/revision/operation/source/server sequence and material,
+resolution revision=max tips+1, and current local publication/generation/decision proof.
+All supported group fields/material retained; local-unsealed publication/decision and
+Resolution runtime remain absent, rather than inventing consent or sealed dependencies.
+
+Local checks: history20, conflict/own-head21, v6 migration13, Legacy Note31/proof19,
+ACK18, affectedC21278 =400 unique tests across focused final selections PASS. Chromium145
+PASS; v6 ten stores exact, received1/Metadata2/Note3, corrupt/quota/abort upgrade, new
+store empty, old backfill/new capture anchor, immutable material, own child, independent
+update/delete conflict versions, generation/full tips/replay/later local edit, auth/key
+revoke and full transaction abort/reload/disk-profile reopen. Existing completion16
+(one additional bounded fixture)/registry16; candidate/conflict/apply requests0, ACK0,
+unrelatedAPI0/page errors0. Typecheck/build/workflow/syntax/diff/protected pyc PASS;
+existing build warnings only. Cloud new history/conflict/migration specs explicitly
+mandatory plus affected C21 and hard-failing Chromium. SQLite NOT EXPECTED; no skips,
+new dependencies/backend/PG/native/frozen contract edits; no Actions polling.
+Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE. Next proposed bound: local
+unsealed candidate generation/ordinal/writer bridge, then separately authorized
+Resolution and cross-family ACK; current unsupported family/Cover gaps unchanged.
