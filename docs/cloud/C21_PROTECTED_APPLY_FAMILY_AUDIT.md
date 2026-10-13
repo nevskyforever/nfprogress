@@ -27,6 +27,34 @@ protected apply/heads/applied proofs and conflict/orphan remain separate. No fam
 is implemented by treating mere projectBindings existence as success. C21.1.07
 REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
 
+## C21.1.12 exact completing / remote completion update
+
+C21.1.11 REMOTELY ACCEPTED: c1edcbb7befaab1bfff995ae6ef7f61b53e7348b,
+Cloud **38380013246 SUCCESS**, all six required jobs SUCCESS, owner supplied.
+C21.1.12 LOCAL COMPLETE / remote CI PENDING — NOT POLLED. Schema6 unchanged.
+Exact complete Legacy cohort + immutable receipts produce captured→completing and
+frozen max (empty0) in one strict source-of-proof transaction. Full expected-old CAS,
+strict phase/counter invariants, exact replay; stale/partial/corrupt/abort fail closed.
+Post-capture events never alter frozen count/HI/max. Generic registration cannot
+fabricate completing/remote active evidence.
+
+Exactly one bounded isolated production completion POST per explicit pending invocation,
+using existing backend endpoint/client/auth and durable completing proof outside IDB.
+Backend idempotent active replay verified in actual contracts/tests. Exact matching
+active descriptor/count/max/origin/project/bootstrap and safe monotone account cursor
+allow a separate strict expected-old commit of remote_state/high-water, phase still
+completing. Failure/timeout/lost response/local commit failure retains proof for exact
+retry after crash/reopen. Proven active replay requires current exact row, no HTTP.
+No new phase/store/schema/backend/frozen contract/dependency. No general coordinator.
+
+This is NOT complete-project sync or upload_existing protected apply. ACK/proven0;
+ready always false (active→ack_proof_unavailable). Metadata, other families, Cover/
+self-echo/native candidate/reconciliation prerequisites remain unchanged/absent.
+Completing22/remote27, affected105/capture31; Chromium119, completion requests15,
+unrelatedAPI0/page errors0; typecheck/build/workflow/syntax/diff/pyc PASS. Cloud mandatory
+coverage explicit; SQLite NOT EXPECTED. Official84.0%, C21 IN PROGRESS, C21.1.06 NOT
+LOCAL COMPLETE. Next: account reconciliation/retained inbound/ACK proof before ready.
+
 ## C21.1.11 Legacy Note-only initial cohort update
 
 C21.1.10 REMOTELY ACCEPTED: ffc018af7abeb7a5a696af26db0621640e6f0a5a,
@@ -34,7 +62,7 @@ Cloud **38317517321 SUCCESS**, all six required jobs SUCCESS, owner/GPT supplied
 C21.1.09 accepted historical audit remains NOT implemented capture; its main source
 blocker is removed. C21.1.06 broader NOT LOCAL COMPLETE; official84.0%, C21 IN PROGRESS.
 
-C21.1.11 LOCAL COMPLETE / remote CI PENDING — NOT POLLED. Dormant schema6 runtime
+C21.1.11 REMOTELY ACCEPTED (Cloud38380013246 all six jobs SUCCESS); the following records its bounded implemented capture. Dormant schema6 runtime
 captures ONLY canonical eligible live Legacy Notes from verified source snapshot R,
 seals normal frozen Note events outside IDB, then source-token/full-binding CAS and
 all sealed outbox rows/contiguous ordinals/captured counters commit in one strict

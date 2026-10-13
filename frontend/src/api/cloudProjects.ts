@@ -77,9 +77,9 @@ export const cloudProjectsApi = {
     })
   },
 
-  completeBootstrap(accessToken: string, projectId: string, body: CloudProjectBootstrapCompletion): Promise<CloudProjectBootstrapResponse> {
+  completeBootstrap(accessToken: string, projectId: string, body: CloudProjectBootstrapCompletion, signal?: AbortSignal): Promise<CloudProjectBootstrapResponse> {
     return apiRequest<CloudProjectBootstrapResponse>(`/api/v1/cloud/projects/${encodeURIComponent(projectId)}/bootstrap/complete`, {
-      method: 'POST', headers: authorization(accessToken), body,
+      method: 'POST', headers: authorization(accessToken), body, signal, maxResponseBytes: 16 * 1024,
     })
   },
 }

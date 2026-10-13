@@ -1,5 +1,6 @@
 /** Real Chromium IDB/Web Locks on a disposable disk profile; isolated auth transport fixtures, actual storage/crypto runtimes. */
 import assert from 'node:assert/strict'
+import { acceptBootstrapCompletion } from './browser-bootstrap-completion-acceptance.mjs'
 import { acceptInitialNotes } from './browser-initial-note-acceptance.mjs'
 import { acceptLocalAuthority } from './browser-local-authority-acceptance.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -14,9 +15,10 @@ const users = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-
 const cases = []
 let context
 const unexpected = []
+const completionRequests = []
 async function start() {
   context = await chromium.launchPersistentContext(directory, { headless: true })
-  context.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/')) unexpected.push('API request') })
+  context.on('request', request => { const path = new URL(request.url()).pathname; if (!path.startsWith('/api/')) return; if (request.method() === 'POST' && /^\/api\/v1\/cloud\/projects\/[^/]+\/bootstrap\/complete$/.test(path)) completionRequests.push({ path, body: request.postDataJSON() }); else unexpected.push('unrelated API request') })
 }
 async function tab() {
   const page = await context.newPage()
@@ -1015,6 +1017,10 @@ try {
   cases.push('Metadata account/device isolation and stale logout handles fail closed without erasing another account history')
   page = await acceptLocalAuthority({ page, scope: scopeA, otherScope: newScopeB, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
   page = await acceptInitialNotes({ page, scope: scopeA, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
+  page = await acceptBootstrapCompletion({ page, scope: scopeA, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
+  assert.equal(completionRequests.length, 15)
+  const retryBodies = completionRequests.filter(r => r.path.includes('/failure-completion/')).map(r => r.body)
+  assert.equal(retryBodies.length, 7); retryBodies.forEach(body => assert.deepEqual(body, retryBodies[0]))
   const finalDurability = await metadataSnapshot()
   const localFinal = await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') }))
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
@@ -1034,7 +1040,7 @@ try {
   assert.deepEqual(await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') })), localFinal)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])
-  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: 0, pageErrors: 0 }))
+  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
 } finally {
   if (context) await context.close()
   await rm(directory, { recursive: true, force: true })

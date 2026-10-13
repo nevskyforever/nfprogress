@@ -35,7 +35,7 @@ function matchesCaptured(current: BrowserProjectBinding, expected: BrowserProjec
  */
 export function deriveInitialLegacyCohort(scope: BrowserSyncScope, value: unknown, outbound: unknown[], receipts: unknown[]): { status: InitialLegacyCohortStatus; rows: BrowserOutboxRecord[] } {
   const binding = validateBrowserProjectBinding(value, scope)
-  if (binding.mode !== 'upload_existing' || binding.phase !== 'captured') fail('invalid_lineage_transition')
+  if (binding.mode !== 'upload_existing' || !['captured','completing'].includes(binding.phase)) fail('invalid_lineage_transition')
   const count = binding.initial_event_count, hi = binding.initial_local_ordinal_hi, lo = hi - count + 1
   const candidates = outbound.filter(v => { const r = v as BrowserOutboxRecord; return r.account_id === scope.accountId && r.device_id === scope.deviceId && count > 0 && r.local_ordinal >= lo && r.local_ordinal <= hi })
   if (candidates.length !== count) fail()
@@ -50,6 +50,7 @@ export function deriveInitialLegacyCohort(scope: BrowserSyncScope, value: unknow
     if (pair.length > 1) fail()
     if (row.state === 'accepted') { const sequence = (pair[0] as {server_sequence: number}).server_sequence; if (sequences.has(sequence) || receipts.some(p => (p as {account_id: string;event_id: string;server_sequence: number}).account_id === scope.accountId && (p as {server_sequence: number}).server_sequence === sequence && (p as {event_id: string}).event_id !== row.event_id)) fail('conflicting_record'); sequences.add(sequence); accepted++; max = Math.max(max, sequence) }
   })
+  if (binding.phase === 'completing' && (accepted !== count || max !== binding.initial_max_server_sequence)) fail()
   return { rows, status: { event_count: count, accepted_count: accepted, complete: accepted === count, max_server_sequence: max } }
 }
 

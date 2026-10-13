@@ -1,6 +1,6 @@
-# C21.1.02–C21.1.11 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
-Contract revision10, 2026-10-13. IDB schema6 implements dormant encrypted local source and atomic initial Legacy Note capture/read-only cohort receipt proof; imported coverless Metadata protected apply remains unchanged.
+Contract revision11, 2026-10-13. IDB schema6 implements dormant encrypted local source and atomic initial Legacy Note capture/receipt proof and exact completing/isolated remote completion; imported coverless Metadata protected apply remains unchanged.
 C21.1.06 remains the broader BLOCKED / NOT LOCAL COMPLETE umbrella.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
@@ -89,7 +89,7 @@ No store is created speculatively before its implementing migration.
 | --- | --- | --- |
 | `identities` | `canonical_user_id`; unique `local_account_id`, unique `device_id` | Implemented v1: exactly canonical UUID user/account/device + `record_version: 1`. Random account/device generated internally once per canonical user. |
 | `accountBindings` | `local_account_id`; unique `canonical_user_id` | Implemented v1: immutable local-account→canonical-user mapping + record version. Created with identity in one transaction. |
-| `projectBindings` | `[account_id,project_id]`; unique `bootstrap` on `[account_id,bootstrap_id]` | Implemented schema4 / record1: exact native lineage/status fields. upload_existing prepared/registered; explicit import_remote captured/active with zero local cohort. C21.1.11 adds upload_existing registered→captured/initializing with exact count/HI; completing/ready/pause/blocked producers deferred; no title/path/content or arbitrary reason. |
+| `projectBindings` | `[account_id,project_id]`; unique `bootstrap` on `[account_id,bootstrap_id]` | Implemented schema4 / record1: exact native lineage/status fields. upload_existing prepared/registered; explicit import_remote captured/active with zero local cohort. C21.1.11 adds upload_existing registered→captured/initializing with exact count/HI; C21.1.12 adds exact captured→completing and validated remote active/high-water; ready/pause/blocked producers deferred; no title/path/content or arbitrary reason. |
 | `outbox` | `[account_id,event_id]`; unique `ordinal` on `[account_id,device_id,local_ordinal]`, nonunique `state` on `[account_id,state,local_ordinal]` | Implemented schema2 / record1: account/device/event/ordinal, protocol2 or3, state `sealed` or `accepted` (schema3), exact `raw_body` from an existing singleton encrypted push. Accepted requires its immutable upload receipt; no unsealed plaintext. Causal parent/base-tip proofs remain inside existing sealed frames; authority capture is deferred. |
 | `inbox` | `[account_id,server_sequence]`; unique `event` on `[account_id,event_id]`, nonunique `state` on `[account_id,state,server_sequence]` | Implemented schema2 / record1: receiving account/device, event/sequence, protocol2 or3, state `received`, exact metadata/encrypted envelope in `wire_item`. Wire validation is not crypto authentication or apply. Schema5 adds record2 `applied` with exact non-plaintext Metadata proof, preserving wire_item. Orphan/conflict/blocked producers deferred. |
 | `cursors` | `[account_id,device_id]`, no indexes | Implemented schema2 / record1: pull cursor, `next_local_ordinal` starting1; `ack_cursor` and `proven_prefix` reserved at0, with no advancement API. Pull expected-old CAS is inseparable from inbox commit. Never infer ACK from ciphertext receipt. |
@@ -1246,3 +1246,124 @@ automatic import, network/registry/upload/pull/ACK, completing/ready or active s
 ACK/proven stay0 and initial max staysNULL. Backend/PostgreSQL/native/frozen semantics
 and dependencies unchanged. Next bounded slice: captured→completing and remote bootstrap
 completion boundary using exact receipt status, without granting ACK/ready/full-family sync.
+
+
+## C21.1.12 native/backend invariant preflight
+
+Accepted C21.1.11 c1edcbb7befaab1bfff995ae6ef7f61b53e7348b / Cloud38380013246,
+all six jobs SUCCESS (owner supplied). Native markCompleting freezes maximum exact
+initial receipt sequence, including0 for empty; native remote completion POST then
+confirms remote active/high-water while phase stays completing. Ready separately
+requires ACK>=max(remote_high_water,initial_max); this slice does NOT implement it.
+Backend POST /api/v1/cloud/projects/{project_id}/bootstrap/complete requires exactly
+bootstrap_id/device_id/initial_event_count/initial_max_server_sequence (no ordinal HI).
+Bearer user supplies account ownership. Registered device + exact bootstrap/origin
+required. Initializing uses project/device event stats count>=declared and max>=declared;
+our client must prove EXACT cohort locally (server aggregate does not do this).
+Active exact replay is idempotent only when frozen count/max identical; changed
+lineage/proof conflicts. Response {project,current_cursor} includes exact six descriptor
+fields, authoritative active + frozen count/max, origin identity. Cursor is account-wide,
+can exceed cohort max; require >=prior high-water and >=initial max, never equality.
+No wire response version exists; do not invent one. Empty requires count0 iff max0.
+Existing cloudProjectsApi.completeBootstrap can be isolated from registry/upload/pull/
+ACK/coordinator. A current authenticated request outside IDB and strict expected-old
+response commit can retain completing/initializing on failure/lost response/crash and
+retry exact proof after reopen. Existing completing row can represent proven remote
+active + monotonic high-water without new phase/store/schema. Public generic registration
+must NOT promote completing from arbitrary evidence DTO; only exact completion response
+may do so. Freeze this contract before production transition changes.
+
+
+### C21.1.12 implementation — LOCAL COMPLETE
+
+Schema6/ten stores/record1 unchanged, no migration/manifest/new persisted proof format.
+`session.completion.bind(auth, accountBindings, keys)` is an explicit bounded runtime;
+no production editor or sync coordinator is switched over. This slice is Legacy Note
+ONLY, not complete-project sync. C21.1.11 REMOTELY ACCEPTED, user Cloud38380013246
+all six SUCCESS; official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE.
+
+`markCompleting(scope, expectedBinding)` requires current normal-user/account/session/
+key context and exact upload_existing/captured/initializing lineage. ONE strict
+readwrite transaction over session identity/binding plus projectBindings/outbox/receipts
+reconstructs the exact contiguous initial interval, validates every immutable member/
+receipt, requires all accepted and derives maximum sequence. Only phase completing
+and initial_max_server_sequence change together. Caller complete flags/max DTOs are
+not accepted. Empty count0/HI0 requires no receipt and freezes native max0; nonempty
+safe max>=count. Partial/missing/conflicting receipts, stale full binding/scope or
+request failure abort without a half transition. Later unrelated events/receipts cannot
+change count/HI/max. Replay from captured expected-old returns original initializing
+completing ONLY when every expected field + derived max matches; completing expected
+replay requires full exact row. Changed count/HI/max rejects, never normalized into
+success. After authoritative active/high-water changes, callers read the current
+completing row for subsequent replay (old expected row is stale).
+
+Validation deliberately admits only prepared/registered/captured/completing upload
+phases, with explicit phase invariants. Captured still initializing/maxNULL. Completing
+requires safe frozen max (count0 iff max0), exact counters, initializing or active;
+active high-water>=frozen max. Import captured/active/zero/maxNULL unchanged. Generic
+confirmRegistration/pure transition refuses completing and cannot fabricate active
+from caller evidence or change frozen cohort counters. Older v4/v5 migration validators
+refuse both upload captured and completing (those versions had no producer).
+Cohort status now accepts completing only when all durable receipts still reproduce
+the frozen max; it cannot silently recompute a different completion proof.
+
+`completeRemote(scope, expectedCompleting)` first re-reads full exact binding and
+cohort proof in one readonly scoped transaction. HTTP occurs AFTER that transaction
+ends. Existing cloudProjectsApi.completeBootstrap + auth.authorized send one POST:
+bootstrap_id, device_id, initial_event_count, initial_max_server_sequence, project in
+encoded path. No HI/body/manuscript contents, registry/upload/pull/ACK call, automatic
+retry, token refresh loop, background poll or normal cycle. Existing client gains an
+optional AbortSignal and16KiB successful-response bound; endpoint/body/backend semantics
+unchanged. Fixed30s AbortController timeout; auth invalidation aborts request. Key/
+session revocation before request or before response commit rejects current context.
+No key bytes are needed/sent during HTTP. No server error/body is logged or persisted;
+failures are bounded bootstrap_completion_failed/response_rejected/closed codes.
+
+Response must contain EXACT {project,current_cursor} and exactly six project descriptor
+fields: matching project/bootstrap/origin device, active, exact frozen count/max.
+No version/account field exists in this backend contract; unknown/extra fields reject.
+Authenticated Bearer user + scoped durable account mapping supply ownership. Cursor
+must be safe, >=prior remote_high_water AND >=initial max; can be larger, not equal.
+Successful2xx alone never activates. After response validation, a separate strict
+readwrite transaction rechecks full expected-old completing row/current context and
+ALL durable cohort receipts, then persists ONLY remote_state=active and remote_high_water
+from authoritative response. Phase stays completing; count/HI/max never change. Exact
+same concurrent target may replay; different concurrent cursor/row fails stale CAS,
+never LWW/max-merging a stale response. No transaction is held across fetch/await.
+
+HTTP/network/timeout/malformed/wrong-lineage/nonmonotone response or local commit quota/
+abort leaves completing/initializing and original frozen proof. Reopen retries same
+bootstrap/device/count/max. Backend active replay must return matching immutable proof;
+changed already-completed metadata conflicts. If remote response was lost or local
+active commit failed after server success, exact endpoint replay safely finishes later.
+Already durably active plus full exact current expected row returns it without HTTP.
+No new completion_sent/completed_remote phase or v7 is needed. This proves remote
+bootstrap active, not account reconciliation or local application/ACK of initial Notes.
+
+Readiness stays false: captured or completing/initializing →
+bootstrap_completion_unavailable; completing/active → ack_proof_unavailable, required
+cursor=max(remote high-water,frozen initial max). ACK/proven remain0. No markReady,
+ready event, upload_existing Metadata apply, native candidate/self-echo/Cover material,
+other-family capture or complete-project claim. Production HTTP/editor routes remain
+unchanged except this explicitly called isolated completion operation.
+
+Checks: completing22 + remote27 =49 new tests PASS; affected C21/API105 plus initial
+capture31 =136 regression tests PASS. Shared scheduling-contract fixture was extracted
+without altering the31 capture assertions; real storage/network proved in Chromium.
+Production-preview Chromium119 scenarios PASS,15 intercepted completion POST requests,
+0 unrelated API/sync requests,0 page errors. Exact paths/Bearer/body validated; seven
+failure-project requests use identical frozen proof. Includes incomplete/partial/
+conflicting receipts, post-capture900 excluded from frozen501, empty0, request-success
+abort rollback, server failure/lost response/timeout/mismatched response, local active
+commit quota then reload/idempotent server replay, logout/key/close before commit,
+real second-tab exclusion while HTTP waits outside IDB, full disk-profile reopen,
+no plaintext or ACK/ready. Timeout fixture accelerates only the existing30s timer;
+production limit remains30s. Requests intercepted locally, no backend Internet needed.
+Typecheck/build/workflow/syntax/diff/protected pyc PASS, existing build warnings only.
+Cloud explicitly executes completing/remote spec, capture/status/lineage regressions
+and expanded hard-failing Chromium. SQLite NOT EXPECTED; remote CI PENDING — NOT POLLED.
+No skipped/softened gates; full/heavy/native/PostgreSQL suites not run.
+
+Next bounded slice: account-wide remote reconciliation, retained inbound proof and
+ACK/proven-prefix prerequisites before any separately authorized ready transition.
+Do not infer full project synchronization from this Legacy Note-only remote bootstrap.

@@ -26,21 +26,27 @@ export function validateBrowserProjectBinding(value: unknown, scope: BrowserSync
   const row = value as BrowserProjectBinding
   project(row.project_id); bootstrap(row.bootstrap_id)
   if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId
-    || row.blocked_reason !== null || !safe(row.initial_event_count) || !safe(row.initial_local_ordinal_hi) || row.initial_max_server_sequence !== null) fail()
+    || row.blocked_reason !== null || !safe(row.initial_event_count) || !safe(row.initial_local_ordinal_hi) ) fail()
   if (row.mode === 'upload_existing') {
     if (row.phase === 'prepared') { if (row.remote_state !== null || row.remote_high_water !== null) fail() }
     else if (row.phase === 'registered') { if (!['initializing','active'].includes(row.remote_state!) || !safe(row.remote_high_water)) fail() }
     else if (row.phase === 'captured') {
       if (row.remote_state !== 'initializing' || !safe(row.remote_high_water) || (row.initial_event_count === 0 ? row.initial_local_ordinal_hi !== 0 : row.initial_local_ordinal_hi < row.initial_event_count)) fail()
-    } else fail() // Completing/ready/paused/blocked producers remain unavailable.
-    if (row.phase !== 'captured' && (row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0)) fail()
+    } else if (row.phase === 'completing') {
+      if (!['initializing','active'].includes(row.remote_state!) || !safe(row.remote_high_water) || !safe(row.initial_max_server_sequence)
+        || (row.initial_event_count === 0 ? row.initial_local_ordinal_hi !== 0 || row.initial_max_server_sequence !== 0 : row.initial_local_ordinal_hi < row.initial_event_count || row.initial_max_server_sequence < row.initial_event_count)
+        || row.remote_state === 'active' && row.remote_high_water < row.initial_max_server_sequence) fail()
+    } else fail() // Ready/paused/blocked producers remain unavailable.
+    if (row.phase !== 'completing' && row.initial_max_server_sequence !== null) fail()
+    if (!['captured','completing'].includes(row.phase) && (row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0)) fail()
   } else if (row.mode === 'import_remote') {
-    if (row.phase !== 'captured' || row.remote_state !== 'active' || !safe(row.remote_high_water) || row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0) fail()
+    if (row.phase !== 'captured' || row.remote_state !== 'active' || !safe(row.remote_high_water) || row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0 || row.initial_max_server_sequence !== null) fail()
   } else fail()
   return Object.freeze({ ...row })
 }
 export function prepareBrowserProjectRegistration(scope: BrowserSyncScope, expected: BrowserProjectBinding, evidence: BrowserProjectRegistration): BrowserProjectBinding {
   const row = validateBrowserProjectBinding(expected, scope)
+  if (row.phase === 'completing') fail('invalid_lineage_transition') // Only verified completion response may promote this phase.
   if (!exact(evidence, ['remote_state','remote_high_water']) || !['initializing','active'].includes(evidence.remote_state) || !safe(evidence.remote_high_water)) fail()
   if (row.remote_state === 'active' && evidence.remote_state !== 'active') fail('invalid_lineage_transition')
   return { ...row, phase: row.phase === 'prepared' ? 'registered' : row.phase, remote_state: evidence.remote_state,
@@ -49,6 +55,8 @@ export function prepareBrowserProjectRegistration(scope: BrowserSyncScope, expec
 /** Full-record expected-old CAS; exact retries only, never timestamp/LWW or arbitrary patch. */
 export function compareBrowserProjectTransition(scope: BrowserSyncScope, current: unknown, expected: BrowserProjectBinding, target: BrowserProjectBinding): 'changed' | 'already_committed' {
   const row = validateBrowserProjectBinding(current, scope), old = validateBrowserProjectBinding(expected, scope), next = validateBrowserProjectBinding(target, scope)
+  if (old.phase === 'completing' || next.phase === 'completing') fail('invalid_lineage_transition')
+  for (const key of ['initial_event_count','initial_local_ordinal_hi','initial_max_server_sequence'] as const) if (old[key] !== next[key]) fail('invalid_lineage_transition')
   for (const key of ['account_id','project_id','device_id','bootstrap_id','mode'] as const) if (row[key] !== old[key] || row[key] !== next[key]) fail('conflicting_record')
   if (next.phase !== (old.phase === 'prepared' ? 'registered' : old.phase) || next.remote_high_water === null
     || next.remote_high_water < (old.remote_high_water ?? 0) || old.remote_state === 'active' && next.remote_state !== 'active') fail('invalid_lineage_transition')
@@ -59,7 +67,7 @@ export function compareBrowserProjectTransition(scope: BrowserSyncScope, current
 export function browserProjectReadiness(row: BrowserProjectBinding | null): BrowserProjectReadiness {
   if (!row) return { ready: false, code: 'missing_lineage', required_cursor: null }
   const required_cursor = Math.max(row.remote_high_water ?? 0, row.initial_max_server_sequence ?? 0)
-  return { ready: false, code: row.mode === 'import_remote' ? 'ack_proof_unavailable' : row.phase === 'prepared' ? 'registration_required' : row.phase === 'captured' ? 'bootstrap_completion_unavailable' : 'capture_proof_unavailable', required_cursor }
+  return { ready: false, code: row.mode === 'import_remote' ? 'ack_proof_unavailable' : row.phase === 'prepared' ? 'registration_required' : row.phase === 'completing' && row.remote_state === 'active' ? 'ack_proof_unavailable' : ['captured','completing'].includes(row.phase) ? 'bootstrap_completion_unavailable' : 'capture_proof_unavailable', required_cursor }
 }
 
 /** Dormant installation lineage only. Trusted future coordinator owns project preflight and remote provenance. */

@@ -1,3 +1,4 @@
+import { BrowserBootstrapCompletion } from './bootstrapCompletion'
 import { BrowserInitialNoteCapture } from './initialNoteCapture'
 import { BrowserLocalAuthority } from './localAuthority'
 import { validateBrowserV5State } from './localAuthorityMigration'
@@ -12,7 +13,7 @@ export const WEB_DATABASE_VERSION = 6
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
-export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible' | 'invalid_local_source' | 'unsupported_local_source' | 'stale_source' | 'missing_local_source' | 'deleted_local_source' | 'source_limit'
+export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible' | 'invalid_local_source' | 'unsupported_local_source' | 'stale_source' | 'missing_local_source' | 'deleted_local_source' | 'source_limit' | 'bootstrap_incomplete' | 'bootstrap_response_rejected' | 'bootstrap_completion_failed'
 
 const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]> = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
@@ -118,7 +119,7 @@ export function validateBrowserV4ProjectState(scopes: BrowserSyncScope[], rows: 
     const scope = scopes.find(s => s.accountId === (value as { account_id?: string })?.account_id)
     if (!scope) throw new BrowserPersistenceError('corrupt_record')
     const row = validateBrowserProjectBinding(value, scope)
-    if (row.mode === 'upload_existing' && row.phase === 'captured') throw new BrowserPersistenceError('corrupt_record') // v4/v5 have no capture producer.
+    if (row.mode === 'upload_existing' && ['captured','completing'].includes(row.phase)) throw new BrowserPersistenceError('corrupt_record') // v4/v5 have no capture producer.
     const project = JSON.stringify([row.account_id, row.project_id]), bootstrap = JSON.stringify([row.account_id, row.bootstrap_id])
     if (projects.has(project) || bootstraps.has(bootstrap)) throw new BrowserPersistenceError('corrupt_record')
     projects.add(project); bootstraps.add(bootstrap)
@@ -201,6 +202,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly metadata: BrowserImportedMetadataApply
   readonly localSource: BrowserLocalAuthority
   readonly initialNotes: BrowserInitialNoteCapture
+  readonly completion: BrowserBootstrapCompletion
   private active = true
   private readonly pending = new Map<IDBTransaction, Promise<unknown>>()
   private closeFlight: Promise<void> | undefined
@@ -215,6 +217,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.projects = new BrowserProjectBindings((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.localSource = new BrowserLocalAuthority((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.initialNotes = new BrowserInitialNoteCapture((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, this.projects)
+    this.completion = new BrowserBootstrapCompletion((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.metadata = new BrowserImportedMetadataApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.sync)
     database.onversionchange = () => { void this.close() }
     database.onclose = () => { void this.close() }

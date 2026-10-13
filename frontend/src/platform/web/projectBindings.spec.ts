@@ -32,7 +32,7 @@ describe('dormant browser project lineage contract', () => {
     const replacement = field === 'project_id' ? 'other' : field === 'mode' ? 'import_remote' : scope.canonicalUserId
     fails(() => compareBrowserProjectTransition(scope, registered(), { ...prepared, [field]: replacement } as BrowserProjectBinding, registered()), field === 'project_id' || field === 'bootstrap_id' ? 'conflicting_record' : 'corrupt_record')
   })
-  it.each(['unknown','completing','ready','paused','blocked'] as const)('does not admit unproven upload phase: %s', phase => {
+  it.each(['unknown','ready','paused','blocked'] as const)('does not admit unproven upload phase: %s', phase => {
     fails(() => validateBrowserProjectBinding({ ...registered(), phase, blocked_reason: phase === 'blocked' ? 'SECRET_ERROR' : null }, scope))
   })
   it('recognizes narrow initializing capture counters without admitting completion/readiness or an arbitrary registration phase transition', () => {
