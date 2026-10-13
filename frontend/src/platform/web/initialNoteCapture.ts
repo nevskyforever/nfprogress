@@ -1,3 +1,4 @@
+import { NOTE_INTENT_STORE,validateNoteIntent } from './noteIntentRecords'
 import { makeHistoryCandidate,nextNoteHead,historyRange } from './noteHistory'
 import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteCandidate } from './noteHistoryRecords'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
@@ -118,11 +119,12 @@ export class BrowserInitialNoteCaptureRuntime {
     if (!p || p.owner !== this || !same(p.scope, scope)) fail('conflicting_record')
     if (!p.current()) fail('closed')
     let unsubscribe: (() => void) | undefined
-    return this.transaction<InitialLegacyCaptureResult>(scope, ['localProjects','localNotes','projectBindings','outbox','inbox','cursors','receipts',NOTE_HISTORY_STORE], 'readwrite', (tx, result, abort) => {
+    return this.transaction<InitialLegacyCaptureResult>(scope, ['localProjects','localNotes','projectBindings','outbox','inbox','cursors','receipts',NOTE_HISTORY_STORE,NOTE_INTENT_STORE], 'readwrite', (tx, result, abort) => {
       unsubscribe = this.auth.onInvalidated(() => abort(new BrowserPersistenceError('closed')))
       const binding = tx.objectStore('projectBindings').get([scope.accountId,p.binding.project_id]), out = tx.objectStore('outbox').getAll(range(scope.accountId)), receipts = tx.objectStore('receipts').getAll(range(scope.accountId)), incoming = tx.objectStore('inbox').getAll(range(scope.accountId)), history=tx.objectStore(NOTE_HISTORY_STORE).getAll(historyRange(scope,p.binding.project_id))
+      const intents=tx.objectStore(NOTE_INTENT_STORE).getAll(range(scope.accountId))
       let reads = 0
-      const finish = () => { if (++reads !== 5) return; try {
+      const finish = () => { if (++reads !== 6) return; try {
         if (!p.current()) fail('closed')
         const old = validateBrowserProjectBinding(binding.result, scope)
         if (old.phase === 'captured' && old.mode === 'upload_existing') {
@@ -137,8 +139,8 @@ export class BrowserInitialNoteCaptureRuntime {
             if (!p.current()) fail('closed')
             const rows = out.result.map(v => validateBrowserUploadPair(v, receipts.result.find(receipt => receipt.event_id === v.event_id), scope))
             if (receipts.result.some(receipt => !rows.some(r => r.event_id === receipt.event_id))) fail()
-            const highest = rows.reduce((hi,r) => Math.max(hi,r.local_ordinal),0)
-            if (rows.length !== highest || state.next_local_ordinal !== highest + 1) fail()
+            const pending=intents.result.map(v=>validateNoteIntent(v,scope)),ordinals=[...rows,...pending].map(r=>r.local_ordinal).sort((a,b)=>a-b),highest=ordinals.at(-1)??0
+            if(ordinals.some((v,i)=>v!==i+1)||state.next_local_ordinal!==highest+1)fail()
             const count = p.events.length, end = state.next_local_ordinal + count
             if (!Number.isSafeInteger(end)) fail('source_limit')
             const inbox = incoming.result.map(value => validateBrowserInboxRecord(value, scope))
@@ -164,7 +166,7 @@ export class BrowserInitialNoteCaptureRuntime {
           } catch (e) { abort(e) } }, abort)
         }, abort)
       } catch (e) { abort(e) } }
-      binding.onsuccess = finish; out.onsuccess = finish; receipts.onsuccess = finish; incoming.onsuccess = finish; history.onsuccess=finish
+      binding.onsuccess = finish; out.onsuccess = finish; receipts.onsuccess = finish; incoming.onsuccess = finish; history.onsuccess=finish; intents.onsuccess=finish
     }).finally(() => unsubscribe?.())
   }
   async capture(scope: BrowserSyncScope, expected: BrowserProjectBinding): Promise<InitialLegacyCaptureResult> {

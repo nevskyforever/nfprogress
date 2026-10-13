@@ -1,3 +1,4 @@
+import { BrowserNoteIntents } from './noteIntents'
 import { BrowserLegacyNoteHistory } from './noteHistory'
 import { BrowserLegacyNoteApply } from './legacyNoteApply'
 // Shared scheduling-contract fixture only. Real IDB/HTTP is validated in Chromium.
@@ -21,10 +22,10 @@ beforeAll(async () => { amk = await generateAccountMasterKey(); vi.stubGlobal('I
 afterAll(() => { amk.fill(0); vi.unstubAllGlobals() })
 export async function fixture(ids = ['z','a']) {
   const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-token', refresh_token: 'fixture-refresh', access_expires_in: 60 }), logout: async () => {}, refresh: vi.fn(), me: async () => ({ id: scope.canonicalUserId, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: at }) }); await auth.login('fixture','fixture')
-  const context = auth.requireContext(); let current = true, abortWrite = false, closed = false
-  const db: Record<string, unknown[]> & {outbox: unknown[];inbox: unknown[];receipts: unknown[];projectBindings: unknown[];cursors: unknown[]} = { localProjects: [], localNotes: [], outbox: [], inbox: [], receipts: [], projectBindings: [], cursors: [], ownerHeads: [], legacyNoteHistory: [] }
+  const context = auth.requireContext(); let missingKey=false; let current = true, abortWrite = false, closed = false
+  const db: Record<string, unknown[]> & {outbox: unknown[];inbox: unknown[];receipts: unknown[];projectBindings: unknown[];cursors: unknown[]} = { localProjects: [], localNotes: [], outbox: [], inbox: [], receipts: [], projectBindings: [], cursors: [], ownerHeads: [], legacyNoteHistory: [], legacyNoteIntents: [] }
   const calls: { mode: string; stores: string[] }[] = [], copies: Uint8Array[] = []
-  const key = (name: string, value: unknown) => { const r = value as Record<string,unknown>; return name === 'legacyNoteHistory' ? [r.account_id,r.project_id,r.note_id,r.record_kind,r.record_id] : name === 'localNotes' ? [r.account_id,r.project_id,r.note_id] : ['outbox','receipts'].includes(name) ? [r.account_id,r.event_id] : name === 'inbox' ? [r.account_id,r.server_sequence] : name === 'cursors' ? [r.account_id,r.device_id] : [r.account_id,r.project_id] }
+  const key = (name: string, value: unknown) => { const r = value as Record<string,unknown>; return name === 'legacyNoteHistory' ? [r.account_id,r.project_id,r.note_id,r.record_kind,r.record_id] : name === 'localNotes' ? [r.account_id,r.project_id,r.note_id] : ['outbox','receipts','legacyNoteIntents'].includes(name) ? [r.account_id,r.event_id] : name === 'inbox' ? [r.account_id,r.server_sequence] : name === 'cursors' ? [r.account_id,r.device_id] : [r.account_id,r.project_id] }
   const eq = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
   const transaction: BrowserSyncTransaction = (s, stores, mode, schedule) => new Promise((resolve,reject) => {
     calls.push({ mode, stores }); if (closed) { reject(new BrowserPersistenceError('closed')); return }; if (!eq(s,scope)) { reject(new BrowserPersistenceError('account_mismatch')); return }
@@ -33,7 +34,7 @@ export async function fixture(ids = ['z','a']) {
     const select = (name: string, range: {lower: unknown[]}) => pending[name]!.filter(v => range.lower.every((part,i) => key(name,v)[i] === part))
     const store = (name: string) => {
       const write = (row: unknown, add: boolean) => { const index = pending[name]!.findIndex(v => eq(key(name,v),key(name,row))); if (index >= 0 && add) { error = new BrowserPersistenceError('conflicting_record'); return read(undefined) }; if (index >= 0) pending[name]![index] = structuredClone(row); else pending[name]!.push(structuredClone(row)); return read(undefined) }
-      return { get: (k: unknown[]) => read(pending[name]!.find(v => eq(key(name,v),k))), getAll: (r: {lower: unknown[]}) => read(select(name,r)), count: (r: {lower: unknown[]}) => read(select(name,r).length), add: (r: unknown) => write(r,true), put: (r: unknown) => write(r,false), index: (index: string) => ({ get: (k: unknown[]) => read(pending[name]!.find(v => { const r = v as Record<string,unknown>; return eq([r.account_id,index === 'identity' ? r.note_id : index === 'bootstrap' ? r.bootstrap_id : r.event_id],k) })) }) }
+      return { delete: (k: unknown[]) => {pending[name]=pending[name]!.filter(v=>!eq(key(name,v),k));return read(undefined)}, get: (k: unknown[]) => read(pending[name]!.find(v => eq(key(name,v),k))), getAll: (r: {lower: unknown[]}) => read(select(name,r)), count: (r: {lower: unknown[]}) => read(select(name,r).length), add: (r: unknown) => write(r,true), put: (r: unknown) => write(r,false), index: (index: string) => ({ get: (k: unknown[]) => read(pending[name]!.find(v => { const r = v as Record<string,unknown>; return eq([r.account_id,index === 'identity' ? r.note_id : index === 'bootstrap' ? r.bootstrap_id : r.event_id],k) })) }) }
     }
     // Scheduling-contract driver only; native IDB isolation/constraint/rollback is proven in Chromium.
     schedule({ objectStore: store } as unknown as IDBTransaction, value => { result = value }, e => { error = e })
@@ -42,7 +43,7 @@ export async function fixture(ids = ['z','a']) {
     if (error) reject(error); else { Object.assign(db,pending); resolve(result as never) }
   })
   const lease = { localAccountId: scope.accountId, canonicalUserId: scope.canonicalUserId, authEpoch: context.authEpoch, isCurrent: () => current && auth.isCurrent(context), use: async <T>(action: (key: AccountMasterKey) => Promise<T>) => { const key = Uint8Array.from(amk) as AccountMasterKey; copies.push(key); try { return await action(key) } finally { key.fill(0) } } }
-  const bindings = { ensureForCurrentUser: async () => ({ context }) }, keys = { leaseForAccount: () => lease }
+  const bindings = { ensureForCurrentUser: async () => ({ context }) }, keys = { leaseForAccount: () => missingKey?null:lease }
   const localOwner = new BrowserLocalAuthority(transaction), local = localOwner.bind(auth,bindings as never,keys as never), projects = new BrowserProjectBindings(transaction), sync = new BrowserSyncDurability(transaction)
   const capture = new BrowserInitialNoteCapture(transaction,localOwner,projects).bind(auth,bindings as never,keys as never)
   await local.initializeProject(scope,{ project: project(), notes: ids.map(id => ({ state: 'live', note: note(id) })) })
@@ -51,7 +52,8 @@ export async function fixture(ids = ['z','a']) {
   const notes = new BrowserLegacyNoteApply(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const registry = new BrowserAccountRegistry(transaction, () => !closed).bind(auth,bindings as never,keys as never)
   const completion = new BrowserBootstrapCompletion(transaction, () => !closed).bind(auth,bindings as never,keys as never)
+  const writer=new BrowserNoteIntents(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const mutate = async () => local.updateNote(scope,(await local.readSnapshot(scope,'p')).token,'a',{ title: 'LATER_PRIVATE' },at)
   const accept = async (row: unknown, sequence: number) => sync.commitUploadAcceptance(scope,row as never,{ protocol_version: 2, encrypted_sync_version: 2, current_cursor: sequence, results: [{ event_id: (row as {event_id: string}).event_id, server_sequence: sequence, duplicate: false }] })
-  return { noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
+  return { writer,noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, unavailable: () => {missingKey=true}, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
 }

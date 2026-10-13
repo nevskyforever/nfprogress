@@ -1704,3 +1704,88 @@ new dependencies/backend/PG/native/frozen contract edits; no Actions polling.
 Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE. Next proposed bound: local
 unsealed candidate generation/ordinal/writer bridge, then separately authorized
 Resolution and cross-family ACK; current unsupported family/Cover gaps unchanged.
+
+
+## C21.1.16 local unsealed writer and immutable seal bridge
+
+C21.1.15 owner acceptance: a386161d07b2918a30af4c2dae7328068adad914,
+Cloud38426555539 SUCCESS/all six jobs SUCCESS; REMOTELY ACCEPTED PARTIAL.
+C21.1.16 LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. Official84.0%,
+C21 IN PROGRESS, .06 NOT LOCAL COMPLETE. Native state table and references live in
+C21_PROTECTED_APPLY_FAMILY_AUDIT; audited before production.
+
+Schema8 adds only legacyNoteIntents, key [account_id,event_id], unique Note index
+[account_id,project_id,note_id] and ordinal index [account_id,device_id,local_ordinal].
+Version7 validates all eleven exact old stores, received1/Metadata2/Note3/conflict4,
+source/proof/lineage/history/frontier/group joins and immutable wire references;
+no keys/decryption/repair/inference in versionchange. New store empty. Failed/quota/
+corrupt upgrade retains original v7; current8 reopens; future9 refuses downgrade.
+
+Dormant `session.noteIntents.bind(normalAuth,accountBinding,keys).local` reuses existing
+canonical BrowserLocalAuthority createNote/updateNote/tombstoneNote mutation and source
+CAS. It does not route editor calls or activate background syncing. Normal local-only
+runtime remains available; explicit producer methods are the reviewed atomic boundary.
+Eligible lineage: active import_remote/captured, or active upload_existing/completing
+with exact accepted initial cohort. Native binding helper alone allows more states;
+Web deliberately requires accepted bootstrap completion under existing no-ready model.
+Prepared/registered/upload-captured/incomplete/missing/stale/foreign scope fail whole
+producer mutation. Supported Note HTML/project/null Stage/null map/node only;
+unsupported/invalid/oversized source rolls back canonical mutation and ordinal.
+
+SAME strict transaction: encrypted canonical project/Note, source_revision+1, intent,
+existing next_local_ordinal reservation. New UUIDv4/cloud revision1/null parent only
+when no actual cloud head; otherwise highest native combined sealed/accepted outbox
+and applied Note3 head +1/exact parent, equal different IDs fail. History candidate
+AEAD verified; preserved incoming tip cannot impersonate actual applied/outbox head.
+Unsealed is NOT cloud-visible frontier. Account/device ordinal spans projects and
+Notes; initial specialized cohort producer now includes unsealed reservations when
+validating allocator without changing count/HI/capture semantics. Aborts consume none.
+
+Coalescing: SAME UUID, ordinal, cloud revision, parent; mutation_generation increments
+for every new snapshot and resets pending/attempts/error. Create→update, update→update,
+update→delete and create→delete follow native; create→delete becomes delete on same
+revision1 event, not removal. Native payload revision/source revision remain distinct.
+Intent retains encrypted original canonical source anchor plus encrypted identity
+wrapper using existing Note object tuple/AAD. Identity authenticates complete event/
+lineage/parent/cloud revision/ordinal/mutation generation and exact encrypted anchor
+hash. Neither plaintext snapshot_json nor user content is persisted. No new crypto.
+
+Explicit list/prepareSeal/commitSeal/seal methods: current account key opens/verifies
+anchor and identity outside IDB, frozen createNoteSyncPlaintext/sealNoteSyncEvent and
+V2 encoding produce normal immutable Note bytes. Seal generation-CAS stores outbox at
+reserved ordinal, local_sealed immutable candidate/exact source-at-seal anchor/native
+generation, complete frontier/head and removes intent in ONE TX. Metadata failure
+updates at same generation do not invalidate valid prepared crypto. Newer generation
+returns stale_generation with no changes. Same prepared encrypted bytes replay returns
+already_sealed; differently encrypted same event fails after first commit. No held-open
+crypto transaction, crash window or partial sealed state. Lineage/history/inbound/
+outbox/receipt CAS and auth/key/session invalidation enforce fail-closed commit.
+
+Bounded native error codes: key/size/dependency/unsupported blocked; runtime retryable;
+invalid payload/context/metadata/envelope invariant_error. Absent current key records
+key_unavailable for exact generation; revoked prepared key/auth cannot commit. New
+mutation resets older failure; invariant cannot be retried without new generation.
+Explicit blocked retry only; next_attempt_at null, no invented scheduler/backoff/loop.
+Corrupt snapshots/metadata fail closed without arbitrary exception strings or repair.
+
+Post-seal edit creates new event/ordinal/gen1 with exact combined causal parent;
+previous candidate immutable. Open native conflict group allows ordinary local branch
+and later coalescing, while group versions/generation/tips stay frozen and complete
+frontier retains all unrelated tips. No Resolution decision/resolve/send. Accepted
+receipts and retained own echo recognize new sealed events; protected peer child can
+use exact source anchor through C21.1.15. New source-at-seal history available; old
+unrecoverable anchors remain unavailable, never reconstructed from mutable current Note.
+Local-unsealed inbound conflict capture remains a separate subsequent apply slice.
+
+Checks: producer17/coalescing5/seal22/integration6/migration13 =63 new PASS; previous
+400 affected C21 PASS =463 unique final focused selections. Chromium157 PASS: v7
+migration exact11, zero inferred intents, corruption/quota/abort, dormant create/update/
+delete/coalescing, encrypted identity/snapshot, generation race, source/seal rollback,
+logout/key lock, before/after seal renderer and disk-profile reopen, immutable anchor,
+post-seal next event, self-echo/peer child/open conflict branch. Existing acceptance
+registry16/completion16, total32 fixture API requests; producer/new sync/apply/ACK0,
+unrelatedAPI0/page errors0. Typecheck/build/workflow/syntax/diff/pyc PASS; existing
+build warnings only. Five specs explicitly mandatory in Cloud plus all affected C21
+and hard-failing Chromium; SQLite NOT EXPECTED. No skips, dependencies/backend/PG/
+native/frozen wire/codec/crypto/receipt changes, ACK/proven prefix remains0,
+ack_eligible:false/ready:false. No other-family/ready/complete-project claim or CI polling.

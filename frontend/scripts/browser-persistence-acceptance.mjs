@@ -1,3 +1,4 @@
+import { acceptNoteIntents } from './browser-note-intent-acceptance.mjs'
 import { acceptNoteHistory } from './browser-note-history-acceptance.mjs'
 import { acceptLegacyNoteApply } from './browser-legacy-note-apply-acceptance.mjs'
 /** Real Chromium IDB/Web Locks on a disposable disk profile; isolated auth transport fixtures, actual storage/crypto runtimes. */
@@ -392,12 +393,12 @@ try {
     await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject; r.onblocked = reject })
     globalThis.session = await c21.openBrowserPersistence(users[0])
   })
-  assert.deepEqual(await nativeSchema(), { version: 7, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'legacyNoteHistory', 'localNotes', 'localProjects', 'outbox', 'ownerHeads', 'projectBindings', 'receipts'] })
+  assert.deepEqual(await nativeSchema(), { version: 8, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'legacyNoteHistory', 'legacyNoteIntents', 'localNotes', 'localProjects', 'outbox', 'ownerHeads', 'projectBindings', 'receipts'] })
   assert.equal((await page.evaluate(() => nativeRows('identities'))).length, 1)
   assert.equal((await page.evaluate(() => nativeRows('accountBindings'))).length, 1)
   assert.deepEqual(await page.evaluate(async () => [await nativeRows('outbox'), await nativeRows('inbox'), await nativeRows('cursors')]), [[], [], []])
   await page.evaluate(() => session.close())
-  cases.push('fresh empty profile atomically creates the exact v7 eleven-store schema and identity/binding')
+  cases.push('fresh empty profile atomically creates the exact v8 twelve-store schema and identity/binding')
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
   const freshIdentity = await page.evaluate(() => session.read(users[0]))
   const freshScope = { canonicalUserId: users[0], accountId: freshIdentity.local_account_id, deviceId: freshIdentity.device_id }
@@ -623,7 +624,7 @@ try {
   assert.deepEqual(await historyRead(page), historySaved)
   assert.deepEqual(await durableSnapshot(), historyBefore)
   assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
-  assert.deepEqual(await nativeSchema(), { version: 7, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory'].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 8, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
   cases.push('unknown retained record and broken acceptance half fail after reopen; no automatic repair, schema/head writes, apply proof or ACK advancement')
   // Accepted C21 v3 fixture: all six old stores, including immutable accepted bodies/receipts.
   const v3 = await durableSnapshot()
@@ -686,7 +687,7 @@ try {
   assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
   assert.deepEqual(await durableSnapshot(), v3)
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
-  assert.deepEqual(await nativeSchema(), { version: 7, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory'].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 8, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
   assert.deepEqual(await durableSnapshot(), v3)
   assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), [])
   cases.push('real v3 to current v6 preserves all six legacy stores including accepted ciphertext/receipts; corrupt/quota/request-abort/blocked-upgrade failures preserve intact v3, projectBindings starts empty')
@@ -1034,6 +1035,9 @@ try {
   assert.equal(completionRequests.length+registryRequests.length+ackRequests.length,beforeApplyNetwork)
   page = await acceptNoteHistory({ page, scope:scopeA, users, cases, expectCode, reopenProfile:async()=>{await context.close();await start();return tab()} })
   assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
+  page = await acceptNoteIntents({page,scope:scopeA,users,cases,expectCode,reopenProfile:async()=>{await context.close();await start();return tab()}})
+  assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
+  const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))
   const finalDurability = await metadataSnapshot()
   const localFinal = await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') }))
@@ -1054,6 +1058,7 @@ try {
   assert.deepEqual(await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') })), localFinal)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(await page.evaluate(()=>nativeRows('legacyNoteHistory')),finalHistory)
+  assert.deepEqual(await page.evaluate(()=>nativeRows('legacyNoteIntents')),finalIntents)
   assert.deepEqual(unexpected, [])
   console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length+registryRequests.length, registryRequests:registryRequests.length, ACKRequests:ackRequests.length, protectedApplyRequests:0, candidateConflictRequests:0, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
 } finally {

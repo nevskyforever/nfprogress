@@ -1,3 +1,5 @@
+import { BrowserNoteIntents } from './noteIntents'
+import { validateBrowserV7State } from './noteIntentMigration'
 import { BrowserLegacyNoteHistory } from './noteHistory'
 import { validateBrowserV6State } from './noteHistoryMigration'
 import { BrowserLegacyNoteApply } from './legacyNoteApply'
@@ -13,11 +15,11 @@ import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } f
 import { BrowserSyncDurability, validateBrowserV2SyncState, validateBrowserV3SyncState, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 7
+export const WEB_DATABASE_VERSION = 8
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
-export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible' | 'invalid_local_source' | 'unsupported_local_source' | 'stale_source' | 'missing_local_source' | 'deleted_local_source' | 'source_limit' | 'bootstrap_incomplete' | 'bootstrap_response_rejected' | 'bootstrap_completion_failed' | 'registry_rejected' | 'registry_conflict' | 'registry_network_failed' | 'note_rejected' | 'note_orphan' | 'note_conflict_unproven' | 'candidate_history_unavailable'
+export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible' | 'invalid_local_source' | 'unsupported_local_source' | 'stale_source' | 'missing_local_source' | 'deleted_local_source' | 'source_limit' | 'bootstrap_incomplete' | 'bootstrap_response_rejected' | 'bootstrap_completion_failed' | 'registry_rejected' | 'registry_conflict' | 'registry_network_failed' | 'note_rejected' | 'note_orphan' | 'note_conflict_unproven' | 'candidate_history_unavailable' | 'note_key_unavailable'
 
 const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]> = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
@@ -31,10 +33,11 @@ const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<r
   ['localProjects', ['account_id','project_id'], []],
   ['localNotes', ['account_id','project_id','note_id'], [['identity', ['account_id','note_id'], true]]],
   ['legacyNoteHistory', ['account_id','project_id','note_id','record_kind','record_id'], [['event', ['account_id','event_id'], true]]],
+  ['legacyNoteIntents', ['account_id','event_id'], [['note', ['account_id','project_id','note_id'], true], ['ordinal', ['account_id','device_id','local_ordinal'], true]]],
 ]
 
 function validateSchema(database: IDBDatabase, transaction: IDBTransaction, version: number): void {
-  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : version === 3 ? SCHEMA.slice(0, 6) : version === 4 ? SCHEMA.slice(0, 7) : version === 5 ? SCHEMA.slice(0, 8) : version === 6 ? SCHEMA.slice(0,10) : SCHEMA
+  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : version === 3 ? SCHEMA.slice(0, 6) : version === 4 ? SCHEMA.slice(0, 7) : version === 5 ? SCHEMA.slice(0, 8) : version === 6 ? SCHEMA.slice(0,10) : version === 7 ? SCHEMA.slice(0,11) : SCHEMA
   if (Array.from(database.objectStoreNames).sort().join(',') !== schema.map(([name]) => name).sort().join(',')) throw new BrowserPersistenceError('unsupported_version')
   for (const [name, key, indexes] of schema) {
     const store = transaction.objectStore(name)
@@ -153,7 +156,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || ![0, 1, 2, 3, 4, 5, 6].includes(event.oldVersion)) {
+      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7].includes(event.oldVersion)) {
         abortUpgrade()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
@@ -162,7 +165,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
         const transaction = request.transaction!
         if (event.oldVersion > 0) {
           validateSchema(request.result, transaction, event.oldVersion)
-          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : 10).map(([name]) => name)
+          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : event.oldVersion === 6 ? 10 : 11).map(([name]) => name)
           const requests = names.map(name => transaction.objectStore(name).getAll())
           let received = 0
           const validate = () => {
@@ -173,6 +176,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
               for (const identity of identities) validateRecords(identity, bindings.find(b => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
               if (event.oldVersion === 2) validateBrowserV2SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result)
               if (event.oldVersion === 3 || event.oldVersion === 4) validateBrowserV3SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result, requests[5]!.result)
+              if (event.oldVersion === 7) validateBrowserV7State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 6) validateBrowserV6State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 5) validateBrowserV5State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 4) validateBrowserV4ProjectState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[6]!.result)
@@ -180,7 +184,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
           }
           for (const read of requests) read.onsuccess = validate
         }
-        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : 10)) {
+        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : event.oldVersion === 6 ? 10 : 11)) {
           const store = request.result.createObjectStore(name, { keyPath })
           for (const [index, path, unique] of indexes) store.createIndex(index, path, { unique })
         }
@@ -209,6 +213,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly localSource: BrowserLocalAuthority
   readonly initialNotes: BrowserInitialNoteCapture
   readonly completion: BrowserBootstrapCompletion
+  readonly noteIntents: BrowserNoteIntents
   readonly noteHistory: BrowserLegacyNoteHistory
   readonly notes: BrowserLegacyNoteApply
   readonly registry: BrowserAccountRegistry
@@ -227,6 +232,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.localSource = new BrowserLocalAuthority((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.initialNotes = new BrowserInitialNoteCapture((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, this.projects)
     this.completion = new BrowserBootstrapCompletion((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
+    this.noteIntents = new BrowserNoteIntents((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)
     this.noteHistory = new BrowserLegacyNoteHistory((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.notes = new BrowserLegacyNoteApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)
     this.registry = new BrowserAccountRegistry((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)

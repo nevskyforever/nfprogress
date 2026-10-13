@@ -546,3 +546,76 @@ Local evidence: history20/conflict+own21/migration13/Legacy31+proof19/ACK18/affe
 conflict/apply0, ACK0/unrelatedAPI0/page errors0; typecheck/build/workflow/syntax/diff/pyc
 PASS, existing warnings only. Mandatory Cloud specs and Chromium; SQLite NOT EXPECTED.
 No skips, dependencies or frozen backend/PG/native/protocol/crypto changes, no CI polling.
+
+## C21.1.16 native producer state table BEFORE implementation
+
+C21.1.15 owner acceptance: a386161d07b2918a30af4c2dae7328068adad914,
+Cloud38426555539 SUCCESS, all six jobs SUCCESS, REMOTELY ACCEPTED PARTIAL.
+Audited lib.rs direct create/update/delete interception (2926–3290), note_sync.rs
+resolve_project_cloud_binding4841, allocator5497, combined head5515, producer5769,
+list5909, failure6287, seal6366 and direct/coalescing/delete/restart/rollback tests
+11026+,12542+,12762+,12857+, conflict later-coalescing1614+.
+
+| Previous | Source mutation | Event/ordinal | Cloud revision/parent | Mutation generation | History effect |
+|---|---|---|---|---|---|
+| none | create | new UUIDv4/new account-device ordinal | 1/null | 1 pending | none before seal |
+| unsealed create | update | same/same | same/same | +1 pending/reset failure | none |
+| unsealed create | delete | same/same, operation delete | 1/null retained | +1 pending | tombstone, NOT removal |
+| sealed create | update | new/new | sealed head+1/head ID | 1 pending | old candidate immutable |
+| unsealed update | update | same/same | same/same | +1 pending | none |
+| unsealed update | delete | same/same, delete | same/same | +1 pending | none |
+| sealed update | update | new/new | combined head+1/head ID | 1 pending | old candidate immutable |
+| sealed + peer head | update | new/new | higher exact combined head; equal different IDs error | 1 pending | no arbitrary tip |
+| unresolved group | update/delete | coalesce existing or new/new | native linear combined head, unrelated tips retained | +1 or1 pending | group versions stay frozen |
+
+Native unsealed is excluded from read_entity_sync_head; sealing removes intent and
+stores immutable envelope+sealed outbox atomically. CAS compares expected generation;
+exact sealed-envelope replay returns already_sealed, changed envelope errors.
+Native failure key/size/dependency/unsupported = blocked; runtime = retryable_error;
+invalid payload/context/metadata/envelope = invariant_error. Explicit dormant Web
+invocation needs no native round-robin cursor/backoff scheduler; next_attempt_at null.
+Native binding helper does not check bootstrap; Web bridge additionally requires actual
+active import/captured or upload/completing with complete exact initial cohort, because
+no ready/ACK is enabled. Missing/initializing/prepared/registered/captured-upload blocked.
+
+Storage decision: v8 ONE dedicated legacyNoteIntents store. Accepted v7 history API is
+an immutable cloud-visible inventory; mutable unsealed snapshots and failure lifecycle
+must remain separately typed and excluded from its frontier and candidate event index.
+All eleven old stores unchanged and structurally validated, zero synthesized intents.
+
+
+### C21.1.16 implemented producer coverage
+
+LOCAL COMPLETE for explicit dormant Legacy-only canonical create/update/delete producer
+and immutable seal bridge. v8 ONE legacyNoteIntents store, unique Note/event/ordinal
+constraints; exact v7 eleven-store structural validation and zero inferred intents.
+Original encrypted canonical source and AEAD intent identity bind scope/bootstrap/event/
+parent/cloud revision/ordinal/mutation generation. Atomic canonical mutation + intent/
+allocator, native coalescing and exact create→delete tombstone retained. Unsealed excluded
+from cloud head; next parent joins actual applied/outbox head, not arbitrary preserved tip.
+
+Current-generation frozen Note sealing atomically removes intent and stores normal
+immutable outbox + local_sealed candidate with source-at-seal anchor/generation + full
+causal frontier. Exact same-envelope replay stable; changed envelope/stale lineage/
+revoked auth/key/abort fail closed; stale generation leaves newer intent untouched.
+Native bounded blocked/retryable/invariant codes, explicit retries only, no loop/backoff.
+Open conflict permits native linear local branch update/delete while frozen groups and
+unrelated complete tips remain unchanged. New own receipt/self-echo/peer-child compatible.
+
+Historical source-at-seal now available for NEW writer events. Old missing capture
+anchors remain unrecoverable; no current mutable Note inference. Local-unsealed inbound
+conflict/version proof is next bounded protected-apply work; not inferred from intent
+presence. Resolution publication/decision/runtime and cross-family positive ACK proofs
+remain absent. No other-family/Cover/ready changes. ACK/proven0, eligible:false/ready:false.
+
+Local new63 + prior affected400 =463 unique tests PASS, Chromium157 PASS including real
+v7 corruption/quota/abort upgrade exact11, encrypted pending/sealed restarts, coalescing/
+create-delete/ordinal/source-CAS/seal rollback, stale crypto/key/logout, exact anchors,
+self-echo/peer-child and open-group branch/full frontier. Existing registry16/completion16
+fixture requests only; producer/new sync/apply/ACK0/unrelatedAPI0/page errors0.
+Typecheck/build/workflow/syntax/diff/protected pyc PASS; mandatory five new Cloud specs.
+No dependencies/backend/PG/native/frozen contracts/skips; SQLite NOT EXPECTED. Remote CI
+PENDING — NOT POLLED; official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE.
+
+Native lib.rs require_note_writable1022 additionally forbids completed project status
+`завершен`; dormant writer enforces it before source mutation/intent reservation.

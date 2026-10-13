@@ -1,3 +1,4 @@
+import type { BrowserNoteIntentRuntime, NoteMutationPlan } from './noteIntents'
 import { verifiedLegacyNoteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { AuthoritativeKeyContextLease, RuntimeKeyContext } from '@/auth/keyContext'
@@ -79,7 +80,9 @@ export class BrowserLocalAuthority {
   }
 }
 export class BrowserLocalAuthorityRuntime {
-  constructor(private readonly owner: BrowserLocalAuthority, private readonly transaction: BrowserSyncTransaction, private readonly auth: NormalUserAuthRuntime, private readonly bindings: AuthoritativeAccountBinding, private readonly keys: RuntimeKeyContext) {}
+  constructor(private readonly owner: BrowserLocalAuthority, private readonly transaction: BrowserSyncTransaction, private readonly auth: NormalUserAuthRuntime, private readonly bindings: AuthoritativeAccountBinding, private readonly keys: RuntimeKeyContext, private readonly writer?: BrowserNoteIntentRuntime) {}
+  /** Internal dormant writer binding; ordinary local-only runtime remains unchanged. */
+  withNoteWriter(writer: BrowserNoteIntentRuntime): BrowserLocalAuthorityRuntime { return new BrowserLocalAuthorityRuntime(this.owner,this.transaction,this.auth,this.bindings,this.keys,writer) }
   private async guard(scope: BrowserSyncScope): Promise<Guard> {
     const { context } = await this.bindings.ensureForCurrentUser(scope.accountId)
     const lease = this.keys.leaseForAccount(scope.accountId)
@@ -201,10 +204,10 @@ export class BrowserLocalAuthorityRuntime {
   private async noteRow(scope: BrowserSyncScope, source: LocalNoteSource, revision: number, amk: AccountMasterKey): Promise<LocalNoteRecord> {
     return { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: source.note.project_id, note_id: source.note.id, source_revision: revision, note_revision: source.state === 'live' ? source.note.revision : source.revision, deleted: source.state === 'tombstone', envelope: await this.seal(scope, source.note.id, 'note', { local_format: 1, kind: 'note', account_id: scope.accountId, device_id: scope.deviceId, project_id: source.note.project_id, note_id: source.note.id, source_revision: revision, source }, amk) }
   }
-  private write(scope: BrowserSyncScope, guard: Guard, expected: LocalSourceToken | null, project: LocalProjectRecord, notes: LocalNoteRecord[], deletion = false): Promise<number> {
+  private write(scope: BrowserSyncScope, guard: Guard, expected: LocalSourceToken | null, project: LocalProjectRecord, notes: LocalNoteRecord[], deletion = false, mutation?: NoteMutationPlan): Promise<number> {
     if (!guard.current()) fail('closed')
     let unsubscribe: (() => void) | undefined
-    return this.transaction<number>(scope, ['localProjects','localNotes', ...(deletion ? ['projectBindings'] : [])], 'readwrite', (tx, result, abort) => {
+    return this.transaction<number>(scope, ['localProjects','localNotes', ...(deletion ? ['projectBindings'] : []), ...(mutation ? this.writer!.mutationStores : [])], 'readwrite', (tx, result, abort) => {
       unsubscribe = this.auth.onInvalidated(() => abort(new BrowserPersistenceError('closed')))
       const commit = () => {
         const reads = notes.map(note => tx.objectStore('localNotes').index('identity').get([scope.accountId, note.note_id]))
@@ -215,9 +218,12 @@ export class BrowserLocalAuthorityRuntime {
           if (!guard.current()) fail('closed')
           if (binding?.result) fail('unsupported_local_source') // No cloud deletion/bootstrap semantics here.
           reads.forEach(read => { if (read.result) { const existing = validateLocalNoteRecord(read.result, scope, read.result.project_id); if (existing.project_id !== project.project_id) fail('conflicting_record') } })
+          const persist = () => {
           const writes = [tx.objectStore('localProjects').put(project), ...notes.map(n => tx.objectStore('localNotes')[expected ? 'put' : 'add'](n))]
           writes.forEach(write => { write.onsuccess = () => { if (!guard.current()) abort(new BrowserPersistenceError('closed')) } })
           result(project.source_revision)
+          }
+          if(mutation)this.writer!.scheduleMutation(tx,mutation,persist,abort);else persist()
         } catch (error) { abort(error) } }
         if (!requests.length) finish(); else requests.forEach(read => { read.onsuccess = finish })
       }
@@ -235,7 +241,9 @@ export class BrowserLocalAuthorityRuntime {
     const p = this.token(scope, token), guard = await this.guard(scope)
     if (p.project.source_revision === Number.MAX_SAFE_INTEGER) fail('source_limit')
     return guard.lease.use(async amk => {
-      const opened = await this.open(scope, p.project, p.notes, amk), changed = action(opened) ?? []
+      const opened = await this.open(scope, p.project, p.notes, amk)
+      if(this.writer&&opened.project.project.status==='завершен')fail('unsupported_local_source') // Native direct Note writer keeps completed projects readonly.
+      const changed = action(opened) ?? []
       const revision = p.project.source_revision + 1
       opened.project.source_revision = revision; opened.project.deleted_at = deletedAt
       opened.project.member_ids = opened.notes.map(n => n.note.id).sort(order)
@@ -243,7 +251,8 @@ export class BrowserLocalAuthorityRuntime {
       const row: LocalProjectRecord = { ...p.project, source_revision: revision, deleted: deletedAt !== null, envelope: await this.seal(scope, p.project.project_id, 'project', opened.project, amk) }
       const notes: LocalNoteRecord[] = []
       for (const source of changed) notes.push(await this.noteRow(scope, source, revision, amk))
-      return this.write(scope, guard, token, row, notes, deletedAt !== null)
+      const mutation=this.writer ? await this.writer.prepareMutation(scope,notes,amk) : undefined
+      return this.write(scope, guard, token, row, notes, deletedAt !== null, mutation)
     })
   }
   async prepareProtectedNoteApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:VerifiedLegacyNotePlan):Promise<{token:ProtectedNoteSourcePlan;source_revision:number;note:LocalNoteRecord}> {

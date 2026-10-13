@@ -7,7 +7,7 @@ export const NOTE_HISTORY_STORE='legacyNoteHistory'
 interface Base {record_version:1;account_id:string;device_id:string;project_id:string;note_id:string;bootstrap_id:string;record_kind:'candidate'|'head'|'group';record_id:string}
 export interface BrowserNoteCandidate extends Base {
  record_kind:'candidate';event_id:string;source_device_id:string;protocol_version:2|3
- origin:'initial_capture'|'initial_backfill'|'peer';mutation_generation:1|null
+ origin:'initial_capture'|'initial_backfill'|'peer'|'local_sealed';mutation_generation:number|null
  header:NoteSyncHeader;wire_item:string;wire_digest:string;record_digest:string
  projection:LocalNoteRecord|null;projection_digest:string|null
 }
@@ -24,17 +24,17 @@ export function validateNoteHistoryRecord(value:unknown,scope:BrowserSyncScope):
  const r=value as BrowserNoteHistoryRecord
  if(!r||r.record_version!==1||r.account_id!==scope.accountId||r.device_id!==scope.deviceId||!canonicalNoteUuid(r.bootstrap_id))bad();localId(r.project_id);localId(r.note_id)
  if(r.record_kind==='candidate'){
-  if(!localExact(r,[...base,'event_id','source_device_id','protocol_version','origin','mutation_generation','header','wire_item','wire_digest','record_digest','projection','projection_digest'])||r.record_id!==r.event_id||!canonicalNoteUuid(r.event_id)||!canonicalNoteUuid(r.source_device_id)||![2,3].includes(r.protocol_version)||!['initial_capture','initial_backfill','peer'].includes(r.origin)||!noteHistoryHash(r.wire_digest)||!noteHistoryHash(r.record_digest))bad()
-  if(r.origin==='peer'?r.source_device_id===scope.deviceId||r.mutation_generation!==null:r.source_device_id!==scope.deviceId||r.mutation_generation!==1)bad()
+  if(!localExact(r,[...base,'event_id','source_device_id','protocol_version','origin','mutation_generation','header','wire_item','wire_digest','record_digest','projection','projection_digest'])||r.record_id!==r.event_id||!canonicalNoteUuid(r.event_id)||!canonicalNoteUuid(r.source_device_id)||![2,3].includes(r.protocol_version)||!['initial_capture','initial_backfill','peer','local_sealed'].includes(r.origin)||!noteHistoryHash(r.wire_digest)||!noteHistoryHash(r.record_digest))bad()
+  if(r.origin==='peer'?r.source_device_id===scope.deviceId||r.mutation_generation!==null:r.source_device_id!==scope.deviceId||(r.origin==='local_sealed'?!localSafe(r.mutation_generation,1):r.mutation_generation!==1))bad()
   const h=r.header
   if(!localExact(h,['event_id','parent_event_id','project_id','entity_id','entity_type','operation','revision','updated_at','deleted_at'])||h.event_id!==r.event_id||h.project_id!==r.project_id||h.entity_id!==r.note_id||h.entity_type!=='note'||!localSafe(h.revision,1)||(h.revision===1)!==(h.parent_event_id===null)||h.parent_event_id!==null&&!canonicalNoteUuid(h.parent_event_id)||h.parent_event_id===h.event_id)bad()
-  if(r.origin!=='peer'&&(h.revision!==1||h.parent_event_id!==null||h.operation!=='upsert'))bad()
+  if(['initial_capture','initial_backfill'].includes(r.origin)&&(h.revision!==1||h.parent_event_id!==null||h.operation!=='upsert'))bad()
   let wire:unknown;try{wire=JSON.parse(r.wire_item)}catch{bad()}
   validateBrowserSealedBody(JSON.stringify({protocol_version:r.protocol_version,encrypted_sync_version:r.protocol_version,device_id:r.source_device_id,items:[wire]}),{...scope,deviceId:r.source_device_id})
   const event=(wire as {event:NoteSyncHeader}).event
   if(event.entity_type!=='note'||!['upsert','delete'].includes(event.operation)||event.event_id!==h.event_id||event.project_id!==h.project_id||event.entity_id!==h.entity_id||event.revision!==h.revision||event.operation!==h.operation||canonicalizeSyncTimestamp(event.updated_at)!==canonicalizeSyncTimestamp(h.updated_at)||(event.deleted_at===null)!==(h.deleted_at===null)||event.deleted_at!==null&&canonicalizeSyncTimestamp(event.deleted_at)!==canonicalizeSyncTimestamp(h.deleted_at!))bad()
   if(r.projection!==null){const p=validateLocalNoteRecord(r.projection,scope,r.project_id);if(p.note_id!==r.note_id||!noteHistoryHash(r.projection_digest))bad()}else if(r.projection_digest!==null&&!noteHistoryHash(r.projection_digest))bad()
-  if(r.origin==='initial_capture'&&r.projection===null||r.origin==='initial_backfill'&&(r.projection!==null||r.projection_digest!==null))bad()
+  if(['initial_capture','local_sealed'].includes(r.origin)&&r.projection===null||r.origin==='initial_backfill'&&(r.projection!==null||r.projection_digest!==null))bad()
  }else if(r.record_kind==='head'){
   if(!localExact(r,[...base,'head_revision','linear_head_event_id','tip_event_ids'])||r.record_id!=='head'||!localSafe(r.head_revision,1)||!canonicalNoteUuid(r.linear_head_event_id)||!tips(r.tip_event_ids))bad()
  }else if(r.record_kind==='group'){
