@@ -1,5 +1,6 @@
 /** Real Chromium IDB/Web Locks on a disposable disk profile; isolated auth transport fixtures, actual storage/crypto runtimes. */
 import assert from 'node:assert/strict'
+import { acceptInitialNotes } from './browser-initial-note-acceptance.mjs'
 import { acceptLocalAuthority } from './browser-local-authority-acceptance.mjs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -1013,9 +1014,11 @@ try {
   assert.deepEqual(await metadataSnapshot(), finalMeta)
   cases.push('Metadata account/device isolation and stale logout handles fail closed without erasing another account history')
   page = await acceptLocalAuthority({ page, scope: scopeA, otherScope: newScopeB, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
+  page = await acceptInitialNotes({ page, scope: scopeA, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
+  const finalDurability = await metadataSnapshot()
   const localFinal = await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') }))
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
-  const retainedAccepted = await retained()
+  const retainedAccepted = await page.evaluate(() => nativeRows('outbox'))
   const retainedBindings = await page.evaluate(() => nativeRows('projectBindings'))
   await page.evaluate(async () => {
     await new Promise((resolve, reject) => {
@@ -1027,7 +1030,7 @@ try {
   assert.deepEqual(await page.evaluate(() => nativeRows('receipts')), retainedProofs)
   assert.deepEqual(await page.evaluate(() => nativeRows('outbox')), retainedAccepted)
   assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), retainedBindings)
-  assert.deepEqual(await metadataSnapshot(), finalMeta)
+  assert.deepEqual(await metadataSnapshot(), finalDurability)
   assert.deepEqual(await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') })), localFinal)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])

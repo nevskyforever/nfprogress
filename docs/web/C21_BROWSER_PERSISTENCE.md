@@ -1,6 +1,6 @@
-# C21.1.02–C21.1.10 — Browser durable persistence / E2EE adapter contract
+# C21.1.02–C21.1.11 — Browser durable persistence / E2EE adapter contract
 
-Contract revision9, 2026-10-13. IDB schema6 adds dormant encrypted canonical local Project/Legacy Note source; imported coverless Metadata protected apply remains unchanged.
+Contract revision10, 2026-10-13. IDB schema6 implements dormant encrypted local source and atomic initial Legacy Note capture/read-only cohort receipt proof; imported coverless Metadata protected apply remains unchanged.
 C21.1.06 remains the broader BLOCKED / NOT LOCAL COMPLETE umbrella.
 Starting local/fetched `6.0`: `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`.
 C21.1.01 independently accepted by owner/GPT: Cloud `38127992242` SUCCESS,
@@ -89,7 +89,7 @@ No store is created speculatively before its implementing migration.
 | --- | --- | --- |
 | `identities` | `canonical_user_id`; unique `local_account_id`, unique `device_id` | Implemented v1: exactly canonical UUID user/account/device + `record_version: 1`. Random account/device generated internally once per canonical user. |
 | `accountBindings` | `local_account_id`; unique `canonical_user_id` | Implemented v1: immutable local-account→canonical-user mapping + record version. Created with identity in one transaction. |
-| `projectBindings` | `[account_id,project_id]`; unique `bootstrap` on `[account_id,bootstrap_id]` | Implemented schema4 / record1: exact native lineage/status fields. upload_existing prepared/registered; explicit import_remote captured/active with zero local cohort. Capture/completing/ready/pause/blocked producers deferred; no title/path/content or arbitrary reason. |
+| `projectBindings` | `[account_id,project_id]`; unique `bootstrap` on `[account_id,bootstrap_id]` | Implemented schema4 / record1: exact native lineage/status fields. upload_existing prepared/registered; explicit import_remote captured/active with zero local cohort. C21.1.11 adds upload_existing registered→captured/initializing with exact count/HI; completing/ready/pause/blocked producers deferred; no title/path/content or arbitrary reason. |
 | `outbox` | `[account_id,event_id]`; unique `ordinal` on `[account_id,device_id,local_ordinal]`, nonunique `state` on `[account_id,state,local_ordinal]` | Implemented schema2 / record1: account/device/event/ordinal, protocol2 or3, state `sealed` or `accepted` (schema3), exact `raw_body` from an existing singleton encrypted push. Accepted requires its immutable upload receipt; no unsealed plaintext. Causal parent/base-tip proofs remain inside existing sealed frames; authority capture is deferred. |
 | `inbox` | `[account_id,server_sequence]`; unique `event` on `[account_id,event_id]`, nonunique `state` on `[account_id,state,server_sequence]` | Implemented schema2 / record1: receiving account/device, event/sequence, protocol2 or3, state `received`, exact metadata/encrypted envelope in `wire_item`. Wire validation is not crypto authentication or apply. Schema5 adds record2 `applied` with exact non-plaintext Metadata proof, preserving wire_item. Orphan/conflict/blocked producers deferred. |
 | `cursors` | `[account_id,device_id]`, no indexes | Implemented schema2 / record1: pull cursor, `next_local_ordinal` starting1; `ack_cursor` and `proven_prefix` reserved at0, with no advancement API. Pull expected-old CAS is inseparable from inbox commit. Never infer ACK from ciphertext receipt. |
@@ -1118,3 +1118,131 @@ semantics changed. Other local families and Cover remain unsupported. C21.1.06 b
 NOT LOCAL COMPLETE; official84.0%, C21 IN PROGRESS, no new points. Next bounded slice:
 independently review explicit eligible Legacy Note source consumption and atomic
 initial capture using this snapshot/CAS, with no complete-project/multi-family claim.
+
+
+## C21.1.11 — atomic initial Legacy Note cohort / LOCAL COMPLETE
+
+C21.1.10 independently REMOTELY ACCEPTED at
+`ffc018af7abeb7a5a696af26db0621640e6f0a5a`, Cloud **38317517321 SUCCESS**,
+all six required jobs SUCCESS (owner/GPT supplied). The older source-absence audit
+in C21.1.09 remains accurate history; its main source blocker is now resolved.
+C21.1.09 itself is NOT relabelled as implemented capture. C21.1.06 broader NOT LOCAL
+COMPLETE. Official84.0%, C21 IN PROGRESS; this is NOT complete-project capture.
+
+### Native equivalence and exact proof without new persisted structure
+
+Inspected native `capture_initial_note_sync_intents` and
+`read_initial_note_cohort_status`, prepare_unsealed_note_intent, ordinal allocation,
+registration/capture/rollback/restart/local-mutation tests. Native requires exact
+account/device/project/bootstrap, upload_existing, registered, remote initializing;
+active registration is NOT capture-eligible. Notes selected ORDER BY id; complete
+live Notes only; preflight rejects Stage/map-derived/non-html. Native starts initial
+HI0 and takes max allocated initial ordinal; empty initial Notes means count0/HI0,
+not current pre-capture ordinal. Native Note local revision is separate from first
+cloud event revision1/no parent. Native unsealed intent may coalesce until sealed;
+this browser slice seals the full snapshot outside IDB and commits immutable exact
+bytes, so later mutations cannot rewrite its initial cohort. Normal later-event
+production/coalescing is NOT activated.
+
+Browser capture reserves a SINGLE contiguous ordinal range for exactly N prepared
+singleton events at allocator start A, then writes count=N, HI=A+N−1 atomically.
+Thus the existing count/HI encode exact interval [HI−N+1,HI]. Every ordinal in that
+interval MUST be a valid initial Note upsert/revision1 of this account/device/project,
+with distinct event and member IDs in stable-ID order. N0 requires HI0/empty interval.
+This is NOT the prefix <=HI. Earlier unrelated events, even same-project different
+Notes, are outside the interval; later enqueue uses monotonically increasing allocator
+and cannot join it. Outbox rows/raw bodies are immutable through existing public
+producers; unique account/device/ordinal index prevents replacement/collision; no
+public prune/delete/reorder producer exists. Capture is the sole producer of
+upload_existing/captured; generic registration transition cannot set that phase or
+counters. Immutable project/bootstrap identity permits only one such capture.
+These enforced writer invariants prove exact cohort membership without a manifest,
+new field/record version/store or schema migration. Status is structural receipt proof
+over these committed immutable facts, not a second AEAD/source authentication pass.
+Corrupt missing interval members, wrong project/type/revision/order, broken accepted
+receipt halves or conflicting receipt identity/sequence fail closed, not partial proof.
+A previously emitted or received cloud Note matching an initial live member rejects
+capture: it cannot become a second genesis. Earlier unrelated Notes do not count.
+
+### Runtime and atomic boundary
+
+Dormant `session.initialNotes.bind(auth, accountBindings, keys)` exposes prepare,
+commit, capture and readStatus. No production UI/editor/coordinator activation.
+Prepare requires exact stored expected-old eligible lineage, current normal user,
+authoritative account binding and current draining AMK lease. It reads ONLY
+BrowserLocalAuthorityRuntime.readSnapshot and withDecryptedSnapshot, no arbitrary
+Note array/HTTP/UI/outbox-as-source. All live eligibility validated before sealing;
+local tombstones remain source evidence and NEVER create initial cloud delete events.
+Unsupported non-Legacy source fails the whole project, never an easy subset.
+
+Opaque frozen empty plan token is bound by private WeakMap to runtime/scope/lease,
+original LocalSourceToken/source revision R, exact expected binding, complete ordered
+member IDs, generated UUIDv4 event IDs and immutable sealed singleton raw bodies.
+Caller DTO/forged/cross-runtime token cannot authorize capture. Crypto outside IDB:
+existing createNoteSyncPlaintext → encodeNoteSyncPlaintext → existing validated object
+crypto tuple/crypto1/AAD1 → encodeV2Push. This is the exact frozen Legacy C15 JSON
+writer path/readable by openNoteSyncEvent, not a C18 Content Note frame. No invented
+frame/compression selection or wire/version/key/AAD change. Canonical plaintext byte
+buffers, temporary nonce/cipher buffers and leased AMK copies are cleared; JavaScript
+plaintext objects/strings are temporary runtime values and are not durable/in the plan.
+Each raw body is a normal immutable protocol2 sealed Note upload event; no upload.
+
+ONE strict readwrite transaction spans identities/accountBindings (session guard),
+localProjects/localNotes/projectBindings/outbox/inbox/cursors/receipts. It rechecks
+scope/session/current auth/key and full expected-old binding, then calls
+assertLocalSourceInTransaction with original token in that SAME transaction. Reads
+and validates existing allocator/all retained outbound+receipt facts, requires safe
+contiguous global existing ordinal state and exact next ordinal, rejects event ID
+collisions with outbox/inbox or duplicate prepared IDs, reserves the full range,
+adds every sealed row, updates allocator and registered→captured binding together.
+No await/crypto/HTTP in live transaction. Request success is not mutation success;
+only transaction completion succeeds. Abort/quota/async constraint/auth invalidation/
+key lock/close leaves zero new cohort writes and original allocator/binding counters.
+Changed Project OR Note source R rejects stale source without partial capture; caller
+may restart from a fresh snapshot/plan with new uncommitted event UUIDs.
+
+Empty capture still asserts exact source R and lineage; captured count0/HI0/maxNULL,
+no outbox row or invented ordinal and allocator unchanged. All-tombstone local source
+has the same live initial semantics. For successful capture, original registered
+request may replay ONLY against matching immutable lineage/registration evidence;
+readStatus verifies durable exact interval. Reusing the same plan also compares every
+original event ID/raw body with committed cohort. Replay never reads current source,
+reseals, allocates ordinals or changes counters. Later Note creation/update/deletion
+belongs to a future normal writer, not bootstrap recapture.
+
+ReadStatus reads binding/outbox/receipts in ONE readonly bound transaction and derives
+{event_count, accepted_count, complete, max_server_sequence} for the exact interval.
+Sealed with no receipt is not accepted; accepted requires existing immutable matching
+receipt; accepted-without-receipt or sealed-with-receipt is corrupt, not success.
+Unrelated receipts are ignored; complete only when all exact members accepted.
+Max is the maximum exact accepted server sequence (0 if none/empty), not pull cursor,
+remote high-water or an unrelated receipt. It NEVER persists initial_max_server_sequence,
+changes phase or advances ACK. Captured readiness remains false with explicit
+bootstrap_completion_unavailable; completing/remote completion/ready are later slices.
+Schema remains6/ten stores; no migration. v4/v5 upgrade validation continues to reject
+upload capture rows because those historical versions had no capture producer.
+
+### Validation and remaining scope
+
+Focused capture25 + cohort-status6 =31 tests PASS; affected C21 local/migration/
+lineage/durability/receipts/history/Metadata170 tests PASS; Legacy Note codec/golden/
+intent/authority/protocol/compression/V2 encoder68 tests PASS. Real production-preview
+Chromium111 scenarios PASS (native IDB/Web Locks/actual auth/keys/crypto, API0/page
+errors0), including all-field frozen reader roundtrip, source/binding CAS, contiguous
+allocation, empty capture after prior outbox, exact partial/all receipts, unrelated
+receipt exclusion, immutable replay after source mutations, reload/full profile reopen,
+rollback after queued outbox+allocator+binding writes, async unique-ordinal failure,
+auth/key/session lifecycle and future-schema preservation. Old browser baseline cases
+remain mandatory; inspections compare like ordering (ordinal vs primary UUID keys).
+Typecheck/build and workflow/syntax/diff/pyc checks PASS; existing build warnings only.
+Cloud explicitly runs new capture/status spec and local/projectBinding regressions,
+plus the expanded hard-failing Chromium entry point. No soft failures/skips.
+SQLite NOT EXPECTED; remote CI PENDING — NOT POLLED.
+
+C21.1.11 LOCAL COMPLETE for Legacy Note cohort ONLY. No Metadata/Stage/Document/Map/
+Content Note/Progress/Catalog/Game/Cover capture, upload_existing protected apply,
+native candidate/self-echo reconciliation, complete-project claim, HTTP fallback/
+automatic import, network/registry/upload/pull/ACK, completing/ready or active synthesis.
+ACK/proven stay0 and initial max staysNULL. Backend/PostgreSQL/native/frozen semantics
+and dependencies unchanged. Next bounded slice: captured→completing and remote bootstrap
+completion boundary using exact receipt status, without granting ACK/ready/full-family sync.

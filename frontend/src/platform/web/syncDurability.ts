@@ -126,7 +126,7 @@ function cursor(value: unknown, scope: BrowserSyncScope): CursorRecord {
   if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !safe(row.pull_cursor) || row.ack_cursor !== 0 || row.proven_prefix !== 0 || !safe(row.next_local_ordinal, 1)) failure()
   return row
 }
-function readCursor(tx: IDBTransaction, scope: BrowserSyncScope, ready: (state: CursorRecord) => void, fail: (error: unknown) => void): void {
+export function readBrowserSyncCursor(tx: IDBTransaction, scope: BrowserSyncScope, ready: (state: CursorRecord) => void, fail: (error: unknown) => void): void {
   const request = tx.objectStore('cursors').get([scope.accountId, scope.deviceId])
   request.onsuccess = () => {
     try {
@@ -286,7 +286,7 @@ export class BrowserSyncDurability {
     if (prepared.reduce((total, item) => total + item.ciphertextBytes, 0) > MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) failure()
     return this.transaction(scope, ['outbox', 'inbox', 'cursors', 'receipts'], 'readwrite', (tx, result, fail) => {
       const store = tx.objectStore('outbox'), cursors = tx.objectStore('cursors')
-      readCursor(tx, scope, state => {
+      readBrowserSyncCursor(tx, scope, state => {
         try {
           const results: Array<{ status: 'enqueued' | 'already_enqueued'; item: BrowserOutboxRecord }> = []
           const next = (index: number) => {
@@ -365,7 +365,7 @@ export class BrowserSyncDurability {
     scope = snapshotScope(scope)
     const expected = { ...expectedEvent }, receipt = prepareBrowserUploadAcceptance(scope, expected, response)
     return this.transaction(scope, ['outbox', 'inbox', 'cursors', 'receipts'], 'readwrite', (tx, result, fail) => {
-      readCursor(tx, scope, () => {
+      readBrowserSyncCursor(tx, scope, () => {
         const store = tx.objectStore('outbox'), proofs = tx.objectStore('receipts')
         const event = store.get([scope.accountId, expected.event_id]), proof = proofs.get([scope.accountId, expected.event_id])
         const sequence = proofs.index('server_sequence').get([scope.accountId, receipt.server_sequence])
@@ -404,7 +404,7 @@ export class BrowserSyncDurability {
     const expected = references.map(reference => historyReference(reference, scope)).sort((a, b) => a.event_id < b.event_id ? -1 : a.event_id > b.event_id ? 1 : 0)
     if (new Set(expected.map(reference => reference.event_id)).size !== expected.length) failure('conflicting_record')
     return this.transaction(scope, ['outbox', 'inbox', 'receipts', 'cursors'], 'readonly', (tx, result, fail) => {
-      readCursor(tx, scope, () => {
+      readBrowserSyncCursor(tx, scope, () => {
         const history: BrowserRetainedEncryptedHistory[] = new Array(expected.length)
         let completed = 0
         expected.forEach((reference, index) => {
@@ -428,7 +428,7 @@ export class BrowserSyncDurability {
   readCheckpoint(scope: BrowserSyncScope): Promise<BrowserSyncCheckpoint> {
     scope = snapshotScope(scope)
     return this.transaction(scope, ['outbox', 'inbox', 'cursors'], 'readonly', (tx, result, fail) => {
-      readCursor(tx, scope, row => result({ pull_cursor: row.pull_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: row.next_local_ordinal }), fail)
+      readBrowserSyncCursor(tx, scope, row => result({ pull_cursor: row.pull_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: row.next_local_ordinal }), fail)
     })
   }
 
@@ -459,7 +459,7 @@ export class BrowserSyncDurability {
     const page = validateBrowserInboundPage(rawPage, since, scope)
     return this.transaction(scope, ['outbox', 'inbox', 'cursors', 'receipts'], 'readwrite', (tx, result, fail) => {
       const store = tx.objectStore('inbox'), cursors = tx.objectStore('cursors')
-      readCursor(tx, scope, state => {
+      readBrowserSyncCursor(tx, scope, state => {
         try {
           const replay = state.pull_cursor === page.next_cursor && state.pull_cursor > since
           if (state.pull_cursor !== since && !replay) failure('stale_cursor')

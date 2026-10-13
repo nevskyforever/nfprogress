@@ -1,3 +1,4 @@
+import { BrowserInitialNoteCapture } from './initialNoteCapture'
 import { BrowserLocalAuthority } from './localAuthority'
 import { validateBrowserV5State } from './localAuthorityMigration'
 import { BrowserImportedMetadataApply } from './importedMetadataApply'
@@ -117,6 +118,7 @@ export function validateBrowserV4ProjectState(scopes: BrowserSyncScope[], rows: 
     const scope = scopes.find(s => s.accountId === (value as { account_id?: string })?.account_id)
     if (!scope) throw new BrowserPersistenceError('corrupt_record')
     const row = validateBrowserProjectBinding(value, scope)
+    if (row.mode === 'upload_existing' && row.phase === 'captured') throw new BrowserPersistenceError('corrupt_record') // v4/v5 have no capture producer.
     const project = JSON.stringify([row.account_id, row.project_id]), bootstrap = JSON.stringify([row.account_id, row.bootstrap_id])
     if (projects.has(project) || bootstraps.has(bootstrap)) throw new BrowserPersistenceError('corrupt_record')
     projects.add(project); bootstraps.add(bootstrap)
@@ -198,6 +200,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly projects: BrowserProjectBindings
   readonly metadata: BrowserImportedMetadataApply
   readonly localSource: BrowserLocalAuthority
+  readonly initialNotes: BrowserInitialNoteCapture
   private active = true
   private readonly pending = new Map<IDBTransaction, Promise<unknown>>()
   private closeFlight: Promise<void> | undefined
@@ -211,6 +214,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.sync = new BrowserSyncDurability((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.projects = new BrowserProjectBindings((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.localSource = new BrowserLocalAuthority((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
+    this.initialNotes = new BrowserInitialNoteCapture((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, this.projects)
     this.metadata = new BrowserImportedMetadataApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.sync)
     database.onversionchange = () => { void this.close() }
     database.onclose = () => { void this.close() }

@@ -27,6 +27,37 @@ protected apply/heads/applied proofs and conflict/orphan remain separate. No fam
 is implemented by treating mere projectBindings existence as success. C21.1.07
 REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
 
+## C21.1.11 Legacy Note-only initial cohort update
+
+C21.1.10 REMOTELY ACCEPTED: ffc018af7abeb7a5a696af26db0621640e6f0a5a,
+Cloud **38317517321 SUCCESS**, all six required jobs SUCCESS, owner/GPT supplied.
+C21.1.09 accepted historical audit remains NOT implemented capture; its main source
+blocker is removed. C21.1.06 broader NOT LOCAL COMPLETE; official84.0%, C21 IN PROGRESS.
+
+C21.1.11 LOCAL COMPLETE / remote CI PENDING — NOT POLLED. Dormant schema6 runtime
+captures ONLY canonical eligible live Legacy Notes from verified source snapshot R,
+seals normal frozen Note events outside IDB, then source-token/full-binding CAS and
+all sealed outbox rows/contiguous ordinals/captured counters commit in one strict
+transaction. Only registered/upload_existing/initializing; empty count0/HI0; historical
+local tombstones do not invent initial cloud delete. Successful replay freezes original
+membership/bytes and excludes later source mutations. No new store/manifest/record
+shape: count+HI encode EXACT reserved interval [HI−count+1,HI], not prefix<=HI;
+existing monotonic allocator/unique ordinal/immutable body producers prove membership.
+Read-only exact receipt join provides counts/complete/max accepted sequence, ignores
+unrelated receipts and fails corrupt halves; initial max remainsNULL.
+
+This does NOT close complete-project capture or enable upload_existing Metadata
+protected apply. Cover material, native captured candidate/self-echo reconciliation,
+other local families, completing/registry completion, ACK/proven/ready remain absent.
+Production editor/HTTP/network composition unchanged; no full-project claim or points.
+Native unsealed coalescing is not activated: this browser cohort is already sealed.
+Focused capture25/status6, affected C21170, Legacy68; Chromium111/API0/page errors0;
+typecheck/build/workflow/syntax/diff/protected pyc PASS. Cloud mandatory explicit capture/
+status and source/lineage regressions plus browser harness; SQLite NOT EXPECTED.
+Next bounded slice: captured→completing/remote bootstrap completion with exact receipt
+proof, keeping ACK/ready/full-family capture separate.
+See [current capture contract](../web/C21_BROWSER_PERSISTENCE.md#c21111--atomic-initial-legacy-note-cohort--local-complete).
+
 ## C21.1.10 canonical local Project/Legacy Note substrate update
 
 C21.1.09 blocker/audit independently accepted at
@@ -35,7 +66,7 @@ all six required jobs SUCCESS. Audit REMOTELY ACCEPTED; capture remains BLOCKED 
 NOT LOCAL COMPLETE. Official84.0%, C21 IN PROGRESS. The older source-absence statements
 below describe that accepted audit baseline.
 
-C21.1.10 LOCAL COMPLETE; remote CI PENDING — NOT POLLED. Schema6 adds localProjects/
+C21.1.10 REMOTELY ACCEPTED (Cloud38317517321 all six jobs SUCCESS); the following describes its bounded implemented source. Schema6 adds localProjects/
 localNotes record1 in the same database, encrypted complete native Project + eligible
 project-owned HTML Legacy Note payloads, stable identity/deletion membership and
 safe project-wide source revision. Existing authenticated account AMK leases/object

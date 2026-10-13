@@ -5,6 +5,8 @@ import { AuthoritativeAccountBinding } from '../src/auth/accountBinding'
 import { RuntimeKeyContext } from '../src/auth/keyContext'
 import { asAccountMasterKey, wrapAmkWithPassphrase } from '../src/crypto'
 import { encodeBase64Url } from '../src/api/base64url'
+import { openNoteSyncEvent } from '../src/cloud/encryptedSyncProtocol'
+import { decodeBase64Url } from '../src/api/base64url'
 import { sealProjectMetadataEvent } from '../src/cloud/projectMetadataCodec'
 import type { CurrentUserCryptoRecord } from '../src/api/accountCrypto'
 
@@ -26,4 +28,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, assertLocalSourceInTransaction, metadataFixture, sealProjectMetadataEvent, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, assertLocalSourceInTransaction, metadataFixture, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

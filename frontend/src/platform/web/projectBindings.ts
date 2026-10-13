@@ -6,7 +6,7 @@ export interface BrowserProjectBinding extends CloudProjectBootstrapRecord { rec
 export interface BrowserProjectPreparation { project_id: string; mode: 'upload_existing' }
 export interface BrowserRemoteProjectImport { project_id: string; bootstrap_id: string; remote_state: 'active'; remote_high_water: number }
 export interface BrowserProjectRegistration { remote_state: 'initializing' | 'active'; remote_high_water: number }
-export type BrowserProjectReadinessCode = 'missing_lineage' | 'registration_required' | 'capture_proof_unavailable' | 'ack_proof_unavailable'
+export type BrowserProjectReadinessCode = 'missing_lineage' | 'registration_required' | 'capture_proof_unavailable' | 'ack_proof_unavailable' | 'bootstrap_completion_unavailable'
 export interface BrowserProjectReadiness { ready: false; code: BrowserProjectReadinessCode; required_cursor: number | null }
 const keys = ['record_version','account_id','project_id','device_id','bootstrap_id','mode','phase','remote_state','initial_event_count','initial_local_ordinal_hi','remote_high_water','initial_max_server_sequence','blocked_reason']
 const exact = (v: unknown, fields: readonly string[]): boolean => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -26,13 +26,16 @@ export function validateBrowserProjectBinding(value: unknown, scope: BrowserSync
   const row = value as BrowserProjectBinding
   project(row.project_id); bootstrap(row.bootstrap_id)
   if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId
-    || row.blocked_reason !== null || row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0 || row.initial_max_server_sequence !== null) fail()
+    || row.blocked_reason !== null || !safe(row.initial_event_count) || !safe(row.initial_local_ordinal_hi) || row.initial_max_server_sequence !== null) fail()
   if (row.mode === 'upload_existing') {
     if (row.phase === 'prepared') { if (row.remote_state !== null || row.remote_high_water !== null) fail() }
     else if (row.phase === 'registered') { if (!['initializing','active'].includes(row.remote_state!) || !safe(row.remote_high_water)) fail() }
-    else fail() // Capture/ready/paused/blocked need proofs not implemented by record1; no inferred prior phase.
+    else if (row.phase === 'captured') {
+      if (row.remote_state !== 'initializing' || !safe(row.remote_high_water) || (row.initial_event_count === 0 ? row.initial_local_ordinal_hi !== 0 : row.initial_local_ordinal_hi < row.initial_event_count)) fail()
+    } else fail() // Completing/ready/paused/blocked producers remain unavailable.
+    if (row.phase !== 'captured' && (row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0)) fail()
   } else if (row.mode === 'import_remote') {
-    if (row.phase !== 'captured' || row.remote_state !== 'active' || !safe(row.remote_high_water)) fail()
+    if (row.phase !== 'captured' || row.remote_state !== 'active' || !safe(row.remote_high_water) || row.initial_event_count !== 0 || row.initial_local_ordinal_hi !== 0) fail()
   } else fail()
   return Object.freeze({ ...row })
 }
@@ -56,7 +59,7 @@ export function compareBrowserProjectTransition(scope: BrowserSyncScope, current
 export function browserProjectReadiness(row: BrowserProjectBinding | null): BrowserProjectReadiness {
   if (!row) return { ready: false, code: 'missing_lineage', required_cursor: null }
   const required_cursor = Math.max(row.remote_high_water ?? 0, row.initial_max_server_sequence ?? 0)
-  return { ready: false, code: row.mode === 'import_remote' ? 'ack_proof_unavailable' : row.phase === 'prepared' ? 'registration_required' : 'capture_proof_unavailable', required_cursor }
+  return { ready: false, code: row.mode === 'import_remote' ? 'ack_proof_unavailable' : row.phase === 'prepared' ? 'registration_required' : row.phase === 'captured' ? 'bootstrap_completion_unavailable' : 'capture_proof_unavailable', required_cursor }
 }
 
 /** Dormant installation lineage only. Trusted future coordinator owns project preflight and remote provenance. */
