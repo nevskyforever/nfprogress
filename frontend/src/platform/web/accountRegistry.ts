@@ -1,4 +1,5 @@
-import { NOTE_HISTORY_STORE } from './noteHistoryRecords'
+import { openFrozenLocalVersion } from './noteUnsealedVersion'
+import { NOTE_HISTORY_STORE,validateNoteHistorySet } from './noteHistoryRecords'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { RuntimeKeyContext } from '@/auth/keyContext'
@@ -87,10 +88,13 @@ export class BrowserAccountRegistryRuntime {
   }
   async ackPrerequisites(scope:BrowserSyncScope,projectId:string,token?:VerifiedAccountRegistry):Promise<BrowserAckPrerequisites>{
     scope=snapshotBrowserSyncScope(scope);const current=await this.guard(scope),proof=token&&proofs.get(token)
+    const verifiedHistory=await this.transaction<unknown[]>(scope,[NOTE_HISTORY_STORE],'readonly',(tx,result,abort)=>{const r=tx.objectStore(NOTE_HISTORY_STORE).getAll(range(scope.accountId));r.onsuccess=()=>{try{if(!current())fail('closed');validateNoteHistorySet(scope,r.result);result(r.result)}catch(e){abort(e)}}})
+    const frozen=validateNoteHistorySet(scope,verifiedHistory).filter(r=>r.record_kind==='local_version')
+    if(frozen.length){const lease=this.keys.leaseForAccount(scope.accountId);if(!lease||!current())fail('closed');await lease.use(async amk=>{for(const v of frozen)await openFrozenLocalVersion(scope,v,amk)});if(!current())fail('closed')}
     return this.transaction(scope,['projectBindings','outbox','inbox','cursors','receipts','ownerHeads',NOTE_HISTORY_STORE],'readonly',(tx,result,abort)=>{
       const b=tx.objectStore('projectBindings').getAll(range(scope.accountId)),incoming=tx.objectStore('inbox').getAll(range(scope.accountId)),heads=tx.objectStore('ownerHeads').getAll(range(scope.accountId)),history=tx.objectStore(NOTE_HISTORY_STORE).getAll(range(scope.accountId));let n=0
       const finish=()=>{if(++n!==4)return;try{
-        if(!current())fail('closed');const rows=b.result.map(v=>validateBrowserProjectBinding(v,scope)).sort(order),row=rows.find(r=>r.project_id===projectId);if(!row)fail('registry_conflict')
+        if(!current())fail('closed');if(!same(history.result,verifiedHistory))fail('registry_conflict');const rows=b.result.map(v=>validateBrowserProjectBinding(v,scope)).sort(order),row=rows.find(r=>r.project_id===projectId);if(!row)fail('registry_conflict')
         const registryCurrent=!!proof&&proof.owner===this&&same(proof.scope,scope)&&proof.current()&&!proof.blocked&&same(rows,proof.bindings)
         readBrowserSyncCursor(tx,scope,cursor=>{try{const inventory=inspectBrowserAckInventory(scope,cursor,incoming.result,heads.result,rows,history.result);if(!current())fail('closed');result(browserAckPrerequisites(row,cursor,inventory,registryCurrent))}catch(e){abort(e)}},abort)
       }catch(e){abort(e)}};b.onsuccess=finish;incoming.onsuccess=finish;heads.onsuccess=finish;history.onsuccess=finish

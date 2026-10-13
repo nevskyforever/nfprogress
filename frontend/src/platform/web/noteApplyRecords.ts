@@ -28,16 +28,17 @@ export function validateBrowserNoteProof(value:unknown,scope:BrowserSyncScope):B
 }
 
 export interface BrowserNoteConflictProof {
- record_version:1;owner_kind:'legacy_note';outcome:'conflict_preserved';account_id:string;bootstrap_id:string
+ record_version:1|2;owner_kind:'legacy_note';outcome:'conflict_preserved';account_id:string;bootstrap_id:string
  protocol_version:2|3;reference:V3Descriptor;header:NoteSyncHeader;mutation:'update'|'delete'
- wire_digest:string;outcome_digest:string;group_id:string;conflict_generation:number
+ wire_digest:string;outcome_digest:string;group_id:string;conflict_generation:number;local_version_id?:string;local_mutation_generation?:number;local_version_digest?:string
 }
 export function validateBrowserNoteConflictProof(value:unknown,scope:BrowserSyncScope):BrowserNoteConflictProof {
- if(!localExact(value,['record_version','owner_kind','outcome','account_id','bootstrap_id','protocol_version','reference','header','mutation','wire_digest','outcome_digest','group_id','conflict_generation']))corrupt()
+ if(!localExact(value,['record_version','owner_kind','outcome','account_id','bootstrap_id','protocol_version','reference','header','mutation','wire_digest','outcome_digest','group_id','conflict_generation',...((value as BrowserNoteConflictProof)?.record_version===2?['local_version_id','local_mutation_generation','local_version_digest']:[])]))corrupt()
  const p=value as unknown as BrowserNoteConflictProof
+ if(![1,2].includes(p.record_version)||p.record_version===2&&(!hash(p.local_version_digest)||!localSafe(p.local_mutation_generation,1)||typeof p.local_version_id!=='string'||!p.local_version_id.startsWith(`local:${scope.accountId}:`)||!p.local_version_id.endsWith(`:${p.local_mutation_generation}`)))corrupt()
  if(p.outcome!=='conflict_preserved'||!['update','delete'].includes(p.mutation)||!localSafe(p.conflict_generation,1)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(p.group_id)||p.header?.parent_event_id===null||!localSafe(p.header?.revision,2))corrupt()
  // Detached validator view only; never persisted or treated as an applied projection.
- const {group_id:_group,conflict_generation:_generation,...body}=p
- validateBrowserNoteProof({...body,outcome:'applied',source_revision:1,local_note_digest:'0'.repeat(64)},scope)
+ const {group_id:_group,conflict_generation:_generation,local_version_id:_local,local_mutation_generation:_mutation,local_version_digest:_localDigest,...body}=p
+ validateBrowserNoteProof({...body,record_version:1,outcome:'applied',source_revision:1,local_note_digest:'0'.repeat(64)},scope)
  return p
 }

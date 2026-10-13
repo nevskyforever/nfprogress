@@ -1,20 +1,22 @@
+import { validateNoteIntent,type BrowserNoteIntent } from './noteIntentRecords'
 import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import type { NoteSyncHeader } from '@/cloud/noteSyncCodec'
 import { BrowserPersistenceError } from './persistence'
 import { localExact,localId,localSafe,validateLocalNoteRecord,type LocalNoteRecord } from './localAuthorityRecords'
 import { immutableWireIdentity,validateBrowserSealedBody,type BrowserSyncScope } from './syncDurability'
 export const NOTE_HISTORY_STORE='legacyNoteHistory'
-interface Base {record_version:1;account_id:string;device_id:string;project_id:string;note_id:string;bootstrap_id:string;record_kind:'candidate'|'head'|'group';record_id:string}
+interface Base {record_version:1;account_id:string;device_id:string;project_id:string;note_id:string;bootstrap_id:string;record_kind:'candidate'|'head'|'group'|'local_version';record_id:string}
 export interface BrowserNoteCandidate extends Base {
  record_kind:'candidate';event_id:string;source_device_id:string;protocol_version:2|3
  origin:'initial_capture'|'initial_backfill'|'peer'|'local_sealed';mutation_generation:number|null
  header:NoteSyncHeader;wire_item:string;wire_digest:string;record_digest:string
  projection:LocalNoteRecord|null;projection_digest:string|null
 }
+export interface BrowserNoteLocalVersion extends Base {record_kind:'local_version';version_id:string;header:NoteSyncHeader;intent:BrowserNoteIntent;local_outbox_lifecycle:'unsealed';record_digest:string}
 export interface BrowserNoteHead extends Base {record_kind:'head';record_id:'head';head_revision:number;linear_head_event_id:string;tip_event_ids:string[]}
-export interface BrowserNoteConflictMember {version_id:string;event_id:string;source:'remote_applied'|'remote';server_sequence:number;conflict_generation:number}
+export type BrowserNoteConflictMember={version_id:string;event_id:string;source:'remote_applied'|'remote';server_sequence:number;conflict_generation:number}|{version_id:string;event_id:string;source:'local_unsealed';server_sequence:null;conflict_generation:1;local_mutation_generation:number}
 export interface BrowserNoteConflictGroup extends Base {record_kind:'group';group_id:string;common_parent_event_id:string;tip_revision:number;conflict_generation:number;lifecycle:'open';members:BrowserNoteConflictMember[];tip_event_ids:string[]}
-export type BrowserNoteHistoryRecord=BrowserNoteCandidate|BrowserNoteHead|BrowserNoteConflictGroup
+export type BrowserNoteHistoryRecord=BrowserNoteCandidate|BrowserNoteHead|BrowserNoteConflictGroup|BrowserNoteLocalVersion
 const base=['record_version','account_id','device_id','project_id','note_id','bootstrap_id','record_kind','record_id']
 export const canonicalNoteUuid=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v)
 export const noteHistoryHash=(v:unknown):v is string=>typeof v==='string'&&/^[0-9a-f]{64}$/.test(v)
@@ -35,12 +37,16 @@ export function validateNoteHistoryRecord(value:unknown,scope:BrowserSyncScope):
   if(event.entity_type!=='note'||!['upsert','delete'].includes(event.operation)||event.event_id!==h.event_id||event.project_id!==h.project_id||event.entity_id!==h.entity_id||event.revision!==h.revision||event.operation!==h.operation||canonicalizeSyncTimestamp(event.updated_at)!==canonicalizeSyncTimestamp(h.updated_at)||(event.deleted_at===null)!==(h.deleted_at===null)||event.deleted_at!==null&&canonicalizeSyncTimestamp(event.deleted_at)!==canonicalizeSyncTimestamp(h.deleted_at!))bad()
   if(r.projection!==null){const p=validateLocalNoteRecord(r.projection,scope,r.project_id);if(p.note_id!==r.note_id||!noteHistoryHash(r.projection_digest))bad()}else if(r.projection_digest!==null&&!noteHistoryHash(r.projection_digest))bad()
   if(['initial_capture','local_sealed'].includes(r.origin)&&r.projection===null||r.origin==='initial_backfill'&&(r.projection!==null||r.projection_digest!==null))bad()
+ }else if(r.record_kind==='local_version'){
+  if(!localExact(r,[...base,'version_id','header','intent','local_outbox_lifecycle','record_digest'])||r.record_id!==r.version_id||r.local_outbox_lifecycle!=='unsealed'||!noteHistoryHash(r.record_digest))bad()
+  const i=validateNoteIntent(r.intent,scope),h=r.header
+  if(i.project_id!==r.project_id||i.note_id!==r.note_id||i.bootstrap_id!==r.bootstrap_id||r.version_id!==`local:${scope.accountId}:${i.event_id}:${i.mutation_generation}`||!localExact(h,['event_id','parent_event_id','project_id','entity_id','entity_type','operation','revision','updated_at','deleted_at'])||h.event_id!==i.event_id||h.parent_event_id!==i.parent_event_id||h.project_id!==i.project_id||h.entity_id!==i.note_id||h.entity_type!=='note'||h.operation!==i.operation||h.revision!==i.revision||h.revision<2||h.parent_event_id===null||canonicalizeSyncTimestamp(h.updated_at)!==canonicalizeSyncTimestamp(i.updated_at)||(h.deleted_at===null)!==(i.deleted_at===null)||h.deleted_at!==null&&canonicalizeSyncTimestamp(h.deleted_at)!==canonicalizeSyncTimestamp(i.deleted_at!))bad()
  }else if(r.record_kind==='head'){
   if(!localExact(r,[...base,'head_revision','linear_head_event_id','tip_event_ids'])||r.record_id!=='head'||!localSafe(r.head_revision,1)||!canonicalNoteUuid(r.linear_head_event_id)||!tips(r.tip_event_ids))bad()
  }else if(r.record_kind==='group'){
   if(!localExact(r,[...base,'group_id','common_parent_event_id','tip_revision','conflict_generation','lifecycle','members','tip_event_ids'])||r.record_id!==r.group_id||!canonicalNoteUuid(r.group_id)||r.group_id[14]!=='4'||!canonicalNoteUuid(r.common_parent_event_id)||!localSafe(r.tip_revision,2)||!localSafe(r.conflict_generation,1)||r.lifecycle!=='open'||!tips(r.tip_event_ids)||r.tip_event_ids.length<2||!Array.isArray(r.members)||r.members.length!==r.tip_event_ids.length)bad()
-  r.members.forEach((m,i)=>{if(!localExact(m,['version_id','event_id','source','server_sequence','conflict_generation'])||m.event_id!==r.tip_event_ids[i]||!['remote_applied','remote'].includes(m.source)||!localSafe(m.server_sequence,1)||!localSafe(m.conflict_generation,1)||m.conflict_generation>r.conflict_generation||m.version_id!==`${m.source==='remote'?'remote':'applied'}:${scope.accountId}:${m.event_id}`)bad()})
-  if(r.members.filter(m=>m.source==='remote_applied').length!==1||r.members.filter(m=>m.conflict_generation===1).length!==2||r.members.length!==r.conflict_generation+1||r.members.filter(m=>m.source==='remote_applied').some(m=>m.conflict_generation!==1))bad()
+  r.members.forEach((m,i)=>{if(m.source==='local_unsealed'){if(!localExact(m,['version_id','event_id','source','server_sequence','conflict_generation','local_mutation_generation'])||m.server_sequence!==null||m.conflict_generation!==1||!localSafe(m.local_mutation_generation,1)||m.version_id!==`local:${scope.accountId}:${m.event_id}:${m.local_mutation_generation}`)bad()}else if(!localExact(m,['version_id','event_id','source','server_sequence','conflict_generation'])||!['remote_applied','remote'].includes(m.source)||!localSafe(m.server_sequence,1)||m.version_id!==`${m.source==='remote'?'remote':'applied'}:${scope.accountId}:${m.event_id}`)bad();if(m.event_id!==r.tip_event_ids[i]||!canonicalNoteUuid(m.event_id)||!localSafe(m.conflict_generation,1)||m.conflict_generation>r.conflict_generation)bad()})
+  if(r.members.filter(m=>m.source!=='remote').length!==1||r.members.filter(m=>m.conflict_generation===1).length!==2||r.members.length!==r.conflict_generation+1||r.members.some(m=>m.source!=='remote'&&m.conflict_generation!==1))bad()
   for(let n=2;n<=r.conflict_generation;n++)if(r.members.filter(m=>m.conflict_generation===n).length!==1)bad()
  }else bad()
  return r
@@ -53,7 +59,8 @@ export function validateNoteHistorySet(scope:BrowserSyncScope,values:unknown[]):
  for(const r of rows){const own=candidates.filter(c=>c.project_id===r.project_id&&c.note_id===r.note_id&&c.bootstrap_id===r.bootstrap_id)
   if(r.record_kind==='candidate'&&r.header.revision>1){const parent=own.find(c=>c.event_id===r.header.parent_event_id);if(!parent||parent.header.revision!==r.header.revision-1)bad()}
   if(r.record_kind==='head'){if(!own.some(c=>c.event_id===r.linear_head_event_id)||immutableWireIdentity(noteFrontier(own))!==immutableWireIdentity(r.tip_event_ids))bad()}
-  if(r.record_kind==='group'){if(!own.some(c=>c.event_id===r.common_parent_event_id))bad();for(const m of r.members){const c=own.find(c=>c.event_id===m.event_id);if(!c||c.header.parent_event_id!==r.common_parent_event_id||c.header.revision!==r.tip_revision)bad()}}
+  if(r.record_kind==='local_version'){const parent=own.find(c=>c.event_id===r.header.parent_event_id);if(!parent||parent.header.revision!==r.header.revision-1)bad()}
+  if(r.record_kind==='group'){if(!own.some(c=>c.event_id===r.common_parent_event_id))bad();for(const m of r.members){const c=m.source==='local_unsealed'?rows.find((v):v is BrowserNoteLocalVersion=>v.record_kind==='local_version'&&v.version_id===m.version_id&&v.project_id===r.project_id&&v.note_id===r.note_id&&v.bootstrap_id===r.bootstrap_id):own.find(c=>c.event_id===m.event_id);if(!c||c.header.parent_event_id!==r.common_parent_event_id||c.header.revision!==r.tip_revision)bad()}}
  }
  return rows
 }

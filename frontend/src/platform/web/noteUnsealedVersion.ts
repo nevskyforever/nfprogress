@@ -1,0 +1,12 @@
+import type { AccountMasterKey } from '@/crypto'
+import { createNoteSyncPlaintext } from '@/cloud/encryptedSyncProtocol'
+import { immutableWireIdentity,type BrowserSyncScope } from './syncDurability'
+import { validateNoteIntent,type BrowserNoteIntent } from './noteIntentRecords'
+import { authenticateIntent,openSnapshot } from './noteIntents'
+import { validateNoteHistoryRecord,type BrowserNoteLocalVersion } from './noteHistoryRecords'
+import { noteProofDigest } from './legacyNoteApply'
+import { BrowserPersistenceError } from './persistence'
+export async function unsealedPlaintext(scope:BrowserSyncScope,i:BrowserNoteIntent,amk:AccountMasterKey){validateNoteIntent(i,scope);await authenticateIntent(scope,i,amk);if(await noteProofDigest(i.snapshot)!==i.snapshot_digest)throw new BrowserPersistenceError('corrupt_record');const source=await openSnapshot(scope,i.snapshot,amk),note={...source.note} as any;delete note.revision;return createNoteSyncPlaintext({event_id:i.event_id,project_id:i.project_id,entity_id:i.note_id,entity_type:'note',operation:i.operation,revision:i.revision,updated_at:i.updated_at,deleted_at:i.deleted_at},i.parent_event_id,note).plaintext}
+export async function localVersionDigest(v:BrowserNoteLocalVersion){const {record_digest:_digest,...body}=v;return noteProofDigest(body)}
+export async function freezeLocalVersion(scope:BrowserSyncScope,i:BrowserNoteIntent,amk:AccountMasterKey):Promise<BrowserNoteLocalVersion>{const p=await unsealedPlaintext(scope,i,amk),id=`local:${scope.accountId}:${i.event_id}:${i.mutation_generation}`,v:BrowserNoteLocalVersion={record_version:1,account_id:scope.accountId,device_id:scope.deviceId,project_id:i.project_id,note_id:i.note_id,bootstrap_id:i.bootstrap_id,record_kind:'local_version',record_id:id,version_id:id,header:p.header,intent:structuredClone(i),local_outbox_lifecycle:'unsealed',record_digest:''};v.record_digest=await localVersionDigest(v);return validateNoteHistoryRecord(v,scope) as BrowserNoteLocalVersion}
+export async function openFrozenLocalVersion(scope:BrowserSyncScope,v:BrowserNoteLocalVersion,amk:AccountMasterKey){validateNoteHistoryRecord(v,scope);if(await localVersionDigest(v)!==v.record_digest)throw new BrowserPersistenceError('corrupt_record');const p=await unsealedPlaintext(scope,v.intent,amk);if(immutableWireIdentity(p.header)!==immutableWireIdentity(v.header))throw new BrowserPersistenceError('corrupt_record');return p}

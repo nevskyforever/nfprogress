@@ -1789,3 +1789,90 @@ build warnings only. Five specs explicitly mandatory in Cloud plus all affected 
 and hard-failing Chromium; SQLite NOT EXPECTED. No skips, dependencies/backend/PG/
 native/frozen wire/codec/crypto/receipt changes, ACK/proven prefix remains0,
 ack_eligible:false/ready:false. No other-family/ready/complete-project claim or CI polling.
+
+
+## C21.1.17 retained conflict against exact local unsealed generation
+
+Owner accepted C21.1.16 `92a66776c0b5d30295a9533ad561e89f6a5e5193`, Cloud38440249775
+SUCCESS/all six jobs SUCCESS; REMOTELY ACCEPTED. C21.1.17 LOCAL COMPLETE / REMOTE CI
+PENDING — NOT POLLED. Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE.
+Native source/transition/ACK/Resolution table audited BEFORE implementation in family audit.
+
+Schema remains8. No new store/index/migration. legacyNoteHistory gains strict local_version
+record1 tag, scoped account/device/project/Note/bootstrap, version_id/record_id
+local:account:event:mutation_generation, frozen header, complete original encrypted
+BrowserNoteIntent and SHA integrity digest, local_outbox_lifecycle:unsealed. Original
+intent AEAD binds event/parent/cloud revision/ordinal/generation/anchor. No top-level
+event_id, so existing unique candidate event index remains cloud-candidate-only; later
+same-event sealed candidate may coexist without rewriting the frozen local version.
+Canonical encrypted Note source anchor is independently recoverable from frozen intent,
+not later localNotes. No plaintext snapshot_json/content and no synthetic sealed wire.
+Guarded withDecryptedLocalVersion authenticates record/intent/snapshot under current lease.
+
+New peer preservation requires current supported local intent, same durable known non-null
+parent/revision>=2, different event ID, original visible canonical source EXACT snapshot
+(for local delete, accepted encrypted tombstone equivalent to native absent Note). Parent
+history authenticated; no arbitrary server sequence/Note revision inference. New group
+UUIDv4/gen1 with local_unsealed member source, null server_sequence, exact local generation
+and generation-specific version ID; remote member/candidate has actual retained sequence/
+wire/parent/operation/authenticated material. Current canonical Note and project source
+revision remain unchanged; live intent retained untouched. Unsealed version never enters
+cloud-visible candidate frontier; group full tips include local event plus remote siblings.
+Existing linear applied/sealed head stays intact, unrelated candidate tips retained.
+
+Compatible existing group reuses ID/common parent and frozen original local version;
+adds one distinct remote tip and increments conflict generation once, independently of
+live intent mutation_generation. Incompatible group cannot merge/create a second group.
+Genesis/create→update revision1 collision, wrong parent/revision/lineage/scope, unsupported
+variants, mismatched visible source and purported peer child of unsealed event remain
+unproven. Native unsealed branch blocks clean apply until eligible preservation; no
+manufactured conflict or overwrite. Existing ordinary applied/self-echo and sealed-history
+conflicts retain accepted behavior.
+
+Crypto/decode outside IDB. Private opaque prepare binds original received wire, frozen
+intent event/gen/snapshot/AEAD identity, source token and full history/head/group inventory.
+ONE strict TX CAS checks exact live intent inventory and lineage/source/cursor/wire/history;
+atomically stores local version, peer candidate, group/tips/head and inbox4 conflict proof.
+No intent/source/outbox/receipt/cursor writes. Generation N→N+1, stale head/source, logout/
+key revocation and quota/abort leave no partial proof. Fresh retry freezes new generation.
+Exact replay after later edits/deletes/seal retains original frozen generation and outcome,
+no duplicates/group increment/current content rollback. Changed wire/digest/scope fails.
+
+Native intent remains unsealed and sealable; no automatic seal/reparent/block/deletion.
+Later mutation coalesces same event/ordinal/parent/cloud revision and increments live
+mutation_generation. Frozen local version stays immutable. Later sealing current generation
+uses accepted C21.1.16 path, preserving local_version/group; adding normal sealed candidate
+and complete frontier independently. Different sealed generation does NOT prove publication
+of original frozen conflict snapshot. Update/delete, delete/update and delete/delete retain
+tombstone identities and earlier historical parent content. Renderer/disk reopen persists
+all snapshots, proof, intent and tips.
+
+Strict conflict proof2 extends only existing inbox4 proof payload: local_version_id,
+local_mutation_generation and local_version_digest bind exact immutable branch plus existing
+peer wire/header/reference/group/generation. Old conflict proof1 byte-compatible; no applied
+projection shortcut. Runtime verifies every local/remote member/outcome/sequence/digest.
+Readonly ACK inventory authenticates frozen local record/intent/snapshot outside transaction,
+then compares exact verified history and complete group joins in final readonly transaction.
+Missing/corrupt/changed local version or proof never yields safe count. Qualified conflicts
+individually native ACK-safe; no contiguous aggregation, ACK request, cursor advance or ready.
+Persisted proven_prefix0/ack_cursor0/ack_eligible:false/ready:false remain mandatory.
+
+Resolution v2 future prerequisites retain group/current conflict generation/full tip IDs,
+common parent, exact per-version event/revision/operation/source/sequence/local generation/
+independent material. Local ordinal retained too. Decision and publication/receipt proof
+remain separate future work; later coalesced/sealed snapshot cannot substitute older frozen
+snapshot. Ordinary native-unqualified/genesis/rejected/orphan and old unavailable history
+remain blockers. This fills reviewed Legacy local-unsealed qualified conflict gap and permits
+NEXT bounded ACK aggregation AUDIT; other-family/Cover/Metadata authority gaps unchanged.
+No Resolution UI/event/decision/network or broad editor routing.
+
+Checks:58 new (semantics24/races12/proof22) + prior463 =521 unique PASS across final selections.
+Curated28 files512 PASS followed by nine extra focused negatives; final three specs58 PASS.
+Chromium165 PASS including real N3→N4 stale race/safe retry, TX abort/key/logout, independent
+version reads/current canonical state, later update→delete/third sibling/generation/later
+seal, pre-delete parent content and all three delete combinations, renderer and disk-profile
+reopen. Existing registry16/completion16 acceptance requests only; new conflict/apply/ACK0,
+unrelatedAPI0/page errors0. Typecheck/build/workflow/syntax/diff/pyc PASS; existing build
+warnings only. Three new specs explicit Cloud gates plus producer/seal/history/apply/ACK/
+migration regressions and hard-failing Chromium. SQLite NOT EXPECTED, no skips/dependencies/
+backend/PG/native/frozen Note/crypto/receipt/Resolution/Metadata apply changes. No CI polling.

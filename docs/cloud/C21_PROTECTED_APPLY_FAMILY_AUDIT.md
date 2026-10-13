@@ -619,3 +619,74 @@ PENDING — NOT POLLED; official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE.
 
 Native lib.rs require_note_writable1022 additionally forbids completed project status
 `завершен`; dormant writer enforces it before source mutation/intent reservation.
+
+## C21.1.17 native transition table BEFORE production
+
+C21.1.16 accepted92a66776c0b5d30295a9533ad561e89f6a5e5193, Cloud38440249775
+SUCCESS/all6 jobs SUCCESS; REMOTELY ACCEPTED. Audited note_sync.rs7744–7939
+preserve_causal_note_conflict, inbound10161+, causal_edit_conflict1614+ and restart1693+,
+delete/update1724+, revision1 collision3142+, ACK6693+ and Resolution8040+/9360+.
+
+| State/incoming | Native outcome | Frozen version / live intent |
+|---|---|---|
+| unsealed sibling, same known non-null parent, same revision>=2, different event, visible matches exact snapshot/local revision (delete means absent) | new random UUIDv4 group/gen1, two tips, inbox conflict_preserved | local:account:event:mutation_generation, independent snapshot; live intent unchanged |
+| compatible open group / distinct sibling | reuse group, generation+1, append only remote version | original local generation frozen; later mutable intent not substituted |
+| changed local source before first preservation | ordinary unproven conflict | no synthetic branch |
+| genesis/null parent/wrong revision/parent | ordinary unproven conflict | no group |
+| incoming child of unsealed event | unproven local_unsealed_change, not clean apply | unsealed excluded from combined head |
+| incompatible open group | ordinary unproven conflict | no second group/merge |
+| exact replay | original preserved outcome | no generation/version changes |
+| later local mutation | same unsealed event/ordinal/revision/parent, generation+1; operation may change | frozen original local version stays independent |
+| later seal | ordinary generation-CAS sealing allowed | no reparent/freeze/delete because of conflict; group/tips/version unchanged |
+
+Native initial local version source=local_unsealed, server_sequence=NULL,
+local_mutation_generation=N, local_outbox_lifecycle=unsealed; version identity includes N.
+Canonical Note/source unchanged. Remote version binds actual sequence/event/snapshot.
+ACK SQL individually permits conflict_preserved only with exact group/remote member and
+>=2 full tips; aggregate prefix not authorized. Resolution requires frozen local generation,
+snapshot, exact tips/group/current generation plus later publication/receipt/decision proof;
+coalesced live generation cannot impersonate original frozen publication material.
+Storage: v8 unchanged. New strict local_version tag in legacyNoteHistory has NO top-level
+event_id, avoiding accepted unique candidate event index and permitting later same-event
+sealed candidate independently. Group local member references generation-specific version;
+cloud-visible candidate frontier excludes local_version; group tips include its event.
+
+
+### C21.1.17 implemented coverage / remaining aggregate prerequisites
+
+LOCAL COMPLETE for native-qualified retained peer vs exact current unsealed intent. v8
+unchanged, no stores/index/migration. Strict local_version stores independent encrypted
+snapshot and authenticated intent identity, native local:account:event:generation version
+ID, header/ordinal/parent/revision/frozen generation and digest/lifecycle; no event index
+entry or fake sealed candidate. Group local_unsealed member has null sequence and exact
+local generation. Crypto outside TX; all retained/local intent/source/history/head/group/
+lineage expected-old evidence rechecked in ONE conflict outcome write TX.
+
+Canonical local Note/source revision/live intent unchanged. Known-parent same-revision>=2
+sibling and exact visible snapshot required initially. Existing compatible group appends
+remote only/gen+1; original frozen local branch remains independent of later coalescing,
+delete and ordinary sealing. Complete group tips include pending local event; cloud-visible
+candidate frontier excludes it until actual seal. Later same-event sealed generationN+1
+coexists separately, never masquerades as original conflict generationN publication.
+Group and unrelated tips persist; no resolve/reparent/automatic seal/deletion/decision.
+All local update/delete/remote update/delete combinations preserve tombstones and known
+parent content; exact replay after edits/seal stable, changed/corrupt evidence fails.
+
+Inbox4 strict proof2 binds frozen ID/local generation/digest; old proof1/Note3/Metadata2/
+received1 unchanged. Native ACK safety established from exact remote-member/group/full tips
+SQL; readonly inventory additionally authenticates frozen encrypted evidence and rechecks
+its snapshot before joins. Incomplete/received/rejected/orphan/unqualified cases blocking;
+proven_prefix0/ack_cursor0/eligible:false/ready:false. No aggregate proof/cursor write/network.
+Qualified Legacy individual coverage is sufficient to begin NEXT bounded ACK aggregation
+AUDIT. Remaining cross-family/Metadata/Cover gaps unchanged; no whole-project/ready claim.
+Resolution publication/receipt/exact original generation/snapshot and user decision proofs
+still separate; current live/sealed generation cannot replace frozen snapshot silently.
+
+58 new focused +463 affected =521 unique PASS; curated28 files512 PASS before nine added
+negatives, final three suites58 PASS. Chromium165 PASS: real generation race/rollback/
+key/logout, independent encrypted versions/canonical preserved, coalescing/delete/append/
+later seal/full tips, three delete combinations and renderer/disk-profile reopen.
+Existing registry16/completion16 fixtures only; new conflict/apply/ACK0/unrelatedAPI0/
+page errors0. Typecheck/build/workflow/syntax/diff/pyc PASS; three mandatory Cloud specs;
+SQLite NOT EXPECTED. No skips/dependencies/backend/PG/native/frozen contracts/other-family
+changes. Cloud PENDING — NOT POLLED; official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE.

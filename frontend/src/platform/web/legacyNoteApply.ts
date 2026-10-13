@@ -1,4 +1,6 @@
-import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteHistoryRecord,type BrowserNoteCandidate,type BrowserNoteConflictGroup,type BrowserNoteHead } from './noteHistoryRecords'
+import { NOTE_INTENT_STORE,validateNoteIntent,type BrowserNoteIntent } from './noteIntentRecords'
+import { freezeLocalVersion,openFrozenLocalVersion,unsealedPlaintext } from './noteUnsealedVersion'
+import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteLocalVersion,type BrowserNoteHistoryRecord,type BrowserNoteCandidate,type BrowserNoteConflictGroup,type BrowserNoteHead } from './noteHistoryRecords'
 import { historyRange,makeHistoryCandidate,openHistoryCandidate,nextNoteHead,commitHistoryChange } from './noteHistory'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
@@ -15,7 +17,7 @@ import { validateBrowserNoteProof,validateBrowserNoteConflictProof,type BrowserN
 import { deriveInitialLegacyCohort } from './initialNoteCapture'
 
 export interface VerifiedLegacyNotePlan {readonly verifiedLegacyNotePlan:unique symbol}
-interface Inventory {history:BrowserNoteHistoryRecord[];checkpoint:BrowserSyncCheckpoint;binding:BrowserProjectBinding;rows:BrowserInboxRecord[];out:unknown[];receipts:unknown[]}
+interface Inventory {intents:BrowserNoteIntent[];history:BrowserNoteHistoryRecord[];checkpoint:BrowserSyncCheckpoint;binding:BrowserProjectBinding;rows:BrowserInboxRecord[];out:unknown[];receipts:unknown[]}
 interface Plan {owner:BrowserLegacyNoteApplyRuntime;scope:BrowserSyncScope;inventory:Inventory;row:BrowserInboxRecord;proof:BrowserNoteProof|BrowserNoteConflictProof;historyNext:BrowserNoteHistoryRecord[];current:()=>boolean;local:BrowserLocalAuthorityRuntime;plaintext?:NoteSyncPlaintext;source?:ProtectedNoteSourcePlan;sourceToken?:LocalSourceToken;replay:boolean}
 const plans=new WeakMap<object,Plan>()
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
@@ -56,8 +58,8 @@ export class BrowserLegacyNoteApply {
 export class BrowserLegacyNoteApplyRuntime {
   constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthorityRuntime,private readonly sessionCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext){}
   private async guard(scope:BrowserSyncScope){if(!this.sessionCurrent()||this.auth.state!=='authenticated')fail('closed');const {context}=await this.bindings.ensureForCurrentUser(scope.accountId),lease=this.keys.leaseForAccount(scope.accountId);const current=()=>this.sessionCurrent()&&this.auth.isCurrent(context)&&!!lease?.isCurrent();if(!lease||context.userId!==scope.canonicalUserId||lease.localAccountId!==scope.accountId||lease.canonicalUserId!==scope.canonicalUserId||lease.authEpoch!==context.authEpoch||!current())fail('account_mismatch');return{lease,current}}
-  private load(scope:BrowserSyncScope,sequence:number):Promise<Inventory>{return this.transaction(scope,['inbox','projectBindings','outbox','receipts','cursors',NOTE_HISTORY_STORE],'readonly',(tx,result,abort)=>{
-    const incoming=tx.objectStore('inbox').getAll(range(scope.accountId)),bindings=tx.objectStore('projectBindings').getAll(range(scope.accountId)),out=tx.objectStore('outbox').getAll(range(scope.accountId)),receipts=tx.objectStore('receipts').getAll(range(scope.accountId));let n=0;const finish=()=>{if(++n!==4)return;try{const rows=incoming.result.map(r=>validateBrowserInboxRecord(r,scope)),row=rows.find(r=>r.server_sequence===sequence);if(!row)fail('missing_history');const e=JSON.parse(row.wire_item).event;if(e.entity_type!=='note'||!['upsert','delete'].includes(e.operation))fail('unsupported_local_source');const binding=bindings.result.find(b=>b.project_id===e.project_id);if(!binding)fail('ineligible_lineage');readBrowserSyncCursor(tx,scope,checkpoint=>{try{if(sequence>checkpoint.pull_cursor)fail('corrupt_record');const history=tx.objectStore(NOTE_HISTORY_STORE).getAll(historyRange(scope,e.project_id,e.entity_id));history.onsuccess=()=>{try{result({history:historySort(validateNoteHistorySet(scope,history.result)),checkpoint,binding:validateBrowserProjectBinding(binding,scope),rows,out:out.result,receipts:receipts.result})}catch(e){abort(e)}}}catch(e){abort(e)}},abort)}catch(e){abort(e)}};[incoming,bindings,out,receipts].forEach(r=>r.onsuccess=finish)
+  private load(scope:BrowserSyncScope,sequence:number):Promise<Inventory>{return this.transaction(scope,['inbox','projectBindings','outbox','receipts','cursors',NOTE_HISTORY_STORE,NOTE_INTENT_STORE],'readonly',(tx,result,abort)=>{
+    const incoming=tx.objectStore('inbox').getAll(range(scope.accountId)),bindings=tx.objectStore('projectBindings').getAll(range(scope.accountId)),out=tx.objectStore('outbox').getAll(range(scope.accountId)),receipts=tx.objectStore('receipts').getAll(range(scope.accountId)),intents=tx.objectStore(NOTE_INTENT_STORE).getAll(range(scope.accountId));let n=0;const finish=()=>{if(++n!==5)return;try{const rows=incoming.result.map(r=>validateBrowserInboxRecord(r,scope)),row=rows.find(r=>r.server_sequence===sequence);if(!row)fail('missing_history');const e=JSON.parse(row.wire_item).event;if(e.entity_type!=='note'||!['upsert','delete'].includes(e.operation))fail('unsupported_local_source');const binding=bindings.result.find(b=>b.project_id===e.project_id);if(!binding)fail('ineligible_lineage');readBrowserSyncCursor(tx,scope,checkpoint=>{try{if(sequence>checkpoint.pull_cursor)fail('corrupt_record');const history=tx.objectStore(NOTE_HISTORY_STORE).getAll(historyRange(scope,e.project_id,e.entity_id));history.onsuccess=()=>{try{result({intents:intents.result.map(v=>validateNoteIntent(v,scope)),history:historySort(validateNoteHistorySet(scope,history.result)),checkpoint,binding:validateBrowserProjectBinding(binding,scope),rows,out:out.result,receipts:receipts.result})}catch(e){abort(e)}}}catch(e){abort(e)}},abort)}catch(e){abort(e)}};[incoming,bindings,out,receipts,intents].forEach(r=>r.onsuccess=finish)
   })}
   async prepare(scope:BrowserSyncScope,sequence:number):Promise<VerifiedLegacyNotePlan>{
     scope=snapshotBrowserSyncScope(scope);if(!Number.isSafeInteger(sequence)||sequence<1)fail('missing_history')
@@ -67,9 +69,9 @@ export class BrowserLegacyNoteApplyRuntime {
     const raw=JSON.parse(row.wire_item),reference=raw.event,{device_id:_source,server_sequence:_sequence,...event}=reference,item={event,object:raw.object}
     return lease.use(async amk=>{
       let plaintext:NoteSyncPlaintext;try{plaintext=await openRetainedNote(scope,amk,row)}catch(e){if(row.state!=='received')fail('corrupt_record');throw e}const h=plaintext.header
-      const records=inventory.history,candidates=records.filter((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'),groups=records.filter((r):r is BrowserNoteConflictGroup=>r.record_kind==='group')
+      const records=inventory.history,candidates=records.filter((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'),groups=records.filter((r):r is BrowserNoteConflictGroup=>r.record_kind==='group'),versions=records.filter((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version')
       if(records.some(r=>r.bootstrap_id!==binding.bootstrap_id))fail('stale_lineage')
-      for(const c of candidates)await openHistoryCandidate(scope,c,amk)
+      for(const c of candidates)await openHistoryCandidate(scope,c,amk);for(const v of versions)await openFrozenLocalVersion(scope,v,amk)
       const add=(c:BrowserNoteCandidate)=>{const old=candidates.find(r=>r.event_id===c.event_id);if(old){if(old.wire_item!==c.wire_item||!same(old.header,c.header)||old.source_device_id!==c.source_device_id||old.protocol_version!==c.protocol_version)fail('conflicting_record')}else candidates.push(c)}
       // Explicit first-use reconstruction: immutable event+existing outcome only. Never current Note.
       for(const out of cohort?.rows??[]){const wire=JSON.parse(out.raw_body).items[0];if(wire.event.entity_id!==h.entity_id)continue;const found=candidates.find(c=>c.event_id===out.event_id);if(found){if(found.wire_item!==JSON.stringify(wire))fail('conflicting_record');continue}
@@ -81,13 +83,14 @@ export class BrowserLegacyNoteApplyRuntime {
         if(!candidates.some(c=>c.event_id===prior.event_id)){const wire=JSON.parse(prior.wire_item),{device_id:source,server_sequence:_seq,...e}=wire.event,opened=await openRetainedNote(scope,amk,prior);add(await makeHistoryCandidate(scope,binding,prior.protocol_version,source,{event:e,object:wire.object},opened,'peer',null,prior.note_proof.local_note_digest))}
       }
       for(const group of groups)for(const member of group.members){
+        if(member.source==='local_unsealed'){const frozen=versions.find(v=>v.version_id===member.version_id);if(!frozen||frozen.intent.mutation_generation!==member.local_mutation_generation)fail('corrupt_record');continue}
         const retained=inventory.rows.find(r=>r.event_id===member.event_id),candidate=candidates.find(c=>c.event_id===member.event_id)
         if(!retained||retained.server_sequence!==member.server_sequence||!candidate)fail('corrupt_record')
         if(member.source==='remote_applied'){
           if(retained.state!=='note_proven'||retained.note_proof.bootstrap_id!==group.bootstrap_id)fail('corrupt_record')
           await verifyStoredNoteProof(scope,amk,retained);if(retained.note_proof.outcome==='self_echo_applied')requireOwnReceipt(scope,inventory,retained)
         }else{
-          if(retained.state!=='note_conflict_preserved')fail('corrupt_record');const p=retained.note_conflict_proof,wire=JSON.parse(retained.wire_item)
+          if(retained.state!=='note_conflict_preserved')fail('corrupt_record');const p=retained.note_conflict_proof,wire=JSON.parse(retained.wire_item),localMember=group.members.find(m=>m.source==='local_unsealed');if(localMember){if(p.record_version!==2||p.local_version_digest!==versions.find(v=>v.version_id===localMember.version_id)?.record_digest||p.local_version_id!==localMember.version_id||p.local_mutation_generation!==(localMember as {local_mutation_generation:number}).local_mutation_generation)fail('corrupt_record')}else if(p.record_version!==1)fail('corrupt_record')
           if(p.group_id!==group.group_id||p.bootstrap_id!==group.bootstrap_id||p.conflict_generation!==member.conflict_generation||!same(p.header,candidate.header)||p.wire_digest!==await noteProofDigest({protocol_version:retained.protocol_version,event:wire.event,object:wire.object})||p.outcome_digest!==await noteOutcomeDigest(p))fail('corrupt_record')
         }
       }
@@ -113,18 +116,24 @@ export class BrowserLegacyNoteApplyRuntime {
         let preserve:BrowserNoteConflictGroup|undefined
         if(!own){
           const open=groups.find(g=>g.common_parent_event_id===h.parent_event_id&&g.tip_revision===h.revision)
-          const sibling=!open&&linear&&h.revision>=2&&linear.header.revision===h.revision&&linear.header.parent_event_id===h.parent_event_id
-          if(open||sibling){
+          const localIntents=inventory.intents.filter(i=>i.project_id===h.project_id&&i.note_id===h.entity_id);if(localIntents.length>1)fail('corrupt_record');const localIntent=localIntents[0];if(localIntent&&localIntent.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');if(localIntent)await unsealedPlaintext(scope,localIntent,amk)
+          const localSibling=!open&&localIntent&&h.revision>=2&&localIntent.revision===h.revision&&localIntent.parent_event_id===h.parent_event_id&&localIntent.event_id!==h.event_id&&candidates.some(c=>c.event_id===h.parent_event_id&&c.header.revision===h.revision-1)
+          const sibling=!localIntent&&!open&&linear&&h.revision>=2&&linear.header.revision===h.revision&&linear.header.parent_event_id===h.parent_event_id
+          if(open||localSibling||sibling){
             if(!open&&groups.length)fail('note_conflict_unproven') // Native reuses one open group; a different fork is not conflict_preserved.
             if(plaintext.mutation==='create')fail('note_conflict_unproven')
             if(open){preserve=structuredClone(open);if(preserve.members.some(m=>m.event_id===h.event_id))fail('conflicting_record');preserve.conflict_generation++;if(!Number.isSafeInteger(preserve.conflict_generation))fail('source_limit')}
-            else{
+            else if(localSibling){
+              const localRecord=source.notes.find(n=>n.note_id===h.entity_id);if(!localRecord||!same(localRecord,localIntent!.snapshot))fail('note_conflict_unproven')
+              const frozen=await freezeLocalVersion(scope,localIntent!,amk);versions.push(frozen);const group_id=crypto.randomUUID();preserve={record_version:1,account_id:scope.accountId,device_id:scope.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:binding.bootstrap_id,record_kind:'group',record_id:group_id,group_id,common_parent_event_id:h.parent_event_id!,tip_revision:h.revision,conflict_generation:1,lifecycle:'open',members:[{version_id:frozen.version_id,event_id:localIntent!.event_id,source:'local_unsealed',server_sequence:null,conflict_generation:1,local_mutation_generation:localIntent!.mutation_generation}],tip_event_ids:[]}
+            }else{
               const prior=applied.find(r=>r.event_id===linear!.event_id);if(!prior||prior.state!=='note_proven')fail('note_conflict_unproven')
               const localRecord=source.notes.find(n=>n.note_id===h.entity_id);if(!localRecord||!linear!.projection_digest||await noteProofDigest(localRecord)!==linear!.projection_digest)fail('note_conflict_unproven')
               const group_id=crypto.randomUUID();preserve={record_version:1,account_id:scope.accountId,device_id:scope.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:binding.bootstrap_id,record_kind:'group',record_id:group_id,group_id,common_parent_event_id:h.parent_event_id!,tip_revision:h.revision,conflict_generation:1,lifecycle:'open',members:[{version_id:`applied:${scope.accountId}:${linear!.event_id}`,event_id:linear!.event_id,source:'remote_applied',server_sequence:prior.server_sequence,conflict_generation:1}],tip_event_ids:[]}
             }
             preserve.members.push({version_id:`remote:${scope.accountId}:${h.event_id}`,event_id:h.event_id,source:'remote',server_sequence:sequence,conflict_generation:preserve.conflict_generation});preserve.members.sort((a,b)=>a.event_id<b.event_id?-1:1);preserve.tip_event_ids=preserve.members.map(m=>m.event_id)
           }else{
+            if(localIntent)fail('note_conflict_unproven') // Native pending branch prevents clean apply, even its purported child.
             if(h.revision===1){if(head||candidates.length||source.notes.some(n=>n.note_id===h.entity_id))fail('note_conflict_unproven')}
             else{if(!linear||linear.header.revision<h.revision-1)fail('note_orphan');if(linear.header.revision!==h.revision-1||linear.event_id!==h.parent_event_id)fail('note_conflict_unproven');if(!linear.projection_digest)fail('candidate_history_unavailable');const localRecord=source.notes.find(n=>n.note_id===h.entity_id);if(!localRecord||await noteProofDigest(localRecord)!==linear.projection_digest)fail('note_conflict_unproven')
               if(linear.origin!=='peer'){const out=outgoing.find(r=>r.event_id===linear.event_id),receipt=inventory.receipts.find(r=>(r as {event_id:string}).event_id===linear.event_id);if(!out||out.state!=='accepted'||!receipt)fail('candidate_history_unavailable')}
@@ -133,28 +142,29 @@ export class BrowserLegacyNoteApplyRuntime {
         }
         if(preserve){
           proof={record_version:1,owner_kind:'legacy_note',outcome:'conflict_preserved',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation as 'update'|'delete',wire_digest:wireDigest,outcome_digest:'',group_id:preserve.group_id,conflict_generation:preserve.conflict_generation}
+          const localMember=preserve.members.find(m=>m.source==='local_unsealed');if(localMember){proof={...proof,record_version:2,local_version_digest:versions.find(v=>v.version_id===localMember.version_id)!.record_digest,local_version_id:localMember.version_id,local_mutation_generation:(localMember as {local_mutation_generation:number}).local_mutation_generation}}
           add(await makeHistoryCandidate(scope,binding,row.protocol_version,reference.device_id,item,plaintext,'peer',null));const at=groups.findIndex(g=>g.group_id===preserve!.group_id);if(at<0)groups.push(preserve);else groups[at]=preserve
           head=nextNoteHead(scope,binding,candidates,head!.linear_head_event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))
-          const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,sourceToken:source.token,replay:false,historyNext:historySort([...candidates,...groups,head])};proof.outcome_digest=await noteOutcomeDigest(proof);validateBrowserNoteConflictProof(proof,scope);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
+          const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,sourceToken:source.token,replay:false,historyNext:historySort([...candidates,...groups,...versions,head])};proof.outcome_digest=await noteOutcomeDigest(proof);validateBrowserNoteConflictProof(proof,scope);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
         }
         proof={record_version:1,owner_kind:'legacy_note',outcome:own?'self_echo_applied':'applied',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation,wire_digest:wireDigest,outcome_digest:'',source_revision:null,local_note_digest:null}
         const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,plaintext,sourceToken:source.token,replay:false,historyNext:[]};plans.set(token,p)
         try{if(!own){const prepared=await this.local.prepareProtectedNoteApply(scope,source.token,token);p.source=prepared.token;proof.source_revision=prepared.source_revision;proof.local_note_digest=await noteProofDigest(prepared.note);add(await makeHistoryCandidate(scope,binding,row.protocol_version,reference.device_id,item,plaintext,'peer',prepared.note));head=nextNoteHead(scope,binding,candidates,h.event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))}
-          proof.outcome_digest=await noteOutcomeDigest(proof);validateBrowserNoteProof(proof,scope);p.historyNext=historySort([...candidates,...groups,...(head?[head]:[])]);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');return token
+          proof.outcome_digest=await noteOutcomeDigest(proof);validateBrowserNoteProof(proof,scope);p.historyNext=historySort([...candidates,...groups,...versions,...(head?[head]:[])]);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');return token
         }finally{delete p.plaintext}
       }
-      const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,replay,historyNext:historySort([...candidates,...groups,...(head?[head]:[])])};validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
+      const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,replay,historyNext:historySort([...candidates,...groups,...versions,...(head?[head]:[])])};validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
     })
   }
   async commit(token:VerifiedLegacyNotePlan):Promise<'applied'|'self_echo_applied'|'already_applied'|'conflict_preserved'>{
     const p=plans.get(token);if(!p||p.owner!==this)fail('stale_source');if(!p.current())fail('closed');let unsubscribe:(()=>void)|undefined
-    return this.transaction<'applied'|'self_echo_applied'|'already_applied'|'conflict_preserved'>(p.scope,['inbox','projectBindings','outbox','receipts','cursors','localProjects','localNotes',NOTE_HISTORY_STORE],'readwrite',(tx,result,abort)=>{
+    return this.transaction<'applied'|'self_echo_applied'|'already_applied'|'conflict_preserved'>(p.scope,['inbox','projectBindings','outbox','receipts','cursors','localProjects','localNotes',NOTE_HISTORY_STORE,NOTE_INTENT_STORE],'readwrite',(tx,result,abort)=>{
       unsubscribe=this.auth.onInvalidated(()=>abort(new BrowserPersistenceError('closed')))
-      const incoming=tx.objectStore('inbox').getAll(range(p.scope.accountId)),binding=tx.objectStore('projectBindings').get([p.scope.accountId,p.inventory.binding.project_id]),out=tx.objectStore('outbox').getAll(range(p.scope.accountId)),receipts=tx.objectStore('receipts').getAll(range(p.scope.accountId));let n=0
-      const finish=()=>{if(++n!==4)return;try{if(!p.current())fail('closed');const rows=incoming.result.map(r=>validateBrowserInboxRecord(r,p.scope));const committedReplay=!p.replay&&same(rows,p.inventory.rows.map(r=>r.event_id===p.row.event_id?proofRow(r,p.proof):r));if(!same(rows,p.inventory.rows)&&!committedReplay||!same(binding.result,p.inventory.binding)||!same(out.result,p.inventory.out)||!same(receipts.result,p.inventory.receipts))fail('stale_source');if(p.inventory.binding.mode==='upload_existing')deriveInitialLegacyCohort(p.scope,p.inventory.binding,out.result,receipts.result)
+      const incoming=tx.objectStore('inbox').getAll(range(p.scope.accountId)),binding=tx.objectStore('projectBindings').get([p.scope.accountId,p.inventory.binding.project_id]),out=tx.objectStore('outbox').getAll(range(p.scope.accountId)),receipts=tx.objectStore('receipts').getAll(range(p.scope.accountId)),intents=tx.objectStore(NOTE_INTENT_STORE).getAll(range(p.scope.accountId));let n=0
+      const finish=()=>{if(++n!==5)return;try{if(!p.current())fail('closed');const rows=incoming.result.map(r=>validateBrowserInboxRecord(r,p.scope));const committedReplay=!p.replay&&same(rows,p.inventory.rows.map(r=>r.event_id===p.row.event_id?proofRow(r,p.proof):r));if(!same(rows,p.inventory.rows)&&!committedReplay||!same(binding.result,p.inventory.binding)||!same(out.result,p.inventory.out)||!same(receipts.result,p.inventory.receipts)||!same(intents.result.map(v=>validateNoteIntent(v,p.scope)),p.inventory.intents))fail('stale_source');if(p.inventory.binding.mode==='upload_existing')deriveInitialLegacyCohort(p.scope,p.inventory.binding,out.result,receipts.result)
         const write=()=>{if(!p.current())fail('closed');if(!p.replay&&!committedReplay){const r=tx.objectStore('inbox').put(proofRow(p.row,p.proof));r.onsuccess=()=>{if(!p.current())abort(new BrowserPersistenceError('closed'))}}result(p.proof.outcome==='conflict_preserved'?'conflict_preserved':p.replay||committedReplay?'already_applied':p.proof.outcome)}
         readBrowserSyncCursor(tx,p.scope,checkpoint=>{try{if(!same(checkpoint,p.inventory.checkpoint))fail('stale_cursor');commitHistoryChange(tx,p.scope,p.inventory.binding.project_id,p.proof.header.entity_id,p.inventory.history,p.historyNext,p.current,()=>{if(committedReplay)write();else if(p.source)scheduleProtectedNoteApply(tx,p.scope,p.source,write,abort);else if(p.sourceToken)assertLocalSourceInTransaction(tx,p.scope,p.sourceToken,write,abort);else write()},abort)}catch(e){abort(e)}},abort)
-      }catch(e){abort(e)}};[incoming,binding,out,receipts].forEach(r=>r.onsuccess=finish)
+      }catch(e){abort(e)}};[incoming,binding,out,receipts,intents].forEach(r=>r.onsuccess=finish)
     }).finally(()=>unsubscribe?.())
   }
   async apply(scope:BrowserSyncScope,sequence:number){return this.commit(await this.prepare(scope,sequence))}
