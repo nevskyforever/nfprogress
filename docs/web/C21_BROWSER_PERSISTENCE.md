@@ -1367,3 +1367,116 @@ No skipped/softened gates; full/heavy/native/PostgreSQL suites not run.
 Next bounded slice: account-wide remote reconciliation, retained inbound proof and
 ACK/proven-prefix prerequisites before any separately authorized ready transition.
 Do not infer full project synchronization from this Legacy Note-only remote bootstrap.
+
+
+## C21.1.13 registry / ACK safety preflight
+
+Accepted C21.1.12 cc9bfb567afdbccdc77ce4a8aab84cc204757930 / Cloud38386112458
+all six jobs SUCCESS (owner supplied). Existing GET /api/v1/cloud/projects/bootstrap
+returns ALL current-user project rows in one ordered SELECT/all(), no pagination/token.
+Response projects + account current_cursor has no snapshot generation/ETag; cursor is
+an observed account high-water, NOT an atomic generation for registry membership.
+Validate entire response and all identities/duplicates before one expected-old account
+commit. Never infer durable complete-registry proof merely from per-binding high-water.
+Known prepared absent: retain/register-required; known registered/captured/completing/
+import absent: fail entire response, no inferred deletion/rebinding. Unknown remote rows
+remain unbound blockers, never automatic import/local source. Imported installation
+uses local device while server origin device may be peer; bootstrap must still match.
+Upload-existing origin must match local device. Both projects share the account cursor;
+local initial cohort count/HI/max are NEVER copied between project bindings.
+
+Native ACK is contiguous_applied_ack_prefix from current ACK up to pull cursor, requires
+each sequence's exact native family applied ledger/outcome, or properly preserved
+conflict proof; gaps/unresolved/conflicts/unsupported stop. Native candidate is recomputed,
+not a SQLite stored proven_prefix field. Commit rechecks scope, expected-old ACK and
+prefix, requires target<=pull. Backend ACK is monotone/idempotent204 and rejects target
+beyond account server cursor; cannot verify client decryption/application itself. Browser
+has received ciphertext and Metadata-only authority proof/heads, no complete native
+family applied/projection/conflict ledger coverage, especially Legacy Note self-echo.
+Thus registry/high-water/initial receipts/pull/Metadata marker NEVER authorize positive
+browser proven/ACK advancement in this slice. Keep reserved ACK/proven0, no ACK HTTP.
+Read-only inventory may validate current records and diagnose missing proof, not invent
+native applied outcomes. Registry full-snapshot token stays runtime-only/current-context;
+per-binding state/high-water can persist in v6, but reload requires fresh reconciliation.
+Ready remains false. ACK positive progression STOP: missing protected pull/apply/family
+proof representation; no v7/store/marker or frozen semantic workaround.
+
+## C21.1.13 bounded registry / ACK prerequisite result
+
+**PARTIAL LOCAL COMPLETE / positive ACK BLOCKED; remote CI PENDING — NOT POLLED.**
+C21.1.12 remotely accepted: cc9bfb567afdbccdc77ce4a8aab84cc204757930,
+Cloud38386112458 SUCCESS, all six required jobs SUCCESS, owner supplied.
+
+`session.registry.bind(auth,bindings,keys).reconcile(scope)` explicitly calls the
+existing GET /api/v1/cloud/projects/bootstrap outside IndexedDB. Current normal-user
+context, authoritative binding, key lease, installation device and session guard apply
+before request and commit. Existing client adds optional AbortSignal, 2MiB response cap;
+operation has30s timeout and logout abort. Entire exact projects/current_cursor response
+is validated before TX: bounded4096 entries, safe cursor/count/max, native opaque
+project IDs, canonical bootstrap/origin UUIDs, duplicate IDs/bootstrap IDs, legacy null
+fields and initializing/active count/max relationships. No page loop: endpoint is
+unpaginated; extra pagination fields fail closed. Bounds reject rather than truncate.
+Source: backend/app/cloud/projects_router.py, services.py list_bootstrap, repositories.py
+CloudProjectRepository.list. One ordered SELECT produces all current-user projects;
+account cursor is observed separately, without atomic registry generation or ETag.
+
+One strict transaction uses full expected-old known account binding set, identity/device
+scope and current lifecycle; completing rows rejoin exact cohort/outbox/receipt proof.
+A local binding inserted while HTTP awaits invalidates the whole response commit.
+Only projectBindings state/high-water changes; no inbox/cursor/receipt/source rewrite.
+Remote active may confirm exact completing count/max; retained frozen count/HI/max
+are immutable. Prepared matching initializing may recover registered evidence only.
+Captured/registered upload active cannot synthesize missing local completion proof.
+Remote bootstrap/origin/state regression or prior high-water regression rejects ALL.
+Known bound absence rejects without deletion; absent prepared remains unregistered.
+Unknown valid remote/legacy projects are explicit whole-account blockers, never imported.
+Upload origin must equal local device; imported origin may be another device, preserving
+local installation device and bootstrap. Both known projects receive account cursor,
+without copying another project's initial count/HI/max or altering shared cursor.
+
+Persisted registry evidence is ONLY existing per-binding remote_state/high-water in
+schema6. No durable complete-account registry snapshot proof is claimed. Private weak
+runtime token binds exact complete local set/current auth/key/session; unknown/unregistered
+rows block its use. Forged/cross-runtime/stale token cannot authorize prerequisites.
+Profile reopen retains binding projection but expires token; explicit refetch required.
+No new schema/store/generation marker. Account membership snapshot is never inferred
+from a row's high-water, and remote cursor is never advertised as registry generation.
+
+`registry.ackPrerequisites(scope,projectId,token?)` takes one readonly scoped inventory
+of bindings/cursor/inbox/Metadata heads. It validates immutable wire record structure,
+sequence/event uniqueness, pull bounds, and exact Metadata proof/head/imported bootstrap
+joins; detects received-only, Metadata-authority-only, missing sequence1 and unsupported
+families. This is structural inventory, NOT fresh AEAD verification, a generic conflict
+classifier or native protected-apply/projection ledger. Encrypted resolution cannot be
+silently classified as conflict-safe. Missing/unsupported proof keeps candidate0 even
+with contiguous received rows or Metadata-only applied rows. Corrupt retained joins
+fail closed. No positive candidate and no invented applied/conflict status.
+
+Native `note_sync.rs` contiguous_applied_ack_prefix requires each next sequence through
+pull to have exact family-specific safe apply/outcome or preserved conflict proof;
+commit rechecks expected-old ACK and recomputed prefix. Native has no separate stored
+proven_prefix column. Browser reserved `0<=ack<=proven<=pull` holds with ACK/proven0.
+Backend ACK (/api/v1/sync/ack and existing encrypted V2/V3 routes) is monotone/idempotent
+204, target bounded by server account sequence; it cannot prove local client apply.
+No browser ACK target/request/response/retry implementation is safe yet. Initial own
+receipts, remote active, registry and pull cursor cannot substitute for missing exact
+Legacy Note self-echo/native decision/conflict and all-family ledger coverage.
+
+Row-only readiness now registry_reconciliation_required for active import/completing.
+Current exact account token yields bootstrap_completion_unavailable, pull_required,
+protected_apply_required, unsupported_family_proof or ack_proof_unavailable as supported.
+Always ready:false/ack_eligible:false; no markReady/phase ready or normal loop. Inventory
+cannot claim all events cryptographically verified/applied or complete-project sync.
+
+Tests: registry29, ACK prerequisites18, completion49, affected C21/API156 incl capture31:
+252 tests/15 files PASS. Chromium128 PASS: registry GET16, preceding completion POST15,
+ACK0, unrelatedAPI0, page errors0. Actual installed Chromium+production preview uses
+isolated intercepted HTTP, normal auth/key/Sodium, native strict IDB/Web Locks and disk
+profile. Covers two projects/peer origin, exact retry, whole-vector malformed/duplicate/
+absence/bootstrap/cursor rollback, local-set CAS race, request-success abort/quota,
+key/logout/close, competing writer and retained projection/refetch after profile reopen.
+Typecheck/build/workflow/syntax/diff/pyc PASS; existing build warnings only. Cloud runs
+new specs explicitly plus existing completion/cursor/inbox and hard-failing Chromium.
+SQLite NOT EXPECTED; no skips; heavy/native/backend suites and remote CI not run.
+Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE; Cover/self-echo/full-project
+capture/apply remain bounded future prerequisites. No production UI/help changes.

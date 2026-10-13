@@ -45,7 +45,7 @@ export async function acceptBootstrapCompletion({page,scope,users,cases,expectCo
   assert.equal((await mark(completed)).initial_max_server_sequence,501)
   cases.push('real captured→completing derives exact all-member receipt max in same strict transaction; incomplete fails; exact replay stable; later receipt900 cannot inflate initial max501')
   const active=await remote(completed);assert.equal(active.phase,'completing');assert.equal(active.remote_state,'active');assert.equal(active.remote_high_water,2000);assert.equal(active.initial_max_server_sequence,501)
-  assert.deepEqual(await page.evaluate(({scope,id})=>session.projects.evaluateReadiness(scope,id),{scope,id:main.project_id}),{ready:false,code:'ack_proof_unavailable',required_cursor:2000});assert.deepEqual(await remote(active),active)
+  assert.deepEqual(await page.evaluate(({scope,id})=>session.projects.evaluateReadiness(scope,id),{scope,id:main.project_id}),{ready:false,code:'registry_reconciliation_required',required_cursor:2000});assert.deepEqual(await remote(active),active)
   cases.push('exact production POST endpoint/body/Bearer auth intercepted; authoritative active/high-water persists with completing phase; exact durable replay sends no HTTP, ACK/ready remain blocked')
   const partial=await create('partial-completion',['partial-a','partial-z'])
   const partialRows=(await page.evaluate(()=>nativeRows('outbox'))).filter(r=>r.local_ordinal>=partial.initial_local_ordinal_hi-1&&r.local_ordinal<=partial.initial_local_ordinal_hi)

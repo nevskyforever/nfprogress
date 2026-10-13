@@ -1,3 +1,4 @@
+import { BrowserAccountRegistry } from './accountRegistry'
 import { BrowserBootstrapCompletion } from './bootstrapCompletion'
 import { BrowserInitialNoteCapture } from './initialNoteCapture'
 import { BrowserLocalAuthority } from './localAuthority'
@@ -13,7 +14,7 @@ export const WEB_DATABASE_VERSION = 6
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
-export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible' | 'invalid_local_source' | 'unsupported_local_source' | 'stale_source' | 'missing_local_source' | 'deleted_local_source' | 'source_limit' | 'bootstrap_incomplete' | 'bootstrap_response_rejected' | 'bootstrap_completion_failed'
+export type BrowserPersistenceCode = 'unavailable' | 'quota_exceeded' | 'unsupported_version' | 'upgrade_blocked' | 'writer_busy' | 'storage_failed' | 'corrupt_record' | 'account_mismatch' | 'closed' | 'conflicting_record' | 'stale_cursor' | 'missing_history' | 'stale_lineage' | 'invalid_lineage_transition' | 'cover_material_unavailable' | 'metadata_rejected' | 'metadata_conflict' | 'stale_authority' | 'ineligible_lineage' | 'self_echo_unavailable' | 'local_incompatible' | 'invalid_local_source' | 'unsupported_local_source' | 'stale_source' | 'missing_local_source' | 'deleted_local_source' | 'source_limit' | 'bootstrap_incomplete' | 'bootstrap_response_rejected' | 'bootstrap_completion_failed' | 'registry_rejected' | 'registry_conflict' | 'registry_network_failed'
 
 const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]> = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
@@ -203,6 +204,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly localSource: BrowserLocalAuthority
   readonly initialNotes: BrowserInitialNoteCapture
   readonly completion: BrowserBootstrapCompletion
+  readonly registry: BrowserAccountRegistry
   private active = true
   private readonly pending = new Map<IDBTransaction, Promise<unknown>>()
   private closeFlight: Promise<void> | undefined
@@ -218,6 +220,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.localSource = new BrowserLocalAuthority((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.initialNotes = new BrowserInitialNoteCapture((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, this.projects)
     this.completion = new BrowserBootstrapCompletion((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
+    this.registry = new BrowserAccountRegistry((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.metadata = new BrowserImportedMetadataApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.sync)
     database.onversionchange = () => { void this.close() }
     database.onclose = () => { void this.close() }

@@ -6,7 +6,7 @@ export interface BrowserProjectBinding extends CloudProjectBootstrapRecord { rec
 export interface BrowserProjectPreparation { project_id: string; mode: 'upload_existing' }
 export interface BrowserRemoteProjectImport { project_id: string; bootstrap_id: string; remote_state: 'active'; remote_high_water: number }
 export interface BrowserProjectRegistration { remote_state: 'initializing' | 'active'; remote_high_water: number }
-export type BrowserProjectReadinessCode = 'missing_lineage' | 'registration_required' | 'capture_proof_unavailable' | 'ack_proof_unavailable' | 'bootstrap_completion_unavailable'
+export type BrowserProjectReadinessCode = 'missing_lineage' | 'registration_required' | 'capture_proof_unavailable' | 'ack_proof_unavailable' | 'bootstrap_completion_unavailable' | 'registry_reconciliation_required'
 export interface BrowserProjectReadiness { ready: false; code: BrowserProjectReadinessCode; required_cursor: number | null }
 const keys = ['record_version','account_id','project_id','device_id','bootstrap_id','mode','phase','remote_state','initial_event_count','initial_local_ordinal_hi','remote_high_water','initial_max_server_sequence','blocked_reason']
 const exact = (v: unknown, fields: readonly string[]): boolean => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -67,7 +67,7 @@ export function compareBrowserProjectTransition(scope: BrowserSyncScope, current
 export function browserProjectReadiness(row: BrowserProjectBinding | null): BrowserProjectReadiness {
   if (!row) return { ready: false, code: 'missing_lineage', required_cursor: null }
   const required_cursor = Math.max(row.remote_high_water ?? 0, row.initial_max_server_sequence ?? 0)
-  return { ready: false, code: row.mode === 'import_remote' ? 'ack_proof_unavailable' : row.phase === 'prepared' ? 'registration_required' : row.phase === 'completing' && row.remote_state === 'active' ? 'ack_proof_unavailable' : ['captured','completing'].includes(row.phase) ? 'bootstrap_completion_unavailable' : 'capture_proof_unavailable', required_cursor }
+  return { ready: false, code: row.mode === 'import_remote' ? 'registry_reconciliation_required' : row.phase === 'prepared' ? 'registration_required' : row.phase === 'completing' && row.remote_state === 'active' ? 'registry_reconciliation_required' : ['captured','completing'].includes(row.phase) ? 'bootstrap_completion_unavailable' : 'capture_proof_unavailable', required_cursor }
 }
 
 /** Dormant installation lineage only. Trusted future coordinator owns project preflight and remote provenance. */

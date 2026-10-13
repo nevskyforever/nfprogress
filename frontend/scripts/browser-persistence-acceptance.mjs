@@ -1,5 +1,6 @@
 /** Real Chromium IDB/Web Locks on a disposable disk profile; isolated auth transport fixtures, actual storage/crypto runtimes. */
 import assert from 'node:assert/strict'
+import { acceptAccountRegistry } from './browser-account-registry-acceptance.mjs'
 import { acceptBootstrapCompletion } from './browser-bootstrap-completion-acceptance.mjs'
 import { acceptInitialNotes } from './browser-initial-note-acceptance.mjs'
 import { acceptLocalAuthority } from './browser-local-authority-acceptance.mjs'
@@ -16,9 +17,11 @@ const cases = []
 let context
 const unexpected = []
 const completionRequests = []
+const registryRequests = []
+const ackRequests = []
 async function start() {
   context = await chromium.launchPersistentContext(directory, { headless: true })
-  context.on('request', request => { const path = new URL(request.url()).pathname; if (!path.startsWith('/api/')) return; if (request.method() === 'POST' && /^\/api\/v1\/cloud\/projects\/[^/]+\/bootstrap\/complete$/.test(path)) completionRequests.push({ path, body: request.postDataJSON() }); else unexpected.push('unrelated API request') })
+  context.on('request', request => { const path = new URL(request.url()).pathname; if (!path.startsWith('/api/')) return; if (request.method() === 'POST' && /^\/api\/v1\/cloud\/projects\/[^/]+\/bootstrap\/complete$/.test(path)) completionRequests.push({ path, body: request.postDataJSON() }); else if(request.method()==='GET'&&path==='/api/v1/cloud/projects/bootstrap')registryRequests.push(path); else { if(path.includes('/sync/ack'))ackRequests.push(path); unexpected.push('unrelated API request') } })
 }
 async function tab() {
   const page = await context.newPage()
@@ -741,7 +744,7 @@ try {
   assert.equal(await projectFailure('importRemote', [scopeA, { ...remoteDescriptor, project_id: projectId }]), 'conflicting_record')
   assert.equal(await projectFailure('importRemote', [scopeA, { ...remoteDescriptor, remote_state: 'initializing' }]), 'corrupt_record')
   assert.deepEqual(await page.evaluate(({ scope, id }) => session.projects.evaluateReadiness(scope, id), { scope: scopeA, id: projectId }), { ready: false, code: 'capture_proof_unavailable', required_cursor: 5 })
-  assert.deepEqual(await page.evaluate(({ scope, id }) => session.projects.evaluateReadiness(scope, id), { scope: scopeA, id: importedProject }), { ready: false, code: 'ack_proof_unavailable', required_cursor: 9 })
+  assert.deepEqual(await page.evaluate(({ scope, id }) => session.projects.evaluateReadiness(scope, id), { scope: scopeA, id: importedProject }), { ready: false, code: 'registry_reconciliation_required', required_cursor: 9 })
   assert.deepEqual(await page.evaluate(() => ['capture','markCompleting','markReady','setPaused','setPhase','patch'].map(name => name in session.projects)), [false,false,false,false,false,false])
   assert.deepEqual(await durableSnapshot(), v3)
   cases.push('explicit remote import is captured/active with zero local cohort; conflicting project/bootstrap reuse rejects; no capture/completing/ready/pause or arbitrary patch API and readiness remains blocked')
@@ -1021,6 +1024,9 @@ try {
   assert.equal(completionRequests.length, 15)
   const retryBodies = completionRequests.filter(r => r.path.includes('/failure-completion/')).map(r => r.body)
   assert.equal(retryBodies.length, 7); retryBodies.forEach(body => assert.deepEqual(body, retryBodies[0]))
+  page = await acceptAccountRegistry({ page, scope: scopeA, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
+  assert.equal(registryRequests.length,16)
+  assert.equal(ackRequests.length,0)
   const finalDurability = await metadataSnapshot()
   const localFinal = await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') }))
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
@@ -1040,7 +1046,7 @@ try {
   assert.deepEqual(await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') })), localFinal)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])
-  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
+  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length+registryRequests.length, registryRequests:registryRequests.length, ACKRequests:ackRequests.length, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
 } finally {
   if (context) await context.close()
   await rm(directory, { recursive: true, force: true })

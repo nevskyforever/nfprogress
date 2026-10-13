@@ -67,6 +67,6 @@ describe('dormant browser project lineage contract', () => {
     expect(browserProjectReadiness(null)).toEqual({ ready: false, code: 'missing_lineage', required_cursor: null })
     expect(browserProjectReadiness(prepared)).toEqual({ ready: false, code: 'registration_required', required_cursor: 0 })
     const imported = { ...prepared, mode: 'import_remote' as const, phase: 'captured' as const, remote_state: 'active' as const, remote_high_water: 0 }
-    expect(browserProjectReadiness(imported)).toEqual({ ready: false, code: 'ack_proof_unavailable', required_cursor: 0 })
+    expect(browserProjectReadiness(imported)).toEqual({ ready: false, code: 'registry_reconciliation_required', required_cursor: 0 })
   })
 })

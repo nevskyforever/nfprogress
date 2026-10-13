@@ -27,11 +27,51 @@ protected apply/heads/applied proofs and conflict/orphan remain separate. No fam
 is implemented by treating mere projectBindings existence as success. C21.1.07
 REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
 
+## C21.1.13 registry / positive ACK stop update
+
+**PARTIAL LOCAL COMPLETE / positive ACK BLOCKED / remote CI PENDING — NOT POLLED.**
+C21.1.12 completed Legacy Note bootstrap independently accepted at
+cc9bfb567afdbccdc77ce4a8aab84cc204757930, Cloud38386112458, all six jobs SUCCESS.
+Explicit current-auth/key-bound full account registry GET reconciliation now validates
+ALL descriptors and full expected-old local binding set before ONE atomic state/high-water
+commit. Only known bindings update; unknown remote projects block, no auto-import/source.
+Bound absence fails whole response; prepared absent remains unregistered. Upload origin
+local, imported origin may be peer; per-project frozen count/HI/max preserved, shared
+account cursor observation never copied into ACK. Schema6/ten stores unchanged.
+
+Only per-binding remote evidence persists. No backend registry generation/ETag exists;
+full-account proof is private/current runtime token and must be refetched after reload.
+No durable complete-account proof fabricated from high-water. Readonly ACK prerequisite
+inventory validates current inbox/Metadata head/proof joins and diagnoses received-only,
+Metadata-authority-only, missing sequence1 and unsupported families, without positive
+proven candidate or invented conflict classification. Metadata joins are structural,
+not fresh crypto reauthentication or native projection/apply ledger equivalence.
+
+Native contiguous_applied_ack_prefix requires exact family applied/outcome or durable
+safe conflict proof for EVERY next sequence through pull. Receipts/active/registry/pull
+alone prove none of this. Browser lacks complete Legacy Note protected apply/self-echo/
+conflict/native-decision ledger and other-family ledger coverage. Thus no browser positive
+ACK/proven write or ACK network operation, even for contiguous Metadata applied rows.
+ACK/proven0, always ready:false, no ready phase. Row-only active status requires registry;
+current registry diagnosis reports pull/apply/unsupported/ACK-proof prerequisites.
+Imported Metadata semantics unchanged. Upload_existing Metadata/Stage/Document/Map/
+Content/Progress/Catalog/Game protected apply/capture not added. Cover material and exact
+self-echo candidate/conflict/orphan/resolution gaps unchanged; complete-project capture
+still absent. C21.1.06 NOT LOCAL COMPLETE, official84.0%, C21 IN PROGRESS, no points.
+
+Local checks: registry29/ACK18/completion49/affected156 =252 PASS; Chromium128 with
+registry16/completion15/ACK0/unrelatedAPI0/page errors0; typecheck/build/workflow/syntax/
+diff/pyc PASS. Cloud explicit mandatory specs and Chromium; SQLite NOT EXPECTED. No new
+backend/PG/native/frozen protocol/crypto contract/dependency. No CI polling. Next proposed
+bounded slice: exact Legacy Note retained-inbound protected apply/self-echo/conflict proof
+representation before positive contiguous ACK or any separately authorized ready work.
+
 ## C21.1.12 exact completing / remote completion update
 
 C21.1.11 REMOTELY ACCEPTED: c1edcbb7befaab1bfff995ae6ef7f61b53e7348b,
 Cloud **38380013246 SUCCESS**, all six required jobs SUCCESS, owner supplied.
-C21.1.12 LOCAL COMPLETE / remote CI PENDING — NOT POLLED. Schema6 unchanged.
+C21.1.12 REMOTELY ACCEPTED: cc9bfb567afdbccdc77ce4a8aab84cc204757930,
+Cloud38386112458 SUCCESS, all six required jobs SUCCESS (owner supplied). Schema6 unchanged.
 Exact complete Legacy cohort + immutable receipts produce captured→completing and
 frozen max (empty0) in one strict source-of-proof transaction. Full expected-old CAS,
 strict phase/counter invariants, exact replay; stale/partial/corrupt/abort fail closed.

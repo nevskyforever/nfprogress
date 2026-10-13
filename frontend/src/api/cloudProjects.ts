@@ -65,9 +65,9 @@ export const cloudProjectsApi = {
     })
   },
 
-  listBootstraps(accessToken: string): Promise<CloudProjectBootstrapListResponse> {
+  listBootstraps(accessToken: string, signal?: AbortSignal): Promise<CloudProjectBootstrapListResponse> {
     return apiRequest<CloudProjectBootstrapListResponse>('/api/v1/cloud/projects/bootstrap', {
-      headers: authorization(accessToken),
+      headers: authorization(accessToken), signal, maxResponseBytes: 2 * 1024 * 1024,
     })
   },
 
