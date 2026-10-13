@@ -1,3 +1,4 @@
+import { verifiedLegacyNoteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { AuthoritativeKeyContextLease, RuntimeKeyContext } from '@/auth/keyContext'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
@@ -52,6 +53,22 @@ export function assertLocalSourceInTransaction(tx: IDBTransaction, scope: Browse
     }
     project.onsuccess = finish; notes.onsuccess = finish
   } catch (error) { abort(error) }
+}
+
+export interface ProtectedNoteSourcePlan { readonly protectedNoteSource: unique symbol }
+interface ProtectedChange {scope:BrowserSyncScope;source:LocalSourceToken;project:LocalProjectRecord;note:LocalNoteRecord;current:()=>boolean}
+const protectedChanges=new WeakMap<object,ProtectedChange>()
+/** Internal verified Note capability only; encrypted writes share the inbox-proof transaction. */
+export function scheduleProtectedNoteApply(tx:IDBTransaction,scope:BrowserSyncScope,token:ProtectedNoteSourcePlan,ready:()=>void,abort:(e:unknown)=>void):void {
+  const p=protectedChanges.get(token)
+  if(!p||!same(p.scope,scope)||!p.current()){abort(new BrowserPersistenceError('stale_source'));return}
+  assertLocalSourceInTransaction(tx,scope,p.source,()=>{
+    const identity=tx.objectStore('localNotes').index('identity').get([scope.accountId,p.note.note_id])
+    identity.onsuccess=()=>{try{if(!p.current())fail('closed');if(identity.result&&validateLocalNoteRecord(identity.result,scope,identity.result.project_id).project_id!==p.project.project_id)fail('conflicting_record')
+      const writes=[tx.objectStore('localProjects').put(p.project),tx.objectStore('localNotes').put(p.note)]
+      writes.forEach(r=>r.onsuccess=()=>{if(!p.current())abort(new BrowserPersistenceError('closed'))});ready()
+    }catch(e){abort(e)}}
+  },abort)
 }
 
 /** Dormant entry point. No UI/HTTP fallback; mutation runtime requires existing normal-user key context. */
@@ -227,6 +244,22 @@ export class BrowserLocalAuthorityRuntime {
       const notes: LocalNoteRecord[] = []
       for (const source of changed) notes.push(await this.noteRow(scope, source, revision, amk))
       return this.write(scope, guard, token, row, notes, deletedAt !== null)
+    })
+  }
+  async prepareProtectedNoteApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:VerifiedLegacyNotePlan):Promise<{token:ProtectedNoteSourcePlan;source_revision:number;note:LocalNoteRecord}> {
+    scope=snapshotBrowserSyncScope(scope);const incoming=verifiedLegacyNoteForLocal(verified,this,scope),p=this.token(scope,token),guard=await this.guard(scope)
+    if(p.project.source_revision===Number.MAX_SAFE_INTEGER)fail('source_limit')
+    return guard.lease.use(async amk=>{
+      const opened=await this.open(scope,p.project,p.notes,amk),revision=p.project.source_revision+1
+      // Native peer payload has local mutation revision0; sync revision stays in Note proof.
+      const source=validateLocalNote(incoming.mutation==='delete'?{state:'tombstone',note:incoming.note,revision:0}:{state:'live',note:{...incoming.note,revision:0}},p.project.project_id)
+      const old=opened.notes.findIndex(n=>n.note.id===source.note.id)
+      if(old<0)opened.notes.push(source);else opened.notes[old]=source
+      if(opened.notes.length>MAX_LOCAL_NOTES)fail('source_limit')
+      opened.project.source_revision=revision;opened.project.member_ids=opened.notes.map(n=>n.note.id).sort(order)
+      const project:LocalProjectRecord={...p.project,source_revision:revision,envelope:await this.seal(scope,p.project.project_id,'project',opened.project,amk)},note=await this.noteRow(scope,source,revision,amk)
+      if(!guard.current())fail('closed');const plan=Object.freeze({}) as ProtectedNoteSourcePlan
+      protectedChanges.set(plan,{scope,source:token,project,note,current:guard.current});return{token:plan,source_revision:revision,note}
     })
   }
   createNote(scope: BrowserSyncScope, token: LocalSourceToken, input: NativeLegacyNote): Promise<number> {

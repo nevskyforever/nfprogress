@@ -1,0 +1,16 @@
+// @vitest-environment node
+import { describe,expect,it } from 'vitest'
+import { imported,received } from './legacyNoteApply.testFixture'
+import { scope } from './bootstrap.testFixture'
+import { validateBrowserInboxRecord } from './syncDurability'
+import { validateBrowserV5State } from './localAuthorityMigration'
+import type { BrowserNoteInboxRecord } from './syncDurability'
+describe('C21.1.14 Note inbox record3 validation',()=>{
+ async function proven(){const f=await imported();await received(f,1);const original=structuredClone(f.db.inbox[0]);await f.notes.apply(scope,1);return{...f,original,row:structuredClone(f.db.inbox[0]) as BrowserNoteInboxRecord}}
+ it('received1 stays unchanged; explicit Note3 uses immutable same wire; no migration manufactures proofs',async()=>{const f=await proven();expect(validateBrowserInboxRecord(f.original,scope)).toEqual(f.original);expect(validateBrowserInboxRecord(f.row,scope)).toEqual(f.row);expect(f.row.wire_item).toBe((f.original as any).wire_item);expect(()=>validateBrowserV5State([scope],[f.db.outbox,[f.row],f.db.cursors,f.db.receipts,f.db.projectBindings,[]])).toThrow();expect(validateBrowserInboxRecord(f.original,scope).state).toBe('received')})
+ it.each([{record_version:99},{state:'applied'},{state:'conflict_proven'},{applied_proof:{}},{extra:true},{account_id:'wrong'},{device_id:'wrong'}])('mixed/future/foreign row rejected %j',async change=>{const f=await proven();expect(()=>validateBrowserInboxRecord({...f.row,...change},scope)).toThrow()})
+ it.each([{outcome:'rejected'},{outcome:'conflict_preserved'},{owner_kind:'project_metadata'},{wire_digest:'bad'},{source_revision:0},{local_note_digest:null},{record_version:2},{extra:true}])('strict Note proof rejects %j',async change=>{const f=await proven();expect(()=>validateBrowserInboxRecord({...f.row,note_proof:{...f.row.note_proof,...change}},scope)).toThrow()})
+ it('changed wire after durable proof fails cryptographic digest check without authority mutation',async()=>{const f=await proven(),r=f.db.inbox[0] as BrowserNoteInboxRecord,w=JSON.parse(r.wire_item);w.object.ciphertext='AAAAAAAAAAAAAAAAAAAAAA';r.wire_item=JSON.stringify(w);const saved=structuredClone(f.db);await expect(f.notes.apply(scope,1)).rejects.toMatchObject({code:'corrupt_record'});expect(f.db).toEqual(saved)})
+ it('changed valid-shaped outcome metadata fails digest verification despite unchanged wire',async()=>{const f=await proven(),r=f.db.inbox[0] as BrowserNoteInboxRecord;r.note_proof.source_revision=3;const saved=structuredClone(f.db);await expect(f.notes.apply(scope,1)).rejects.toMatchObject({code:'corrupt_record'});expect(f.db).toEqual(saved)})
+ it('proof reference/header cannot point to another project/event/revision or source',async()=>{const f=await proven();for(const change of [{project_id:'other'},{event_id:crypto.randomUUID()},{revision:2},{parent_event_id:crypto.randomUUID()}])expect(()=>validateBrowserInboxRecord({...f.row,note_proof:{...f.row.note_proof,header:{...f.row.note_proof.header,...change}}},scope)).toThrow();expect(()=>validateBrowserInboxRecord({...f.row,note_proof:{...f.row.note_proof,reference:{...f.row.note_proof.reference,extra:true}}},scope)).toThrow()})
+})

@@ -29,7 +29,7 @@ REMOTELY ACCEPTED; official84.0%, C21 IN PROGRESS.
 
 ## C21.1.13 registry / positive ACK stop update
 
-**PARTIAL LOCAL COMPLETE / positive ACK BLOCKED / remote CI PENDING — NOT POLLED.**
+**REMOTELY ACCEPTED PARTIAL at f99bbb6beb6e2da84c84ee4ebadafc273e04dd28, Cloud38392639737 SUCCESS, all six jobs; positive ACK correctly BLOCKED.**
 C21.1.12 completed Legacy Note bootstrap independently accepted at
 cc9bfb567afdbccdc77ce4a8aab84cc204757930, Cloud38386112458, all six jobs SUCCESS.
 Explicit current-auth/key-bound full account registry GET reconciliation now validates
@@ -387,3 +387,77 @@ using the existing native DTO/registry rules, with no network/bootstrap activati
 After that foundation is accepted, resume family-specific protected apply; separately
 bound Cover encrypted-material prerequisites and conflict/orphan/resolution handling.
 Do not auto-create binding from a downloaded frame or trust caller-supplied readiness.
+
+## C21.1.14 native outcome audit (before implementation)
+
+C21.1.13 REMOTELY ACCEPTED PARTIAL: f99bbb6beb6e2da84c84ee4ebadafc273e04dd28,
+Cloud38392639737 SUCCESS, all six required jobs SUCCESS (owner supplied).
+Sources: note_sync.rs apply_received_note_with_content (9889+), read_entity_sync_head
+(5515+), causal history/replay (7703+), conflict preservation (7744+), contiguous ACK
+(6693+); tests peer create/update/delete/replay (1126–1256), own echo after newer local
+mutation (1310–1338), timestamp/exact replay, preserved conflicts/restart (1574–1703),
+resolution head/dependencies and same-project/device isolation. TS remote apply and
+Note codec/protocol inspected. No schema or production implementation preceded audit.
+
+| Native outcome | Local authority mutation | Durable material | ACK-safe | Replay |
+| --- | --- | --- | --- | --- |
+| applied | Peer insert/update/delete; exact causal head/revision | Causal history + entity head + applied inbox | Yes for ordinary Note | Exact history/envelope match → already_applied |
+| already_applied | None | Existing exact history/outcome | Same proof as original applied | No new revision/writes |
+| self_echo_applied | No Note reapply, even after later local change | Exact own accepted event/receipt/sequence; causal history, monotone head, applied inbox | Yes | Already applied; newer current Note preserved |
+| conflict | None | Plain marker is insufficient | No | Remains blocking |
+| conflict_preserved (reported conflict) | None | Independent immutable local+remote versions, group/common parent/generation, >=2 full tips and retained parent/history | Only after native joins verify preservation | Exact remote version/group replay |
+| rejected | None | Final diagnostic state, no safe outcome | No (ACK CASE excludes it) | Blocking rejected |
+| orphan | None | Missing project/parent/dependency; retryable | No | Retry once prerequisites available |
+
+Native local Note payload revision is reset to0 by note_payload_from_record; cloud
+semantic revision is separate head/causal-history revision, never project source_revision.
+Create requires no head AND no existing live Note. Update/delete require exact preceding
+head revision and parent; unresolved competing head or local unsealed mutation blocks.
+Native apply checks admitted local project/account binding, not a fresh registry token.
+Browser eligible imported captured/active and upload completing/active with exact cohort
+proof can admit retained-only apply without a new GET. No ready or counters change.
+
+Conflict STOP: current local encrypted Note can later change and does not preserve its
+old branch; retained remote ciphertext alone lacks immutable local candidate versions,
+conflict group/generation/full tip set and resolution decision proofs. No conflict_proven
+marker or new store/schema. Rejected/orphan remain received/unproven. Resolution and
+unsupported routes remain unproven. Clean peer apply/self-echo require exact causal
+history and local source CAS; otherwise stop that event. Positive ACK/proven forbidden.
+
+### C21.1.14 implemented boundary after the native audit
+
+PARTIAL LOCAL COMPLETE / conflict preservation and own-head peer-child prerequisites
+BLOCKED; remote CI PENDING — NOT POLLED. Schema6/ten stores unchanged. Explicit retained
+Legacy Note reader uses normal auth/account/key/session, frozen codec/object crypto,
+opaque plans and same-transaction private source mutation. Active imported captured and
+upload completing with full complete receipt proof admitted; fresh registry not required
+by native retained apply. No network or automatic local source creation.
+
+Clean peer create/update/delete and causal head/parent/revision, current encrypted source
+matching prior peer proof, atomic encrypted membership+Note+inbox outcome and source CAS
+implemented. Native local payload revision0 is separate from cloud revision/source version.
+Same/fresh exact replay does not rewrite source/proof/counters; old proof does not certify
+current modified source as clean. Exact initial self-echo requires immutable accepted
+outbox/receipt/protocol/sequence/device/wire; no Note/source mutation, even after newer
+local edit. Receipt cannot be synthesized; source-device equality alone is insufficient.
+Note inbox record3 outcome applied/self_echo_applied keeps exact original wire, strict
+reference/header/SHA256 and peer encrypted projection digest/source version; accepted
+received1/Metadata-applied2 unchanged, no inferred old-row upgrade or new store/index.
+
+Native conflict independent immutable local/remote version/group/generation/full tips/
+resolution substrate is still absent; no safe conflict proof. Dirty local source or
+sibling head stays received/unproven. Own-head peer-child needs captured source and
+native unsealed-generation history; current authority/outbox alone cannot certify it.
+Rejected and orphan remain blocking; parent-dependency orphan can retry. No Resolution,
+Metadata upload_existing, Stage/Document/Map/Content/Progress/Catalog/Game/Cover apply
+added. Cover/material/conflict/decision/orphan-resolution/full-project capture gaps
+unchanged. Readonly inventory recognizes Note applied and self-echo structurally, but
+ACK/proven0 and eligible:false/ready:false remain mandatory; no positive aggregation.
+
+Note31 incl self-echo8, record19, ACK18, affected278 =346 unique tests PASS; Chromium135,
+apply-network0, prior registry16/completion15/ACK0/unrelatedAPI0/page errors0. Typecheck/
+build/workflow/syntax/diff/protected pyc PASS, existing warnings only. Cloud explicit
+mandatory coverage; SQLite NOT EXPECTED, no skips or CI polling. C21.1.06 NOT LOCAL
+COMPLETE, official84.0%, C21 IN PROGRESS. Next proposed bounded substrate: encrypted
+immutable local candidates/conflict versions with full causal tips/generation/decision
+and own-head clean-source history, before any ACK aggregation or ready transition.

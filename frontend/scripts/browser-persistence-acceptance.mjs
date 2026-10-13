@@ -1,3 +1,4 @@
+import { acceptLegacyNoteApply } from './browser-legacy-note-apply-acceptance.mjs'
 /** Real Chromium IDB/Web Locks on a disposable disk profile; isolated auth transport fixtures, actual storage/crypto runtimes. */
 import assert from 'node:assert/strict'
 import { acceptAccountRegistry } from './browser-account-registry-acceptance.mjs'
@@ -1027,6 +1028,9 @@ try {
   page = await acceptAccountRegistry({ page, scope: scopeA, users, cases, expectCode, tab, reopenProfile: async () => { await context.close(); await start(); return tab() } })
   assert.equal(registryRequests.length,16)
   assert.equal(ackRequests.length,0)
+  const beforeApplyNetwork = completionRequests.length+registryRequests.length+ackRequests.length
+  page = await acceptLegacyNoteApply({ page, scope:scopeA, users, cases, expectCode, reopenProfile:async()=>{await context.close();await start();return tab()} })
+  assert.equal(completionRequests.length+registryRequests.length+ackRequests.length,beforeApplyNetwork)
   const finalDurability = await metadataSnapshot()
   const localFinal = await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') }))
   const retainedProofs = await page.evaluate(() => nativeRows('receipts'))
@@ -1046,7 +1050,7 @@ try {
   assert.deepEqual(await page.evaluate(async () => ({ projects: await nativeRows('localProjects'), notes: await nativeRows('localNotes') })), localFinal)
   cases.push('future schema rejects older client while preserving immutable receipts and accepted encrypted bodies')
   assert.deepEqual(unexpected, [])
-  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length+registryRequests.length, registryRequests:registryRequests.length, ACKRequests:ackRequests.length, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
+  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length+registryRequests.length, registryRequests:registryRequests.length, ACKRequests:ackRequests.length, protectedApplyRequests:0, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
 } finally {
   if (context) await context.close()
   await rm(directory, { recursive: true, force: true })

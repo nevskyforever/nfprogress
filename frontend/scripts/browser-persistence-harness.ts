@@ -1,3 +1,6 @@
+import { encryptObjectBytes } from '../src/crypto'
+import { createNoteSyncPlaintext } from '../src/cloud/encryptedSyncProtocol'
+import { encodeNoteSyncPlaintext } from '../src/cloud/noteSyncCodec'
 import { assertLocalSourceInTransaction } from '../src/platform/web/localAuthority'
 import * as persistence from '../src/platform/web/persistence'
 import { NormalUserAuthRuntime } from '../src/auth/userAuth'
@@ -28,4 +31,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, assertLocalSourceInTransaction, metadataFixture, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

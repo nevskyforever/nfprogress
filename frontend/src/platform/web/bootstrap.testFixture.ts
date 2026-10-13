@@ -1,3 +1,4 @@
+import { BrowserLegacyNoteApply } from './legacyNoteApply'
 // Shared scheduling-contract fixture only. Real IDB/HTTP is validated in Chromium.
 import { afterAll, beforeAll, vi } from 'vitest'
 import { generateAccountMasterKey, type AccountMasterKey } from '@/crypto'
@@ -45,9 +46,10 @@ export async function fixture(ids = ['z','a']) {
   const capture = new BrowserInitialNoteCapture(transaction,localOwner,projects).bind(auth,bindings as never,keys as never)
   await local.initializeProject(scope,{ project: project(), notes: ids.map(id => ({ state: 'live', note: note(id) })) })
   const prepared = await projects.prepare(scope,{ project_id: 'p', mode: 'upload_existing' }), registered = await projects.confirmRegistration(scope,prepared,{ remote_state: 'initializing', remote_high_water: 0 })
+  const notes = new BrowserLegacyNoteApply(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const registry = new BrowserAccountRegistry(transaction, () => !closed).bind(auth,bindings as never,keys as never)
   const completion = new BrowserBootstrapCompletion(transaction, () => !closed).bind(auth,bindings as never,keys as never)
   const mutate = async () => local.updateNote(scope,(await local.readSnapshot(scope,'p')).token,'a',{ title: 'LATER_PRIVATE' },at)
   const accept = async (row: unknown, sequence: number) => sync.commitUploadAcceptance(scope,row as never,{ protocol_version: 2, encrypted_sync_version: 2, current_cursor: sequence, results: [{ event_id: (row as {event_id: string}).event_id, server_sequence: sequence, duplicate: false }] })
-  return { registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
+  return { notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
 }

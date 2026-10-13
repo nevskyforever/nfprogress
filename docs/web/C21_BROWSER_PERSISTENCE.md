@@ -1480,3 +1480,109 @@ new specs explicitly plus existing completion/cursor/inbox and hard-failing Chro
 SQLite NOT EXPECTED; no skips; heavy/native/backend suites and remote CI not run.
 Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE; Cover/self-echo/full-project
 capture/apply remain bounded future prerequisites. No production UI/help changes.
+
+## C21.1.14 retained Legacy Note proof substrate
+
+**PARTIAL LOCAL COMPLETE / conflict preservation BLOCKED; remote CI PENDING — NOT POLLED.**
+C21.1.13 REMOTELY ACCEPTED PARTIAL at f99bbb6beb6e2da84c84ee4ebadafc273e04dd28,
+Cloud38392639737 SUCCESS, all six required jobs SUCCESS (owner supplied). Registry
+accepted, positive ACK correctly blocked. Native outcome table and precise stops:
+[family audit](../cloud/C21_PROTECTED_APPLY_FAMILY_AUDIT.md).
+
+Dormant `session.notes.bind(auth,bindings,keys).prepare(scope,serverSequence)` reads
+exact retained inbox, same-account bindings/outbox/receipts/cursor. Target must already
+be retained with sequence<=pull. No caller plaintext/DTO/proof constructor, network or
+new registry request. Active import captured and upload completing/active are eligible;
+upload complete frozen cohort receipts rechecked at prepare AND commit. Native admitted
+project/account is necessary; fresh registry token is not a native apply prerequisite.
+Canonical encrypted local Project must already exist, never auto-created from ciphertext.
+Only ordinary Note upsert/delete, frozen Legacy codec1, project-owned HTML with null
+Stage/map/node are supported. Other families/Content/Resolution/unsupported variants
+remain received/unproven; malformed crypto/metadata fail closed with bounded codes.
+
+Decrypt/decode/semantic transition and encryption occur outside live IDB. Existing
+object crypto1/AAD1 and frozen Note canonical codec; SHA256 follows Metadata's existing
+immutable protocol+descriptor+object identity pattern. Temporary plaintext byte buffers,
+nonce/cipher/key lease copies are cleared. JSON strings cannot be wiped in JS; decrypted
+DTO is temporary, removed from private plan after protected source preparation and
+never persisted or returned as an apply input. No changes to frozen crypto/frame/codec.
+
+New inbox record3/state note_proven with note_proof (separate from applied_proof) has
+strict exact fields: owner_kind legacy_note; outcome applied/self_echo_applied; account,
+bootstrap, protocol, exact reference/header/mutation, immutable wire_digest/outcome_digest, peer resulting
+source_revision/local_note_digest or self-echo nulls. outcome_digest is SHA256 of the
+complete strict proof body excluding that digest field; detects record corruption, not
+an independent authenticity/ACK certificate. Replays also authenticate frozen plaintext
+and wire identity. Original wire_item remains byte-for-
+byte. Header carries cloud semantic revision/parent; digest of encrypted resulting local
+Note binds clean-source continuation, not a plaintext projection. No conflict_proven,
+rejected-safe or orphan-final variants. received1 and Metadata-applied2 remain unchanged.
+No schema/index/store change or auto-upgrade of existing inbox. v5 migration rejects
+future Note3 rows rather than synthesizing them; v6 validators/readers accept explicit
+new runtime outcomes. Reopen preserves encrypted records; no repairs or fabricated proofs.
+
+Peer head combines exact validated Note outcomes and ordinary sealed/accepted own
+outbox heads; ambiguous equal-revision heads block. Create requires no cloud head and
+no existing local member; update/delete requires exact head revision+1 and direct parent.
+Retained Note history proofs are reauthenticated against their frozen decoded header,
+mutation and immutable wire digest. Peer-child of a proven peer-applied head requires
+current encrypted Note equal the parent's resulting local digest; any intervening local
+Note mutation blocks. Unrelated project edits invalidate an old source plan but a fresh
+snapshot may retry. Own-head peer children are deferred: Web lacks captured local-source/
+unsealed mutation-generation proof, so an old self-echo cannot falsely certify current
+local authority as clean. No fallback based on timestamps or cloud max revision.
+
+Private verified capability lets localAuthority prepare only this exact remote Note;
+there is no public raw putLocalNote DTO API. It reseals Project complete membership and
+changed Note with source_revision+1; native local payload revision is0, matching
+note_sync.rs note_payload_from_record, distinct from cloud revision and Web source token.
+Native delete is logical absence; Web retains encrypted minimal routing tombstone with
+local revision0 and authenticated membership. Future clean native upsert can resurrect
+that same identity. Cross-project Note identity collision aborts both authority/proof.
+
+`commit(plan)` schedules ONE strict transaction over inbox/projectBindings/outbox/
+receipts/cursors/localProjects/localNotes, plus existing identity/account scope guards.
+Full expected-old retained inventory/lineage/outbox/receipt/cursor CAS, exact complete
+upload cohort, private source token and identity index are rechecked before writes.
+Encrypted local authority and Note proof commit only on transaction complete; quota,
+request-success abort, key/auth/session invalidation or source race rolls back ALL.
+No cursor or bootstrap counter/phase writes. Exact same-plan committed replay returns
+already_applied without source/proof rewrite. Fresh sequence replay reauthenticates proof
+and returns already_applied even after later local state changes; does not roll back
+newer source or increment revisions. Changed wire/header/bootstrap/receipt fails closed.
+
+Pure self_echo_applied needs exact retained own immutable accepted outbox+receipt:
+account/device/event/project/Note/protocol/sequence/descriptor/cipher identity, never just
+source-device match. Receipt required, not synthesized from incoming echo. Complete
+initial cohort proof is preserved. It records causal outcome, without reapplying Note or
+changing source_revision, including old initial echo after a newer local mutation.
+Replay still checks accepted receipt and immutable original wire. Later source change
+between prepare/commit invalidates plan; fresh preparation proves echo without rewind.
+
+Conflict STOP: native conflict_preserved uses independent immutable local+remote
+versions, group/common parent/generation/full >=2 tips and retained causal/resolution
+material. Mutable current canonical Note plus inbound ciphertext/outbox receipts do not
+preserve an unsealed historical local candidate across later edits. No final conflict
+proof/store is created. Local-dirty/head-sibling/unsupported resolution cases remain
+unproven; rejected is blocking by native ACK CASE, orphan retryable after parent/dependency
+arrives. Neither is an ACK-safe final outcome. Incoming ciphertext and current local
+version remain retained, but are not advertised as a durable native conflict repository.
+
+ACK inventory adds distinct note_received_only/note_applied/note_self_echo counts with exact binding/proof
+structural validation; received-only and unsupported families remain blockers. Inventory
+is not a fresh AEAD authentication pass or positive contiguous cross-family computation.
+Even all-Note proven fixtures retain proven_prefix0/ack_cursor0/ack_eligible:false/ready:false.
+No ACK network/target, ready phase, orchestrator, other-family apply/capture or UI changes.
+
+Checks: Note31 (self-echo8 included), proof validation19, ACK18, affectedC21278:346
+unique tests/17 files PASS across final focused selections. Chromium135 PASS, protected
+apply requests0; existing registryGET16/completionPOST15/ACK0/unrelatedAPI0/page errors0.
+Includes actual retained crypto, encrypted source, native strict IDB rollback, source
+race/retry, peer causal create/update/delete/resurrection, local-dirty conflict blocker,
+bad receipt/exact old self-echo after newer mutation, replay, renderer/disk-profile reopen
+and received1/Metadata2/Note3 coexistence. Typecheck/build/workflow/syntax/diff/pyc PASS,
+existing chunk/dynamic-import warnings only. Explicit mandatory Cloud new specs plus
+localAuthority/sync/ACK/bootstrap/registry regressions and Chromium; SQLite NOT EXPECTED.
+No skips, dependencies or backend/PG/native/frozen semantics changes; no remote CI polling.
+Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; complete-project/Cover/
+other families/conflict/resolution and positive cross-family ACK remain future slices.
