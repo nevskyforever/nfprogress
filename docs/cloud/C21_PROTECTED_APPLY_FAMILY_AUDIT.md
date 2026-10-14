@@ -848,3 +848,127 @@ Real browser HTTP uses isolated fixtures; no new live PostgreSQL/backend run req
 unchanged frozen implementation. Typecheck/build/YAML/syntax/diff PASS, existing warnings.
 v8 unchanged/no stores/migration/dependency/backend/Native changes. Cloud mandatory contract
 job includes new spec and existing Chromium job includes helper; CI PENDING — NOT POLLED.
+
+## C21.1.20 — reader contract audit BEFORE production edits
+
+C21.1.19 `deda194d8bbb7c5409964971cf2d868fb0c985dd`, Cloud38577509647/all6
+SUCCESS REMOTELY ACCEPTED PARTIAL. Exact interrupted nine-line block removed with
+owner authorization; clean HEAD/origin verified before new checkpoint edits.
+
+Frozen C18.7 compression_id1 means bounded authenticated ID1 reading on canonical
+codecs1–13 alongside ID0. Service.declare_compression_reader only changes that bool;
+compression-reader PUT returns204. ACK requires that bool only after sticky account
+admission, plus registered device/exact account mode/cursor<=server sequence. It does
+NOT require family apply ledgers, writer admission or reader-ready. Separate device
+family fields and reader-ready cover family/transport activation; Native Metadata
+runtime advertises compression separately BEFORE protected apply. Reader contract is
+authenticate→bounded normalize→strict owning canonical decoder→context validation,
+not local authority mutation. Previous .19 conservative blocker can be resolved by
+proving this entire shared read surface, without advertising family apply support.
+
+|ID|Family|Frame codec versions|Existing canonical decoder|Browser safe/native required|Canonical validation|ID0 / ID1 vectors|Malformed rejection|Reader-ready before registry|Blocker before registry|
+|---|---|---|---|---|---|---|---|---|---|
+|1|Project Metadata/cover reference|1,2|unframeProjectMetadata|Yes / No|exact fields, version, canonical bytes|MetadataV2 + shared frame vectors|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|2|Stage|1,2|unframeStructuralEvent|Yes / No|causal/full tips, exact schema/canonical|stageCodecV1 + v2 tests/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|3|Stage order|1,2|unframeStructuralEvent|Yes / No|ID/body family, exact order/heads|stage order golden-derived tests/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|4|Folder|1|unframeCatalogEvent|Yes / No|exact catalog dependency/schema/canonical|accountCatalogV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|5|Folder order|1|unframeCatalogEvent|Yes / No|exact order/dependencies|owning catalog tests/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|6|Folder membership|1|unframeCatalogEvent|Yes / No|exact project/folder dependency proof|owning catalog tests/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|7|Project order|1|unframeCatalogEvent|Yes / No|exact membership/project dependencies|owning catalog tests/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|8|Content Note (embedded ordinary1/Resolution2)|1|unframeContentNote|Yes / No|owning C15/C17 serializers + portable Note|contentNoteCodecV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|9|Map|1|unframeMapEvent|Yes / No|graph/domain IDs/canonical + WebCrypto SHA|mapCodecV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|10|Document|1|unframeDocumentEvent|Yes / No|bounded Tiptap/domain/canonical|documentCodecV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|11|Progress|1|unframeProgressEvent|Yes / No|integer micros/facts/domain/canonical|progressCodecV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|12|Project Game|1|unframeGameEvent(project)|Yes / No|scope/domain/action/canonical|gameCodecV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+|13|Account Game|1|unframeGameEvent(account)|Yes / No|scope/domain/action/canonical|gameCodecV1/shared compression|Yes|NO integrated surface; pure reader YES|Missing authenticated registry/matrix evidence|
+
+No Tauri/SQLite imports in owning decoders; Map uses browser WebCrypto only.
+Generic compressed vectors prove framing, not canonical entities: integrated tests
+must authenticate actual owning fixtures for every ID/version, force ID1 (small
+fixtures need not pass writer policy), then compare exact validated canonical data.
+IDs6/7 use existing owning-test examples where no standalone golden exists. No new
+wire truth. Explicit registry rejects unknown ID/version and wrong crypto context;
+project v1 AEAD / account v2 AEAD remain unchanged. Decompression after AEAD only.
+
+Registration/capability operations separate; runtime opaque evidence tied to owner
+auth epoch/session/scope, no store. Capability exact PUT{device_id,compression_id1:true},
+empty204 required; no writer/family/reader-ready request. Mode from authenticated
+V2 capabilities, never inbox. ACK fresh mode chooses v1/v2/v3 exact existing endpoints;
+204 required, monotonic server duplicates/lower retries safe (SyncService.ack).
+Local target exclusively committed prefix, original crypto/CAS inventory and fresh
+registry revalidated; strict cursor-only commit after server success. Missing/apply
+barriers unchanged even if a canonical object becomes readable. No ready/schema change.
+
+### C21.1.20 bounded result
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**, bounded canonical-reader/capability/
+ACK surface only. Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; no roadmap points.
+Owner-approved cleanup removed only exact interrupted mode-2 preflight block; clean accepted
+HEAD/origin verified before new edits. .19 `deda194d8bbb7c5409964971cf2d868fb0c985dd`, Cloud
+`38577509647` SUCCESS / all six jobs SUCCESS / REMOTELY ACCEPTED PARTIAL recorded.
+
+Exact contract/matrix BEFORE production in family audit. Reader means authenticated bounded
+ID0/ID1 normalization followed by owning canonical/domain validation, not protected apply.
+All13 pure TS decoders already existed; integrated Web registry/authenticated proof was missing.
+Matrix: ID1 Metadata versions1/2; ID2 Stage and ID3 Stage order versions1/2; IDs4 Folder,
+5 Folder order,6 Folder membership,7 Project order,8 Content Note,9 Map,10 Document,
+11 Progress,12 Project Game,13 Account Game version1. Content Note embeds ordinary1/Resolution2.
+All owning canonical/schema/domain validators reused; no duplicate format or apply extraction.
+`openBrowserCanonicalObject` authenticates project-v1/account-v2 AEAD BEFORE dispatch or
+normalization, exact family/version/reference binding; unknown/malformed/future data fail
+closed. Shared C18 limits/checksum/single-stream/length/ratio rejection unchanged. No storage,
+network, apply, writer or readiness side effect. Frozen owning/golden and TS/Rust compression
+vectors remain regression inputs; matrix uses canonical fixtures/owning test examples for6/7.
+
+Separate explicit dormant operations: `session.device.bind(auth,binding).registerVerified(scope)`
+issues ONE identity PUT and mints opaque runtime evidence; old registerOnce result unchanged.
+`session.readers.bind(auth,binding).declare(scope,deviceToken)` reads authoritative authenticated
+V2 capabilities then exact existing PUT compression-reader-capabilities{device_id,compression_id1:true}.
+Empty successful response required; before/after read-only durable scope/auth/session checks.
+No family declaration, reader-ready, cutover, compression-writer/admission. WeakMap evidence
+binds auth instance/epoch/session/account/device and current registration; no local cache/store.
+Reload uses same device and separate explicit registration/redeclaration. Existing server caps
+are never downgraded by these calls. Server registration last_ack_cursor remains metadata only.
+
+`proven.prepareAck(scope,readerToken,registryToken)` authenticates original prefix inventory,
+requires current registration/reader evidence, current registry/exact bindings and existing
+pull-caught-up prerequisite. Target ONLY DURABLE proven_prefix, never calculated-but-uncommitted
+prefix/pull/high-water/server ACK. Opaque prepared token; no registration/capability/discovery
+inside ACK. Fresh authoritative mode/epoch in prepare AND before send; changed mode rejects
+without fallback. Exact existing mode1/2/3 endpoints, maxONE ACK HTTP per invocation; empty
+success required. Conservative legacy ackStatus receives no reader token/mode proof and remains
+fail-closed; activation uses the explicit gated API. No broad orchestration/background loop.
+
+After confirmed success private strict transaction rechecks current auth/key/session/reader/
+registration, entire authenticated inventory CAS and registry, recomputes structural prefix,
+checks expected-old ACK and cursor bounds, writes ONLY ack_cursor. Auth invalidation abort
+listener and session close abort pending transactions; native IDB completion precedes success.
+ACK-only concurrent progress/replay is safe; changed prefix/pull/history/lineage requires new
+explicit preparation. Lost HTTP response or local commit abort leaves local ACK old; exact
+retry server duplicate monotonically accepted. Lower stale target never decreases state.
+Readable-but-not-applied Document/Stage/Map remain unsupported-family barriers; Metadata
+received/authority-only remains proof gap. C21.1.18 aggregation unchanged. ready=false always.
+Schema8→8, no stores/index/migration/dependency/backend/Native/frozen-contract changes.
+
+Checks: **381 unique tests /19 focused files PASS** (initial376 + five additional race/evidence
+cases; final reader/ACK file44 PASS). Canonical matrix152 includes all16 ID/version pairs,
+ID0/ID1 equivalence, eight malformed categories each, authentication/context and frozen bomb/
+limits/concatenation rejection. Reader/ACK44 includes modes1/2/3, response/capability/registry/
+identity evidence failures, stale source before and after HTTP, logout/key/close, lost response/
+local abort/retry, replay/lower target, four readable-family barriers. Existing owning codec,
+compression-vector, prefix/identity/open/migration regressions PASS; no skip/xfail.
+
+Real Chromium **181 groups PASS**: all13 IDs/all16 versions, ID0/ID1 equivalence +128 malformed
+matrix checks, all12 stores unchanged by reading; real registration/ID1-only capability/current
+mode3/registry gates; failure→lost response→registration metadata7/localACK0→server success/local abort→exact retry ACK7; only
+cursor changes; replay no HTTP; reload/disk reopen device unchanged/proven7/ACK7/pull9, Document8
+barrier and Note9 retained; stale auth revokes runtime evidence, readyfalse/page errors0.
+TotalAPI67: identity registration15 (prior11 + new4), capability4, modeGET9, ACK4, bootstrap
+completion16 (prior unchanged), registry19 (prior16 + new3), push/pull/Resolution/unrelated0.
+HTTP responses are isolated fixtures faithful to frozen backend semantics, not live production
+server verification. Modes1/2 verified in focused tests; Chromium bounded ACK uses mode3.
+
+Typecheck/production build/YAML/JS syntax/diff/protected pyc PASS; existing Vite warnings only.
+Mandatory Cloud contract job includes canonicalReaders.spec.ts and readerAck.spec.ts; existing
+mandatory Chromium gate invokes reader/ACK helper. Cloud EXPECTED, SQLite NOT EXPECTED; no
+Actions polling. Early invalid test fixtures/canonical comparison corrected, no remaining failure.

@@ -2,7 +2,14 @@ import { syncApi, type SyncDeviceResponse } from '@/api/sync'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { BrowserPersistenceError } from './persistence'
-import { snapshotBrowserSyncScope, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
+import { immutableWireIdentity, snapshotBrowserSyncScope, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
+
+export interface VerifiedBrowserDevice { readonly verifiedBrowserDevice: unique symbol }
+const devices = new WeakMap<object, { scope: BrowserSyncScope; auth: NormalUserAuthRuntime; current: () => boolean }>()
+export function currentBrowserDevice(token: VerifiedBrowserDevice, scope: BrowserSyncScope, auth: NormalUserAuthRuntime): boolean {
+  const proof = devices.get(token)
+  return !!proof && proof.auth === auth && proof.current() && immutableWireIdentity(proof.scope) === immutableWireIdentity(scope)
+}
 
 /** Registration envelope version is independent of the account writer transport. */
 export function validateBrowserDeviceRegistration(value: unknown, deviceId: string): SyncDeviceResponse {
@@ -24,6 +31,16 @@ export class BrowserDeviceRegistration {
 export class BrowserDeviceRegistrationRuntime {
   constructor(private readonly transaction: BrowserSyncTransaction, private readonly sessionCurrent: () => boolean,
     private readonly auth: NormalUserAuthRuntime, private readonly bindings: AuthoritativeAccountBinding) {}
+
+  async registerVerified(input: BrowserSyncScope): Promise<VerifiedBrowserDevice> {
+    const scope = snapshotBrowserSyncScope(input), context = this.auth.requireContext()
+    await this.registerOnce(scope)
+    const current = () => this.sessionCurrent() && this.auth.isCurrent(context)
+    if (!current()) throw new BrowserPersistenceError('closed')
+    const token = Object.freeze({}) as VerifiedBrowserDevice
+    devices.set(token, { scope, auth: this.auth, current })
+    return token
+  }
 
   async registerOnce(input: BrowserSyncScope): Promise<{ deviceId: string; serverAckCursor: number; ready: false }> {
     const scope = snapshotBrowserSyncScope(input)
