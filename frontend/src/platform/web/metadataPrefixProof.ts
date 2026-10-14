@@ -19,16 +19,17 @@ export function verifiedMetadataSequences(token: VerifiedMetadataPrefix | undefi
   return new Set(p.sequences)
 }
 /** Crypto outside transactions. Certificate contains exact non-secret anchors, never plaintext/key. */
-export async function prepareMetadataPrefix(scope:BrowserSyncScope,v:BrowserPrefixInventory,amk:AccountMasterKey,current:()=>boolean):Promise<VerifiedMetadataPrefix>{
+export async function prepareMetadataPrefix(scope:BrowserSyncScope,v:BrowserPrefixInventory,amk:AccountMasterKey,current:()=>boolean,force=false):Promise<VerifiedMetadataPrefix>{
  const rows=v.rows.map(r=>validateBrowserInboxRecord(r,scope)),bindings=v.bindings.map(b=>validateBrowserProjectBinding(b,scope)),sequences=new Set<number>()
  for(const rawHead of v.owners){
+  if((rawHead as {owner_kind:string}).owner_kind==='stage')continue
   const head=validateBrowserMetadataHead(rawHead,scope),binding=bindings.find(b=>b.project_id===head.owner_id)
   if(!binding||binding.mode!=='import_remote'||binding.phase!=='captured'||binding.remote_state!=='active'||binding.bootstrap_id!==head.bootstrap_id)continue
   if(v.out.some(r=>JSON.parse((r as {raw_body:string}).raw_body).items.some((i:{event:{entity_type:string;project_id:string}})=>i.event.entity_type==='project_metadata'&&i.event.project_id===head.owner_id)))continue
   const ordered=[...head.history].sort((a,b)=>a.server_sequence-b.server_sequence)
   // Successful bounded apply produces one ordinary clean chain, never a preserved conflict/resolution.
   if(ordered.some((p,i)=>p.source_device_id===scope.deviceId||!['create','update','delete'].includes(p.operation)||i===0&&(p.operation!=='create'||p.revision!==1||p.generation!==1||p.parent_event_ids.length!==0)||i>0&&(!same(p.parent_event_ids,[ordered[i-1]!.event_id])||p.revision!==ordered[i-1]!.revision+1||p.generation<=ordered[i-1]!.generation||p.server_sequence<=ordered[i-1]!.server_sequence))||!same(head.tip_event_ids,[ordered.at(-1)!.event_id]))continue
-  const decrypt=ordered.some(p=>p.server_sequence>v.cursor.proven_prefix)
+  const decrypt=force||ordered.some(p=>p.server_sequence>v.cursor.proven_prefix)
   let valid=true
   for(const proof of ordered){
    const row=rows.find(r=>r.event_id===proof.event_id)

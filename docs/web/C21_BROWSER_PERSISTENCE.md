@@ -2187,3 +2187,47 @@ public UI/help/localization behavior change. Next bounded family apply remains f
 - Конфликт, неприменённые данные, неподдерживаемый вариант или обложка по-прежнему останавливают цепочку перед собой.
 - Остальные виды данных ещё не все умеют безопасно применяться к проекту; полная синхронизация в браузере не готова.
 - Следующий шаг — добавить безопасное применение следующего вида данных, например этапов проекта, сохранив проверки остальных ограничений.
+
+## C21.1.22 — bounded encrypted Stage entity authority and ACK proof
+
+Accepted .21 `5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f`, Cloud38595238961 SUCCESS,
+all six required jobs SUCCESS / REMOTELY ACCEPTED. .22 LOCAL COMPLETE, remote CI
+PENDING — NOT POLLED. Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE, readyfalse.
+
+Stage reader-ready YES; protected apply PARTIAL. Peer clean v1 create/v1-v2 one-tip
+update ID0/ID1, import_remote/captured/active only. Authenticated same-project/bootstrap
+known nondelete Metadata dependency (ancestor permitted) and current active authority;
+exact tip parents and parent revision/generation+1. Full wire/header/digest comparison.
+Delete/order/conflict/orphan/self-echo/upload-existing/local writer stay excluded.
+
+v8 unchanged,12 stores, no migration/index/dependency/backend/native edits. New strict
+ownerHeads kind=stage uses canonical JSON tuple[project,stage], validates explicit scope,
+keeps nonsecret full proof history and winner tip; inbox5/stage_proven retains original
+ciphertext, strict proof discriminator/allowlist, old1–4 preserved. Same-stage IDs in
+two projects have independent durable heads and decrypted winners. Historical older
+migration validators reject impossible Stage outcomes without mutating their input.
+
+stageApply prepare crypto outside IDB; opaque nonsecret plans bind full original
+inventory including Meta head/history/binding, Stage head/history, inbox/outbox/receipt,
+cursors and current auth/key/session. Strict same readwrite transaction rechecks ALL
+anchors before atomic head+inbox writes; no cursor change. Stale/corrupt/revoked/aborted
+plans fail closed with no partial authority. Reload read reauthenticates histories and
+returns winner plaintext in memory only; no durable Stage payload/projection/order.
+
+stage prefix opaque certificate reauthenticates unproven Stage and Metadata dependency;
+structural proof alone never promotes. Historical already-proven Stage retains prefix
+with exact full joins/digest/causal evidence and no unnecessary decrypt solely for
+retention. Certificate/current scope/anchors recalculated in prefix+ACK transactions.
+Note/Metadata safe classes and other barriers/account-wide no-skip walk unchanged.
+Note1+Metadata2+Stage3+Note4→4; received/conflict Stage3 blocks at2; order5 blocks Note6
+at4; Document after safe Stage still barrier. Existing ACK transport/gates unchanged,
+one explicit request max/attempt, lost-response/local-abort retry and no-progress safe.
+
+Validation:491 unique/18 relevant files,73 Stage tests; Chromium189 groups, native IDB/
+Web Locks/reload/disk reopen, Stage abort/key/logout/isolation PASS; page errors0.
+Total explicit API95: registration19/capability8/mode21/registry23/ACK8/bootstrap16;
+new slice delta14 includes2 explicit ACK, Stage apply/proof/prefix0, pull/push/Resolution/
+unrelated0. Typecheck, production build, workflow syntax and diff checks PASS.
+Stage specs mandatory Cloud; Cloud EXPECTED, SQLite NOT EXPECTED, CI not polled.
+Next bounded slice: native Stage-order dependency/authority/proof audit and clean apply,
+without Stage delete/conflict/local producer or readiness expansion.

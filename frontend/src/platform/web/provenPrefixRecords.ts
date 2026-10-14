@@ -1,3 +1,4 @@
+import { stageSequences,type VerifiedStagePrefix } from './stageApply'
 import { verifiedMetadataSequences, type VerifiedMetadataPrefix } from './metadataPrefixProof'
 import { deriveInitialLegacyCohort } from './initialNoteCapture'
 import { BrowserPersistenceError } from './persistence'
@@ -12,11 +13,11 @@ export interface BrowserPrefixResult {current_proven_prefix:number;candidate_pro
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
 const bad=():never=>{throw new BrowserPersistenceError('corrupt_record')}
 /** Pure structural calculation. Runtime authenticates these exact immutable rows before any commit. */
-export function calculateBrowserPrefix(scope:BrowserSyncScope,v:BrowserPrefixInventory,metadata?:VerifiedMetadataPrefix):BrowserPrefixResult{
+export function calculateBrowserPrefix(scope:BrowserSyncScope,v:BrowserPrefixInventory,metadata?:VerifiedMetadataPrefix,stage?:VerifiedStagePrefix):BrowserPrefixResult{
  const {cursor}=v,rows=v.rows.map(r=>validateBrowserInboxRecord(r,scope)).sort((a,b)=>a.server_sequence-b.server_sequence),bindings=v.bindings.map(b=>validateBrowserProjectBinding(b,scope)),history=validateNoteHistorySet(scope,v.history)
  for(const b of bindings)if(b.mode==='upload_existing'&&b.phase==='completing'&&b.remote_state==='active')deriveInitialLegacyCohort(scope,b,v.out,v.receipts)
- inspectBrowserAckInventory(scope,cursor,v.rows,v.owners,bindings,v.history,metadata?{token:metadata,inventory:v}:undefined)
- const qualified=new Set<number>(verifiedMetadataSequences(metadata,scope,v)),counts={applied:0,self_echo:0,conflict:0,unsealed_conflict:0}
+ inspectBrowserAckInventory(scope,cursor,v.rows,v.owners,bindings,v.history,metadata?{token:metadata,inventory:v}:undefined,stage?{token:stage,inventory:v}:undefined)
+ const qualified=new Set<number>([...verifiedMetadataSequences(metadata,scope,v),...stageSequences(stage,scope,v)]),counts={applied:0,self_echo:0,conflict:0,unsealed_conflict:0}
  for(const r of rows){if(r.state==='note_proven'||r.state==='note_conflict_preserved'){
    const p=r.state==='note_proven'?r.note_proof:r.note_conflict_proof,c=history.find((h):h is BrowserNoteCandidate=>h.record_kind==='candidate'&&h.event_id===r.event_id),wire=JSON.parse(r.wire_item),{device_id:source,server_sequence:_seq,...event}=wire.event
    if(!c||c.bootstrap_id!==p.bootstrap_id||c.project_id!==p.header.project_id||c.note_id!==p.header.entity_id||c.source_device_id!==source||c.protocol_version!==r.protocol_version||!same(c.header,p.header)||!same(JSON.parse(c.wire_item),{event,object:wire.object}))bad()

@@ -1,14 +1,15 @@
+import {stageSequences,type VerifiedStagePrefix} from './stageApply'
 import { verifiedMetadataSequences, type VerifiedMetadataPrefix } from './metadataPrefixProof'
 import type { BrowserPrefixInventory } from './provenPrefixRecords'
 import { validateNoteHistorySet, type BrowserNoteCandidate, type BrowserNoteConflictGroup } from './noteHistoryRecords'
 import { BrowserPersistenceError } from './persistence'
 import { validateBrowserInboxRecord, immutableWireIdentity, type BrowserSyncScope, type BrowserSyncCheckpoint } from './syncDurability'
-import { validateBrowserMetadataHead } from './metadataApplyRecords'
+import { validateBrowserOwnerHead } from './stageRecords'
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
 
 export type BrowserAckPrerequisiteCode = 'registry_reconciliation_required' | 'bootstrap_completion_unavailable' | 'pull_required' | 'protected_apply_required' | 'unsupported_family_proof' | 'ack_proof_unavailable' | 'ack_transport_unavailable'
 export interface BrowserAckInventory {
-  metadata_applied_verified?:number; note_conflict_preserved:number; note_received_only: number; note_applied: number; note_self_echo: number; received_only: number; metadata_authority_only: number; missing_next_sequence: boolean
+  stage_applied_verified?:number; stage_authority_only?:number; metadata_applied_verified?:number; note_conflict_preserved:number; note_received_only: number; note_applied: number; note_self_echo: number; received_only: number; metadata_authority_only: number; missing_next_sequence: boolean
   unsupported_families: string[]; first_unproven_sequence: number | null; proven_prefix: number
 }
 export interface BrowserAckPrerequisites {
@@ -17,13 +18,14 @@ export interface BrowserAckPrerequisites {
 }
 function corrupt(): never { throw new BrowserPersistenceError('corrupt_record') }
 /** Exact durable record inventory. Metadata authority is NOT a general native apply/ACK ledger. */
-export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: BrowserSyncCheckpoint, inbound: unknown[], heads: unknown[], bindings: BrowserProjectBinding[],history:unknown[]=[],metadata?:{token:VerifiedMetadataPrefix;inventory:BrowserPrefixInventory}): BrowserAckInventory {
+export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: BrowserSyncCheckpoint, inbound: unknown[], heads: unknown[], bindings: BrowserProjectBinding[],history:unknown[]=[],metadata?:{token:VerifiedMetadataPrefix;inventory:BrowserPrefixInventory},stage?:{token:VerifiedStagePrefix;inventory:BrowserPrefixInventory}): BrowserAckInventory {
   if (!Number.isSafeInteger(cursor.ack_cursor)||cursor.ack_cursor<0||!Number.isSafeInteger(cursor.proven_prefix)||cursor.proven_prefix<cursor.ack_cursor||cursor.proven_prefix>cursor.pull_cursor|| !Number.isSafeInteger(cursor.pull_cursor) || cursor.pull_cursor < 0) corrupt()
   const rows = inbound.map(v => validateBrowserInboxRecord(v,scope)), sequences = new Set<number>(), events = new Set<string>()
   const certified=metadata?verifiedMetadataSequences(metadata.token,scope,metadata.inventory):new Set<number>()
+  const stageCertified=stage?stageSequences(stage.token,scope,stage.inventory):new Set<number>()
   const noteHistory=validateNoteHistorySet(scope,history)
-  const owners = heads.map(v => validateBrowserMetadataHead(v,scope))
-  if (new Set(owners.map(h=>h.owner_id)).size !== owners.length) corrupt()
+  const owners = heads.map(v => validateBrowserOwnerHead(v,scope))
+  if (new Set(owners.map(h=>JSON.stringify([h.owner_kind,h.owner_id]))).size !== owners.length) corrupt()
   const inventory: BrowserAckInventory = {note_conflict_preserved:0,note_received_only:0,note_applied:0,note_self_echo:0,received_only:0,metadata_authority_only:0,missing_next_sequence:cursor.pull_cursor>cursor.proven_prefix&&!rows.some(r=>r.server_sequence===cursor.proven_prefix+1),unsupported_families:[],first_unproven_sequence:cursor.pull_cursor>cursor.proven_prefix?cursor.proven_prefix+1:null,proven_prefix:cursor.proven_prefix}
   const families = new Set<string>()
   for (const r of rows) {
@@ -39,16 +41,21 @@ export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: Brow
       for(const member of g.members){if(member.source==='local_unsealed'){const frozen=noteHistory.find(v=>v.record_kind==='local_version'&&v.version_id===member.version_id);if(!frozen)corrupt();continue}const incoming=rows.find(r=>r.event_id===member.event_id);if(!incoming||incoming.server_sequence!==member.server_sequence)corrupt();if(member.source==='remote_applied'){if(incoming.state!=='note_proven')corrupt()}else if(incoming.state!=='note_conflict_preserved'||incoming.note_conflict_proof.group_id!==g.group_id||incoming.note_conflict_proof.conflict_generation!==member.conflict_generation)corrupt()}
       inventory.note_conflict_preserved++
     }
+    else if(r.state==='stage_proven'){
+      const p=r.stage_proof,h=owners.find(h=>h.owner_kind==='stage'&&h.project_id===p.project_id&&h.stage_id===p.stage_id),b=bindings.find(b=>b.project_id===p.project_id)
+      if(!h||!b||b.mode!=='import_remote'||b.phase!=='captured'||b.remote_state!=='active'||b.bootstrap_id!==p.bootstrap_id||!h.history.some(v=>immutableWireIdentity(v)===immutableWireIdentity(p)))corrupt()
+      if(stageCertified.has(r.server_sequence))inventory.stage_applied_verified=(inventory.stage_applied_verified??0)+1;else inventory.stage_authority_only=(inventory.stage_authority_only??0)+1
+    }
     else {
-      const proof = r.applied_proof, head = owners.find(h=>h.owner_id===proof.project_id), binding = bindings.find(b=>b.project_id===proof.project_id)
+      const proof = r.applied_proof, head = owners.find(h=>h.owner_kind==='project_metadata'&&h.owner_id===proof.project_id), binding = bindings.find(b=>b.project_id===proof.project_id)
       if (!head || !binding) corrupt()
       const lineage = validateBrowserProjectBinding(binding,scope)
       if (lineage.mode !== 'import_remote' || lineage.phase !== 'captured' || lineage.remote_state !== 'active' || head.bootstrap_id!==lineage.bootstrap_id || !head.history.some(p=>immutableWireIdentity(p)===immutableWireIdentity(proof))) corrupt()
       if(certified.has(r.server_sequence))inventory.metadata_applied_verified=(inventory.metadata_applied_verified??0)+1;else inventory.metadata_authority_only++
     }
-    if (event.entity_type !== 'project_metadata' && r.state!=='note_proven'&&r.state!=='note_conflict_preserved') families.add(event.entity_type)
+    if (event.entity_type !== 'project_metadata' && r.state!=='note_proven'&&r.state!=='note_conflict_preserved'&&!stageCertified.has(r.server_sequence)) families.add(event.entity_type)
   }
-  for (const h of owners) for (const p of h.history) if (!rows.some(r=>r.state==='applied' && r.event_id===p.event_id && immutableWireIdentity(r.applied_proof)===immutableWireIdentity(p))) corrupt()
+  for (const h of owners) for (const p of h.history) if (!rows.some(r=>r.event_id===p.event_id && (h.owner_kind==='stage'?r.state==='stage_proven'&&immutableWireIdentity(r.stage_proof)===immutableWireIdentity(p):r.state==='applied'&&immutableWireIdentity(r.applied_proof)===immutableWireIdentity(p)))) corrupt()
   inventory.unsupported_families=[...families].sort()
   // Structural inventory only; explicit authenticated prefix runtime performs aggregation. Metadata
   // and unsupported families still lack native ledgers. Note outcomes alone are not ACK.

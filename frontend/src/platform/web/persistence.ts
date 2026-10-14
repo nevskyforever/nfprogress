@@ -1,3 +1,4 @@
+import { BrowserStageApply } from './stageApply'
 import { BrowserReaderCapability } from './readerCapability'
 import { BrowserDeviceRegistration } from './deviceRegistration'
 import { BrowserProvenPrefix } from './provenPrefix'
@@ -212,6 +213,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
 class BrowserPersistence implements CloudIdentityRepository, CloudAccountBindingRepository {
   readonly sync: BrowserSyncDurability
   readonly projects: BrowserProjectBindings
+  readonly stages: BrowserStageApply
   readonly metadata: BrowserImportedMetadataApply
   readonly localSource: BrowserLocalAuthority
   readonly initialNotes: BrowserInitialNoteCapture
@@ -245,6 +247,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.device = new BrowserDeviceRegistration((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.proven = new BrowserProvenPrefix((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.registry = new BrowserAccountRegistry((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
+    this.stages = new BrowserStageApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.metadata = new BrowserImportedMetadataApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.sync)
     database.onversionchange = () => { void this.close() }
     database.onclose = () => { void this.close() }

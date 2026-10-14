@@ -1092,3 +1092,99 @@ runner. Cloud EXPECTED, SQLite NOT EXPECTED. No backend/PG/Alembic/Native/Rust/S
 dependencies/frozen contracts; no Actions polling. Initial oversized/missing-source
 fixtures corrected; no remaining failures. Internal dormant infrastructure only, no
 public UI/help/localization behavior change. Next bounded family apply remains future.
+
+## C21.1.22 — Native Stage outcome matrix BEFORE implementation
+
+Accepted .21 5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f / Cloud38595238961/all6
+SUCCESS REMOTELY ACCEPTED. Clean fetched6.0 before checkpoint edits.
+
+Audit stageCodec/stageStructuralRuntime/SQLiteStageStructuralRepository and Rust
+stage_sync::dependency/apply/write_stage, native structural ACK SQL in note_sync.
+Clean peer Stage create without authenticated Stage-order YES; clean update without
+order mutation YES. Native write_stage creates a compatibility placement only for
+new Stage, explicitly NOT order authority; no Web ordering/projection is synthesized.
+Native ACK joins completed structural ledger/event/server sequence/outcome/exact
+nonce/ciphertext, not plaintext stages or compatibility ordering/projection. Thus
+encrypted Stage authority/history plus verified ledger-equivalent proof is sufficient.
+
+|Native outcome|Required exact evidence|Web bounded result|
+|---|---|---|
+|applied create|no parents, revision1/generation1, valid dependency, no competing local/genesis|Supported|
+|applied update|exact current tips, known parents same project/type/entity, max revision+1 AND max generation+1|One-tip create/update chain only; v1/v2|
+|exact replay|same canonical frame/object and completed ledger; no descendant rollback|Supported|
+|conflict_preserved|durable event/full causal tips + matching structural apply ledger/object|Not implemented; received barrier|
+|orphan|missing Metadata/parent/dependency, no completed safe ledger|Unsafe|
+|tombstone_blocked|delete has no complete child manifest; orphan inbox, no safe apply ledger|Unsafe; delete excluded|
+|self echo|own sealed/accepted outbox exact scope/object and local candidate/publication/receipt recovery|No Web producer; excluded|
+
+Metadata dependency native requires exact known non-delete applied/conflict-preserved
+Metadata event with same account/project/bootstrap and matching apply ledger, plus
+CURRENT Metadata authority state active. It need not be the latest tip: a known
+non-delete ancestor is acceptable while current authority remains active. Web supports
+only accepted clean imported coverless applied Metadata; reauthenticate full relevant
+Metadata history before Stage apply/new prefix proof. Never satisfy by arbitrary head.
+
+No v9/store/index change needed: ownerHeads existing [account,kind,owner_id] can use
+kind=stage, owner_id=canonical JSON [project_id,stage_id], with explicit validated
+project/stage fields; reversible/collision-free for arbitrary valid IDs. Do not assume
+global Stage IDs. Strict new Stage proof/head allowlists only non-secret IDs/causal
+fields/hash/reference; actual portable value remains encrypted original inbox.
+Inbox standalone Stage proven discriminator/record5 avoids overloading Metadata
+record2 or changing old1–4 schemas; same stores/indexes, no migration. Historical
+pre-v8 validators remain Metadata-only and reject impossible Stage state.
+
+Apply crypto outside IDB; private plan binds whole original project/head/inbox/Meta
+dependency/cursor/outbox/receipt inventory and current auth/key/session. Strict same
+transaction rechecks anchors then atomically writes Stage head + Stage proven inbox.
+No cursor mutation, plaintext store, order/delete/conflict/self-echo/local writer or
+upload-existing scope. Opaque prefix certificate gates individually safe Stage rows;
+Stage-order and other families remain barriers. Stage historical proven prefix may
+retain structurally/digest validated old authority without redundant Stage decrypt.
+Rehydration decrypts winning retained event after unlock; no editor/UI wiring.
+
+## C21.1.22 — bounded encrypted Stage entity authority and ACK proof
+
+Accepted .21 `5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f`, Cloud38595238961 SUCCESS,
+all six required jobs SUCCESS / REMOTELY ACCEPTED. .22 LOCAL COMPLETE, remote CI
+PENDING — NOT POLLED. Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE, readyfalse.
+
+Stage reader-ready YES; protected apply PARTIAL. Peer clean v1 create/v1-v2 one-tip
+update ID0/ID1, import_remote/captured/active only. Authenticated same-project/bootstrap
+known nondelete Metadata dependency (ancestor permitted) and current active authority;
+exact tip parents and parent revision/generation+1. Full wire/header/digest comparison.
+Delete/order/conflict/orphan/self-echo/upload-existing/local writer stay excluded.
+
+v8 unchanged,12 stores, no migration/index/dependency/backend/native edits. New strict
+ownerHeads kind=stage uses canonical JSON tuple[project,stage], validates explicit scope,
+keeps nonsecret full proof history and winner tip; inbox5/stage_proven retains original
+ciphertext, strict proof discriminator/allowlist, old1–4 preserved. Same-stage IDs in
+two projects have independent durable heads and decrypted winners. Historical older
+migration validators reject impossible Stage outcomes without mutating their input.
+
+stageApply prepare crypto outside IDB; opaque nonsecret plans bind full original
+inventory including Meta head/history/binding, Stage head/history, inbox/outbox/receipt,
+cursors and current auth/key/session. Strict same readwrite transaction rechecks ALL
+anchors before atomic head+inbox writes; no cursor change. Stale/corrupt/revoked/aborted
+plans fail closed with no partial authority. Reload read reauthenticates histories and
+returns winner plaintext in memory only; no durable Stage payload/projection/order.
+
+stage prefix opaque certificate reauthenticates unproven Stage and Metadata dependency;
+structural proof alone never promotes. Historical already-proven Stage retains prefix
+with exact full joins/digest/causal evidence and no unnecessary decrypt solely for
+retention. Certificate/current scope/anchors recalculated in prefix+ACK transactions.
+Note/Metadata safe classes and other barriers/account-wide no-skip walk unchanged.
+Note1+Metadata2+Stage3+Note4→4; received/conflict Stage3 blocks at2; order5 blocks Note6
+at4; Document after safe Stage still barrier. Existing ACK transport/gates unchanged,
+one explicit request max/attempt, lost-response/local-abort retry and no-progress safe.
+
+Validation:491 unique/18 relevant files,73 Stage tests; Chromium189 groups, native IDB/
+Web Locks/reload/disk reopen, Stage abort/key/logout/isolation PASS; page errors0.
+Total explicit API95: registration19/capability8/mode21/registry23/ACK8/bootstrap16;
+new slice delta14 includes2 explicit ACK, Stage apply/proof/prefix0, pull/push/Resolution/
+unrelated0. Typecheck, production build, workflow syntax and diff checks PASS.
+Stage specs mandatory Cloud; Cloud EXPECTED, SQLite NOT EXPECTED, CI not polled.
+Next bounded slice: native Stage-order dependency/authority/proof audit and clean apply,
+without Stage delete/conflict/local producer or readiness expansion.
+
+Stage history uses the existing Metadata proof budget of200 retained proofs per head.
+Exceeding it rejects continuation without truncating or discarding any history.
