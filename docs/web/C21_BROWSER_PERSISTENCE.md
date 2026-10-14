@@ -2104,3 +2104,86 @@ Actions polling. Early invalid test fixtures/canonical comparison corrected, no 
 - Подтверждение серверу заработало: браузер сообщает только номер изменения, до которого всё безопасно обработано. Потеря ответа или сбой сохранения допускают безопасный повтор.
 - Прочитать данные ещё не значит применить их к проекту. Неприменённые документы, этапы, карты и другие виды данных по-прежнему останавливают подтверждение перед собой.
 - Главный следующий шаг — безопасно применять остальные виды данных к проекту. Полная синхронизация в браузере пока не считается готовой.
+
+## C21.1.21 — coverless Metadata ACK-safe proof
+
+### C21.1.21 bounded result
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Accepted .20 SHA
+`5214e2941b7b6fbbcce7f74d297f5be7859ef5d9`, Cloud `38587064713` SUCCESS,
+all six required jobs SUCCESS / REMOTELY ACCEPTED. Official84.0%, C21 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE; no roadmap points. Native outcome/ledger audit and
+eligibility table BEFORE production in protected family audit.
+
+Project Metadata reader-ready YES; protected apply remains PARTIAL. Only clean
+import_remote/captured/active, exact bootstrap, peer, coverless create/update/delete
+successful inbox2/applied now ACK-safe after current cryptographic proof. Complete
+ownerHeads history must be one exact ordinary causal chain with correct revision/
+generation/parents/server order/tip, every proof joined to original applied inbox.
+No local Metadata outbox/candidate/decision compatibility inferred. Self echo,
+conflict, orphan/received-only, Resolution, cover-bearing/material and upload_existing
+remain barriers/unsupported; no new source/project projection/reconciliation/writer.
+
+`metadataPrefixProof.ts` opaque WeakMap certificate contains current scope/non-secret
+immutable anchors and safe sequences only, no plaintext/key. New Metadata crossing
+revalidates full relevant retained causal history through accepted authenticated
+canonical reader, then reproduces exact existing `metadataProofFor` fields/digest.
+AEAD→authenticated ID0/ID1→owning canonical decoder→cover absence→proof match, all
+OUTSIDE IDB. Wrong/corrupt/unavailable new proof cannot qualify; structurally invalid
+inventory fails closed. Already-proven historical Metadata may retain durable prefix
+using strict complete joins/causal checks/exact wire digest without redundant Metadata
+decryption merely to retain existing prefix. This does not infer new applied outcomes.
+
+Prefix plan includes certificate; strict same transaction rechecks whole original
+inventory (binding/head/history/inbox/outbox/receipts/cursors) and certificate anchors/
+current auth/key/session before recalculation and cursor-only commit. Concurrent
+mutation/revocation/abort rolls back all. Structural calculator WITHOUT current
+certificate still treats Metadata as barrier. ACK inventory distinguishes certified
+Metadata from authority-only when certificate supplied; generic diagnostics remain
+conservative. Legacy Note classes and account-wide no-skip order unchanged; only
+recognized safe outcome set broadened. No other-family barrier removal.
+
+Necessary supported-flow fix: Metadata apply's obsolete ACK/proven==0 check replaced
+by exported SAME shared cursor validator 0<=ACK<=proven<=pull, preserving all cursors
+unchanged. Thus Note1 already proven/ACK1 does not prevent valid Metadata2 apply.
+Record2/applied, head/proof history and v8 remain unchanged; no new durable marker,
+store/index/migration. Exact replay cannot roll back descendant authority.
+
+Existing bounded ACK implementation/network payloads/endpoints untouched; only shared
+prefix evidence gains Metadata. Note1/Metadata2/Note3→prefix3→explicit ACK3; received
+Metadata2→prefix1/ACKmax1. ACK still targets committed prefix only; no server cursor
+import, registration/capability/registry discovery hidden in apply/proof. readyfalse.
+
+Checks: **381 unique tests /12 focused files PASS** (initial380 + final ordinary-delete
+case; Metadata proof38 and Metadata ACK4 PASS), covering ID0/ID1, exact replay, positive
+cursor-preserving apply, complete joins/hash/scope/header/causal tampering, certificate
+forgery, missing evidence, stale prepared head/row/lineage/cursor, auth/key/close/abort,
+self echo/conflict/missing-parent/cover/upload-existing exclusions, historical no-decrypt,
+Metadata-only and mixed prefix, missing/Document barriers, ACK lost-response/local-abort/
+replay. Existing Metadata apply/migration, Legacy Note/prefix/ACK, canonical reader and
+persistence migration regressions PASS. No skip/xfail/continue-on-error.
+
+Real Chromium **184 groups PASS** (prior181 + three Metadata groups): isolated two-account
+Note1/proven1→ID1 Metadata2 applied→Note3/prefix3/ACK3 and ID1 received2→Note3/prefix1/ACK1;
+real prefix abort/key lock/logout/isolation safe, current separate gates; reload/disk
+reopen prefix3/ACK3, exact authority/history/bytes and applied replay preserved. Proof/
+prefix operations HTTP0; new explicitly invoked gates only: registration2/capability2/
+modeGET6/registry2/ACK2. Total harness API81: registration17/capability6/modeGET15/registry21/
+ACK6/bootstrap completion16, push/pull/Resolution/unrelated0, page errors0. Isolated HTTP
+fixtures model frozen server semantics; not live production backend verification.
+
+Typecheck/build/workflow YAML/JS syntax/diff/protected pyc PASS; existing Vite warnings.
+Two new specs mandatory in Cloud contract job, Metadata helper in mandatory Chromium
+runner. Cloud EXPECTED, SQLite NOT EXPECTED. No backend/PG/Alembic/Native/Rust/SQLite,
+dependencies/frozen contracts; no Actions polling. Initial oversized/missing-source
+fixtures corrected; no remaining failures. Internal dormant infrastructure only, no
+public UI/help/localization behavior change. Next bounded family apply remains future.
+
+### Простыми словами
+
+- Раньше служебное изменение проекта могло быть успешно обработано, но всё равно останавливало подтверждение серверу.
+- Теперь поддерживаемые изменения проекта без обложки входят в общую непрерывную цепочку после проверки сохранённых данных и их происхождения.
+- Если между двумя безопасно обработанными заметками есть такое изменение проекта, браузер может подтвердить всю цепочку до третьего изменения.
+- Конфликт, неприменённые данные, неподдерживаемый вариант или обложка по-прежнему останавливают цепочку перед собой.
+- Остальные виды данных ещё не все умеют безопасно применяться к проекту; полная синхронизация в браузере не готова.
+- Следующий шаг — добавить безопасное применение следующего вида данных, например этапов проекта, сохранив проверки остальных ограничений.

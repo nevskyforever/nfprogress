@@ -1,3 +1,4 @@
+import { compressCanonicalFrame } from '../src/cloud/frameCompression'
 import { readerCases, readerFrame, readFixture } from '../src/platform/web/canonicalReaders.testFixture'
 import { encryptObjectBytes } from '../src/crypto'
 import { createNoteSyncPlaintext } from '../src/cloud/encryptedSyncProtocol'
@@ -11,7 +12,7 @@ import { asAccountMasterKey, wrapAmkWithPassphrase } from '../src/crypto'
 import { encodeBase64Url } from '../src/api/base64url'
 import { openNoteSyncEvent } from '../src/cloud/encryptedSyncProtocol'
 import { decodeBase64Url } from '../src/api/base64url'
-import { canonical, sealProjectMetadataEvent } from '../src/cloud/projectMetadataCodec'
+import { canonical, frameProjectMetadata, sealProjectMetadataEvent } from '../src/cloud/projectMetadataCodec'
 import type { CurrentUserCryptoRecord } from '../src/api/accountCrypto'
 
 // Isolated harness only: synthetic normal-user transport, actual auth/binding/key runtime and crypto.
@@ -38,4 +39,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, canonical, readerCases, readerFrame, readFixture, deviceFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

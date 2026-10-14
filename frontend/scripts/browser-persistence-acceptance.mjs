@@ -1,3 +1,4 @@
+import { acceptMetadataPrefix } from './browser-metadata-prefix-acceptance.mjs'
 import { acceptReaderAck } from './browser-reader-ack-acceptance.mjs'
 import { acceptDeviceRegistration } from './browser-device-registration-acceptance.mjs'
 import { acceptProvenPrefix } from './browser-proven-prefix-acceptance.mjs'
@@ -1052,6 +1053,7 @@ try {
   page=await acceptDeviceRegistration({page,scope:scopeA,cases,requests:registrationRequests,reopenProfile:async()=>{await context.close();await start();return tab()}})
   assert.equal(registrationRequests.length,11);assert.equal(ackRequests.length,0)
   page=await acceptReaderAck({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
+  page=await acceptMetadataPrefix({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))
   const finalDurability = await metadataSnapshot()

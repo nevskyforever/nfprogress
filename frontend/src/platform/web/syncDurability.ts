@@ -129,6 +129,7 @@ function cursor(value: unknown, scope: BrowserSyncScope): CursorRecord {
   if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !safe(row.pull_cursor) || !safe(row.ack_cursor) || !safe(row.proven_prefix) || row.ack_cursor>row.proven_prefix || row.proven_prefix>row.pull_cursor || !safe(row.next_local_ordinal, 1)) failure()
   return row
 }
+export { cursor as validateBrowserSyncCursor }
 export function readBrowserSyncCursor(tx: IDBTransaction, scope: BrowserSyncScope, ready: (state: CursorRecord) => void, fail: (error: unknown) => void): void {
   const request = tx.objectStore('cursors').get([scope.accountId, scope.deviceId])
   request.onsuccess = () => {

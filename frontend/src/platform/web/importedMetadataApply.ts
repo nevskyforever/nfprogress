@@ -6,7 +6,7 @@ import { decodeBase64Url } from '@/api/base64url'
 import { openProjectMetadataEvent, type ProjectMetadataEvent } from '@/cloud/projectMetadataCodec'
 import { BrowserPersistenceError, type BrowserPersistenceCode } from './persistence'
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
-import { immutableWireIdentity, snapshotBrowserSyncScope, validateBrowserRetainedHistory, validateBrowserUploadPair, type BrowserSyncScope, type BrowserSyncTransaction, type BrowserSyncDurability, type BrowserRetainedEncryptedHistory } from './syncDurability'
+import { validateBrowserSyncCursor, immutableWireIdentity, snapshotBrowserSyncScope, validateBrowserRetainedHistory, validateBrowserUploadPair, type BrowserSyncScope, type BrowserSyncTransaction, type BrowserSyncDurability, type BrowserRetainedEncryptedHistory } from './syncDurability'
 import { validateBrowserMetadataHead, type BrowserMetadataHead, type BrowserMetadataProof } from './metadataApplyRecords'
 
 /** Tokens have no public data/constructor; only the authenticated reader can mint one. */
@@ -18,7 +18,7 @@ interface Plan {
 const plans = new WeakMap<object, Plan>()
 const same = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b)
 function fail(code: BrowserPersistenceCode): never { throw new BrowserPersistenceError(code) }
-function proofFor(scope: BrowserSyncScope, reference: V3Descriptor, event: ProjectMetadataEvent, wireDigest: string, protocol: 2 | 3): BrowserMetadataProof {
+export function metadataProofFor(scope: BrowserSyncScope, reference: V3Descriptor, event: ProjectMetadataEvent, wireDigest: string, protocol: 2 | 3): BrowserMetadataProof {
   const h = event.header
   if (reference.entity_type !== 'project_metadata' || reference.project_id !== h.project_id || reference.entity_id !== h.entity_id
     || reference.event_id !== h.event_id || reference.device_id !== h.device_id || reference.revision !== h.revision
@@ -88,7 +88,7 @@ export class BrowserImportedMetadataApply {
           identity = new TextEncoder().encode(immutableWireIdentity({ protocol_version: protocol, event: entry.reference, object: raw.object }))
           digest = new Uint8Array(await crypto.subtle.digest('SHA-256', identity))
           const wireDigest = Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')
-          const verified = proofFor(scope, entry.reference as V3Descriptor, event, wireDigest, protocol)
+          const verified = metadataProofFor(scope, entry.reference as V3Descriptor, event, wireDigest, protocol)
           if (verified.bootstrap_id !== lineage.bootstrap_id) fail('conflicting_record')
           if (entry.reference.event_id === reference.event_id) proof = verified
           else if (!same(expected!.history.find(p => p.event_id === verified.event_id), verified)) fail('corrupt_record')
@@ -130,8 +130,8 @@ export class BrowserImportedMetadataApply {
           const binding = validateBrowserProjectBinding(lineage.result, scope)
           if (binding.mode !== 'import_remote' || binding.phase !== 'captured' || binding.remote_state !== 'active') fail('ineligible_lineage')
           if (binding.project_id !== plan.proof.project_id || binding.bootstrap_id !== plan.proof.bootstrap_id) fail('conflicting_record')
-          const state = cursor.result
-          if (!state || Object.keys(state).sort().join(',') !== 'account_id,ack_cursor,device_id,next_local_ordinal,proven_prefix,pull_cursor,record_version' || !Number.isSafeInteger(state.pull_cursor) || !Number.isSafeInteger(state.next_local_ordinal) || state.next_local_ordinal < 1 || state.record_version !== 1 || state.account_id !== scope.accountId || state.device_id !== scope.deviceId || state.ack_cursor !== 0 || state.proven_prefix !== 0 || state.pull_cursor < plan.proof.server_sequence) fail('corrupt_record')
+          const state = validateBrowserSyncCursor(cursor.result, scope)
+          if (state.pull_cursor < plan.proof.server_sequence) fail('corrupt_record')
           const actual = head.result === undefined ? null : validateBrowserMetadataHead(head.result, scope)
           let incoming: ReturnType<typeof validateBrowserRetainedHistory> | undefined
           for (const read of reads) {

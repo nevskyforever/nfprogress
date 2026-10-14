@@ -972,3 +972,123 @@ Typecheck/production build/YAML/JS syntax/diff/protected pyc PASS; existing Vite
 Mandatory Cloud contract job includes canonicalReaders.spec.ts and readerAck.spec.ts; existing
 mandatory Chromium gate invokes reader/ACK helper. Cloud EXPECTED, SQLite NOT EXPECTED; no
 Actions polling. Early invalid test fixtures/canonical comparison corrected, no remaining failure.
+
+## C21.1.21 — Native Metadata audit BEFORE production edits
+
+Accepted .20 SHA5214e2941b7b6fbbcce7f74d297f5be7859ef5d9 / Cloud38587064713 /
+all6 SUCCESS / REMOTELY ACCEPTED. Clean fetched6.0 verified before checkpoint.
+
+Exact Rust project_metadata_sync::preserve_authenticated_event_checked validates
+canonical bytes, bound account/bootstrap, exact retained object/reference, cover
+material before ledger replay. Apply ledger canonical_payload/outcome joins event
+project/server sequence/state in note_sync::contiguous_applied_ack_prefix(6737+).
+Individual applied and exact applied replay ACK-safe YES; inbox flag alone NO.
+Conflict-preserved is safe ONLY through matching completed native metadata event/
+apply ledger outcome and durable full causal branch history/tips; Web lacks this
+class and will NOT promote conflicts. Orphan/missing parent and received-only NO.
+Self echo needs exact local candidate/decision/event state/header/canonical payload,
+outbox/object/receipt; sealed lost-response path recovers a matching receipt in the
+same transaction (native test project_metadata_lost_upload_response_self_echo_is_durable_and_ack_safe).
+Device equality alone NO; Web local Metadata producer/decision representation absent.
+Cover reference invokes project_cover_sync::require_material before successful
+apply; absent/null cover needs no blob. Web cover-bearing NO. Reconciliation is
+local visible project projection safety, distinct from applied cloud authority;
+ACK ledger does not require a reconciliation row. No local UI projection added.
+
+Native causal rules: retained applied/conflict parents must exist, revision max
+parent+1, generation above parents; exact current full tips permit clean applied,
+other branches preserved without LWW. Web captured imported active lineage only,
+matching bootstrap, peer event, coverless, no local Metadata outbox. ownerHeads
+proof/history + immutable inbox2/applied are sufficient durable evidence for this
+bounded class ONLY after canonical cryptographic proof reproduction. No new store.
+Web ordinary clean create/update/delete linear history is the promoted subset;
+Resolution/self echo/conflict/orphan/upload-existing remain excluded.
+
+Plan: opaque runtime Metadata certificate binds scope/current auth/key/session and
+exact retained rows/head/history/lineage/outbox/receipts anchors. Crypto outside IDB
+using accepted canonical reader and the SAME Metadata proof/digest constructor.
+New Metadata crossing authenticates complete relevant causal history; existing
+proven historical Metadata may retain prefix using durable scalar + strict complete
+structural/digest joins without redundant decryption merely to retain it. No scalar
+imports or reconstruction of a missing applied proof. Whole prefix/ACK transaction
+CAS rechecks exact original inventory and current certificate; any concurrent
+head/lineage/row/cursor/auth change aborts all. Metadata without current certificate
+remains barrier. Generic structural diagnostics alone do not authorize Metadata.
+
+One necessary correction: old Metadata apply commit still required ACK/proven=0.
+Use existing shared cursor validator 0<=ACK<=proven<=pull instead, preserving values
+unchanged; otherwise already-proven Note1 would prevent supported Metadata2 apply.
+This changes no Metadata eligibility/source transition. Legacy Note/ACK transport
+semantics and every other family barrier unchanged. v8/no store/index/migration.
+
+### C21.1.21 bounded result
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Accepted .20 SHA
+`5214e2941b7b6fbbcce7f74d297f5be7859ef5d9`, Cloud `38587064713` SUCCESS,
+all six required jobs SUCCESS / REMOTELY ACCEPTED. Official84.0%, C21 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE; no roadmap points. Native outcome/ledger audit and
+eligibility table BEFORE production in protected family audit.
+
+Project Metadata reader-ready YES; protected apply remains PARTIAL. Only clean
+import_remote/captured/active, exact bootstrap, peer, coverless create/update/delete
+successful inbox2/applied now ACK-safe after current cryptographic proof. Complete
+ownerHeads history must be one exact ordinary causal chain with correct revision/
+generation/parents/server order/tip, every proof joined to original applied inbox.
+No local Metadata outbox/candidate/decision compatibility inferred. Self echo,
+conflict, orphan/received-only, Resolution, cover-bearing/material and upload_existing
+remain barriers/unsupported; no new source/project projection/reconciliation/writer.
+
+`metadataPrefixProof.ts` opaque WeakMap certificate contains current scope/non-secret
+immutable anchors and safe sequences only, no plaintext/key. New Metadata crossing
+revalidates full relevant retained causal history through accepted authenticated
+canonical reader, then reproduces exact existing `metadataProofFor` fields/digest.
+AEAD→authenticated ID0/ID1→owning canonical decoder→cover absence→proof match, all
+OUTSIDE IDB. Wrong/corrupt/unavailable new proof cannot qualify; structurally invalid
+inventory fails closed. Already-proven historical Metadata may retain durable prefix
+using strict complete joins/causal checks/exact wire digest without redundant Metadata
+decryption merely to retain existing prefix. This does not infer new applied outcomes.
+
+Prefix plan includes certificate; strict same transaction rechecks whole original
+inventory (binding/head/history/inbox/outbox/receipts/cursors) and certificate anchors/
+current auth/key/session before recalculation and cursor-only commit. Concurrent
+mutation/revocation/abort rolls back all. Structural calculator WITHOUT current
+certificate still treats Metadata as barrier. ACK inventory distinguishes certified
+Metadata from authority-only when certificate supplied; generic diagnostics remain
+conservative. Legacy Note classes and account-wide no-skip order unchanged; only
+recognized safe outcome set broadened. No other-family barrier removal.
+
+Necessary supported-flow fix: Metadata apply's obsolete ACK/proven==0 check replaced
+by exported SAME shared cursor validator 0<=ACK<=proven<=pull, preserving all cursors
+unchanged. Thus Note1 already proven/ACK1 does not prevent valid Metadata2 apply.
+Record2/applied, head/proof history and v8 remain unchanged; no new durable marker,
+store/index/migration. Exact replay cannot roll back descendant authority.
+
+Existing bounded ACK implementation/network payloads/endpoints untouched; only shared
+prefix evidence gains Metadata. Note1/Metadata2/Note3→prefix3→explicit ACK3; received
+Metadata2→prefix1/ACKmax1. ACK still targets committed prefix only; no server cursor
+import, registration/capability/registry discovery hidden in apply/proof. readyfalse.
+
+Checks: **381 unique tests /12 focused files PASS** (initial380 + final ordinary-delete
+case; Metadata proof38 and Metadata ACK4 PASS), covering ID0/ID1, exact replay, positive
+cursor-preserving apply, complete joins/hash/scope/header/causal tampering, certificate
+forgery, missing evidence, stale prepared head/row/lineage/cursor, auth/key/close/abort,
+self echo/conflict/missing-parent/cover/upload-existing exclusions, historical no-decrypt,
+Metadata-only and mixed prefix, missing/Document barriers, ACK lost-response/local-abort/
+replay. Existing Metadata apply/migration, Legacy Note/prefix/ACK, canonical reader and
+persistence migration regressions PASS. No skip/xfail/continue-on-error.
+
+Real Chromium **184 groups PASS** (prior181 + three Metadata groups): isolated two-account
+Note1/proven1→ID1 Metadata2 applied→Note3/prefix3/ACK3 and ID1 received2→Note3/prefix1/ACK1;
+real prefix abort/key lock/logout/isolation safe, current separate gates; reload/disk
+reopen prefix3/ACK3, exact authority/history/bytes and applied replay preserved. Proof/
+prefix operations HTTP0; new explicitly invoked gates only: registration2/capability2/
+modeGET6/registry2/ACK2. Total harness API81: registration17/capability6/modeGET15/registry21/
+ACK6/bootstrap completion16, push/pull/Resolution/unrelated0, page errors0. Isolated HTTP
+fixtures model frozen server semantics; not live production backend verification.
+
+Typecheck/build/workflow YAML/JS syntax/diff/protected pyc PASS; existing Vite warnings.
+Two new specs mandatory in Cloud contract job, Metadata helper in mandatory Chromium
+runner. Cloud EXPECTED, SQLite NOT EXPECTED. No backend/PG/Alembic/Native/Rust/SQLite,
+dependencies/frozen contracts; no Actions polling. Initial oversized/missing-source
+fixtures corrected; no remaining failures. Internal dormant infrastructure only, no
+public UI/help/localization behavior change. Next bounded family apply remains future.

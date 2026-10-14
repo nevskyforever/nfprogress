@@ -1,3 +1,5 @@
+import { verifiedMetadataSequences, type VerifiedMetadataPrefix } from './metadataPrefixProof'
+import type { BrowserPrefixInventory } from './provenPrefixRecords'
 import { validateNoteHistorySet, type BrowserNoteCandidate, type BrowserNoteConflictGroup } from './noteHistoryRecords'
 import { BrowserPersistenceError } from './persistence'
 import { validateBrowserInboxRecord, immutableWireIdentity, type BrowserSyncScope, type BrowserSyncCheckpoint } from './syncDurability'
@@ -6,7 +8,7 @@ import { validateBrowserProjectBinding, type BrowserProjectBinding } from './pro
 
 export type BrowserAckPrerequisiteCode = 'registry_reconciliation_required' | 'bootstrap_completion_unavailable' | 'pull_required' | 'protected_apply_required' | 'unsupported_family_proof' | 'ack_proof_unavailable' | 'ack_transport_unavailable'
 export interface BrowserAckInventory {
-  note_conflict_preserved:number; note_received_only: number; note_applied: number; note_self_echo: number; received_only: number; metadata_authority_only: number; missing_next_sequence: boolean
+  metadata_applied_verified?:number; note_conflict_preserved:number; note_received_only: number; note_applied: number; note_self_echo: number; received_only: number; metadata_authority_only: number; missing_next_sequence: boolean
   unsupported_families: string[]; first_unproven_sequence: number | null; proven_prefix: number
 }
 export interface BrowserAckPrerequisites {
@@ -15,9 +17,10 @@ export interface BrowserAckPrerequisites {
 }
 function corrupt(): never { throw new BrowserPersistenceError('corrupt_record') }
 /** Exact durable record inventory. Metadata authority is NOT a general native apply/ACK ledger. */
-export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: BrowserSyncCheckpoint, inbound: unknown[], heads: unknown[], bindings: BrowserProjectBinding[],history:unknown[]=[]): BrowserAckInventory {
+export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: BrowserSyncCheckpoint, inbound: unknown[], heads: unknown[], bindings: BrowserProjectBinding[],history:unknown[]=[],metadata?:{token:VerifiedMetadataPrefix;inventory:BrowserPrefixInventory}): BrowserAckInventory {
   if (!Number.isSafeInteger(cursor.ack_cursor)||cursor.ack_cursor<0||!Number.isSafeInteger(cursor.proven_prefix)||cursor.proven_prefix<cursor.ack_cursor||cursor.proven_prefix>cursor.pull_cursor|| !Number.isSafeInteger(cursor.pull_cursor) || cursor.pull_cursor < 0) corrupt()
   const rows = inbound.map(v => validateBrowserInboxRecord(v,scope)), sequences = new Set<number>(), events = new Set<string>()
+  const certified=metadata?verifiedMetadataSequences(metadata.token,scope,metadata.inventory):new Set<number>()
   const noteHistory=validateNoteHistorySet(scope,history)
   const owners = heads.map(v => validateBrowserMetadataHead(v,scope))
   if (new Set(owners.map(h=>h.owner_id)).size !== owners.length) corrupt()
@@ -41,7 +44,7 @@ export function inspectBrowserAckInventory(scope: BrowserSyncScope, cursor: Brow
       if (!head || !binding) corrupt()
       const lineage = validateBrowserProjectBinding(binding,scope)
       if (lineage.mode !== 'import_remote' || lineage.phase !== 'captured' || lineage.remote_state !== 'active' || head.bootstrap_id!==lineage.bootstrap_id || !head.history.some(p=>immutableWireIdentity(p)===immutableWireIdentity(proof))) corrupt()
-      inventory.metadata_authority_only++
+      if(certified.has(r.server_sequence))inventory.metadata_applied_verified=(inventory.metadata_applied_verified??0)+1;else inventory.metadata_authority_only++
     }
     if (event.entity_type !== 'project_metadata' && r.state!=='note_proven'&&r.state!=='note_conflict_preserved') families.add(event.entity_type)
   }
