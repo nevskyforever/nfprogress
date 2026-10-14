@@ -22,7 +22,7 @@ export function verifiedMetadataSequences(token: VerifiedMetadataPrefix | undefi
 export async function prepareMetadataPrefix(scope:BrowserSyncScope,v:BrowserPrefixInventory,amk:AccountMasterKey,current:()=>boolean,force=false):Promise<VerifiedMetadataPrefix>{
  const rows=v.rows.map(r=>validateBrowserInboxRecord(r,scope)),bindings=v.bindings.map(b=>validateBrowserProjectBinding(b,scope)),sequences=new Set<number>()
  for(const rawHead of v.owners){
-  if((rawHead as {owner_kind:string}).owner_kind==='stage')continue
+  if(['stage','stage_order'].includes((rawHead as {owner_kind:string}).owner_kind))continue
   const head=validateBrowserMetadataHead(rawHead,scope),binding=bindings.find(b=>b.project_id===head.owner_id)
   if(!binding||binding.mode!=='import_remote'||binding.phase!=='captured'||binding.remote_state!=='active'||binding.bootstrap_id!==head.bootstrap_id)continue
   if(v.out.some(r=>JSON.parse((r as {raw_body:string}).raw_body).items.some((i:{event:{entity_type:string;project_id:string}})=>i.event.entity_type==='project_metadata'&&i.event.project_id===head.owner_id)))continue

@@ -32,7 +32,7 @@ export function readStageInventory(tx: IDBTransaction, scope: BrowserSyncScope, 
     }, abort);
   });
 }
-async function digest(row: BrowserInboxRecord) {
+export async function structuralWireDigest(row: BrowserInboxRecord) {
   const w = JSON.parse(row.wire_item), b = new TextEncoder().encode(immutableWireIdentity({ protocol_version: row.protocol_version, event: w.event, object: w.object }));
   try {
     return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', b)), x => x.toString(16).padStart(2, '0')).join('');
@@ -59,9 +59,9 @@ async function proofFor(scope: BrowserSyncScope, row: BrowserInboxRecord, e: Str
     fail('self_echo_unavailable');
   if (h.account_id !== scope.canonicalUserId || h.project_id !== w.project_id || h.entity_id !== w.entity_id || h.device_id !== w.device_id || h.event_id !== row.event_id || h.revision !== w.revision || h.updated_at !== w.updated_at || e.deleted_at !== w.deleted_at || w.operation !== 'upsert')
     fail();
-  return validateStageProof({ record_version: 1, owner_kind: 'stage', account_id: scope.accountId, project_id: h.project_id, stage_id: h.entity_id, bootstrap_id: h.bootstrap_id, event_id: h.event_id, source_device_id: h.device_id, server_sequence: row.server_sequence, operation: h.operation, revision: h.revision, generation: h.generation, parent_event_ids: h.parent_event_ids, metadata_event_id: h.metadata_event_id, codec_version: e.version, protocol_version: 3, wire_digest: await digest(row), reference: w }, scope);
+  return validateStageProof({ record_version: 1, owner_kind: 'stage', account_id: scope.accountId, project_id: h.project_id, stage_id: h.entity_id, bootstrap_id: h.bootstrap_id, event_id: h.event_id, source_device_id: h.device_id, server_sequence: row.server_sequence, operation: h.operation, revision: h.revision, generation: h.generation, parent_event_ids: h.parent_event_ids, metadata_event_id: h.metadata_event_id, codec_version: e.version, protocol_version: 3, wire_digest: await structuralWireDigest(row), reference: w }, scope);
 }
-function dependency(scope: BrowserSyncScope, v: BrowserPrefixInventory, p: BrowserStageProof, cert: VerifiedMetadataPrefix, active = true) {
+export function structuralMetadataDependency(scope: BrowserSyncScope, v: BrowserPrefixInventory, p: Pick<BrowserStageProof,'project_id'|'bootstrap_id'|'metadata_event_id'> & {stage_id:string}, cert: VerifiedMetadataPrefix, active = true, entityType:'stage'|'stage_order'='stage') {
   const b = v.bindings.map(r => validateBrowserProjectBinding(r, scope)).find(b => b.project_id === p.project_id);
   if (!b || b.mode !== 'import_remote' || b.phase !== 'captured' || b.remote_state !== 'active' || b.bootstrap_id !== p.bootstrap_id)
     fail('ineligible_lineage');
@@ -84,7 +84,7 @@ function dependency(scope: BrowserSyncScope, v: BrowserPrefixInventory, p: Brows
       project_id: string;
       entity_id: string;
     };
-  }) => i.event.entity_type === 'stage' && i.event.project_id === p.project_id && i.event.entity_id === p.stage_id)))
+  }) => i.event.entity_type === entityType && i.event.project_id === p.project_id && i.event.entity_id === p.stage_id)))
     fail('metadata_conflict');
 }
 export interface VerifiedStagePrefix {
@@ -117,9 +117,9 @@ export async function prepareStagePrefix(scope: BrowserSyncScope, v: BrowserPref
     let valid = true;
     try {
       for (const p of h.history) {
-        dependency(scope, v, p, meta, decrypt);
+        structuralMetadataDependency(scope, v, p, meta, decrypt);
         const row = v.rows.map(r => validateBrowserInboxRecord(r, scope)).find(r => r.event_id === p.event_id);
-        if (!row || row.state !== 'stage_proven' || !same(row.stage_proof, p) || p.source_device_id === scope.deviceId || await digest(row) !== p.wire_digest)
+        if (!row || row.state !== 'stage_proven' || !same(row.stage_proof, p) || p.source_device_id === scope.deviceId || await structuralWireDigest(row) !== p.wire_digest)
           fail();
         if (decrypt && !same(await proofFor(scope, row, await open(scope, row, amk)), p))
           fail();
@@ -180,7 +180,7 @@ export class BrowserStageRuntime {
     const incoming = row!;
     return lease.use(async (amk) => {
       const proof = await proofFor(scope, incoming, await open(scope, incoming, amk)), meta = await prepareMetadataPrefix(scope, v, amk, current, true);
-      dependency(scope, v, proof, meta, incoming.state !== 'stage_proven');
+      structuralMetadataDependency(scope, v, proof, meta, incoming.state !== 'stage_proven');
       const raw = v.owners.find(h => (h as {
         owner_kind: string;
         owner_id: string;

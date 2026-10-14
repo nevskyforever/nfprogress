@@ -1,3 +1,4 @@
+import {validateStageOrderHead} from './stageOrderRecords';
 import {timestamp} from '@/cloud/projectMetadataCodec';
 import type { V3Descriptor } from '@/api/encryptedSyncV3';
 import { validateBrowserMetadataHead } from './metadataApplyRecords';
@@ -74,6 +75,7 @@ export function validateStageHead(value: unknown, scope: BrowserSyncScope): Brow
   return { ...structuredClone(h), history };
 }
 export function validateBrowserOwnerHead(value: unknown, scope: BrowserSyncScope) {
+  if((value as {owner_kind?:string})?.owner_kind==='stage_order')return validateStageOrderHead(value,scope);
   return (value as {
     owner_kind?: string;
   })?.owner_kind === 'stage' ? validateStageHead(value, scope) : validateBrowserMetadataHead(value, scope);

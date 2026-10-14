@@ -1,5 +1,12 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
+**Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
+ACK-safe subset unchanged; Stage-order reader-ready YES / bounded clean create-update,
+complete membership and exact/ancestor head coverage LOCAL COMPLETE. Conflicts/self-
+echo/delete remain blocked. v8 unchanged; readyfalse, official84.0%, .06 NOT LOCAL
+COMPLETE. See final C21.1.23 audit/result sections; earlier matrices are dated history.
+
+
 2026-10-12. **C21.1.06 BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE**.
 This is an audit, not a new authority/proof protocol or implemented v4 schema.
 C21.1.05 / .05A independently accepted by owner/GPT at repair
@@ -1188,3 +1195,116 @@ without Stage delete/conflict/local producer or readiness expansion.
 
 Stage history uses the existing Metadata proof budget of200 retained proofs per head.
 Exceeding it rejects continuation without truncating or discarding any history.
+
+## C21.1.23 — native Stage-order audit BEFORE production edits
+
+Accepted .22 SHA24b6e90456e20aa73e1f735f573aed74e27cc5dc, Cloud38606705365
+SUCCESS / all six required jobs SUCCESS / REMOTELY ACCEPTED. Clean fetched6.0.
+Inspected stageCodec/stageStructuralRuntime/SQLiteStageStructuralRepository;
+stage_sync dependency307–330/reference_coverage589–640/order_dependency696–752/
+apply818–1038/known_local_in_lineage662–695; native tests2068/2109/2186/2234/2931;
+structural ACK joins note_sync6728; accepted Browser Stage/Metadata/prefix/ACK.
+
+|Audit question|Exact native semantics / bounded Web decision|
+|---|---|
+|1 create independently ACK-safe?|YES: clean applied + exact structural ledger/object; empty project order permitted|
+|2 update independently ACK-safe?|YES: complete dependency proof, exact old tips/parents, revision AND generation maxparent+1|
+|3 complete membership?|Sorted stage_ids must equal ALL local stages for this project, independent of permutation|
+|4 older Stage head?|Receiver allows references covered by current Stage history; writer requires exact current heads|
+|5 ancestry bound?|256 distinct non-reference events cached across current tips per Stage; reference matches stop traversal; each current tip matched AND each reference covered|
+|6 missing Stage?|stage_dependency_missing; no safe applied ledger|
+|7 deleted Stage?|Any current delete tip blocks stage_tombstone_child_manifest_incomplete; retained legacy row cannot authorize order|
+|8 foreign Stage?|stage_order_foreign_stage; no cross-project ownership|
+|9 clean applied safe?|YES; projection permutation is derived, ledger/event/sequence/outcome/exact ciphertext prove ACK|
+|10 exact applied replay safe?|YES: exact wire/frame/ledger return before new dependencies, never roll back descendant|
+|11 conflict preserved?|Only with complete durable conflicting causal histories and matching apply ledger; Web excluded|
+|12 Metadata?|Exact same account/project/bootstrap known nondelete applied/conflict-preserved event+ledger AND current active authority; known ancestor allowed|
+|13 v8 enough?|YES for accepted clean imported authority: enumerate and validate all project-scoped Stage heads; no local Stage source/writer, retained parent links and proof joins; no new store/schema|
+
+Frozen codec3 uses entity stage_order/fixed entity_id stage_order/stage=null/deleted=null,
+unique ordered IDs<=4096, exact same head keys, sorted nonempty heads<=64. v1 genesis
+or single-parent update; v2 never genesis, sorted full-tip parents<=64. Bounded v2
+one-tip continuation has prior winning encrypted order in its parent lineage (native
+known-local check bound256), with no independent local order cache/writer/candidate.
+Multi-tip resolution excluded. Native order projection DELETE/INSERT is derivable
+from encrypted winner, not needed as separate ACK authority in Web.
+
+Web membership source: all validated Stage ownerHeads in exact account/project/bootstrap;
+strict Stage proof type admits only live clean create/update. Account-wide owner keys
+remain collision-safe JSON[project,stage]. Pending/unproven Stage evidence at or before
+new order's dependency point blocks completeness; retained delete evidence blocks new
+proof with explicit tombstone reason. Unknown/missing/foreign heads never inferred.
+Historic persisted order proof keeps its frozen dependency set, permits legitimate
+Stage descendants via actual links and never rolls back prefix after field updates.
+
+Order owner key[account,stage_order,project] is unambiguous fixed entity. Strict inbox6/
+stage_order_proven and nonsecret head/history keep existing1–5 byte schemas. Dependency
+references sorted by Stage ID in proof are evidence, NOT ordered plaintext projection;
+actual permutation remains only encrypted wire. v8 unchanged/no migration. History
+budget200 (stricter accepted Web shape); native coverage256 still explicitly enforced.
+Opaque plan crypto outside IDB then same-transaction full inventory CAS includes
+complete membership/all Stage histories/Metadata/order/inbox/cursors/outbox/receipts.
+No native/backend/codec/crypto/transport changes, no readiness expansion.
+
+## C21.1.23 — exact Stage-order protected apply and ACK proof
+
+C21.1.22 REMOTELY ACCEPTED: SHA24b6e90456e20aa73e1f735f573aed74e27cc5dc,
+Cloud38606705365 SUCCESS / all six required jobs SUCCESS. .23 LOCAL COMPLETE /
+REMOTE CI PENDING — NOT POLLED. Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE,
+readyfalse. Stage reader-ready YES/peer create-update YES/ACK-safe subset unchanged.
+Stage-order reader-ready YES; protected apply bounded clean peer create/update COMPLETE.
+
+Eligibility: import_remote/captured/active, exact canonical account/device/project/
+bootstrap, v1 genesis and v1/v2 ONE-tip continuation only, codec3 ID0/ID1. Frozen codec
+unchanged; no conflict/full-tip resolution/self-echo/local writer/upload-existing/UI.
+Same accepted Metadata dependency machinery (known nondelete exact event/retained
+crypto history/current active authority; ancestor allowed), no duplicate verifier.
+
+Membership enumerates ALL validated Stage ownerHeads in project/bootstrap, preserves
+accepted collision-safe Stage tuple[project,stage]. Every referenced Stage has complete
+retained crypto-proven clean live history and actual tip; unknown/foreign/missing/
+deleted/unproven evidence blocks. New order's sorted members must exactly equal full
+current membership; pending Stage evidence at/before dependency point blocks omission.
+Exact-current heads pass; older refs pass only native receiver reference_coverage:
+every current tip and every reference covered, stop at matches, cycle-safe actual
+parents, per-Stage cache<=256 non-reference expansions. Web retained history budget200
+is stricter than native traversal availability; over-budget fails, no truncation.
+
+Order owner[account,stage_order,project], entity fixed stage_order. Nonsecret strict
+head/history + inbox6/stage_order_proven, old1–5 unchanged. Stored dependency refs sorted
+by Stage ID prove membership/causality; they are NOT an ordered stage_ids projection.
+Winning canonical permutation remains encrypted original wire. v8 unchanged,12 stores,
+no new index/migration/dependency/backend/native/codec/crypto changes.
+
+Opaque private plan binds exact wire/digest, frozen ordered IDs/head refs and all
+original durable inventory. Crypto outside IDB, strict same transaction CAS before
+atomic head+inbox only. Auth/key/session invalidation, Stage edit/new membership,
+Metadata/binding/cursor change and transaction abort fail closed. No partial order or
+cursor writes. Reload reads authenticate retained dependencies/history and decrypt
+winning permutation in memory; no plaintext durable authoritative cache or UI wiring.
+
+Current cryptographic certificate qualifies clean order create/update/replay in shared
+contiguous prefix and existing bounded ACK. Structural marker alone cannot qualify.
+Historical proven prefix retains full exact joins/digest without redundant order
+crypto merely to retain prefix. Normal Stage descendant edits preserve old reference
+coverage and monotonic prefix. Exact applied replay keeps frozen membership and cannot
+roll back descendant even after membership expansion; NEW proof requires full current
+membership. Stage-order conflicts/deletes/self-echo and other families remain barriers;
+Note/Metadata/Stage rules, account-wide ordering and ACK transport/gates unchanged.
+
+Examples:Metadata1/Stages2-3/Order4[B,A]/Note5→5/ACK5. Normal StageA6 descendant/Note7
+retains order coverage/prefix7; clean v2 Order8[A,B] with older Stage refs/Note9→9/ACK9.
+Bad/missing membership or sibling reference Order4 blocks Note5 at3/ACK3. Document
+following safe Order still blocks. Max1 ACK per explicit attempt; retries/no-progress
+unchanged. No hidden apply/proof/coverage/prefix HTTP; no automatic registration,
+capability, bootstrap, registry, pull, push, Resolution or ACK loop.
+
+Checks:573 tests/20 focused files,82 order tests, accepted Stage/Metadata/Note/reader/
+ACK/migration-open regressions PASS. Chromium195 groups, four mandatory scenarios,
+real IDB/Web Locks/atomic abort/key/logout/account isolation/reload/profile reopen,
+page errors0. Typecheck/production build/workflow mandatory order specs/syntax/diff
+PASS. Total119 explicit APIs:registration22/capability11/mode32/registry26/ACK12/
+bootstrap16. Slice delta24:registration3/capability3/mode11/registry3/ACK4.
+Stage-order apply/proof/coverage/prefix0, pull/push/Resolution/unrelated0.
+Cloud EXPECTED, SQLite NOT EXPECTED, remote CI NOT POLLED. Next bounded slice:
+Stage durable conflict history/preservation/ACK proof, without delete/self-echo/writer.
