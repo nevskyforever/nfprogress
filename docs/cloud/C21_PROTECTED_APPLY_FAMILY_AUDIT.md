@@ -690,3 +690,78 @@ Existing registry16/completion16 fixtures only; new conflict/apply/ACK0/unrelate
 page errors0. Typecheck/build/workflow/syntax/diff/pyc PASS; three mandatory Cloud specs;
 SQLite NOT EXPECTED. No skips/dependencies/backend/PG/native/frozen contracts/other-family
 changes. Cloud PENDING — NOT POLLED; official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE.
+
+## C21.1.18 ACK audit BEFORE production
+
+Owner accepted75599e9809a7d3be5facc0e5abc46e845e5c51cd, Cloud38451825537 SUCCESS/all6.
+Audited native note_sync.rs6693–6839 contiguous/prepare/commit; SQLite ACK repository,
+NoteSyncDeviceAckAdapter and retry/auth tests; backend sync_router173+, encrypted V2/V3
+ACK routes, services.py344 registration/990 ACK/449 compression-reader gate; native
+V2/V3 cycles mode/capability prerequisites; Web durable identity/auth and dormant factories.
+
+| Account sequence outcome | Individually safe | Prefix |
+|---|---|---|
+| Note3 applied / exact already-applied replay | exact authenticated original proof + durable candidate/lineage | yes |
+| Note3 self echo | exact immutable outbox/receipt/wire/history | yes |
+| inbox4 proof1 preserved applied/sealed conflict | complete group/member/candidate/tips/proof | yes |
+| inbox4 proof2 preserved local-unsealed conflict | above + independent frozen generation/AEAD/digest | yes |
+| received Note, orphan, rejected, ordinary unproven conflict | no safe persisted proof | stop |
+| Metadata2 authority-only | not Native general ACK ledger | stop |
+| Stage/Document/Map/ContentNote/Progress/Catalog/Game/Cover/other | missing Web ACK-safe apply proof | stop |
+| missing expected sequence <=pull | absent | stop, never jump |
+
+Native walks ACCOUNT-WIDE from ack+1 until first unsafe/missing event; duplicate IDs/
+sequences corrupt. Web will authenticate whole historical proven range too, retain durable
+separate prefix and never infer from max Note/pull. Native commit monotonic/expected-old,
+recomputes safety, already_acknowledged/already_advanced/stale; server success/lost response
+or local failure leaves safe retry. Server ACK is max(last_ack,cursor), bounded by current
+account sequence, requires authenticated registered user/device, transport-mode equality
+and compression_id1 reader declaration where required. last_ack_cursor metadata never
+copies into local cursor.
+
+ACK NETWORK STOP: durable Web UUID and normal auth are valid and PUT registration exists,
+but current Web has NO authenticated current writer-transport/cutover/compression-reader
+prerequisite flow. Native adapter default protocol1 is incompatible with encrypted account
+mode2/3; choosing V2/V3 from retained row protocol or declaring Native compression support
+would invent authority. Registration alone does not establish these prerequisites.
+Current dormant Legacy reader does not supply full C15 compression reader registration.
+Implement prefix-only; no registration/capability/cutover/ACK requests or new backend.
+Diagnostic ack_transport_unavailable after explicit fresh registry token where applicable;
+no durable registry proof. v8 cursor shape unchanged; no synth positive values on open.
+
+
+### C21.1.18 implemented aggregation / precise transport stop
+
+PARTIAL LOCAL COMPLETE: explicit authenticated account-wide contiguous prefix/persistence
+complete; ACK HTTP/local ACK writer not implemented. Exact safe classes: Note3 applied/
+original replay/self echo (receipt/outbox join), inbox4 conflict proof1 complete applied
+versions/group/tips, conflict proof2 exact independently encrypted unsealed generation.
+Current keys verify candidate/projection/frozen intent/retained wire/outcome before private
+plan; ONE strict expected-old whole proof/cursor transaction recomputes and writes only
+proven_prefix. Reopen bounds0<=ack<=proven<=pull, no open/migration synthesis. v8 unchanged;
+old1–7 zero-only migration contract retained. Source/phase/ordinal/ACK immutable here.
+
+Cross-family matrix remains exact audited table: received/orphan/rejected/unproven Notes,
+missing expected sequence, Metadata authority-only, Stage/Document/Map/ContentNote/Progress/
+Catalog/ProjectGame/AccountGame/Cover/unsupported all STOP. Never max Note sequence or skip;
+subsequent safe events retained. All old proven history revalidated explicitly; corrupted
+historical cursor/proof rejects whole operation, no weaker replacement prefix.
+
+ACK prerequisite missing in current Web: safe authenticated current writer-mode/cutover/
+registered-device/required compression-reader flow. Durable UUID and normal auth valid;
+PUT registration exists but alone insufficient; default Native protocol1 ACK incompatible
+with encrypted mode2/3. No guessing V2/V3 from event protocol or claiming reader capability.
+No server last_ack_cursor copying/network; fresh runtime registry token remains explicit
+non-durable prerequisite. Diagnostic ack_transport_unavailable; no ready. Frozen Native/
+backend ACK monotonic/idempotent/lost response and local-failure semantics audited; actual
+transport disabled. Next bounded prerequisite bridge then explicit bounded ACK/commit,
+without other-family proof invention. Cross-family protected apply remains separate.
+
+41 new +521 affected =562 PASS/31 files; Chromium171 PASS with prefix3→5→7, received/missing/
+Document barriers, legitimate original Note apply, abort/key/logout, account isolation and
+renderer/disk-profile reopen. Final prefix7/ACK0/pull9/readyfalse. Existing registry16/
+completion16 fixtures only; new ACK/registration/sync0/page errors0. Typecheck/build/workflow/
+syntax/diff/protected pyc PASS, three explicit mandatory Cloud specs, SQLite NOT EXPECTED.
+No skips/dependencies/backend/PG/native/frozen contracts. Remote PENDING — NOT POLLED;
+official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE. Checkpoint includes mandatory
+Russian plain-language subsection while retaining full technical evidence.

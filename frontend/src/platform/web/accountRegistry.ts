@@ -52,6 +52,8 @@ function targets(scope:BrowserSyncScope,rows:BrowserProjectBinding[],remote:Clou
   })
   return {rows:next,unknown,unregistered:unregistered.sort()}
 }
+/** Internal runtime-only capability check; never persisted as registry authority. */
+export function currentRegistryForPrefix(token:VerifiedAccountRegistry|undefined,scope:BrowserSyncScope,rows:BrowserProjectBinding[]):boolean{const p=token&&proofs.get(token);return !!p&&same(p.scope,scope)&&p.current()&&!p.blocked&&same(p.bindings,rows.sort(order))}
 export class BrowserAccountRegistry {
   constructor(private readonly transaction:BrowserSyncTransaction,private readonly sessionCurrent:()=>boolean){}
   bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext):BrowserAccountRegistryRuntime{return new BrowserAccountRegistryRuntime(this.transaction,this.sessionCurrent,auth,bindings,keys)}

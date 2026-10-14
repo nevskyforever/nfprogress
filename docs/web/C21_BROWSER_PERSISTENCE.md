@@ -1876,3 +1876,86 @@ unrelatedAPI0/page errors0. Typecheck/build/workflow/syntax/diff/pyc PASS; exist
 warnings only. Three new specs explicit Cloud gates plus producer/seal/history/apply/ACK/
 migration regressions and hard-failing Chromium. SQLite NOT EXPECTED, no skips/dependencies/
 backend/PG/native/frozen Note/crypto/receipt/Resolution/Metadata apply changes. No CI polling.
+
+
+## C21.1.18 account-wide contiguous proven prefix / ACK transport STOP
+
+Owner accepted C21.1.17 `75599e9809a7d3be5facc0e5abc46e845e5c51cd`, Cloud38451825537
+SUCCESS/all six jobs SUCCESS; REMOTELY ACCEPTED. C21.1.18 PARTIAL LOCAL COMPLETE:
+positive prefix complete, ACK transport blocked by current writer-mode/reader-registration
+prerequisites. Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE. Exact Native/backend
+ACK/outcome audit before production in protected-family audit; no roadmap points.
+
+Schema8 unchanged, no store/index/migration. Cursor record1 same fields; numeric bounded
+0<=ack_cursor<=proven_prefix<=pull_cursor and positive safe next_local_ordinal. Current v8
+reads preserve positive state, no inferred advancement/full crypto during open. Historical
+v1–v7 migration validators still reject positive old counters (no repair/synthesis). Normal
+pull/outbox/receipt writers preserve independent prefix/ACK fields; readCheckpoint returns
+actual values. This slice writes ONLY positive proven_prefix; no ACK writer/network.
+
+Dormant session.proven.bind(...) calculate/prepare/result/commit/advance requires normal
+current auth/authoritative account binding/durable identity/device/key/session. Pure structural
+calculation independently tested before commit layer. Exact account-wide inbox sequence
+sort/duplicate event+sequence validation, never highest Note sequence. Note3 applied and
+exact replay count through ORIGINAL durable proof; self_echo needs exact outbox/immutable
+receipt/sequence/wire. Inbox4 proof1 preserved applied conflict and proof2 local-unsealed
+conflict require complete group/members/versions/common parent/generation/tips and exact
+frozen local ID/generation/digest. Every Note candidate/header/protocol/source/wire matches
+original outcome; active bootstrap and upload/completing initial cohort joined where needed.
+
+Current-lease authentication OUTSIDE IDB: immutable candidate/snapshot AEAD, frozen local
+record/intent/generation, retained Note plaintext/header/eligibility, wire and outcome digests.
+Missing/corrupt/foreign required evidence fails closed. Full historical proven range is
+revalidated on explicit prepare, so old unsupported/missing/corrupt rows cannot weaken a
+stored positive prefix. Crypto is never held in a write transaction. Pure calculator alone
+cannot persist authority; only opaque private verified plan can enter commit.
+
+Walk1..pull, retain previous monotonic proven prefix, stop at FIRST unqualified or absent
+expected sequence; subsequent safe Notes do not jump barrier. Received-only Note including
+orphan/rejected/ordinary conflict blocks; Metadata-applied/ownerHeads authority is NOT a
+native general ACK ledger and blocks; Stage/Document/Map/ContentNote/Progress/Catalog/
+ProjectGame/AccountGame/Cover/others block without protected apply invention. Result has
+current/candidate prefix/pull/first blocking sequence/code/family/counts. Exact scalar
+invariants and impossible historical prefix detect corruption. Later events never rewritten.
+
+Strict ONE prefix write TX re-reads exact inbox/outbox/receipts/bindings/ownerHeads/history/
+cursor and recomputes exact contiguous target. Expected-old whole inventory/cursor CAS:
+changed proof/header/group/pull/current prefix/key/auth aborts; no blind write. Exact already
+committed plan returns already_proven if original inventory except prefix unchanged; fresh
+same-target no_progress. Only cursor.proven_prefix changes, ACK/source/phase/ordinal stay.
+No decreases, beyond-pull target or holes. Positive prefix retained across renderer/profile
+reopen; no registry/transport discovery in prefix operation.
+
+ackStatus is READONLY diagnostic, no HTTP/ACK commit. Reports safe_note_prefix_available
+when crypto-verified candidate needs explicit persistence, missing/received/Metadata/family
+barriers, no_ack_progress, registry_reconciliation_required, pull_required and
+ack_transport_unavailable. A fresh explicit C21.1.13 registry token, scope/current lease/
+exact current bindings required to pass registry gate; token never becomes durable proof.
+Normal existing registry diagnostics report actual durable positive prefix and ACK cursor;
+ready:false/ack_eligible:false always. Positive prefix alone does not imply full sync ready.
+
+NETWORK GATE STOP: durable Web UUID/normal auth are valid and frozen PUT /api/v1/sync/
+devices/{id} registration exists, but registered-device authority/current account writer
+mode/cutover/compression-reader capability flow is absent in this dormant Web composition.
+Native NoteSyncDeviceAckAdapter default protocol1 cannot ACK encrypted mode2/3; Native
+cycles verify mode and required reader support before mode-specific transport. Backend
+services.ack enforces registered authenticated device, mode equality and required ID1
+reader capability, bounds to current account sequence and monotonically retains max ACK.
+Safe V2/V3 endpoint cannot be selected from mixed retained protocol versions. No arbitrary
+reader capability/cutover declaration. Prefix-only implementation, not an improvised HTTP
+adapter. Registration/ACK/capability/cutover requests0; server last_ack_cursor never copied.
+Frozen idempotent/lost-response/local-failure semantics audited, actual ACK tests not run
+because network disabled. Next bound: authenticated Web mode/reader/device prerequisite
+bridge, then separately bounded ACK/retry/commit; other-family protected apply still missing.
+
+Checks: aggregation16/persistence23/diagnostics2 =41 new +521 affected =562 PASS/31 curated
+files; final focused checks PASS. Chromium171: three proven Notes/prefix3, abort/key/logout,
+only cursor writes, reload/disk persistence, received4 stops safe5 then original protected
+apply/prefix5, missing6 stops safe7 (isolated recovery fixture restores exact ORIGINAL
+received bytes, no fake success), legitimate apply/prefix7, Document8 stops Note9, account
+isolation, final prefix7/ACK0/pull9/phase unchanged/readyfalse. Old proof/conflict/self-echo/
+initial cohort/migration/open regressions retained. Existing registry16/completion16 fixture
+requests only; new registration/ACK/pull/push/registry/bootstrap/Resolution0/page errors0.
+Typecheck/build/workflow/syntax/diff/pyc PASS; existing warnings only. Three explicit Cloud
+specs plus accepted regressions and hard-failing Chromium; SQLite NOT EXPECTED. No skips/
+dependencies/backend/PG/native/frozen protocol/crypto/receipt/conflict changes or CI polling.

@@ -1,3 +1,4 @@
+import { acceptProvenPrefix } from './browser-proven-prefix-acceptance.mjs'
 import { acceptUnsealedConflicts } from './browser-note-unsealed-conflict-acceptance.mjs'
 import { acceptNoteIntents } from './browser-note-intent-acceptance.mjs'
 import { acceptNoteHistory } from './browser-note-history-acceptance.mjs'
@@ -1039,6 +1040,8 @@ try {
   page = await acceptNoteIntents({page,scope:scopeA,users,cases,expectCode,reopenProfile:async()=>{await context.close();await start();return tab()}})
   assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
   page=await acceptUnsealedConflicts({page,scope:scopeA,users,cases,reopenProfile:async()=>{await context.close();await start();return tab()}})
+  assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
+  page=await acceptProvenPrefix({page,scope:scopeA,users,cases,reopenProfile:async()=>{await context.close();await start();return tab()}})
   assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
   const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))

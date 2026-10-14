@@ -26,8 +26,8 @@ function historySort(rows:BrowserNoteHistoryRecord[]):BrowserNoteHistoryRecord[]
 function proofRow(row:BrowserInboxRecord,proof:BrowserNoteProof|BrowserNoteConflictProof){return proof.outcome==='conflict_preserved'?{...row,record_version:4,state:'note_conflict_preserved',note_conflict_proof:proof}:{...row,record_version:3,state:'note_proven',note_proof:proof}}
 function fail(code:BrowserPersistenceCode):never{throw new BrowserPersistenceError(code)}
 export async function noteProofDigest(value:unknown):Promise<string>{const bytes=new TextEncoder().encode(immutableWireIdentity(value));let digest:Uint8Array|undefined;try{digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));return Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('')}finally{bytes.fill(0);digest?.fill(0)}}
-async function noteOutcomeDigest(p:BrowserNoteProof|BrowserNoteConflictProof):Promise<string>{const {outcome_digest:_digest,...body}=p;return noteProofDigest(body)}
-async function openRetainedNote(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord):Promise<NoteSyncPlaintext>{
+export async function noteOutcomeDigest(p:BrowserNoteProof|BrowserNoteConflictProof):Promise<string>{const {outcome_digest:_digest,...body}=p;return noteProofDigest(body)}
+export async function openRetainedNote(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord):Promise<NoteSyncPlaintext>{
   const wire=JSON.parse(row.wire_item),r=wire.event;let nonce:Uint8Array|undefined,ciphertext:Uint8Array|undefined,bytes:Uint8Array|undefined
   try{nonce=decodeBase64Url(wire.object.nonce);ciphertext=decodeBase64Url(wire.object.ciphertext);bytes=await decryptObjectBytes(amk,{userId:scope.canonicalUserId,projectId:r.project_id,entityId:r.entity_id,entityType:'note'},{crypto_version:wire.object.crypto_version,aad_version:wire.object.aad_version,nonce,ciphertext})
     const value=decodeNoteSyncPlaintext(bytes),h=value.header
@@ -36,7 +36,7 @@ async function openRetainedNote(scope:BrowserSyncScope,amk:AccountMasterKey,row:
     return value
   }catch(e){if(e instanceof BrowserPersistenceError)throw e;return fail('note_rejected')}finally{nonce?.fill(0);ciphertext?.fill(0);bytes?.fill(0)}
 }
-async function verifyStoredNoteProof(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord):Promise<void>{
+export async function verifyStoredNoteProof(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord):Promise<void>{
   if(row.state!=='note_proven')fail('corrupt_record');const raw=JSON.parse(row.wire_item),p=validateBrowserNoteProof(row.note_proof,scope)
   try{const decoded=await openRetainedNote(scope,amk,row);if(await noteOutcomeDigest(p)!==p.outcome_digest||!same(decoded.header,p.header)||decoded.mutation!==p.mutation||await noteProofDigest({protocol_version:row.protocol_version,event:raw.event,object:raw.object})!==p.wire_digest)fail('corrupt_record')}catch{fail('corrupt_record')}
 }

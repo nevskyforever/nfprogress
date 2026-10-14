@@ -8,7 +8,7 @@ import type { CommitInboundPageResult, NoteSyncPullState } from '@/infrastructur
 import { BrowserPersistenceError, type runBrowserTransaction } from './persistence'
 
 export interface BrowserSyncScope { canonicalUserId: string; accountId: string; deviceId: string }
-export interface BrowserSyncCheckpoint extends NoteSyncPullState { proven_prefix: 0; next_local_ordinal: number }
+export interface BrowserSyncCheckpoint extends NoteSyncPullState { proven_prefix: number; next_local_ordinal: number }
 export interface BrowserOutboxRecord {
   record_version: 1; account_id: string; device_id: string; event_id: string
   local_ordinal: number; protocol_version: 2 | 3; state: 'sealed' | 'accepted'; raw_body: string
@@ -126,7 +126,7 @@ function cursor(value: unknown, scope: BrowserSyncScope): CursorRecord {
   if (value === undefined) return { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, pull_cursor: 0, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 }
   if (!exact(value, ['record_version','account_id','device_id','pull_cursor','ack_cursor','proven_prefix','next_local_ordinal'])) failure()
   const row = value as CursorRecord
-  if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !safe(row.pull_cursor) || row.ack_cursor !== 0 || row.proven_prefix !== 0 || !safe(row.next_local_ordinal, 1)) failure()
+  if (row.record_version !== 1 || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !safe(row.pull_cursor) || !safe(row.ack_cursor) || !safe(row.proven_prefix) || row.ack_cursor>row.proven_prefix || row.proven_prefix>row.pull_cursor || !safe(row.next_local_ordinal, 1)) failure()
   return row
 }
 export function readBrowserSyncCursor(tx: IDBTransaction, scope: BrowserSyncScope, ready: (state: CursorRecord) => void, fail: (error: unknown) => void): void {
@@ -185,7 +185,7 @@ export function validateBrowserV2SyncState(scopes: BrowserSyncScope[], outbound:
   }
   const outgoing = outbound.map(value => { const row = outbox(value, scopeFor(value)); if (row.state !== 'sealed') failure(); return row })
   const incoming = inbound.map(value => validateBrowserInboxRecord(value, scopeFor(value)))
-  const states = checkpoints.map(value => cursor(value, scopeFor(value)))
+  const states = checkpoints.map(value => {const row=cursor(value,scopeFor(value));if(row.ack_cursor!==0||row.proven_prefix!==0)failure();return row})
   for (const scope of scopes) {
     const out = outgoing.filter(row => row.account_id === scope.accountId), received = incoming.filter(row => row.account_id === scope.accountId)
     const state = states.find(row => row.account_id === scope.accountId)
@@ -433,7 +433,7 @@ export class BrowserSyncDurability {
   readCheckpoint(scope: BrowserSyncScope): Promise<BrowserSyncCheckpoint> {
     scope = snapshotScope(scope)
     return this.transaction(scope, ['outbox', 'inbox', 'cursors'], 'readonly', (tx, result, fail) => {
-      readBrowserSyncCursor(tx, scope, row => result({ pull_cursor: row.pull_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: row.next_local_ordinal }), fail)
+      readBrowserSyncCursor(tx, scope, row => result({ pull_cursor: row.pull_cursor, ack_cursor: row.ack_cursor, proven_prefix: row.proven_prefix, next_local_ordinal: row.next_local_ordinal }), fail)
     })
   }
 

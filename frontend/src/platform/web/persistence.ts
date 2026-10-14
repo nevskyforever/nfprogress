@@ -1,3 +1,4 @@
+import { BrowserProvenPrefix } from './provenPrefix'
 import { BrowserNoteIntents } from './noteIntents'
 import { validateBrowserV7State } from './noteIntentMigration'
 import { BrowserLegacyNoteHistory } from './noteHistory'
@@ -216,6 +217,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly noteIntents: BrowserNoteIntents
   readonly noteHistory: BrowserLegacyNoteHistory
   readonly notes: BrowserLegacyNoteApply
+  readonly proven: BrowserProvenPrefix
   readonly registry: BrowserAccountRegistry
   private active = true
   private readonly pending = new Map<IDBTransaction, Promise<unknown>>()
@@ -235,6 +237,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.noteIntents = new BrowserNoteIntents((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)
     this.noteHistory = new BrowserLegacyNoteHistory((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.notes = new BrowserLegacyNoteApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)
+    this.proven = new BrowserProvenPrefix((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.registry = new BrowserAccountRegistry((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.metadata = new BrowserImportedMetadataApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.sync)
     database.onversionchange = () => { void this.close() }

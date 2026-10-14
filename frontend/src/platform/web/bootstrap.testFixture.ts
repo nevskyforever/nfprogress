@@ -1,3 +1,4 @@
+import { BrowserProvenPrefix } from './provenPrefix'
 import { BrowserNoteIntents } from './noteIntents'
 import { BrowserLegacyNoteHistory } from './noteHistory'
 import { BrowserLegacyNoteApply } from './legacyNoteApply'
@@ -52,8 +53,9 @@ export async function fixture(ids = ['z','a']) {
   const notes = new BrowserLegacyNoteApply(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const registry = new BrowserAccountRegistry(transaction, () => !closed).bind(auth,bindings as never,keys as never)
   const completion = new BrowserBootstrapCompletion(transaction, () => !closed).bind(auth,bindings as never,keys as never)
+  const proven=new BrowserProvenPrefix(transaction,()=>!closed).bind(auth,bindings as never,keys as never)
   const writer=new BrowserNoteIntents(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const mutate = async () => local.updateNote(scope,(await local.readSnapshot(scope,'p')).token,'a',{ title: 'LATER_PRIVATE' },at)
   const accept = async (row: unknown, sequence: number) => sync.commitUploadAcceptance(scope,row as never,{ protocol_version: 2, encrypted_sync_version: 2, current_cursor: sequence, results: [{ event_id: (row as {event_id: string}).event_id, server_sequence: sequence, duplicate: false }] })
-  return { writer,noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, unavailable: () => {missingKey=true}, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
+  return { proven,writer,noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, unavailable: () => {missingKey=true}, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
 }
