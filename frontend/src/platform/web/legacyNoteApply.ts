@@ -1,5 +1,7 @@
+import { contentProofFor,verifyStoredContentNoteProof,contentHistoryJoin } from './contentNoteProof'
+import type { BrowserContentNoteProof } from './contentNoteRecords'
 import { openNoteTransport } from './noteTransport'
-import { prepareNotePrerequisite, prepareNoteTransportCommit, scheduleNoteTransportCommit, type VerifiedNoteTransportCommit } from './noteTransportPrerequisite'
+import { prepareNotePrerequisite, prepareNoteTransportCommit, prepareNoteTransportReplay, scheduleNoteTransportCommit, type VerifiedNoteTransportCommit } from './noteTransportPrerequisite'
 import { NOTE_INTENT_STORE,validateNoteIntent,type BrowserNoteIntent } from './noteIntentRecords'
 import { freezeLocalVersion,openFrozenLocalVersion,unsealedPlaintext } from './noteUnsealedVersion'
 import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteLocalVersion,type BrowserNoteHistoryRecord,type BrowserNoteCandidate,type BrowserNoteConflictGroup,type BrowserNoteHead } from './noteHistoryRecords'
@@ -21,13 +23,13 @@ export interface VerifiedNoteCausalPlan {readonly verifiedNoteCausalPlan:unique 
 export type VerifiedLegacyNotePlan = VerifiedNoteCausalPlan
 interface Inventory {intents:BrowserNoteIntent[];history:BrowserNoteHistoryRecord[];checkpoint:BrowserSyncCheckpoint;binding:BrowserProjectBinding;rows:BrowserInboxRecord[];out:unknown[];receipts:unknown[]}
 type DormantNoteOutcome=Omit<BrowserNoteProof,'owner_kind'> & {owner_kind:'dormant_note_prerequisite'}
-type NoteCausalOutcome=BrowserNoteProof|BrowserNoteConflictProof|DormantNoteOutcome
+type NoteCausalOutcome=BrowserNoteProof|BrowserNoteConflictProof|DormantNoteOutcome|BrowserContentNoteProof
 interface Plan {transportHook?:VerifiedNoteTransportCommit;dormant?:boolean;owner:BrowserLegacyNoteApplyRuntime;scope:BrowserSyncScope;inventory:Inventory;row:BrowserInboxRecord;proof:NoteCausalOutcome;historyNext:BrowserNoteHistoryRecord[];current:()=>boolean;local:BrowserLocalAuthorityRuntime;plaintext?:NoteSyncPlaintext;source?:ProtectedNoteSourcePlan;sourceToken?:LocalSourceToken;replay:boolean}
 const plans=new WeakMap<object,Plan>()
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
 const range=(a:string)=>IDBKeyRange.bound([a],[a,[]])
 function historySort(rows:BrowserNoteHistoryRecord[]):BrowserNoteHistoryRecord[]{return rows.sort((a,b)=>{const x=`${a.record_kind}:${a.record_id}`,y=`${b.record_kind}:${b.record_id}`;return x<y?-1:x>y?1:0})}
-function proofRow(row:BrowserInboxRecord,proof:NoteCausalOutcome){if(proof.owner_kind!=='legacy_note')fail('corrupt_record');return proof.outcome==='conflict_preserved'?{...row,record_version:4,state:'note_conflict_preserved',note_conflict_proof:proof}:{...row,record_version:3,state:'note_proven',note_proof:proof}}
+function proofRow(row:BrowserInboxRecord,proof:NoteCausalOutcome){if(proof.owner_kind==='content_note')return{...row,record_version:7,state:'content_note_proven',content_note_proof:proof};if(proof.owner_kind!=='legacy_note')fail('corrupt_record');return proof.outcome==='conflict_preserved'?{...row,record_version:4,state:'note_conflict_preserved',note_conflict_proof:proof}:{...row,record_version:3,state:'note_proven',note_proof:proof}}
 function fail(code:BrowserPersistenceCode):never{throw new BrowserPersistenceError(code)}
 export async function noteProofDigest(value:unknown):Promise<string>{const bytes=new TextEncoder().encode(immutableWireIdentity(value));let digest:Uint8Array|undefined;try{digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));return Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('')}finally{bytes.fill(0);digest?.fill(0)}}
 export async function noteOutcomeDigest(p:NoteCausalOutcome):Promise<string>{const {outcome_digest:_digest,...body}=p;return noteProofDigest(body)}
@@ -62,14 +64,17 @@ export class BrowserLegacyNoteApplyRuntime {
   async prepare(scope:BrowserSyncScope,sequence:number):Promise<VerifiedLegacyNotePlan>{return this.prepareRoute(scope,sequence,false)}
   /** Internal dormant acceptance adapter. Never selected by normal apply or production composition. No Content ACK proof. */
   async prepareDormantOrdinary(scope:BrowserSyncScope,sequence:number):Promise<VerifiedLegacyNotePlan>{return this.prepareRoute(scope,sequence,true)}
-  private async prepareRoute(scope:BrowserSyncScope,sequence:number,dormant:boolean):Promise<VerifiedLegacyNotePlan>{
+  /** Production project-HTML peer subset; same causal engine and transaction as Legacy. */
+  async prepareContentOrdinary(scope:BrowserSyncScope,sequence:number):Promise<VerifiedNoteCausalPlan>{return this.prepareRoute(scope,sequence,false,true)}
+  private async prepareRoute(scope:BrowserSyncScope,sequence:number,dormant:boolean,content=false):Promise<VerifiedLegacyNotePlan>{
     scope=snapshotBrowserSyncScope(scope);if(!Number.isSafeInteger(sequence)||sequence<1)fail('missing_history')
-    const {lease,current}=await this.guard(scope),inventory=await this.load(scope,sequence,dormant),row=inventory.rows.find(r=>r.server_sequence===sequence)!,binding=inventory.binding
+    const {lease,current}=await this.guard(scope),inventory=await this.load(scope,sequence,dormant||content),row=inventory.rows.find(r=>r.server_sequence===sequence)!,binding=inventory.binding
     if(binding.remote_state!=='active'||!(binding.mode==='import_remote'&&binding.phase==='captured'||binding.mode==='upload_existing'&&binding.phase==='completing'))fail('ineligible_lineage')
+    if(content&&(binding.mode!=='import_remote'||binding.phase!=='captured'))fail('ineligible_lineage')
     const cohort=binding.mode==='upload_existing'?deriveInitialLegacyCohort(scope,binding,inventory.out,inventory.receipts):null
     const raw=JSON.parse(row.wire_item),reference=raw.event,{device_id:_source,server_sequence:_sequence,...event}=reference,item={event,object:raw.object}
     return lease.use(async amk=>{
-      const prerequisite=dormant?await prepareNotePrerequisite(scope,row,binding,amk,current,this.transaction):undefined
+      const prerequisite=dormant||content?await prepareNotePrerequisite(scope,row,binding,amk,current,this.transaction):undefined
       let plaintext:NoteSyncPlaintext;try{plaintext=prerequisite?prerequisite.plaintext:await openRetainedNote(scope,amk,row)}catch(e){if(row.state!=='received')fail('corrupt_record');throw e}const h=plaintext.header
       const records=inventory.history,candidates=records.filter((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'),groups=records.filter((r):r is BrowserNoteConflictGroup=>r.record_kind==='group'),versions=records.filter((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version')
       if(records.some(r=>r.bootstrap_id!==binding.bootstrap_id))fail('stale_lineage')
@@ -84,6 +89,7 @@ export class BrowserLegacyNoteApplyRuntime {
       for(const prior of applied){if(prior.state!=='note_proven')fail('corrupt_record');await verifyStoredNoteProof(scope,amk,prior);if(prior.note_proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');if(prior.note_proof.outcome==='self_echo_applied'){requireOwnReceipt(scope,inventory,prior);if(!candidates.some(c=>c.event_id===prior.event_id))fail('candidate_history_unavailable');continue}
         if(!candidates.some(c=>c.event_id===prior.event_id)){const wire=JSON.parse(prior.wire_item),{device_id:source,server_sequence:_seq,...e}=wire.event,opened=await openRetainedNote(scope,amk,prior);add(await makeHistoryCandidate(scope,binding,prior.protocol_version,source,{event:e,object:wire.object},opened,'peer',null,prior.note_proof.local_note_digest))}
       }
+      for(const prior of inventory.rows)if(prior.state==='content_note_proven'&&prior.content_note_proof.header.project_id===h.project_id&&prior.content_note_proof.header.entity_id===h.entity_id)await verifyStoredContentNoteProof(scope,amk,prior,records)
       for(const group of groups)for(const member of group.members){
         if(member.source==='local_unsealed'){const frozen=versions.find(v=>v.version_id===member.version_id);if(!frozen||frozen.intent.mutation_generation!==member.local_mutation_generation)fail('corrupt_record');continue}
         const retained=inventory.rows.find(r=>r.event_id===member.event_id),candidate=candidates.find(c=>c.event_id===member.event_id)
@@ -102,10 +108,18 @@ export class BrowserLegacyNoteApplyRuntime {
       if(!head&&candidates.length){const nativeHeads=[...applied.map(r=>({event:r.event_id,revision:r.state==='note_proven'?r.note_proof.header.revision:0})),...outgoing.map(r=>{const e=JSON.parse(r.raw_body).items[0].event;return{event:r.event_id,revision:e.revision}})],max=Math.max(...nativeHeads.map(r=>r.revision)),top=nativeHeads.filter(r=>r.revision===max)
         if(!top.length||new Set(top.map(r=>r.event)).size!==1)fail('candidate_history_unavailable');head=nextNoteHead(scope,binding,candidates,top[0]!.event)
       }
-      if(dormant&&candidates.some(c=>c.event_id===h.event_id))fail('conflicting_record') // One immutable event authority; no cross-route overwrite or synthetic replay proof.
+      if((dormant||content&&row.state!=='content_note_proven')&&candidates.some(c=>c.event_id===h.event_id))fail('conflicting_record') // One immutable event authority; no cross-route overwrite or synthetic replay proof.
       const wireDigest=await noteProofDigest({protocol_version:row.protocol_version,event:reference,object:raw.object})
       let proof:NoteCausalOutcome,replay=false
       if(row.state==='applied')fail('corrupt_record')
+      if(row.state==='content_note_proven'){
+        if(!content||!prerequisite)fail('corrupt_record')
+        await verifyStoredContentNoteProof(scope,amk,row,records);const c=contentHistoryJoin(scope,row,records)
+        const source=await this.local.readSnapshot(scope,binding.project_id),token=Object.freeze({}) as VerifiedNoteCausalPlan
+        plans.set(token,{owner:this,scope,inventory,row,proof:row.content_note_proof,current,local:this.local,sourceToken:source.token,replay:true,historyNext:records,transportHook:prepareNoteTransportReplay(prerequisite.certificate,c)})
+        if(!current())fail('closed');return token
+      }
+      if(content&&(groups.length||head&&head.tip_event_ids.length!==1))fail('note_conflict_unproven')
       if(row.state==='note_proven'){
         proof=validateBrowserNoteProof(row.note_proof,scope);if(proof.outcome==='self_echo_applied')requireOwnReceipt(scope,inventory,row);await verifyStoredNoteProof(scope,amk,row);if(proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');replay=true
       }else if(row.state==='note_conflict_preserved'){
@@ -143,7 +157,7 @@ export class BrowserLegacyNoteApplyRuntime {
             }
           }
         }
-        if(dormant&&preserve)fail('note_conflict_unproven')
+        if((dormant||content)&&preserve)fail('note_conflict_unproven')
         if(preserve){
           proof={record_version:1,owner_kind:'legacy_note',outcome:'conflict_preserved',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation as 'update'|'delete',wire_digest:wireDigest,outcome_digest:'',group_id:preserve.group_id,conflict_generation:preserve.conflict_generation}
           const localMember=preserve.members.find(m=>m.source==='local_unsealed');if(localMember){proof={...proof,record_version:2,local_version_digest:versions.find(v=>v.version_id===localMember.version_id)!.record_digest,local_version_id:localMember.version_id,local_mutation_generation:(localMember as {local_mutation_generation:number}).local_mutation_generation}}
@@ -151,9 +165,9 @@ export class BrowserLegacyNoteApplyRuntime {
           head=nextNoteHead(scope,binding,candidates,head!.linear_head_event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))
           const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,sourceToken:source.token,replay:false,historyNext:historySort([...candidates,...groups,...versions,head])};proof.outcome_digest=await noteOutcomeDigest(proof);validateBrowserNoteConflictProof(proof,scope);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
         }
-        const cleanProof:BrowserNoteProof|DormantNoteOutcome={record_version:1,owner_kind:dormant?'dormant_note_prerequisite':'legacy_note',outcome:own?'self_echo_applied':'applied',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation,wire_digest:wireDigest,outcome_digest:'',source_revision:null,local_note_digest:null};proof=cleanProof
+        const cleanProof:BrowserNoteProof|DormantNoteOutcome={record_version:1,owner_kind:dormant||content?'dormant_note_prerequisite':'legacy_note',outcome:own?'self_echo_applied':'applied',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation,wire_digest:wireDigest,outcome_digest:'',source_revision:null,local_note_digest:null};proof=cleanProof
         const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,plaintext,sourceToken:source.token,replay:false,historyNext:[]};p.dormant=dormant;plans.set(token,p)
-        try{if(!own){const prepared=await this.local.prepareProtectedNoteApply(scope,source.token,token);p.source=prepared.token;cleanProof.source_revision=prepared.source_revision;cleanProof.local_note_digest=await noteProofDigest(prepared.note);if(prerequisite){const transport=await prepareNoteTransportCommit(prerequisite.certificate,plaintext,prepared.note);p.transportHook=transport.hook;add(transport.candidate)}else add(await makeHistoryCandidate(scope,binding,row.protocol_version,reference.device_id,item,plaintext,'peer',prepared.note));head=nextNoteHead(scope,binding,candidates,h.event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))}
+        try{if(!own){const prepared=await this.local.prepareProtectedNoteApply(scope,source.token,token);p.source=prepared.token;cleanProof.source_revision=prepared.source_revision;cleanProof.local_note_digest=await noteProofDigest(prepared.note);if(prerequisite){const transport=await prepareNoteTransportCommit(prerequisite.certificate,plaintext,prepared.note);p.transportHook=transport.hook;add(transport.candidate);if(content){proof=await contentProofFor(scope,row,transport.candidate,plaintext.mutation);p.proof=proof}}else add(await makeHistoryCandidate(scope,binding,row.protocol_version,reference.device_id,item,plaintext,'peer',prepared.note));head=nextNoteHead(scope,binding,candidates,h.event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))}
           proof.outcome_digest=await noteOutcomeDigest(proof);if(proof.owner_kind==='legacy_note')validateBrowserNoteProof(proof,scope);p.historyNext=historySort([...candidates,...groups,...versions,...(head?[head]:[])]);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');return token
         }finally{delete p.plaintext}
       }

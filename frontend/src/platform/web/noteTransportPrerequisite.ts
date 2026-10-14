@@ -19,12 +19,12 @@ const certificates=new WeakMap<object,Certificate>()
 const commits=new WeakMap<object,{certificate:Certificate;candidate:BrowserNoteCandidate}>()
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
 function fail():never{throw new BrowserPersistenceError('stale_authority')}
-/** Dormant, project-HTML prerequisite only. Minted from original AEAD + authenticated Metadata, never a caller DTO. */
-export async function prepareNotePrerequisite(scope:BrowserSyncScope,row:BrowserInboxRecord,binding:BrowserProjectBinding,amk:AccountMasterKey,current:()=>boolean,transaction:BrowserSyncTransaction):Promise<{certificate:VerifiedNotePrerequisite;plaintext:NoteSyncPlaintext}>{
+/** Project-HTML prerequisite only. Minted from original AEAD + authenticated Metadata, never a caller DTO. */
+export async function prepareNotePrerequisite(scope:BrowserSyncScope,row:BrowserInboxRecord,binding:BrowserProjectBinding,amk:AccountMasterKey,current:()=>boolean,transaction:BrowserSyncTransaction|undefined,inventory?:BrowserPrefixInventory):Promise<{certificate:VerifiedNotePrerequisite;plaintext:NoteSyncPlaintext}>{
  scope=snapshotBrowserSyncScope(scope);row=validateBrowserInboxRecord(structuredClone(row),scope);binding=validateBrowserProjectBinding(structuredClone(binding),scope)
  const {plaintext,content}=await openNoteTransport(scope,amk,row.protocol_version,row.wire_item,'content_note_v1')
  if(!content||content.dependencies.bootstrap_id!==binding.bootstrap_id||content.event.version!==1||content.event.note.content_format!=='html'||content.device_id===scope.deviceId)throw new BrowserPersistenceError('unsupported_local_source')
- const v=await transaction<BrowserPrefixInventory>(scope,['inbox','outbox','receipts','projectBindings','ownerHeads','legacyNoteHistory','cursors'],'readonly',(tx,result,abort)=>readStageInventory(tx,scope,result,abort))
+ const v=inventory??await transaction!<BrowserPrefixInventory>(scope,['inbox','outbox','receipts','projectBindings','ownerHeads','legacyNoteHistory','cursors'],'readonly',(tx,result,abort)=>readStageInventory(tx,scope,result,abort))
  if(!same(v.rows.find(r=>(r as BrowserInboxRecord).server_sequence===row.server_sequence),row)||!v.bindings.some(b=>same(b,binding)))fail()
  const cert=await prepareMetadataPrefix(scope,v,amk,current,true),sequences=verifiedMetadataSequences(cert,scope,v)
  const raw=v.owners.find(r=>(r as {owner_kind:string;owner_id:string}).owner_kind==='project_metadata'&&(r as {owner_id:string}).owner_id===binding.project_id)
@@ -33,8 +33,9 @@ export async function prepareNotePrerequisite(scope:BrowserSyncScope,row:Browser
  if(head.bootstrap_id!==binding.bootstrap_id||!dependency||dependency.operation==='delete'||!sequences.has(dependency.server_sequence)||head.tip_event_ids.length!==1||!tip||tip.operation==='delete'||!sequences.has(tip.server_sequence)||content.dependencies.stage_event_ids.length)fail()
  if(!current())throw new BrowserPersistenceError('closed')
  const dependency_digest=await noteProofDigest({scope,bootstrap_id:binding.bootstrap_id,project_id:binding.project_id,note_id:plaintext.header.entity_id,event_id:plaintext.header.event_id,transport:row,dependencies:content.dependencies,owners:v.owners,bindings:v.bindings})
+ const logical_material_digest=await noteProofDigest(plaintext);if(!current())throw new BrowserPersistenceError('closed')
  const certificate=Object.freeze({}) as VerifiedNotePrerequisite
- certificates.set(certificate,{scope:structuredClone(scope),row:structuredClone(row),binding:structuredClone(binding),owners:structuredClone(v.owners),bindings:structuredClone(v.bindings),dependency_digest,logical_material_digest:await noteProofDigest(plaintext),current})
+ certificates.set(certificate,{scope:structuredClone(scope),row:structuredClone(row),binding:structuredClone(binding),owners:structuredClone(v.owners),bindings:structuredClone(v.bindings),dependency_digest,logical_material_digest,current})
  return {certificate,plaintext}
 }
 /** Bind the actual encrypted source result to its original transport before scheduling. */
@@ -66,4 +67,11 @@ export function scheduleNoteTransportCommit(tx:IDBTransaction,token:VerifiedNote
    const write=store.add(p.candidate);write.onsuccess=()=>{try{if(!c.current())fail();done()}catch(e){abort(e)}}
   }catch(e){abort(e)}};[owners,bindings,candidate].forEach(r=>r.onsuccess=finish)
  }catch(e){abort(e)}
+}
+
+/** Exact replay retains original candidate/proof while a fresh certificate rechecks current dependencies in the final transaction. */
+export function prepareNoteTransportReplay(token:VerifiedNotePrerequisite,candidate:BrowserNoteCandidate):VerifiedNoteTransportCommit{
+ const p=certificates.get(token);if(!p||!p.current()||candidate.record_version!==2||candidate.wire_item!==p.row.wire_item||candidate.event_id!==p.row.event_id||candidate.bootstrap_id!==p.binding.bootstrap_id)fail()
+ validateNoteHistoryRecord(candidate,p.scope);const hook=Object.freeze({}) as VerifiedNoteTransportCommit
+ commits.set(hook,{certificate:p,candidate:structuredClone(candidate)});return hook
 }

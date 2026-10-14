@@ -1,11 +1,11 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.25 status (2026-10-15):** route-aware Note history/shared atomic
-transport prerequisite LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. v8 /12 stores,
-no migration. Content reader-ready YES; production protected apply NO; ACK-safe NO;
-Resolution2 NO; ready=false. C21.1.24 SHA30b7c36ab685172a1ed584cc528e0837d621e7eb,
-Cloud38633076568 SUCCESS/all six jobs SUCCESS; audit REMOTELY ACCEPTED, implementation
-NOT LOCAL COMPLETE. Final C21.1.25 section records current evidence; prior updates are history.
+**Current C21.1.26 status (2026-10-15):** ordinary codec8 project HTML/stage=null
+peer create/update/delete/replay production protected apply and prefix/bounded ACK
+LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. ID0/ID1, v8/twelve stores, no migration.
+Resolution/plain/Stage/conflict/self-echo remain barriers; ready=false. C21.1.25
+SHA2c80641c76b81cc02731e30b9beece14b605d0c3, Cloud38641352769 SUCCESS/all six jobs
+SUCCESS; REMOTELY ACCEPTED. Final C21.1.26 section records current evidence.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -1412,7 +1412,7 @@ remote CI not polled. No production backend/native/schema/dependency/frozen edit
 
 ## C21.1.25 — shared route-aware Note prerequisite
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** for the bounded prerequisite.
+**REMOTELY ACCEPTED** for the bounded prerequisite. Cloud `38641352769` SUCCESS; all six required jobs SUCCESS; accepted SHA `2c80641c76b81cc02731e30b9beece14b605d0c3`.
 C21.1.24 accepted SHA `30b7c36ab685172a1ed584cc528e0837d621e7eb`, Cloud `38633076568` SUCCESS, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED. Implementation remains BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE.
 Official 84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false; no points.
 
@@ -1501,3 +1501,109 @@ replay/conflict/self-echo admission audit; Resolution remains separate.
 - Сам Content Note в обычном приложении специально остаётся барьером. Чтение и тестовый переход не дают ему права увеличивать подтверждение серверу.
 - Следующий шаг — вернуться к ordinary Content Note v1 и включить его production protected apply с настоящим доказательством inbox, отдельно проверив необходимые зависимости и исходы.
 - Полная Web-синхронизация ещё не готова: ready=false, официальный прогресс 84.0%, C21 IN PROGRESS.
+
+## C21.1.26 — production Content Note ordinary v1 / project HTML
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** for the bounded subset.
+C21.1.25 SHA `2c80641c76b81cc02731e30b9beece14b605d0c3`, Cloud `38641352769` SUCCESS, all six required jobs SUCCESS; REMOTELY ACCEPTED.
+Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; ready=false; no points.
+
+`session.contentNotes` is a dedicated production runtime wrapping the accepted shared
+Note planner/commit. Legacy `session.notes` retains its legacy route and proof semantics.
+Production admission: protocol3, exact outer note/event/deleted_at=null; canonical
+codec8 frame1/codec_version1; inner ordinary Note1; peer source; project/null map/node;
+HTML/stage=null/stage_event_ids=[]; import_remote/captured/active binding, exact bootstrap
+and authenticated qualifying Metadata. No upload_existing Content capture, local Content
+writer, self-echo, conflicts, plain, Stage, Resolution2 or other-family expansion.
+
+Clean create/update/delete PASS in ID0 and ID1. Delete uses existing local encrypted Note
+tombstone and causal rules, no Content-specific tombstone. Competing genesis, orphan,
+stale/sibling parent, unresolved frontier/group and local-unsealed intent block rather
+than LWW. Content continuation from a valid Legacy parent and clean Legacy descendant
+from Content are verified in one graph. Same-event cross-transport collision rejects
+without replacing either immutable wire. Legacy local producer admission is not expanded
+to create pending intents from a Content-only head; no local Content writer added.
+
+Existing candidate2/transport_kind=content_note_v1 is retained without evolution or
+rewrite. Dedicated inbox7/content_note_proven has strict exact-key Content proof1:
+account/bootstrap/protocol, original full reference/server sequence, codec8/frame1/
+codec_version1, logical header/mutation/history_event_id, original wire and logical
+material digests, dependency/candidate/transport-proof digests, protected source revision,
+encrypted local projection digest and outcome digest. Qualifying underlying outcome
+is applied only. No plaintext Note body is persisted. Candidate2 alone and inbox proof
+alone cannot qualify. Legacy inbox3/note_proven remains distinct and unchanged.
+
+Actual common readwrite transaction schedules history/head and protected source CAS,
+encrypted project/Note writes, dedicated inbox proof, accepted ownerHeads/all-bindings
+CAS and immutable candidate2/transport-hook evidence. No asynchronous crypto inside IDB
+transaction, no second transaction/post-commit receipt. Inbox/candidate/source failures,
+auth/key/session invalidation, stale Metadata inventory and explicit abort roll back
+all sides. Expected original inbox/history/intents/outbox/receipts/binding/cursor/source
+inventories remain checked. Current Metadata certificate remains the accepted forced
+crypto clean-chain prerequisite, nondelete referenced event plus active authenticated
+current tip in the same project/bootstrap; plain/Stage refs are never silently admitted.
+
+Exact applied replay verifies original row/candidate/header/projection/outcome digests
+and original codec8 AEAD/canonical payload, plus current historical Metadata coverage.
+It retains immutable original dependency digest and uses a fresh certificate for current
+inventory CAS: compatible Metadata descendants do not require rewriting historical proof.
+Replay observes the candidate on the shared linear-head ancestry, snapshots current local
+source for CAS, never rewrites Note/head/projection and never rolls back newer descendants.
+A missing/corrupt candidate/head/proof cannot be repaired from current plaintext state.
+The existing transport hook checks current dependencies in the same replay transaction.
+
+Prefix adds Content only through an opaque crypto certificate bound to exact whole
+inventory, validated dedicated inbox proof, candidate2/full original wire join, protected
+causal outcome/head ancestry, encrypted projection and current Metadata coverage.
+Legacy stripped-wire record1 checks stay unchanged. Prefix/ACK example results:
+Metadata1/Content2/Legacy3 →3; bad dependency/Resolution/plain Content2 →1;
+Metadata1/Stage2/Stage-scoped Content3/Legacy4 →2. Pure structural caller without the
+crypto certificate cannot qualify Content. Candidate2-only dormant acceptance remains
+received and a barrier, even though its source/history are internally testable.
+
+ACK transport/gates/retries remain unchanged; target=committed proven_prefix, at most
+one ACK HTTP per explicit invocation, server success before ack_cursor commit. No loop.
+Supported Content can now enlarge the target. Lost response and server-success/local-
+commit-failure retries are exact; stale Content proof/candidate/wire/owner before send
+blocks HTTP, changed proof after server success blocks local commit. ready=false.
+
+Physical IndexedDB remains v8/twelve stores, no migration/new store/index. No bulk old
+inbox/history rewrites; only normal authorized apply/source/head writes. v5 structural
+migration validation explicitly rejects impossible Content outcome rows, preserving
+its old boundary; current schema migration behavior is unchanged.
+
+Validation: exact mandatory Cloud C21 suite1123 tests/44 files PASS, followed by nine
+additional production cases; final Content apply71 + ACK13 =84 tests/2 files PASS.
+Legacy/shared causal/history/unsealed/Metadata/boundary/prefix/ACK/migration/open all PASS.
+Chromium203 groups PASS with native IDB/Web Locks: six production Content outcomes10–15
+(ID0 and ID1 create/update/delete), correct live updates then tombstones, exact old replay,
+original candidate2/inbox7 wire, one head/Note, actual rollback of wrapper/candidate/source,
+post-candidate abort/auth/key/session, stale owner CAS, renderer and disk-profile reopen
+with all six proofs reauthenticated and no duplicate authority/rollback/plaintext.
+Readable bad dependency16/Resolution17/plain18/Stage19/self20, causal sibling21 and
+session-aborted23 remain received; later Legacy22 cannot leapfrog. Prefix15/ACK15 survives.
+Page errors0. Typecheck, production build, workflow/YAML/JS syntax and diff PASS; existing
+chunk/dynamic-import build warnings only. Mandatory Cloud apply/ACK specs and acceptance;
+no skip/xfail/continue-on-error. Protected pyc unchanged; harness output removed after stop.
+
+HTTP added only by explicit ACK acceptance: +1 ACK and +2 existing fresh mode checks.
+Cumulative122 = registration22/capability11/mode34/registry26/ACK13/bootstrap16.
+New registration/capability/registry/bootstrap/pull/push/Resolution/unrelated requests0;
+Content apply/proof/dependency/prefix HTTP0. Existing gates reused for ACK across Content.
+Cloud EXPECTED; SQLite substrate NOT EXPECTED. Remote CI NOT POLLED.
+
+No backend/PostgreSQL/Alembic/native/Rust/SQLite/new dependencies/frozen contract changes.
+Other families and cover-bearing Metadata retain their accepted boundaries. Recommended
+next bounded slice: Stage-scoped Content local-authority/admission and dependency audit,
+then explicitly bounded protected apply; keep Resolution/local writer/self-echo separate.
+
+### Простыми словами
+
+- Предыдущий этап подготовил общий механизм для разных транспортных форматов заметки.
+- Теперь обычная HTML-заметка codec8 реально применяется в Web: проверены создание, обновление и удаление, в обычном и сжатом вариантах.
+- Она использует ту же единственную историю заметки, что и старый формат.
+- Браузер сохраняет доказательство именно исходной codec8-обёртки, без подмены старым форматом.
+- Применение заметки, её история и доказательство сохраняются атомарно: при ошибке не остаётся половины результата.
+- После проверки обоих доказательств безопасная Content Note может входить в непрерывную подтверждаемую серверу последовательность; явное подтверждение серверу проверено.
+- Resolution, plain, заметки внутри Stage, конфликты и self-echo пока специально не включены. Поздние безопасные события не обходят эти барьеры.
+- Web-синхронизация ещё не полностью готова: ready=false, C21 IN PROGRESS, официальный прогресс 84.0%. Следующий ограниченный шаг — аудит и подготовка Stage-scoped Content admission и точного Stage dependency.

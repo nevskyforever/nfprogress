@@ -1,3 +1,4 @@
+import { BrowserContentNoteApply } from './contentNoteApply'
 import {BrowserStageOrderApply} from './stageOrderApply'
 import { BrowserStageApply } from './stageApply'
 import { BrowserReaderCapability } from './readerCapability'
@@ -222,6 +223,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly completion: BrowserBootstrapCompletion
   readonly noteIntents: BrowserNoteIntents
   readonly noteHistory: BrowserLegacyNoteHistory
+  readonly contentNotes: BrowserContentNoteApply
   readonly notes: BrowserLegacyNoteApply
   readonly readers: BrowserReaderCapability
   readonly device: BrowserDeviceRegistration
@@ -245,6 +247,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.noteIntents = new BrowserNoteIntents((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)
     this.noteHistory = new BrowserLegacyNoteHistory((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.notes = new BrowserLegacyNoteApply((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)
+    this.contentNotes = new BrowserContentNoteApply(this.notes)
     this.readers = new BrowserReaderCapability((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.device = new BrowserDeviceRegistration((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.proven = new BrowserProvenPrefix((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
