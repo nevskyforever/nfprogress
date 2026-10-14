@@ -1,3 +1,5 @@
+import { openNoteTransport } from './noteTransport'
+import { isDeferredNoteTransportCandidate, type VerifiedNoteTransportCommit } from './noteTransportPrerequisite'
 import { openFrozenLocalVersion } from './noteUnsealedVersion'
 import { canonical } from '@/cloud/projectMetadataCodec'
 import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
@@ -6,7 +8,7 @@ import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { RuntimeKeyContext } from '@/auth/keyContext'
 import { decryptObjectBytes,type AccountMasterKey } from '@/crypto'
 import { decodeBase64Url } from '@/api/base64url'
-import { decodeNoteSyncPlaintext,noteSyncEligibility,type NoteSyncPlaintext } from '@/cloud/noteSyncCodec'
+import { type NoteSyncPlaintext } from '@/cloud/noteSyncCodec'
 import { BrowserPersistenceError } from './persistence'
 import { noteProofDigest } from './legacyNoteApply'
 import { immutableWireIdentity,snapshotBrowserSyncScope,type BrowserSyncScope,type BrowserSyncTransaction } from './syncDurability'
@@ -36,23 +38,25 @@ async function verifyProjection(scope:BrowserSyncScope,c:BrowserNoteCandidate,va
  }finally{bytes?.fill(0);nonce?.fill(0);ciphertext?.fill(0)}
 }
 export async function openHistoryCandidate(scope:BrowserSyncScope,c:BrowserNoteCandidate,amk:AccountMasterKey):Promise<NoteSyncPlaintext>{
- validateNoteHistoryRecord(c,scope);const item=JSON.parse(c.wire_item);let nonce:Uint8Array|undefined,ciphertext:Uint8Array|undefined,bytes:Uint8Array|undefined
+ validateNoteHistoryRecord(c,scope);const item=JSON.parse(c.wire_item)
  try{if(await candidateDigest(c)!==c.record_digest||await noteProofDigest({protocol_version:c.protocol_version,item})!==c.wire_digest)fail()
-  nonce=decodeBase64Url(item.object.nonce);ciphertext=decodeBase64Url(item.object.ciphertext);bytes=await decryptObjectBytes(amk,{userId:scope.canonicalUserId,projectId:c.project_id,entityId:c.note_id,entityType:'note'},{crypto_version:item.object.crypto_version,aad_version:item.object.aad_version,nonce,ciphertext})
-  const value=decodeNoteSyncPlaintext(bytes)
-  if(!same(value.header,c.header)||!noteSyncEligibility(value).eligible||value.note.stage_id!==null||value.note.source_type!=='project'||value.note.source_map_id!==null||value.note.source_node_id!==null)fail()
+  const {plaintext:value,content}=await openNoteTransport(scope,amk,c.protocol_version,c.wire_item,c.record_version===1?'legacy':'content_note_v1')
+  if(!same(value.header,c.header))fail()
+  if(c.record_version===2){const p=c.transport_proof!,{proof_digest:_digest,...body}=p
+   if(!content||content.dependencies.bootstrap_id!==c.bootstrap_id||await noteProofDigest(value)!==p.logical_digest||await noteProofDigest(body)!==p.proof_digest)fail()
+  }
   if(c.projection!==null&&await noteProofDigest(c.projection)!==c.projection_digest)fail();await verifyProjection(scope,c,value,amk);return value
- }catch(e){if(e instanceof BrowserPersistenceError)throw e;return fail()}finally{bytes?.fill(0);nonce?.fill(0);ciphertext?.fill(0)}
+ }catch{return fail()}
 }
 export function nextNoteHead(scope:BrowserSyncScope,binding:BrowserProjectBinding,candidates:BrowserNoteCandidate[],linear:string,previous?:BrowserNoteHead):BrowserNoteHead{
  const c=candidates.find(c=>c.event_id===linear);if(!c)fail();const revision=(previous?.head_revision??0)+1;if(!Number.isSafeInteger(revision))fail()
  return validateNoteHistoryRecord({record_version:1,account_id:scope.accountId,device_id:scope.deviceId,project_id:binding.project_id,note_id:c.note_id,bootstrap_id:binding.bootstrap_id,record_kind:'head',record_id:'head',head_revision:revision,linear_head_event_id:linear,tip_event_ids:noteFrontier(candidates)},scope) as BrowserNoteHead
 }
 /** Synchronous SAME transaction scheduling. No raw public history put operation. */
-export function commitHistoryChange(tx:IDBTransaction,scope:BrowserSyncScope,project:string,note:string,expected:BrowserNoteHistoryRecord[],next:BrowserNoteHistoryRecord[],current:()=>boolean,ready:()=>void,abort:(e:unknown)=>void):void{
+export function commitHistoryChange(tx:IDBTransaction,scope:BrowserSyncScope,project:string,note:string,expected:BrowserNoteHistoryRecord[],next:BrowserNoteHistoryRecord[],current:()=>boolean,ready:()=>void,abort:(e:unknown)=>void,transport?:VerifiedNoteTransportCommit):void{
  const request=tx.objectStore(NOTE_HISTORY_STORE).getAll(historyRange(scope,project,note))
  request.onsuccess=()=>{try{if(!current())fail('closed');const actual=validateNoteHistorySet(scope,request.result).sort((a,b)=>{const x=`${a.record_kind}:${a.record_id}`,y=`${b.record_kind}:${b.record_id}`;return x<y?-1:x>y?1:0});if(same(actual,next)){ready();return}if(!same(actual,expected))fail('stale_authority');validateNoteHistorySet(scope,next)
-  for(const r of next){const old=actual.find(a=>a.record_kind===r.record_kind&&a.record_id===r.record_id);if(old&&(r.record_kind==='candidate'||r.record_kind==='local_version')&&!same(old,r))fail();if(old&&r.record_kind==='head'&&!same(old,r)&&r.head_revision!==(old as BrowserNoteHead).head_revision+1)fail();if(!same(old,r)){const w=tx.objectStore(NOTE_HISTORY_STORE).put(r);w.onsuccess=()=>{if(!current())abort(new BrowserPersistenceError('closed'))}}}
+  for(const r of next){const old=actual.find(a=>a.record_kind===r.record_kind&&a.record_id===r.record_id);if(old&&(r.record_kind==='candidate'||r.record_kind==='local_version')&&!same(old,r))fail();if(old&&r.record_kind==='head'&&!same(old,r)&&r.head_revision!==(old as BrowserNoteHead).head_revision+1)fail();if(!same(old,r)&&!isDeferredNoteTransportCandidate(transport,r)){const w=tx.objectStore(NOTE_HISTORY_STORE).put(r);w.onsuccess=()=>{if(!current())abort(new BrowserPersistenceError('closed'))}}}
   if(actual.some(r=>!next.some(n=>n.record_kind===r.record_kind&&n.record_id===r.record_id)))fail();ready()
  }catch(e){abort(e)}}
 }

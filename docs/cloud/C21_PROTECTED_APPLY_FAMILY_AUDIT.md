@@ -1,9 +1,11 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.24 status (2026-10-15):** BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL
-COMPLETE — shared codec8-aware Note history/atomic wrapper adapter absent. v8 unchanged;
-C21.1.23 REMOTELY ACCEPTED, Cloud38623967292 SUCCESS/all six jobs SUCCESS. Later dated
-C21.1.24 section records exact audit/evidence; prior implementation updates are history.
+**Current C21.1.25 status (2026-10-15):** route-aware Note history/shared atomic
+transport prerequisite LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. v8 /12 stores,
+no migration. Content reader-ready YES; production protected apply NO; ACK-safe NO;
+Resolution2 NO; ready=false. C21.1.24 SHA30b7c36ab685172a1ed584cc528e0837d621e7eb,
+Cloud38633076568 SUCCESS/all six jobs SUCCESS; audit REMOTELY ACCEPTED, implementation
+NOT LOCAL COMPLETE. Final C21.1.25 section records current evidence; prior updates are history.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -1360,7 +1362,7 @@ permit partial success. Do not infer that successful reader decode admits this r
 
 C21.1.23 REMOTELY ACCEPTED: SHA27e249c140d7b25afd1bf339cfe2cbc055c5c2a9,
 Cloud38623967292 SUCCESS / all six jobs SUCCESS. .24 BLOCKED BEFORE IMPLEMENTATION /
-NOT LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. Official84.0%, C21 IN PROGRESS,
+NOT LOCAL COMPLETE / AUDIT REMOTELY ACCEPTED (Cloud38633076568). Official84.0%, C21 IN PROGRESS,
 .06 NOT LOCAL COMPLETE, readyfalse. Content reader-ready YES; ordinary protected apply
 NO, Resolution2 NO, conflicts/self-echo NO, ACK-safe Content subset NONE implemented.
 
@@ -1407,3 +1409,95 @@ ACK12/bootstrap16. New Content apply/proof/dependency/prefix/ACK0, pull/push/Res
 unrelated0. Typecheck/build/workflow/syntax/diff PASS; protected pyc unchanged.
 Positive Content path tests NOT RUN after STOP. Cloud EXPECTED, SQLite NOT EXPECTED;
 remote CI not polled. No production backend/native/schema/dependency/frozen edits.
+
+## C21.1.25 — shared route-aware Note prerequisite
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** for the bounded prerequisite.
+C21.1.24 accepted SHA `30b7c36ab685172a1ed584cc528e0837d621e7eb`, Cloud `38633076568` SUCCESS, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED. Implementation remains BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE.
+Official 84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false; no points.
+
+`openNoteTransport` separates the exact transport from authenticated ordinary Note
+material. Legacy still uses its existing decoder and exact operation/timestamp/source
+eligibility. Dormant codec8 uses the existing canonical reader (AEAD before ID0/ID1
+frame handling); outer note/event/null remains original, while inner create/update/
+delete supplies logical causality. Embedded Resolution2 is explicitly rejected. No
+codec/parser/AAD/wire/compression change and no fabricated Legacy ciphertext.
+
+One private causal planner and one existing legacyNoteHistory/head serve both routes.
+Normal prepare/apply still selects Legacy only; prepareDormantOrdinary is an internal
+acceptance entry, absent from application Content dispatch. Shared plan capability is
+private WeakMap state; no arbitrary DTO can authorize local source writes. Dormant
+outcomes are explicitly distinguished from Legacy durable proofs and never become a
+note_proven inbox row. Real Content remains received, including after dormant evidence.
+
+Candidate record1 construction/digests remain unchanged and old records reopen without
+rewrite. Strict discriminated candidate2 stores transport_kind=content_note_v1, original
+full retained wire (including source device/server sequence), authenticated logical
+header, original encrypted projection and narrowly typed transport prerequisite proof.
+Logical digest covers the entire authenticated ordinary Note; wire digest covers exact
+original transport/object; dependency digest binds exact scope/bootstrap/project/Note/
+event/wire and verified owner/binding inventory. Immutable record/proof digests are
+checked on reopen before reauthentication of the original codec8 object; encrypted
+projection is checked against the decoded Note. No plaintext durable payload duplicate.
+Physical DB remains v8, twelve stores; no store/index/migration changes, no old rewrites.
+
+Opaque dependency certificate is minted only after original Content AEAD and forced
+crypto verification of applied Metadata history. It requires same active imported
+project/bootstrap, nondelete referenced Metadata and one active authenticated current
+tip in the accepted clean chain. This dormant adapter admits project HTML/stage=null
+only; plain/Stage and Content conflicts/self-echo/replay remain future admission work,
+not production success claims. Certificate binds current auth/key/session via its lease
+closure and snapshots non-secret exact inventory; no key/token/plaintext inside it.
+
+The transport commit capability defers only its exact prepared candidate from ordinary
+history puts. The same actual Note readwrite transaction schedules head/history, source
+CAS/encrypted project and Note writes, then ownerHeads/all-bindings dependency CAS and
+immutable candidate+wrapper evidence add. Request error, validation failure, key/auth
+invalidation or transaction abort rolls back every side. Result resolves on actual
+transaction completion, not a later Promise or second transaction. Existing Legacy
+inbox/proof/intents/outbox/receipts/binding/cursor/history/source CAS are retained.
+
+Cross-transport same event is fail-closed even for proven semantic equivalence: no
+second candidate and no overwrite of either original wire. Altered payload/header also
+hard conflicts. Native content_note_sync receipt214 binds event/source/sequence/nonce/
+ciphertext and refuses differing canonical frame; note_sync ordinary dispatch9832 and
+apply_received_note_with_content9895 share the Note transaction. Server sync_events has
+a globally unique event_id primary key (backend/app/cloud/models.py247); browser inbox
+also has unique account/event identity. A same-event dual-provenance authority is not
+invented here; strict rejection avoids ambiguous authority. Tests compare equal logical
+material from both independently encrypted routes and distinct transport evidence.
+
+Production Content protected apply NO, wrapper ACK proof NO, prefix contribution NO,
+ACK contribution NO, Resolution2 NO. provenPrefix, ACK gates and syncDurability inbox
+classification are unchanged. Metadata1/Stage2/Order3/Content4/Legacy5 still prefix3,
+ACK capped3; existing Chromium production barrier Content10/Legacy13 keeps prefix/ACK9.
+Dormant Chromium Content2/update3/delete4/Resolution5/Legacy6 keeps prefix1/ACK0.
+
+Validation: 1,038 tests in the exact mandatory Cloud 42-file C21 set passed before
+adding ten further gateway cases; final gateway54 and 317 affected tests/14 files PASS.
+Chromium201 groups/native IDB+Web Locks PASS: Legacy baseline regression/reopen,
+codec8 ID0 create and ID1 update/delete original-wire reopen, actual hook/write/source/
+abort rollback, stale dependency, auth invalidation, key revocation, account isolation,
+renderer and disk-profile reopen, production barrier and Resolution rejection.
+Zero page errors. Cumulative explicit HTTP remains119: registration22/capability11/
+mode32/registry26/ACK12/bootstrap16. Added gateway/history/dependency/hook/Content apply/
+ACK requests0; push/pull/Resolution/unrelated0. Typecheck/production build/mandatory
+workflow/syntax/diff PASS; no skipped tests. Existing build chunk/import warnings only.
+New gateway spec and browser helper are mandatory Cloud coverage, no skip/xfail/
+continue-on-error. Cloud EXPECTED; SQLite substrate NOT EXPECTED. CI NOT POLLED.
+
+No backend/PostgreSQL/Alembic/native/Rust/SQLite/dependency/frozen-contract changes.
+Protected pyc hashes unchanged. Next bounded slice: ordinary Content Note v1 production
+protected apply/inbox-wrapper proof on this gateway, with explicit scope/dependency/
+replay/conflict/self-echo admission audit; Resolution remains separate.
+
+### Простыми словами
+
+- Проблема была не в базе браузера: старый механизм считал транспортный формат и саму историю заметки одним и тем же.
+- Теперь исходная зашифрованная обёртка отделена от события, которое меняет заметку.
+- История заметки остаётся общей и единственной: новый формат не получает отдельную копию авторитетной истории.
+- Codec8 можно подключать к ней с его настоящим шифротекстом, не притворяясь старым форматом; обычный и сжатый варианты проверены.
+- Подготовлен и проверен атомарный механизм: доказательство обёртки, история и применение заметки сохраняются вместе либо полностью откатываются. Пока он используется только внутренним тестовым путём для HTML-заметок без стадии.
+- Сам Content Note в обычном приложении специально остаётся барьером. Чтение и тестовый переход не дают ему права увеличивать подтверждение серверу.
+- Следующий шаг — вернуться к ordinary Content Note v1 и включить его production protected apply с настоящим доказательством inbox, отдельно проверив необходимые зависимости и исходы.
+- Полная Web-синхронизация ещё не готова: ready=false, официальный прогресс 84.0%, C21 IN PROGRESS.

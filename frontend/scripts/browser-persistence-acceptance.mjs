@@ -1,3 +1,4 @@
+import {acceptNoteTransportGateway} from './browser-note-transport-gateway-acceptance.mjs'
 import {acceptStageOrder} from './browser-stage-order-acceptance.mjs'
 import { acceptStageApply } from './browser-stage-apply-acceptance.mjs'
 import { acceptMetadataPrefix } from './browser-metadata-prefix-acceptance.mjs'
@@ -1058,6 +1059,7 @@ try {
   page=await acceptMetadataPrefix({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   page=await acceptStageApply({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   page=await acceptStageOrder({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
+  page=await acceptNoteTransportGateway({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))
   const finalDurability = await metadataSnapshot()
