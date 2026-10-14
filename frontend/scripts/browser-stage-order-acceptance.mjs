@@ -1,3 +1,4 @@
+import {acceptContentNoteBoundary} from './browser-content-note-boundary-acceptance.mjs'
 import assert from 'node:assert/strict'
 export async function acceptStageOrder({page,scope:originalScope,cases,reopenProfile,network}){
  const names=['identities','accountBindings','inbox','outbox','receipts','cursors','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents'],project='stage-order-project',stamp='2026-10-14T00:00:00.000000Z',peer='44444444-4444-4444-8444-444444444444'
@@ -53,6 +54,7 @@ export async function acceptStageOrder({page,scope:originalScope,cases,reopenPro
    assert.equal((await page.evaluate(scope=>sp.advance(scope),scope)).candidate_proven_prefix,9);ackTarget=9
    assert.deepEqual(await page.evaluate(async scope=>sp.ackOnce(await sp.prepareAck(scope,or,og)),scope),{status:'advanced',cursor:9,ready:false})
    assert.deepEqual(await page.evaluate(({scope,project})=>so.read(scope,project),{scope,project}),next.stage_ids)
+   await acceptContentNoteBoundary({page,scope,project,stamp,peer,metadataEvent:await page.evaluate(()=>sm),bootstrap:a.header.bootstrap_id,stageEvent:a.header.event_id,note,cases,counts})
    retainedStages={A:update.stage,B:b.stage}
    cases.push('real Metadata1/Stages2-3/ID1 Order4[B,A]/Note5 prefix5 ACK5; no plaintext order cache')
    cases.push('normal Stage update6 preserves proven Order4 ancestor coverage/prefix7; clean v2 order8 references older accepted Stage head, prefix9/ACK9')
@@ -65,7 +67,7 @@ export async function acceptStageOrder({page,scope:originalScope,cases,reopenPro
  await page.evaluate(async()=>{await meta.keys.dispose();await session.close()})
  const open=()=>page.evaluate(async scope=>{globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId);globalThis.meta=await c21.metadataFixture(session,scope);globalThis.so=session.stageOrder.bind(meta.auth,meta.bindings,meta.keys);globalThis.st=session.stages.bind(meta.auth,meta.bindings,meta.keys);globalThis.sp=session.proven.bind(meta.auth,meta.bindings,meta.keys)},retainedScope)
  for(const disk of [false,true]){if(disk)page=await reopenProfile();else await page.reload();await open();assert.deepEqual(await page.evaluate(({scope,project})=>so.read(scope,project),{scope:retainedScope,project}),['A','B']);for(const stage of ['A','B'])assert.deepEqual(await page.evaluate(({scope,project,stage})=>st.read(scope,project,stage),{scope:retainedScope,project,stage}),retainedStages[stage])}
- const state=await page.evaluate(scope=>session.sync.readCheckpoint(scope),retainedScope);assert.equal(state.proven_prefix,9);assert.equal(state.ack_cursor,9);assert.equal(state.pull_cursor,9)
+ const state=await page.evaluate(scope=>session.sync.readCheckpoint(scope),retainedScope);assert.equal(state.proven_prefix,9);assert.equal(state.ack_cursor,9);assert.equal(state.pull_cursor,13)
  const after=await snap();for(const name of names)assert.deepEqual(after[name].filter(r=>r.account_id===retainedScope.accountId||r.local_account_id===retainedScope.accountId),retainedSnapshot[name].filter(r=>r.account_id===retainedScope.accountId||r.local_account_id===retainedScope.accountId))
  cases.push('native IndexedDB order/Stage histories and prefix9/ACK9 survive renderer reload and disk profile reopen; winning order and Stage values rehydrate after unlock')
  const end=counts();assert.equal(end.registration-start.registration,3);assert.equal(end.capability-start.capability,3);assert.equal(end.registry-start.registry,3);assert.equal(end.mode-start.mode,11);assert.equal(end.ack-start.ack,4)

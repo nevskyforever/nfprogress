@@ -1,5 +1,11 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
+**Current C21.1.24 status (2026-10-15):** BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL
+COMPLETE — shared codec8-aware Note history/atomic wrapper adapter absent. v8 unchanged;
+C21.1.23 REMOTELY ACCEPTED, Cloud38623967292 SUCCESS/all six jobs SUCCESS. Later dated
+C21.1.24 section records exact audit/evidence; prior implementation updates are history.
+
+
 **Current C21.1.23 update (2026-10-14):** v8 /12 stores, clean imported Stage-order
 protected apply and exact membership/ancestor proof LOCAL COMPLETE; readyfalse.
 C21.1.22 SHA24b6e90456e20aa73e1f735f573aed74e27cc5dc, Cloud38606705365 SUCCESS,
@@ -2301,3 +2307,55 @@ bootstrap16. Slice delta24:registration3/capability3/mode11/registry3/ACK4.
 Stage-order apply/proof/coverage/prefix0, pull/push/Resolution/unrelated0.
 Cloud EXPECTED, SQLite NOT EXPECTED, remote CI NOT POLLED. Next bounded slice:
 Stage durable conflict history/preservation/ACK proof, without delete/self-echo/writer.
+
+## C21.1.24 — Content Note ordinary adapter prerequisite / STOP
+
+C21.1.23 REMOTELY ACCEPTED: SHA27e249c140d7b25afd1bf339cfe2cbc055c5c2a9,
+Cloud38623967292 SUCCESS / all six jobs SUCCESS. .24 BLOCKED BEFORE IMPLEMENTATION /
+NOT LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. Official84.0%, C21 IN PROGRESS,
+.06 NOT LOCAL COMPLETE, readyfalse. Content reader-ready YES; ordinary protected apply
+NO, Resolution2 NO, conflicts/self-echo NO, ACK-safe Content subset NONE implemented.
+
+Native ordinary v1 shares the existing Note event ID/causal authority. ACK requires
+BOTH exact original codec8/frame/nonce/ciphertext receipt and matching underlying
+successful Note causal snapshot/conflict version; wrapper-only/read-only never safe.
+Native create/update/delete/replay individually safe when both are proven. Explicit
+content argument in shared transaction creates receipt, validates ready, performs Note
+apply, completes receipt atomically; Resolution2 is separate dispatch. Metadata:
+APPLIED nondelete same project/account/bootstrap + active current authority + actual
+ancestry with catalog65536 budget. Stage: one live compatible current Stage tip,
+actual exact/ancestor coverage256; missing/conflicted/tombstoned/foreign blocks.
+Native project/null map/node html/plain; owner/source/format continuity checked after
+tombstone too. Native frame/content/title/tag/checklist/depth/count limits unchanged.
+
+STOP1/3: Web Legacy load rejects note/operation=event. Proof and candidate record1
+require ordinary upsert/delete descriptor; Content outer delete descriptor still has
+operation=event/deleted_at=null. Encrypted causal history reopening only uses the
+legacy plaintext decoder. Existing opaque protected Note plan has no authenticated
+codec8/dependency/receipt hook, and its commit does not join ownerHeads dependency
+inventory/wrapper outcome. An inbox-only new discriminator cannot make this safe.
+Relabelling descriptor, stripping frame or fabricating encrypted legacy identity is
+not an exact receipt; separate wrapper commit violates atomicity. Local admission also
+rejects plain/Stage and has stricter existing limits (title500/content300000 codepoints).
+No accepted Legacy rules broadened, no fake second Note authority/projection introduced.
+
+Physical v8 storage can carry future typed proofs; no intrinsic schema/store blocker
+claimed. Needed bounded prerequisite: explicit original-wire route-aware Note history
+and shared verified apply transaction hook, current Metadata/Stage CAS and atomic
+wrapper receipt; separately audited source-aware admission preserving old schemas and
+rules. Current wrapper proof/ordinary apply/rehydration not implemented. Existing
+Stage/Order/Metadata/Note proofs/ACK/other-family barriers unchanged, readyfalse.
+
+485 tests/15 relevant files PASS,11 new mandatory contentNoteBoundary cases. Actual
+ID0/ID1 ordinary create/update/delete read but cannot enter Legacy history/proof;
+disguised original ciphertext cannot decode as legacy; wrapper-only state rejected.
+Metadata1/Stage2/Order3/Content4/Note5 prefix3, no partial Note/history writes; readable
+Resolution2 prefix0; native-valid Stage/plain/title501 stop existing local admission.
+Chromium197 groups PASS including actual codec8 ID1 project HTML, valid Stage ancestor
+and Resolution2 reader success/rejected apply, later Note13 blocked behind Content10,
+no-progress ACK9, exact ciphertext/state surviving renderer/disk reopen. Page errors0.
+Cumulative119 explicit APIs unchanged:registration22/capability11/mode32/registry26/
+ACK12/bootstrap16. New Content apply/proof/dependency/prefix/ACK0, pull/push/Resolution/
+unrelated0. Typecheck/build/workflow/syntax/diff PASS; protected pyc unchanged.
+Positive Content path tests NOT RUN after STOP. Cloud EXPECTED, SQLite NOT EXPECTED;
+remote CI not polled. No production backend/native/schema/dependency/frozen edits.
