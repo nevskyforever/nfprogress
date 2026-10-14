@@ -765,3 +765,86 @@ syntax/diff/protected pyc PASS, three explicit mandatory Cloud specs, SQLite NOT
 No skips/dependencies/backend/PG/native/frozen contracts. Remote PENDING — NOT POLLED;
 official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE. Checkpoint includes mandatory
 Russian plain-language subsection while retaining full technical evidence.
+
+## C21.1.19 — current contract matrix (before production edits)
+
+Accepted .18: `6de5183e1fddcac4e4e4d1f8c70d4b3f47799bce`, Cloud
+`38568720231` SUCCESS / all six jobs SUCCESS / REMOTELY ACCEPTED PARTIAL.
+
+| Web capability | Actual implementation / durable evidence | Frozen server field/value | Safe declaration |
+|---|---|---|---|
+| Device identity | v8 identities + accountBindings, exact user/account/device validation | PUT v1 devices UUID; authenticated user owns composite key | Yes: identity only, empty body |
+| V1/C9 | Shared HTTP registration; no browser V1 production sync cycle | Response protocol_version=1 is registration envelope, not account mode | Registration only; no V1 writer claim |
+| Encrypted V2 | Exact Note transport retention/upload bodies and Legacy Note protected apply | writer_transport_version=2 via account capabilities | No cutover or writer declaration |
+| Encrypted V3 | Mixed encrypted retention; Legacy Note and Metadata authority subset | reader_transport_version=3 via reader-ready | No complete V3 reader-ready declaration |
+| Compression ID0 | Legacy Note JSON v1/v2; Metadata codec1/coverless2 protected authority | per-family compression_zero only; defaults false/0 | No family capability: legacy Note is not framed Content Note8 |
+| Compression ID1 reader | Shared bounded pako decoder exists/tested in Chromium; Web lacks canonical family apply for codecs1–13 | compression_id1=true means ALL canonical codecs1–13 alongside ID0 | NO; cannot turn shared decompression into family reader evidence |
+| Compression ID1 writer | Shared frame selector exists; no complete browser writer flow | compression-writer admission sets sticky account read barrier | NO request |
+| Legacy Note codecs | noteSyncCodec canonical JSON v1 ordinary only; no Resolution apply; ordinary protected apply, durable candidate/conflict evidence | note_codec_version=1 denotes framed Content Note8, not JSON version | No Content Note capability |
+| Metadata reader | durable imported authority only; not general native ACK equivalence/cover blob apply | reader-ready and cover capability are separate | No reader-ready / cover declaration |
+| Writer mode | Account authority only, not per-device/all-family attestation | GET /api/v2/sync/encrypted/capabilities: writer_transport_version + cutover_epoch | Read-only authoritative source for future ACK; never infer from inbox |
+| ACK | proven prefix durable; ACK adapter absent | mode-specific v1/v2/v3 ACK + registered device + sticky ID1 check | BLOCKED; no compression barrier/device capability query in registration reply |
+
+Current source audit: sync_router PUT devices is the ONLY device registration route;
+SyncService.register_device has no mode check and Native noteSyncV3Cycle uses the
+same syncApi.registerDevice through NoteSyncDeviceAckAdapter. Historical C9 is
+**A: still authoritative**, also valid in mode2/3, not legacy-only. Reply exact keys
+protocol_version/device_id/last_ack_cursor; no capability or mode fields.
+Repository INSERT ON CONFLICT DO NOTHING preserves ACK and existing capabilities;
+only last_seen_at changes. New SyncDevice defaults reader_transport_version=2
+(the pre-V3 baseline), every family reader=0 and compression_id1=false. These
+defaults are not a Web publication of a family reader; repeat does not downgrade
+an upgraded device. Model closed CHECKs prohibit generic new reader values.
+
+Native registration uses current auth/binding and durable device; modes come from
+parseV2Capabilities, cutover uses expected epoch/account lock; v3 requires all
+registered reader_transport_version=3. Writer mode routes account writes/ACK and
+does not assert every device implements every family. Native Metadata runtime
+separately advertises compression, reader-ready and cover support; family runtimes
+separately declare Note8/Map9/Document10/Progress11/Game12/13. Those runtimes are
+not wired into Web persistence. C18.7 explicitly defines compression_id1 as ALL
+canonical codecs1–13; compression_zero never implies ID1.
+
+ACK endpoints: /api/v1/sync/ack, /api/v2/sync/encrypted/ack,
+/api/v3/sync/encrypted/ack (204); exact account mode required. Service locks
+account then device, requires registration and applicable ID1 support, rejects
+cursor beyond current_sequence, monotonically accepts duplicates/lower retries.
+Native commits local ACK only after confirmed HTTP success; lost response and
+server-success/local-failure permit exact retry. Registration last_ack_cursor
+never authorizes local advancement. Existing GET compression aggregate ready
+does not expose sticky compression_id1_required or this device's capability.
+Identity-only registration is safe, but it cannot prove the ACK activation gate
+for an existing compressed account. STOP before ACK/capability/cutover; no backend
+change, v9, store or dependency. Existing .18 barriers/ready=false unchanged.
+
+Chosen bounded implementation: explicit authenticated identity-only registerOnce;
+read-only durable scope checks before and after response, strict response allowlist,
+no local registration cache/authority write. Registration remains server-authoritative
+and each explicit call retries the same UUID. No mode selection is needed for this
+mode-independent operation. No downgrade PUT or unsupported capability declaration.
+
+### C21.1.19 implementation evidence
+
+Registration-only PARTIAL LOCAL COMPLETE. `deviceRegistration.ts` implements one explicit
+PUT using current NormalUserAuthRuntime, AuthoritativeAccountBinding and the SAME durable
+v8 identity, read-only scope checks on both sides of HTTP. Exact three-key reply; no mode/
+capability inferred or persisted, no additional capability API called. Server ACK metadata
+never writes local cursor. Registration repeat preserves existing server capabilities and ACK;
+no second identity/no local cache. `cloudSession.ts` retains its Tauri-only runtime gate;
+Native NoteSyncTransportRouter selects fresh authenticated capabilities and is not composed
+into this Web persistence factory. Registration factory is dormant, no app startup hook.
+
+C18.7 sticky barrier checked by backend ACK and actual PostgreSQL gate tests; new legacy
+registration in a compressed account remains correctly blocked until exact reader upgrade.
+ACK implementation STOP for unproven ALL-codec ID1 reader contract, not because C9 route
+is obsolete or because mode is guessed. No generic capability invented or cap downgraded.
+Mode endpoints remain valid/audited for a future explicit bounded ACK. No ready or Metadata
+ACK equivalence, no other-family apply/Resolution. All .18 barriers unchanged.
+
+106 tests/10 focused files PASS, registration28; real Chromium177 cases PASS. Registration11,
+ACK/push/pull/Resolution0; prior bootstrap completion16 + registry16 only; page errors0.
+Profile/reload identity and prefix7/ACK0/pull9/barrier8 unchanged, full12-store snapshot exact.
+Real browser HTTP uses isolated fixtures; no new live PostgreSQL/backend run required for
+unchanged frozen implementation. Typecheck/build/YAML/syntax/diff PASS, existing warnings.
+v8 unchanged/no stores/migration/dependency/backend/Native changes. Cloud mandatory contract
+job includes new spec and existing Chromium job includes helper; CI PENDING — NOT POLLED.

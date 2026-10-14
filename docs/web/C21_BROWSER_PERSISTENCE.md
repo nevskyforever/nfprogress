@@ -1959,3 +1959,63 @@ requests only; new registration/ACK/pull/push/registry/bootstrap/Resolution0/pag
 Typecheck/build/workflow/syntax/diff/pyc PASS; existing warnings only. Three explicit Cloud
 specs plus accepted regressions and hard-failing Chromium; SQLite NOT EXPECTED. No skips/
 dependencies/backend/PG/native/frozen protocol/crypto/receipt/conflict changes or CI polling.
+
+## C21.1.19 — explicit device registration / ACK gate stopped
+
+C21.1.18 REMOTELY ACCEPTED PARTIAL: SHA `6de5183e1fddcac4e4e4d1f8c70d4b3f47799bce`,
+Cloud `38568720231` SUCCESS / all six required jobs SUCCESS; proven-prefix COMPLETE,
+ACK transport BLOCKED. Official84.0%, C21 IN PROGRESS, .06 NOT LOCAL COMPLETE.
+
+### C21.1.19 bounded result
+
+**PARTIAL LOCAL COMPLETE / REGISTRATION COMPLETE / ACK BLOCKED / REMOTE CI PENDING — NOT POLLED**.
+Current exact Native/backend/Web architecture and capability matrix recorded BEFORE
+production edits in `docs/cloud/C21_PROTECTED_APPLY_FAMILY_AUDIT.md`. Historical C9
+PUT `/api/v1/sync/devices/{device_id}` is still authoritative across account modes1/2/3;
+registration protocol1 is not account writer mode. Account mode source is fresh authenticated
+GET `/api/v2/sync/encrypted/capabilities`; no mode selection/cutover occurs in this slice.
+Writer transport routes account publication/ACK; separate per-family reader gates exist.
+
+Dormant `session.device.bind(normalAuth,binding).registerOnce(scope)` uses existing durable
+UUID and authoritative binding, current auth/session checks plus read-only IDB identity scope
+validation BEFORE and AFTER HTTP. Exact reply allowlist protocol_version/device_id/
+last_ack_cursor; wrong/future device/mode/capability/cursor rejected. One explicit PUT with
+no body, no unsupported capability declaration; server insert-or-reuse preserves existing
+capabilities/ACK, updates last_seen only. No local registration cache or proof needed;
+server authoritative, retry same identity. last_ack_cursor returned only as metadata,
+never copied into local cursors. Schema8→8/no stores/index/migration. No public UI/help change.
+
+ACK gate STOP: C18.7 compression_id1=true means bounded reading for all canonical codecs1–13,
+not shared decompressor presence or compression_zero. Browser protected readers cover Legacy
+Note JSON1 and limited Metadata authority; no complete family readers, framed Content Note8
+or Resolution apply. No safe ID1 declaration. Registration response omits sticky account
+compression_id1_required/current device capabilities; aggregate compression GET is not this
+proof. Authoritative mode API exists, but registration alone cannot authorize ACK for current
+compressed mode3 history. No Web ACK implemented; this is not a claim that every uncompressed
+account mode can never support a later bounded ACK. Cross-family/no-skip barriers, prefix
+aggregation, ACK0, ready=false unchanged. No loops/pull/push/bootstrap/registry discovery.
+
+Checks: registration28 + prefix/barrier/ACK diagnostics59 + affected identity/open/migration/
+auth19 = **106 tests /10 files PASS**. Chromium **177 cases PASS**, includes existing171 and
+six registration groups: auth/exact payload/replay, all12 stores unchanged, malformed replies,
+lost registration response/retry, wrong account/user/device and stale auth, reload and disk
+profile reopen. Existing positive prefix7/ACK0/pull9 and Document8 barrier intact; server ACK19
+not imported. API counters: registration11 (explicit, includes failure cases), ACK0, push0,
+pull0, bootstrap completion16 and registry16 (unchanged fixtures), Resolution0/unrelated0/
+page errors0. Harness uses isolated authenticated HTTP fixtures, not a live production account;
+backend retry/default/capability semantics verified from frozen source and existing PG tests.
+New ACK lost-response/local-commit-failure tests NOT APPLICABLE: gate blocked before implementation.
+
+Typecheck/production build PASS (existing Vite chunk/import warnings only); workflow YAML,
+JavaScript syntax, diff check PASS. Mandatory Cloud contract job adds registration spec,
+existing mandatory Chromium gate invokes new helper. No backend/PG/Alembic/native/SQLite/Rust,
+dependencies or frozen contract changes; protected pyc unchanged. Cloud EXPECTED, SQLite NOT
+EXPECTED. Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; no roadmap points.
+
+### Простыми словами
+
+- Браузер умеет по явному запросу зарегистрировать на сервере своё сохранённое устройство; после повторного открытия используется тот же номер.
+- Регистрация нужна серверу, чтобы связать запросы с конкретным устройством нужного аккаунта. Дополнительные возможности чтения браузер пока не объявляет.
+- Подтверждение изменений серверу не включено: сервер может требовать чтения сжатых данных всех видов, а браузер пока безопасно обрабатывает только часть данных проекта.
+- Полученные изменения по-прежнему проверяются по порядку; неподдерживаемое изменение останавливает проверку. Автоматический обмен данными и готовность всей синхронизации выключены.
+- Следующий шаг — проверить и добавить недостающие средства чтения данных, затем отдельно подключить безопасные подтверждения серверу.

@@ -1,3 +1,4 @@
+import { acceptDeviceRegistration } from './browser-device-registration-acceptance.mjs'
 import { acceptProvenPrefix } from './browser-proven-prefix-acceptance.mjs'
 import { acceptUnsealedConflicts } from './browser-note-unsealed-conflict-acceptance.mjs'
 import { acceptNoteIntents } from './browser-note-intent-acceptance.mjs'
@@ -23,10 +24,11 @@ let context
 const unexpected = []
 const completionRequests = []
 const registryRequests = []
+const registrationRequests = []
 const ackRequests = []
 async function start() {
   context = await chromium.launchPersistentContext(directory, { headless: true })
-  context.on('request', request => { const path = new URL(request.url()).pathname; if (!path.startsWith('/api/')) return; if (request.method() === 'POST' && /^\/api\/v1\/cloud\/projects\/[^/]+\/bootstrap\/complete$/.test(path)) completionRequests.push({ path, body: request.postDataJSON() }); else if(request.method()==='GET'&&path==='/api/v1/cloud/projects/bootstrap')registryRequests.push(path); else { if(path.includes('/sync/ack'))ackRequests.push(path); unexpected.push('unrelated API request') } })
+  context.on('request', request => { const path = new URL(request.url()).pathname; if (!path.startsWith('/api/')) return; if(request.method()==='PUT' && /^\/api\/v1\/sync\/devices\/[^/]+$/.test(path)) registrationRequests.push(path); else if (request.method() === 'POST' && /^\/api\/v1\/cloud\/projects\/[^/]+\/bootstrap\/complete$/.test(path)) completionRequests.push({ path, body: request.postDataJSON() }); else if(request.method()==='GET'&&path==='/api/v1/cloud/projects/bootstrap')registryRequests.push(path); else { if(path.includes('/sync/ack'))ackRequests.push(path); unexpected.push('unrelated API request') } })
 }
 async function tab() {
   const page = await context.newPage()
@@ -1043,6 +1045,9 @@ try {
   assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
   page=await acceptProvenPrefix({page,scope:scopeA,users,cases,reopenProfile:async()=>{await context.close();await start();return tab()}})
   assert.equal(completionRequests.length,16);assert.equal(registryRequests.length,16);assert.equal(ackRequests.length,0)
+  assert.equal(registrationRequests.length,0)
+  page=await acceptDeviceRegistration({page,scope:scopeA,cases,requests:registrationRequests,reopenProfile:async()=>{await context.close();await start();return tab()}})
+  assert.equal(registrationRequests.length,11);assert.equal(ackRequests.length,0)
   const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))
   const finalDurability = await metadataSnapshot()
@@ -1066,7 +1071,7 @@ try {
   assert.deepEqual(await page.evaluate(()=>nativeRows('legacyNoteHistory')),finalHistory)
   assert.deepEqual(await page.evaluate(()=>nativeRows('legacyNoteIntents')),finalIntents)
   assert.deepEqual(unexpected, [])
-  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length+registryRequests.length, registryRequests:registryRequests.length, ACKRequests:ackRequests.length, protectedApplyRequests:0, candidateConflictRequests:0, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
+  console.log(JSON.stringify({ result: 'PASS', cases, nativeIndexedDB: true, nativeWebLocks: true, APIRequests: completionRequests.length+registryRequests.length+registrationRequests.length, registrationRequests:registrationRequests.length, pushRequests:0, pullRequests:0, bootstrapRequests:completionRequests.length, ResolutionRequests:0, registryRequests:registryRequests.length, ACKRequests:ackRequests.length, protectedApplyRequests:0, candidateConflictRequests:0, bootstrapCompletionRequests: completionRequests.length, unrelatedAPIRequests: 0, pageErrors: 0 }))
 } finally {
   if (context) await context.close()
   await rm(directory, { recursive: true, force: true })
