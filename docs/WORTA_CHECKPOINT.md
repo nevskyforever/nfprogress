@@ -5,13 +5,189 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 / C21.1.05A — **REMOTELY ACCEPTED**; C21.1.06 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 — **REMOTELY ACCEPTED**; C21.1.08 — **REMOTELY ACCEPTED**; C21.1.09 blocker/audit — **REMOTELY ACCEPTED**, capture — **BLOCKED / NOT LOCAL COMPLETE**; C21.1.10 — **REMOTELY ACCEPTED**; C21.1.11 — **REMOTELY ACCEPTED**; C21.1.12 — **REMOTELY ACCEPTED**; C21.1.13 — **REMOTELY ACCEPTED PARTIAL / ACK BLOCKED**; C21.1.14 — **REMOTELY ACCEPTED PARTIAL**; C21.1.15 — **REMOTELY ACCEPTED PARTIAL**; C21.1.16 — **REMOTELY ACCEPTED**; C21.1.17 — **REMOTELY ACCEPTED**; C21.1.18 — **REMOTELY ACCEPTED PARTIAL / PREFIX COMPLETE / ACK TRANSPORT BLOCKED**; C21.1.19 — **REMOTELY ACCEPTED PARTIAL / REGISTRATION COMPLETE**; C21.1.20 — **REMOTELY ACCEPTED**; C21.1.21 — **REMOTELY ACCEPTED / COVERLESS METADATA ACK PROOF**; C21.1.22 — **REMOTELY ACCEPTED / BOUNDED STAGE APPLY**; C21.1.23 — **REMOTELY ACCEPTED / BOUNDED STAGE-ORDER APPLY**; C21.1.24 — **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION NOT LOCAL COMPLETE**; C21.1.25 — **REMOTELY ACCEPTED / ROUTE-AWARE PREREQUISITE**; C21.1.26 — **REMOTELY ACCEPTED / PROJECT HTML CONTENT APPLY + PREFIX/ACK**; C21.1.27 — **REMOTELY ACCEPTED / STAGE HTML CONTENT + ANCESTRY/PREFIX/ACK**; C21.1.28 — **REMOTELY ACCEPTED / PROJECT + STAGE PLAIN**; C21.1.29 — **LOCAL COMPLETE / PEER CONTENT CONFLICT / REMOTE CI PENDING**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 / C21.1.05A — **REMOTELY ACCEPTED**; C21.1.06 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 — **REMOTELY ACCEPTED**; C21.1.08 — **REMOTELY ACCEPTED**; C21.1.09 blocker/audit — **REMOTELY ACCEPTED**, capture — **BLOCKED / NOT LOCAL COMPLETE**; C21.1.10 — **REMOTELY ACCEPTED**; C21.1.11 — **REMOTELY ACCEPTED**; C21.1.12 — **REMOTELY ACCEPTED**; C21.1.13 — **REMOTELY ACCEPTED PARTIAL / ACK BLOCKED**; C21.1.14 — **REMOTELY ACCEPTED PARTIAL**; C21.1.15 — **REMOTELY ACCEPTED PARTIAL**; C21.1.16 — **REMOTELY ACCEPTED**; C21.1.17 — **REMOTELY ACCEPTED**; C21.1.18 — **REMOTELY ACCEPTED PARTIAL / PREFIX COMPLETE / ACK TRANSPORT BLOCKED**; C21.1.19 — **REMOTELY ACCEPTED PARTIAL / REGISTRATION COMPLETE**; C21.1.20 — **REMOTELY ACCEPTED**; C21.1.21 — **REMOTELY ACCEPTED / COVERLESS METADATA ACK PROOF**; C21.1.22 — **REMOTELY ACCEPTED / BOUNDED STAGE APPLY**; C21.1.23 — **REMOTELY ACCEPTED / BOUNDED STAGE-ORDER APPLY**; C21.1.24 — **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION NOT LOCAL COMPLETE**; C21.1.25 — **REMOTELY ACCEPTED / ROUTE-AWARE PREREQUISITE**; C21.1.26 — **REMOTELY ACCEPTED / PROJECT HTML CONTENT APPLY + PREFIX/ACK**; C21.1.27 — **REMOTELY ACCEPTED / STAGE HTML CONTENT + ANCESTRY/PREFIX/ACK**; C21.1.28 — **REMOTELY ACCEPTED / PROJECT + STAGE PLAIN**; C21.1.29 — **REMOTELY ACCEPTED / PEER CONTENT CONFLICT**; C21.1.30 — **LOCAL COMPLETE / CONTENT + LOCAL-UNSEALED PROJECT HTML / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
-**Последняя независимая приёмка:** C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud **38662032578 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.27 `e540f56af505ba232a1f16b2abb70f91a2417cb1`, Cloud **38657482380 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner-supplied). Prior C21.1.26 `d1323fddb3187f60bf53bd3cf5c09f5d23fb5172`, Cloud **38649425407 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.25 `2c80641c76b81cc02731e30b9beece14b605d0c3`, Cloud **38641352769 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.24 `30b7c36ab685172a1ed584cc528e0837d621e7eb`, Cloud **38633076568 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, implementation NOT LOCAL COMPLETE. Prior C21.1.23 `27e249c140d7b25afd1bf339cfe2cbc055c5c2a9`, Cloud **38623967292 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.22 `24b6e90456e20aa73e1f735f573aed74e27cc5dc`, Cloud **38606705365 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.21 `5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f`, Cloud **38595238961 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.20 `5214e2941b7b6fbbcce7f74d297f5be7859ef5d9`, Cloud **38587064713 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.19 `deda194d8bbb7c5409964971cf2d868fb0c985dd`, Cloud **38577509647 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registration COMPLETE, ACK BLOCKED at accepted baseline. Prior C21.1.18 `6de5183e1fddcac4e4e4d1f8c70d4b3f47799bce`, Cloud **38568720231 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, proven-prefix COMPLETE, ACK transport BLOCKED. Prior C21.1.17 `75599e9809a7d3be5facc0e5abc46e845e5c51cd`, Cloud **38451825537 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.16 `92a66776c0b5d30295a9533ad561e89f6a5e5193`, Cloud **38440249775 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.15 `a386161d07b2918a30af4c2dae7328068adad914`, Cloud **38426555539 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior C21.1.14 `65e4fe4cc712162e1436970f9f6a62afbe9416d8`, Cloud **38402330568 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior  C21.1.13 `f99bbb6beb6e2da84c84ee4ebadafc273e04dd28`, Cloud **38392639737 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registry accepted and positive ACK correctly blocked. Prior  C21.1.12 `cc9bfb567afdbccdc77ce4a8aab84cc204757930`, Cloud **38386112458 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.11 `c1edcbb7befaab1bfff995ae6ef7f61b53e7348b`, Cloud **38380013246 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.10 `ffc018af7abeb7a5a696af26db0621640e6f0a5a`, Cloud **38317517321 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.09 blocker/audit `be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, capture NOT IMPLEMENTED / NOT LOCAL COMPLETE. Prior  C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. Prior C21.1.07 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. C21.1.06 prerequisite audit `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`, Cloud `38258729038` **SUCCESS**, all six required jobs SUCCESS; audit accepted, implementation remains BLOCKED / NOT LOCAL COMPLETE. Prior C21.1.05 / C21.1.05A accepted repair `af407f751cbda2898eb881f90fdd08177e2b28d3`, implementation `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud `38165641607` **SUCCESS**, all six required jobs SUCCESS (Frontend admin; PostgreSQL cloud and legacy regressions; mandatory foundation; mandatory content-action; mandatory complete-project; Android compression packaging). C21.1.05 and C21.1.05A **REMOTELY ACCEPTED** by owner/GPT. Prior C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
+**Последняя независимая приёмка:** C21.1.29 `074b9d3d9e633e14c4f510050cc963750040bd79`, Cloud **38703171604 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud **38662032578 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.27 `e540f56af505ba232a1f16b2abb70f91a2417cb1`, Cloud **38657482380 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner-supplied). Prior C21.1.26 `d1323fddb3187f60bf53bd3cf5c09f5d23fb5172`, Cloud **38649425407 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.25 `2c80641c76b81cc02731e30b9beece14b605d0c3`, Cloud **38641352769 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.24 `30b7c36ab685172a1ed584cc528e0837d621e7eb`, Cloud **38633076568 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, implementation NOT LOCAL COMPLETE. Prior C21.1.23 `27e249c140d7b25afd1bf339cfe2cbc055c5c2a9`, Cloud **38623967292 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.22 `24b6e90456e20aa73e1f735f573aed74e27cc5dc`, Cloud **38606705365 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.21 `5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f`, Cloud **38595238961 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.20 `5214e2941b7b6fbbcce7f74d297f5be7859ef5d9`, Cloud **38587064713 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.19 `deda194d8bbb7c5409964971cf2d868fb0c985dd`, Cloud **38577509647 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registration COMPLETE, ACK BLOCKED at accepted baseline. Prior C21.1.18 `6de5183e1fddcac4e4e4d1f8c70d4b3f47799bce`, Cloud **38568720231 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, proven-prefix COMPLETE, ACK transport BLOCKED. Prior C21.1.17 `75599e9809a7d3be5facc0e5abc46e845e5c51cd`, Cloud **38451825537 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.16 `92a66776c0b5d30295a9533ad561e89f6a5e5193`, Cloud **38440249775 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.15 `a386161d07b2918a30af4c2dae7328068adad914`, Cloud **38426555539 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior C21.1.14 `65e4fe4cc712162e1436970f9f6a62afbe9416d8`, Cloud **38402330568 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior  C21.1.13 `f99bbb6beb6e2da84c84ee4ebadafc273e04dd28`, Cloud **38392639737 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registry accepted and positive ACK correctly blocked. Prior  C21.1.12 `cc9bfb567afdbccdc77ce4a8aab84cc204757930`, Cloud **38386112458 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.11 `c1edcbb7befaab1bfff995ae6ef7f61b53e7348b`, Cloud **38380013246 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.10 `ffc018af7abeb7a5a696af26db0621640e6f0a5a`, Cloud **38317517321 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.09 blocker/audit `be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, capture NOT IMPLEMENTED / NOT LOCAL COMPLETE. Prior  C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. Prior C21.1.07 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. C21.1.06 prerequisite audit `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`, Cloud `38258729038` **SUCCESS**, all six required jobs SUCCESS; audit accepted, implementation remains BLOCKED / NOT LOCAL COMPLETE. Prior C21.1.05 / C21.1.05A accepted repair `af407f751cbda2898eb881f90fdd08177e2b28d3`, implementation `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud `38165641607` **SUCCESS**, all six required jobs SUCCESS (Frontend admin; PostgreSQL cloud and legacy regressions; mandatory foundation; mandatory content-action; mandatory complete-project; Android compression packaging). C21.1.05 and C21.1.05A **REMOTELY ACCEPTED** by owner/GPT. Prior C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
+
+## C21.1.30 — Content + local-unsealed Legacy conflict / project HTML
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+C21.1.29 `074b9d3d9e633e14c4f510050cc963750040bd79`, Cloud `38703171604` SUCCESS,
+all six required jobs SUCCESS; **REMOTELY ACCEPTED** (independent owner acceptance).
+Official **84.0%**; C21 **IN PROGRESS**, C21.1.06 **NOT LOCAL COMPLETE**;
+`ready=false`, no roadmap increment.
+
+### Audit / boundary / representation
+
+The checkpoint records the audit BEFORE production edits. The accepted Content guards
+rejected any localIntent or local_unsealed group and verifyPeerNoteGroup rejected
+local members. Legacy already authenticates pending intent and encrypted snapshot,
+freezes local_version1 through freezeLocalVersion, and uses Legacy conflict proof2
+with local_version_id/local_mutation_generation/local_version_digest.
+
+Reuse that exact local_version1, group1 and candidate2 conflict representation.
+No Content-local version, fake remote projection or second Note authority is created.
+Content conflict proof is now an exact backward-compatible union: **proof1** for
+accepted peer-only groups (unchanged); **proof2** for local-unsealed groups, adding only
+those three exact frozen-version fields. Inbox remains **record8 /
+content_note_conflict_preserved**. Candidate2 still has conflict_preserved transport
+proof, original codec8 wire/logical/dependency digests, null projection/digest/source
+revision/local Note digest. **No candidate evolution, inbox9 or DB schema change.**
+
+| Content outcome/route | Status |
+| --- | --- |
+| accepted clean + peer conflict project/Stage HTML/plain | YES, unchanged |
+| incoming peer ordinary Content + current Legacy local-unsealed project HTML, stage=null, map/node=null | YES |
+| incoming update/delete, ID0/ID1 | YES |
+| second+ remote Content sibling, same frozen local group | YES, generation+1 |
+| Legacy remote sibling extending that same group | YES, accepted Legacy proof2 retained |
+| incoming plain / Stage HTML / Stage plain against this local Legacy route | NO |
+| mindmap / wrong route / create / wrong parent/revision / same local event id | NO |
+| Content self-echo / Resolution / local Content writer | NO |
+
+Native/shared Legacy conflict semantics already support update/delete and generation
+extension. Local producer remains the frozen Legacy writer: its project HTML/null Stage
+eligibility is not broadened. The remote Content wrapper independently requires exact
+current authenticated Metadata. Stage refs cannot authorize a mismatching local route.
+
+### Verification / currentness / atomicity
+
+verifyPeerNoteGroup remains strict. A separate narrow verifyLocalContentGroup handles
+local mode: exactly one authenticated frozen local member and remote members. It checks
+local version identity/digest/mutation generation, opens the frozen intent/snapshot,
+compares parent/revision/bootstrap and complete route with the parent and each remote,
+and checks actual Legacy2 or Content2 conflict proof/candidate/wire/member generation.
+Current live intent must equal the frozen intent exactly; exactly one actual current
+local Note record must equal its encrypted snapshot. This also applies on replay/reload.
+
+New conflict creation reuses the accepted sibling planner and freezeLocalVersion.
+Open-group extension reuses its immutable frozen local record and increments group
+generation once. Exact replay returns already_applied without refreezing, duplicate
+members, source writes or intent changes. Local working Note, project shell/source
+revision, intent lifecycle, outbox and receipts remain unchanged by conflict preservation.
+
+Frozen version, candidate2, group, head/frontier and inbox8/proof2 commit in the SAME
+existing Note transaction. It already CASes inbox, binding, current intent inventory,
+history, source snapshot and cursor; opaque transport hook CASes Metadata owners and
+bindings, with auth/key/session guards. A source snapshot captured for local-mode
+verification is reused for final source CAS, rather than silently replacing it later.
+
+Prefix/ACK read the EXISTING legacyNoteIntents/localNotes stores along with their old
+inventory, bind those exact snapshots to the opaque Content certificate, and compare
+them again in the final prefix/ACK transaction. No stores/indexes were added. Stage
+apply/prerequisite code and Legacy frozen-version verification remain unchanged.
+New Content proof2 increments **unsealed_conflict**, not conflict/applied.
+
+**Deliberate bounded lifecycle rule:** changing, removing or sealing the current intent,
+or changing its snapshot/generation, invalidates new Content proof2 qualification.
+Historical Legacy conflict proofs keep their accepted behavior. This slice does not
+invent requalification after later local edits/sealing, resolve a conflict, convert the
+intent to codec8 or activate Content writer/upload. Frozen historical evidence is retained.
+
+### Validation / browser / network
+
+- Before implementation: **244 PASS /3files**, reproducing the old Content+intent
+  barrier and checking Legacy local-unsealed, peer Content and clean Content baselines.
+- New focused local-unsealed Content spec: **60 PASS**. Both ID0/ID1 update/delete,
+  local update/tombstone, exact frozen version/intent/source retention, group extension,
+  compatible Legacy extension, replay, currentness, route negatives, proof2/frozen/
+  envelope/group/wire tampering, intent edit/removal/seal/generation/snapshot drift,
+  source/history/Metadata CAS, auth/key/session, frozen/candidate/group/inbox/abort rollback.
+- New ACK spec: **8 PASS**: explicit ACK4, max1/no-progress, plain barrier→ACK2,
+  frozen/intent/source drift before send, HTTP/commit retry, intent drift after server
+  success prevents stale local ACK cursor commit.
+- Focused local + peer + Legacy unsealed/race/proof phase: **200 PASS /5files**.
+  Updated clean Content/local/ACK phase: **206 PASS /3files**.
+- Final exact mandatory Cloud C21 command: **1493 PASS /51files**, including peer
+  project/Stage HTML/plain, mixed transport, Legacy unsealed/self-echo/backfill, clean
+  apply, prefix/ACK and migration/open. First broad run found one obsolete assertion
+  expecting HTML local-unsealed rejection; updated to the requested successful outcome,
+  retaining plain rejection, then reran successfully. No remaining failures/skips.
+- **Chromium210 groups PASS, page errors0**, native IDB/Web Locks. Legacy root49 has a
+  current unsealed local update; incoming Content ID1 update50 and ID0 losing delete51
+  produce inbox8/proof2 and one frozen local_version, group generation2. Local Note,
+  project, intent, outbox and receipts stay byte-identical. Candidate2 has null projection.
+  Actual native frozen/group/candidate/inbox/abort/auth/key injections roll back all stores.
+- Local CAS scenario: Legacy root53, generation1 pending intent, prepare Content54;
+  local edit coalesces generation2 before commit. Old plan aborts with zero conflict
+  writes. Fresh explicit preparation safely binds generation2 and preserves Content54.
+  Safe Legacy55 gives **prefix55 / ACK55**, with **unsealed_conflict3 / peer conflict5**.
+- Frozen version/proof2/group tamper prevents ACK; isolated fixture rows restored exactly.
+  Readable plain56, valid Stage HTML57/Stage plain58 against local Legacy HTML remain
+  barriers without writes. Resolution59/self60 remain blocked; later Legacy61 cannot
+  leapfrog56. Legacy unresolved-child62 and session-invalidation63 stay blocked.
+- After renderer AND full disk-profile reopen: **38 Content histories**, proof1/proof2,
+  original codec8 candidates, groups and intents survive; frozen local versions decrypt,
+  exact pending local text remains, Metadata/current intent snapshot reauthenticate.
+  Proven55/ACK55/pull63 survive and prefix reconstructs to55. No plaintext durable copy/log.
+- Unit prefix example Metadata1/parent2/local pending/incoming3/Note4→**4**.
+  Invalid/stale local proof does not qualify or advance the already safe **prefix2**;
+  corrupt evidence fails closed. Plain/Stage mismatch at3→**2**.
+- Conflict apply/frozen-local verification/Content proof/dependencies/prefix: **0 HTTP**.
+  Harness API125, registration22, capability11, mode36, registry26, bootstrap16, ACK14.
+  Compared with C21.1.29, +3 are ONE additional explicit ACK55 plus its TWO existing mode
+  checks. No registration/capability/registry/bootstrap additions, no new endpoint.
+  Push/pull/writer upload/Resolution/unrelated0. ACK protocol, max1, retries/no-progress,
+  server-success-before-cursor and no-background-ACK behavior are unchanged.
+- Typecheck, production build, workflow syntax/mandatory new specs, browser script syntax,
+  git diff --check PASS. Existing build size/dynamic-import warnings only.
+- IndexedDB **v8→v8**, twelve stores, no migration/new store/index/row rewrite.
+  Existing Content peer proof1/inbox8, applied proof1/inbox7, candidate2 and Legacy conflict2
+  remain valid. Backend/PostgreSQL/Alembic/native/Rust/SQLite/new dependencies: NONE.
+  Frozen codec/writer eligibility/crypto/AAD/compression/Metadata/Stage/ACK/intent lifecycle
+  contracts unchanged. Protected .pyc SHA256 unchanged; task preview/output cleaned.
+- Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED. Remote CI PENDING,
+  NOT POLLED / NOT WAITED. Commit/push authorized by the attached C21.1.30 task.
+
+### Простыми словами
+
+- Браузер уже умел сохранять конфликт двух удалённых Content-версий.
+- Теперь можно безопасно сохранить и конфликт пришедшей из облака версии с локальной
+  правкой, которая ещё не отправлена. Локальная правка не теряется и не заменяется удалённой.
+- Локальная версия замораживается в защищённой истории как доказательство конфликта;
+  сама pending-правка остаётся прежней и не превращается в Content-отправку.
+- После перезапуска браузер заново проверяет замороженную локальную версию, текущий
+  intent и исходную зашифрованную codec8-версию из облака.
+- Безопасно сохранённый конфликт может учитываться в prefix и ACK. Если локальная
+  правка затем изменится или будет запечатана, текущий proof2 перестаёт квалифицироваться;
+  отдельная поддержка такого продолжения жизненного цикла ещё нужна.
+- Это пока только совместимый маршрут заметки проекта в HTML, без этапа.
+- Stage/plain local-unsealed, self-echo, Resolution и локальная отправка Content остаются
+  отдельными задачами. Полная Web-синхронизация ещё не готова, ready=false, прогресс84.0%.
+- Следующий ограниченный шаг — аудит безопасной повторной квалификации proof2 после
+  Legacy coalescing/sealing, с сохранением frozen history и без Content writer/Resolution.
+
+## C21.1.30 — local-unsealed Content preflight / audit before implementation
+
+Fetched clean branch6.0 HEAD/origin `074b9d3d9e633e14c4f510050cc963750040bd79`.
+C21.1.29 Cloud38703171604 SUCCESS, all six required jobs SUCCESS; owner independently
+accepted, REMOTELY ACCEPTED. Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE,
+ready=false. Protected bytecode hashes recorded unchanged before edits.
+
+1. Current Content blocker: content && (localIntent || open group local_unsealed).
+2. Additional group-local hard stop and verifyPeerNoteGroup reject local_unsealed.
+3. Legacy freezeLocalVersion authenticates intent/snapshot and reuses existing local_version1.
+4. Frozen record binds local event/header, parent/revision, exact encrypted intent/snapshot,
+   mutation generation, version identity and record digest; no new local-version authority.
+5. Legacy conflict proof2 adds local_version_id/local_mutation_generation/local_version_digest.
+6. Content conflict proof1 can evolve compatibly to proof2 with those exact three fields;
+   old peer proof1 remains unchanged. Dedicated local verifier retains strict peer verifier.
+7. Candidate2 conflict union already has correct null projection/revision/digest; no evolution.
+8. Group1 supports one local_unsealed + remote siblings and generation+1; native existing
+   local conflict update/delete and open-group generation rules are reused, not redesigned.
+9. Local current Note/source revision/project shell and pending intent must remain unchanged.
+10. Inbox8 can carry exact proof1|proof2 union, no inbox9 required.
+11. IDBv8 sufficient, no migration/store/index/rewrites. Prefix inventory must read existing
+    intent/local Note stores and bind their snapshots for current proof2 + same-TX ACK CAS.
+12. Plain/Stage mismatch the frozen Legacy project-HTML stage-null route and remain blocked.
+
+Prefix/reload will require current matching intent + frozen intent/snapshot + actual local
+Note row. Stale/missing/sealed/mutated intent invalidates new Content proof2; accepted
+Legacy historical frozen-version semantics remain unchanged. No codec8 local writer.
 
 ## C21.1.29 — peer Content conflict preservation / shared Note group
 

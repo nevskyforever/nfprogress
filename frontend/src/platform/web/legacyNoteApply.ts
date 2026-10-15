@@ -1,4 +1,4 @@
-import {contentConflictProofFor,contentConflictHistoryJoin,verifyPeerNoteGroup,verifyStoredContentConflictProof} from './contentNoteConflictProof'
+import {contentConflictProofFor,contentConflictHistoryJoin,verifyContentGroup,verifyStoredContentConflictProof} from './contentNoteConflictProof'
 import {validateContentNoteConflictProof,type BrowserContentNoteConflictProof} from './contentNoteRecords'
 import { contentProofFor,verifyStoredContentNoteProof,contentHistoryJoin } from './contentNoteProof'
 import type { BrowserContentNoteProof } from './contentNoteRecords'
@@ -83,6 +83,7 @@ export class BrowserLegacyNoteApplyRuntime {
       const prerequisite=dormant||content?await prepareNotePrerequisite(scope,row,binding,amk,current,this.transaction):undefined
       let plaintext:NoteSyncPlaintext;try{plaintext=prerequisite?prerequisite.plaintext:await openRetainedNote(scope,amk,row)}catch(e){if(row.state!=='received')fail('corrupt_record');throw e}const h=plaintext.header
       const records=inventory.history,candidates=records.filter((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'),groups=records.filter((r):r is BrowserNoteConflictGroup=>r.record_kind==='group'),versions=records.filter((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version')
+      const localConflictSource=groups.some(g=>g.members.some(m=>m.source==='local_unsealed'))&&candidates.some(c=>c.record_version===2)?await this.local.readSnapshot(scope,binding.project_id):undefined
       if(records.some(r=>r.bootstrap_id!==binding.bootstrap_id))fail('stale_lineage')
       for(const c of candidates)await openHistoryCandidate(scope,c,amk);for(const v of versions)await openFrozenLocalVersion(scope,v,amk)
       const add=(c:BrowserNoteCandidate)=>{const old=candidates.find(r=>r.event_id===c.event_id);if(old){if(old.wire_item!==c.wire_item||!same(old.header,c.header)||old.source_device_id!==c.source_device_id||old.protocol_version!==c.protocol_version)fail('conflicting_record')}else candidates.push(c)}
@@ -98,13 +99,12 @@ export class BrowserLegacyNoteApplyRuntime {
       let dependencyAnchor=prerequisite?.certificate
       let peerDependencyHook:VerifiedNoteTransportCommit|undefined
       for(const prior of inventory.rows){if(prior.state!=='content_note_proven'&&prior.state!=='content_note_conflict_preserved')continue;const p=prior.state==='content_note_proven'?prior.content_note_proof:prior.content_note_conflict_proof;if(p.header.project_id!==h.project_id||p.header.entity_id!==h.entity_id)continue
-        if(prior.state==='content_note_proven')await verifyStoredContentNoteProof(scope,amk,prior,records);else await verifyStoredContentConflictProof(scope,amk,prior,records,inventory.rows)
+        if(prior.state==='content_note_proven')await verifyStoredContentNoteProof(scope,amk,prior,records);else await verifyStoredContentConflictProof(scope,amk,prior,records,inventory.rows,inventory.intents,localConflictSource?.notes??[])
         const checked=await prepareNotePrerequisite(scope,prior,binding,amk,current,this.transaction),retained=candidates.find(c=>c.event_id===prior.event_id);if(!retained)fail('corrupt_record');if(dependencyAnchor)assertNotePrerequisiteCompatible(dependencyAnchor,checked.certificate);else dependencyAnchor=checked.certificate;peerDependencyHook??=prepareNoteTransportReplay(checked.certificate,retained)
       }
       for(const group of groups){
         const hasContent=group.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2)
-        if(content&&group.members.some(m=>m.source==='local_unsealed'))fail('note_conflict_unproven')
-        if(hasContent){await verifyPeerNoteGroup(scope,group,records,inventory.rows,amk);continue}
+        if(hasContent){await verifyContentGroup(scope,group,records,inventory.rows,amk,inventory.intents,localConflictSource?.notes??[]);continue}
         for(const member of group.members){
         if(member.source==='local_unsealed'){const frozen=versions.find(v=>v.version_id===member.version_id);if(!frozen||frozen.intent.mutation_generation!==member.local_mutation_generation)fail('corrupt_record');continue}
         const retained=inventory.rows.find(r=>r.event_id===member.event_id),candidate=candidates.find(c=>c.event_id===member.event_id)
@@ -131,13 +131,13 @@ export class BrowserLegacyNoteApplyRuntime {
       if(row.state==='content_note_proven'){
         if(!content||!prerequisite)fail('corrupt_record')
         await verifyStoredContentNoteProof(scope,amk,row,records);const c=contentHistoryJoin(scope,row,records)
-        const source=await this.local.readSnapshot(scope,binding.project_id),token=Object.freeze({}) as VerifiedNoteCausalPlan
+        const source=localConflictSource??await this.local.readSnapshot(scope,binding.project_id),token=Object.freeze({}) as VerifiedNoteCausalPlan
         plans.set(token,{owner:this,scope,inventory,row,proof:row.content_note_proof,current,local:this.local,sourceToken:source.token,replay:true,historyNext:records,transportHook:prepareNoteTransportReplay(prerequisite.certificate,c)})
         if(!current())fail('closed');return token
       }
       if(row.state==='content_note_conflict_preserved'){
-        if(!content||!prerequisite)fail('corrupt_record');await verifyStoredContentConflictProof(scope,amk,row,records,inventory.rows)
-        const {candidate}=contentConflictHistoryJoin(scope,row,records),source=await this.local.readSnapshot(scope,binding.project_id),token=Object.freeze({}) as VerifiedNoteCausalPlan
+        if(!content||!prerequisite)fail('corrupt_record');await verifyStoredContentConflictProof(scope,amk,row,records,inventory.rows,inventory.intents,localConflictSource?.notes??[])
+        const {candidate}=contentConflictHistoryJoin(scope,row,records),source=localConflictSource??await this.local.readSnapshot(scope,binding.project_id),token=Object.freeze({}) as VerifiedNoteCausalPlan
         plans.set(token,{owner:this,scope,inventory,row,proof:row.content_note_conflict_proof,current,local:this.local,sourceToken:source.token,replay:true,historyNext:records,transportHook:prepareNoteTransportReplay(prerequisite.certificate,candidate)})
         if(!current())fail('closed');return token
       }
@@ -154,13 +154,13 @@ export class BrowserLegacyNoteApplyRuntime {
           if(content&&['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((prior.note as unknown as Record<string,unknown>)[k],(plaintext.note as unknown as Record<string,unknown>)[k])))fail('unsupported_local_source')
           if(!content&&!dormant&&(prior.note.stage_id!==null||prior.note.content_format!=='html'))fail('unsupported_local_source')
         }
-        const source=await this.local.readSnapshot(scope,binding.project_id)
+        const source=localConflictSource??await this.local.readSnapshot(scope,binding.project_id)
         let preserve:BrowserNoteConflictGroup|undefined
         if(!own){
           const open=groups.find(g=>g.common_parent_event_id===h.parent_event_id&&g.tip_revision===h.revision)
           if((content||groups.some(g=>g.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2)))&&(groups.length&&!open||!groups.length&&head&&head.tip_event_ids.length!==1))fail('note_conflict_unproven')
-          const localIntents=inventory.intents.filter(i=>i.project_id===h.project_id&&i.note_id===h.entity_id);if(localIntents.length>1)fail('corrupt_record');const localIntent=localIntents[0];if(localIntent&&localIntent.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');if(localIntent)await unsealedPlaintext(scope,localIntent,amk)
-          if(content&&(localIntent||open?.members.some(m=>m.source==='local_unsealed')))fail('note_conflict_unproven')
+          const localIntents=inventory.intents.filter(i=>i.project_id===h.project_id&&i.note_id===h.entity_id);if(localIntents.length>1)fail('corrupt_record');const localIntent=localIntents[0];if(localIntent&&localIntent.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');const localPlain=localIntent?await unsealedPlaintext(scope,localIntent,amk):null
+          if(content&&(localIntent||open?.members.some(m=>m.source==='local_unsealed'))){if(!localPlain||plaintext.note.stage_id!==null||plaintext.note.content_format!=='html'||['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((localPlain.note as any)[k],(plaintext.note as any)[k])))fail('note_conflict_unproven')}
           const localSibling=!open&&localIntent&&h.revision>=2&&localIntent.revision===h.revision&&localIntent.parent_event_id===h.parent_event_id&&localIntent.event_id!==h.event_id&&candidates.some(c=>c.event_id===h.parent_event_id&&c.header.revision===h.revision-1)
           const sibling=!localIntent&&!open&&linear&&h.revision>=2&&linear.header.revision===h.revision&&linear.header.parent_event_id===h.parent_event_id
           if(open||localSibling||sibling){
@@ -190,21 +190,20 @@ export class BrowserLegacyNoteApplyRuntime {
           const localMember=preserve.members.find(m=>m.source==='local_unsealed');if(localMember){proof={...proof,record_version:2,local_version_digest:versions.find(v=>v.version_id===localMember.version_id)!.record_digest,local_version_id:localMember.version_id,local_mutation_generation:(localMember as {local_mutation_generation:number}).local_mutation_generation}}
           let transport:Awaited<ReturnType<typeof prepareNoteTransportConflictCommit>>|undefined
           if(content||preserve.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2)){
-            if(preserve.members.some(m=>m.source==='local_unsealed'))fail('note_conflict_unproven')
-            const winner=candidates.find(c=>c.event_id===head!.linear_head_event_id),localRecord=source.notes.find(n=>n.note_id===h.entity_id)
-            if(!winner||winner.origin!=='peer'||!localRecord||!winner.projection_digest||await noteProofDigest(localRecord)!==winner.projection_digest)fail('note_conflict_unproven')
+            if(!preserve.members.some(m=>m.source==='local_unsealed')){const winner=candidates.find(c=>c.event_id===head!.linear_head_event_id),localRecord=source.notes.find(n=>n.note_id===h.entity_id)
+            if(!winner||winner.origin!=='peer'||!localRecord||!winner.projection_digest||await noteProofDigest(localRecord)!==winner.projection_digest)fail('note_conflict_unproven')}
           }
           if(content){
             if(!prerequisite)fail('corrupt_record')
             transport=await prepareNoteTransportConflictCommit(prerequisite.certificate,plaintext);add(transport.candidate)
-            proof=await contentConflictProofFor(scope,row,transport.candidate,preserve,plaintext.mutation as 'update'|'delete')
+            proof=await contentConflictProofFor(scope,row,transport.candidate,preserve,plaintext.mutation as 'update'|'delete',versions)
           }else add(await makeHistoryCandidate(scope,binding,row.protocol_version,reference.device_id,item,plaintext,'peer',null))
           const at=groups.findIndex(g=>g.group_id===preserve!.group_id);if(at<0)groups.push(preserve);else groups[at]=preserve
           head=nextNoteHead(scope,binding,candidates,head!.linear_head_event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))
           const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,sourceToken:source.token,replay:false,historyNext:historySort([...candidates,...groups,...versions,head]),transportHook:transport?.hook??peerDependencyHook}
           proof.outcome_digest=await noteOutcomeDigest(proof);if(proof.owner_kind==='content_note')validateContentNoteConflictProof(proof,scope);else validateBrowserNoteConflictProof(proof,scope)
           validateNoteHistorySet(scope,p.historyNext)
-          if(preserve.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2))await verifyPeerNoteGroup(scope,preserve,p.historyNext,inventory.rows.map(r=>r.event_id===row.event_id?validateBrowserInboxRecord(proofRow(row,proof),scope):r),amk)
+          if(preserve.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2))await verifyContentGroup(scope,preserve,p.historyNext,inventory.rows.map(r=>r.event_id===row.event_id?validateBrowserInboxRecord(proofRow(row,proof),scope):r),amk,inventory.intents,source.notes)
           if(!current())fail('closed');plans.set(token,p);return token
         }
         const cleanProof:BrowserNoteProof|DormantNoteOutcome={record_version:1,owner_kind:dormant||content?'dormant_note_prerequisite':'legacy_note',outcome:own?'self_echo_applied':'applied',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation,wire_digest:wireDigest,outcome_digest:'',source_revision:null,local_note_digest:null};proof=cleanProof
@@ -213,7 +212,7 @@ export class BrowserLegacyNoteApplyRuntime {
           proof.outcome_digest=await noteOutcomeDigest(proof);if(proof.owner_kind==='legacy_note')validateBrowserNoteProof(proof,scope);p.historyNext=historySort([...candidates,...groups,...versions,...(head?[head]:[])]);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');return token
         }finally{delete p.plaintext}
       }
-      const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,replay,historyNext:historySort([...candidates,...groups,...versions,...(head?[head]:[])]),transportHook:peerDependencyHook};validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
+      const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,sourceToken:localConflictSource?.token,replay,historyNext:historySort([...candidates,...groups,...versions,...(head?[head]:[])]),transportHook:peerDependencyHook};validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token
     })
   }
   async commit(token:VerifiedLegacyNotePlan):Promise<'applied'|'self_echo_applied'|'already_applied'|'conflict_preserved'>{

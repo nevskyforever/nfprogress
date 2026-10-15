@@ -25,15 +25,19 @@ export function validateContentNoteProof(value:unknown,scope:BrowserSyncScope):B
  return p
 }
 
-export interface BrowserContentNoteConflictProof extends Omit<BrowserContentNoteProof,'outcome'|'mutation'|'source_revision'|'local_note_digest'> {
+interface ContentConflictProofFields extends Omit<BrowserContentNoteProof,'record_version'|'outcome'|'mutation'|'source_revision'|'local_note_digest'> {
  outcome:'conflict_preserved';mutation:'update'|'delete';group_id:string;conflict_generation:number;common_parent_event_id:string
 }
+export type BrowserContentNoteConflictProof=ContentConflictProofFields & ({record_version:1}|{record_version:2;local_version_id:string;local_mutation_generation:number;local_version_digest:string})
 export function validateContentNoteConflictProof(value:unknown,scope:BrowserSyncScope):BrowserContentNoteConflictProof{
- if(!localExact(value,['record_version','owner_kind','outcome','account_id','bootstrap_id','protocol_version','reference','server_sequence','codec_id','frame_version','codec_version','header','mutation','history_event_id','wire_digest','logical_digest','dependency_digest','candidate_digest','transport_proof_digest','outcome_digest','group_id','conflict_generation','common_parent_event_id']))bad()
+ if(!localExact(value,['record_version','owner_kind','outcome','account_id','bootstrap_id','protocol_version','reference','server_sequence','codec_id','frame_version','codec_version','header','mutation','history_event_id','wire_digest','logical_digest','dependency_digest','candidate_digest','transport_proof_digest','outcome_digest','group_id','conflict_generation','common_parent_event_id',...((value as BrowserContentNoteConflictProof)?.record_version===2?['local_version_id','local_mutation_generation','local_version_digest']:[])]))bad()
  const p=value as unknown as BrowserContentNoteConflictProof
+ if(![1,2].includes(p.record_version))bad()
+ if(p.record_version===2&&(!localSafe(p.local_mutation_generation,1)||!noteHistoryHash(p.local_version_digest)||typeof p.local_version_id!=='string'||p.local_version_id.split(':').length!==4||!p.local_version_id.startsWith(`local:${scope.accountId}:`)||!canonicalNoteUuid(p.local_version_id.split(':')[2])||p.local_version_id.split(':')[2]![14]!=='4'||!p.local_version_id.endsWith(`:${p.local_mutation_generation}`)))bad()
  if(p.outcome!=='conflict_preserved'||!['update','delete'].includes(p.mutation)||!canonicalNoteUuid(p.group_id)||p.group_id[14]!=='4'||!localSafe(p.conflict_generation,1)||!canonicalNoteUuid(p.common_parent_event_id)||p.header?.parent_event_id!==p.common_parent_event_id)bad()
  // Structural view only. Never store or use as an applied local projection.
  const {group_id:_g,conflict_generation:_n,common_parent_event_id:_parent,...body}=p
- validateContentNoteProof({...body,outcome:'applied',source_revision:1,local_note_digest:'0'.repeat(64)},scope)
+ const view={...body} as Record<string,unknown>;delete view.local_version_id;delete view.local_mutation_generation;delete view.local_version_digest
+ validateContentNoteProof({...view,record_version:1,outcome:'applied',source_revision:1,local_note_digest:'0'.repeat(64)},scope)
  return p
 }

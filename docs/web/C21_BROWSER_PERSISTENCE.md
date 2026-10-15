@@ -1,12 +1,12 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
-**Current C21.1.29 status (2026-10-15):** peer Content update/delete conflict
-preservation for project/Stage HTML/plain, mixed project HTML, shared group extension,
-reload/prefix/explicit ACK LOCAL COMPLETE; REMOTE CI PENDING — NOT POLLED.
-C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud `38662032578` SUCCESS,
+**Current C21.1.30 status (2026-10-15):** incoming Content + existing Legacy
+local-unsealed conflict, project HTML/null Stage only, proof2/frozen version/reload/prefix/
+explicit ACK LOCAL COMPLETE; REMOTE CI PENDING — NOT POLLED.
+C21.1.29 `074b9d3d9e633e14c4f510050cc963750040bd79`, Cloud `38703171604` SUCCESS,
 all six required jobs SUCCESS; REMOTELY ACCEPTED (independent owner acceptance).
 Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
-Final C21.1.29 section contains current evidence; older sections retain historical scope.
+Final C21.1.30 section contains current evidence; older sections retain historical scope.
 
 
 **Current C21.1.23 update (2026-10-14):** v8 /12 stores, clean imported Stage-order
@@ -2967,3 +2967,151 @@ blocked. A different/uncovered fork remains a barrier rather than a new conflict
 - Полная Web-синхронизация ещё не готова: ready=false, прогресс остаётся 84.0%.
 - Следующий ограниченный шаг — аудит local-unsealed + incoming Content, начиная с
   project HTML и существующего Legacy pending intent; writer/Resolution не включать.
+
+## C21.1.30 — Content + local-unsealed Legacy conflict / project HTML
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+C21.1.29 `074b9d3d9e633e14c4f510050cc963750040bd79`, Cloud `38703171604` SUCCESS,
+all six required jobs SUCCESS; **REMOTELY ACCEPTED** (independent owner acceptance).
+Official **84.0%**; C21 **IN PROGRESS**, C21.1.06 **NOT LOCAL COMPLETE**;
+`ready=false`, no roadmap increment.
+
+### Audit / boundary / representation
+
+The checkpoint records the audit BEFORE production edits. The accepted Content guards
+rejected any localIntent or local_unsealed group and verifyPeerNoteGroup rejected
+local members. Legacy already authenticates pending intent and encrypted snapshot,
+freezes local_version1 through freezeLocalVersion, and uses Legacy conflict proof2
+with local_version_id/local_mutation_generation/local_version_digest.
+
+Reuse that exact local_version1, group1 and candidate2 conflict representation.
+No Content-local version, fake remote projection or second Note authority is created.
+Content conflict proof is now an exact backward-compatible union: **proof1** for
+accepted peer-only groups (unchanged); **proof2** for local-unsealed groups, adding only
+those three exact frozen-version fields. Inbox remains **record8 /
+content_note_conflict_preserved**. Candidate2 still has conflict_preserved transport
+proof, original codec8 wire/logical/dependency digests, null projection/digest/source
+revision/local Note digest. **No candidate evolution, inbox9 or DB schema change.**
+
+| Content outcome/route | Status |
+| --- | --- |
+| accepted clean + peer conflict project/Stage HTML/plain | YES, unchanged |
+| incoming peer ordinary Content + current Legacy local-unsealed project HTML, stage=null, map/node=null | YES |
+| incoming update/delete, ID0/ID1 | YES |
+| second+ remote Content sibling, same frozen local group | YES, generation+1 |
+| Legacy remote sibling extending that same group | YES, accepted Legacy proof2 retained |
+| incoming plain / Stage HTML / Stage plain against this local Legacy route | NO |
+| mindmap / wrong route / create / wrong parent/revision / same local event id | NO |
+| Content self-echo / Resolution / local Content writer | NO |
+
+Native/shared Legacy conflict semantics already support update/delete and generation
+extension. Local producer remains the frozen Legacy writer: its project HTML/null Stage
+eligibility is not broadened. The remote Content wrapper independently requires exact
+current authenticated Metadata. Stage refs cannot authorize a mismatching local route.
+
+### Verification / currentness / atomicity
+
+verifyPeerNoteGroup remains strict. A separate narrow verifyLocalContentGroup handles
+local mode: exactly one authenticated frozen local member and remote members. It checks
+local version identity/digest/mutation generation, opens the frozen intent/snapshot,
+compares parent/revision/bootstrap and complete route with the parent and each remote,
+and checks actual Legacy2 or Content2 conflict proof/candidate/wire/member generation.
+Current live intent must equal the frozen intent exactly; exactly one actual current
+local Note record must equal its encrypted snapshot. This also applies on replay/reload.
+
+New conflict creation reuses the accepted sibling planner and freezeLocalVersion.
+Open-group extension reuses its immutable frozen local record and increments group
+generation once. Exact replay returns already_applied without refreezing, duplicate
+members, source writes or intent changes. Local working Note, project shell/source
+revision, intent lifecycle, outbox and receipts remain unchanged by conflict preservation.
+
+Frozen version, candidate2, group, head/frontier and inbox8/proof2 commit in the SAME
+existing Note transaction. It already CASes inbox, binding, current intent inventory,
+history, source snapshot and cursor; opaque transport hook CASes Metadata owners and
+bindings, with auth/key/session guards. A source snapshot captured for local-mode
+verification is reused for final source CAS, rather than silently replacing it later.
+
+Prefix/ACK read the EXISTING legacyNoteIntents/localNotes stores along with their old
+inventory, bind those exact snapshots to the opaque Content certificate, and compare
+them again in the final prefix/ACK transaction. No stores/indexes were added. Stage
+apply/prerequisite code and Legacy frozen-version verification remain unchanged.
+New Content proof2 increments **unsealed_conflict**, not conflict/applied.
+
+**Deliberate bounded lifecycle rule:** changing, removing or sealing the current intent,
+or changing its snapshot/generation, invalidates new Content proof2 qualification.
+Historical Legacy conflict proofs keep their accepted behavior. This slice does not
+invent requalification after later local edits/sealing, resolve a conflict, convert the
+intent to codec8 or activate Content writer/upload. Frozen historical evidence is retained.
+
+### Validation / browser / network
+
+- Before implementation: **244 PASS /3files**, reproducing the old Content+intent
+  barrier and checking Legacy local-unsealed, peer Content and clean Content baselines.
+- New focused local-unsealed Content spec: **60 PASS**. Both ID0/ID1 update/delete,
+  local update/tombstone, exact frozen version/intent/source retention, group extension,
+  compatible Legacy extension, replay, currentness, route negatives, proof2/frozen/
+  envelope/group/wire tampering, intent edit/removal/seal/generation/snapshot drift,
+  source/history/Metadata CAS, auth/key/session, frozen/candidate/group/inbox/abort rollback.
+- New ACK spec: **8 PASS**: explicit ACK4, max1/no-progress, plain barrier→ACK2,
+  frozen/intent/source drift before send, HTTP/commit retry, intent drift after server
+  success prevents stale local ACK cursor commit.
+- Focused local + peer + Legacy unsealed/race/proof phase: **200 PASS /5files**.
+  Updated clean Content/local/ACK phase: **206 PASS /3files**.
+- Final exact mandatory Cloud C21 command: **1493 PASS /51files**, including peer
+  project/Stage HTML/plain, mixed transport, Legacy unsealed/self-echo/backfill, clean
+  apply, prefix/ACK and migration/open. First broad run found one obsolete assertion
+  expecting HTML local-unsealed rejection; updated to the requested successful outcome,
+  retaining plain rejection, then reran successfully. No remaining failures/skips.
+- **Chromium210 groups PASS, page errors0**, native IDB/Web Locks. Legacy root49 has a
+  current unsealed local update; incoming Content ID1 update50 and ID0 losing delete51
+  produce inbox8/proof2 and one frozen local_version, group generation2. Local Note,
+  project, intent, outbox and receipts stay byte-identical. Candidate2 has null projection.
+  Actual native frozen/group/candidate/inbox/abort/auth/key injections roll back all stores.
+- Local CAS scenario: Legacy root53, generation1 pending intent, prepare Content54;
+  local edit coalesces generation2 before commit. Old plan aborts with zero conflict
+  writes. Fresh explicit preparation safely binds generation2 and preserves Content54.
+  Safe Legacy55 gives **prefix55 / ACK55**, with **unsealed_conflict3 / peer conflict5**.
+- Frozen version/proof2/group tamper prevents ACK; isolated fixture rows restored exactly.
+  Readable plain56, valid Stage HTML57/Stage plain58 against local Legacy HTML remain
+  barriers without writes. Resolution59/self60 remain blocked; later Legacy61 cannot
+  leapfrog56. Legacy unresolved-child62 and session-invalidation63 stay blocked.
+- After renderer AND full disk-profile reopen: **38 Content histories**, proof1/proof2,
+  original codec8 candidates, groups and intents survive; frozen local versions decrypt,
+  exact pending local text remains, Metadata/current intent snapshot reauthenticate.
+  Proven55/ACK55/pull63 survive and prefix reconstructs to55. No plaintext durable copy/log.
+- Unit prefix example Metadata1/parent2/local pending/incoming3/Note4→**4**.
+  Invalid/stale local proof does not qualify or advance the already safe **prefix2**;
+  corrupt evidence fails closed. Plain/Stage mismatch at3→**2**.
+- Conflict apply/frozen-local verification/Content proof/dependencies/prefix: **0 HTTP**.
+  Harness API125, registration22, capability11, mode36, registry26, bootstrap16, ACK14.
+  Compared with C21.1.29, +3 are ONE additional explicit ACK55 plus its TWO existing mode
+  checks. No registration/capability/registry/bootstrap additions, no new endpoint.
+  Push/pull/writer upload/Resolution/unrelated0. ACK protocol, max1, retries/no-progress,
+  server-success-before-cursor and no-background-ACK behavior are unchanged.
+- Typecheck, production build, workflow syntax/mandatory new specs, browser script syntax,
+  git diff --check PASS. Existing build size/dynamic-import warnings only.
+- IndexedDB **v8→v8**, twelve stores, no migration/new store/index/row rewrite.
+  Existing Content peer proof1/inbox8, applied proof1/inbox7, candidate2 and Legacy conflict2
+  remain valid. Backend/PostgreSQL/Alembic/native/Rust/SQLite/new dependencies: NONE.
+  Frozen codec/writer eligibility/crypto/AAD/compression/Metadata/Stage/ACK/intent lifecycle
+  contracts unchanged. Protected .pyc SHA256 unchanged; task preview/output cleaned.
+- Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED. Remote CI PENDING,
+  NOT POLLED / NOT WAITED. Commit/push authorized by the attached C21.1.30 task.
+
+### Простыми словами
+
+- Браузер уже умел сохранять конфликт двух удалённых Content-версий.
+- Теперь можно безопасно сохранить и конфликт пришедшей из облака версии с локальной
+  правкой, которая ещё не отправлена. Локальная правка не теряется и не заменяется удалённой.
+- Локальная версия замораживается в защищённой истории как доказательство конфликта;
+  сама pending-правка остаётся прежней и не превращается в Content-отправку.
+- После перезапуска браузер заново проверяет замороженную локальную версию, текущий
+  intent и исходную зашифрованную codec8-версию из облака.
+- Безопасно сохранённый конфликт может учитываться в prefix и ACK. Если локальная
+  правка затем изменится или будет запечатана, текущий proof2 перестаёт квалифицироваться;
+  отдельная поддержка такого продолжения жизненного цикла ещё нужна.
+- Это пока только совместимый маршрут заметки проекта в HTML, без этапа.
+- Stage/plain local-unsealed, self-echo, Resolution и локальная отправка Content остаются
+  отдельными задачами. Полная Web-синхронизация ещё не готова, ready=false, прогресс84.0%.
+- Следующий ограниченный шаг — аудит безопасной повторной квалификации proof2 после
+  Legacy coalescing/sealing, с сохранением frozen history и без Content writer/Resolution.
