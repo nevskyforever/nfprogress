@@ -1,4 +1,4 @@
-import {verifyCurrentContentLocalVersion,contentConflictProofFor,contentConflictHistoryJoin,verifyContentGroup,verifyStoredContentConflictProof} from './contentNoteConflictProof'
+import {verifyContentLocalAdmission,verifyCurrentContentLocalVersion,contentConflictProofFor,contentConflictHistoryJoin,verifyContentGroup,verifyStoredContentConflictProof} from './contentNoteConflictProof'
 import {validateContentNoteConflictProof,type BrowserContentNoteConflictProof} from './contentNoteRecords'
 import { contentProofFor,verifyStoredContentNoteProof,contentHistoryJoin } from './contentNoteProof'
 import type { BrowserContentNoteProof } from './contentNoteRecords'
@@ -160,10 +160,10 @@ export class BrowserLegacyNoteApplyRuntime {
           const open=groups.find(g=>g.common_parent_event_id===h.parent_event_id&&g.tip_revision===h.revision)
           if((content||groups.some(g=>g.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2)))&&(groups.length&&!open||!groups.length&&head&&head.tip_event_ids.length!==1))fail('note_conflict_unproven')
           const localIntents=inventory.intents.filter(i=>i.project_id===h.project_id&&i.note_id===h.entity_id);if(localIntents.length>1)fail('corrupt_record');const localIntent=localIntents[0];if(localIntent&&localIntent.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');const localPlain=localIntent?await unsealedPlaintext(scope,localIntent,amk):null
-          if(content&&(localIntent||open?.members.some(m=>m.source==='local_unsealed'))){if(!localPlain||plaintext.note.stage_id!==null||plaintext.note.content_format!=='html'||['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((localPlain.note as any)[k],(plaintext.note as any)[k])))fail('note_conflict_unproven')}
           if(content&&open?.members.some(m=>m.source==='local_unsealed')){
-            const member=open.members.find(m=>m.source==='local_unsealed')!,localRecord=source.notes.find(n=>n.note_id===h.entity_id)
-            if(!localIntent||localIntent.event_id!==member.event_id||localIntent.parent_event_id!==open.common_parent_event_id||localIntent.revision!==open.tip_revision||!localRecord||!same(localRecord,localIntent.snapshot))fail('note_conflict_unproven')
+            await verifyContentLocalAdmission(scope,open,records,amk,{out:inventory.out,receipts:inventory.receipts},inventory.intents,source.notes,plaintext)
+          }else if(content&&localIntent){
+            if(!localPlain||plaintext.note.stage_id!==null||plaintext.note.content_format!=='html'||['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((localPlain.note as any)[k],(plaintext.note as any)[k])))fail('note_conflict_unproven')
           }
           const localSibling=!open&&localIntent&&h.revision>=2&&localIntent.revision===h.revision&&localIntent.parent_event_id===h.parent_event_id&&localIntent.event_id!==h.event_id&&candidates.some(c=>c.event_id===h.parent_event_id&&c.header.revision===h.revision-1)
           const sibling=!localIntent&&!open&&linear&&h.revision>=2&&linear.header.revision===h.revision&&linear.header.parent_event_id===h.parent_event_id

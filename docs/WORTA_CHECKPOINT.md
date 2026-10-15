@@ -5,17 +5,115 @@
 **Официальный зачтённый прогресс:** **84.0%**.\
 **Последний полностью закрытый этап:** **C18 Complete Project Sync**.\
 **Текущий статус:** C16 Desktop Sync — **CLOSED**; C17 Shared Conflict Handling / Conflict Resolution — **CLOSED**.\
-**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 / C21.1.05A — **REMOTELY ACCEPTED**; C21.1.06 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 — **REMOTELY ACCEPTED**; C21.1.08 — **REMOTELY ACCEPTED**; C21.1.09 blocker/audit — **REMOTELY ACCEPTED**, capture — **BLOCKED / NOT LOCAL COMPLETE**; C21.1.10 — **REMOTELY ACCEPTED**; C21.1.11 — **REMOTELY ACCEPTED**; C21.1.12 — **REMOTELY ACCEPTED**; C21.1.13 — **REMOTELY ACCEPTED PARTIAL / ACK BLOCKED**; C21.1.14 — **REMOTELY ACCEPTED PARTIAL**; C21.1.15 — **REMOTELY ACCEPTED PARTIAL**; C21.1.16 — **REMOTELY ACCEPTED**; C21.1.17 — **REMOTELY ACCEPTED**; C21.1.18 — **REMOTELY ACCEPTED PARTIAL / PREFIX COMPLETE / ACK TRANSPORT BLOCKED**; C21.1.19 — **REMOTELY ACCEPTED PARTIAL / REGISTRATION COMPLETE**; C21.1.20 — **REMOTELY ACCEPTED**; C21.1.21 — **REMOTELY ACCEPTED / COVERLESS METADATA ACK PROOF**; C21.1.22 — **REMOTELY ACCEPTED / BOUNDED STAGE APPLY**; C21.1.23 — **REMOTELY ACCEPTED / BOUNDED STAGE-ORDER APPLY**; C21.1.24 — **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION NOT LOCAL COMPLETE**; C21.1.25 — **REMOTELY ACCEPTED / ROUTE-AWARE PREREQUISITE**; C21.1.26 — **REMOTELY ACCEPTED / PROJECT HTML CONTENT APPLY + PREFIX/ACK**; C21.1.27 — **REMOTELY ACCEPTED / STAGE HTML CONTENT + ANCESTRY/PREFIX/ACK**; C21.1.28 — **REMOTELY ACCEPTED / PROJECT + STAGE PLAIN**; C21.1.29 — **REMOTELY ACCEPTED / PEER CONTENT CONFLICT**; C21.1.30 — **REMOTELY ACCEPTED / CONTENT + LOCAL-UNSEALED PROJECT HTML**; C21.1.31 — **LOCAL COMPLETE / HISTORICAL CONTENT LOCAL-CONFLICT LIFECYCLE / REMOTE CI PENDING**.\
+**Текущий этап:** C21 Web — **IN PROGRESS**, C21.1.01 — **REMOTELY ACCEPTED**; C21.1.02 / C21.1.02A — **REMOTELY ACCEPTED**; C21.1.03 — **REMOTELY ACCEPTED**; C21.1.04 — **REMOTELY ACCEPTED**; C21.1.05 / C21.1.05A — **REMOTELY ACCEPTED**; C21.1.06 — **BLOCKED BEFORE IMPLEMENTATION / NOT LOCAL COMPLETE (AUDIT ACCEPTED)**; C21.1.07 — **REMOTELY ACCEPTED**; C21.1.08 — **REMOTELY ACCEPTED**; C21.1.09 blocker/audit — **REMOTELY ACCEPTED**, capture — **BLOCKED / NOT LOCAL COMPLETE**; C21.1.10 — **REMOTELY ACCEPTED**; C21.1.11 — **REMOTELY ACCEPTED**; C21.1.12 — **REMOTELY ACCEPTED**; C21.1.13 — **REMOTELY ACCEPTED PARTIAL / ACK BLOCKED**; C21.1.14 — **REMOTELY ACCEPTED PARTIAL**; C21.1.15 — **REMOTELY ACCEPTED PARTIAL**; C21.1.16 — **REMOTELY ACCEPTED**; C21.1.17 — **REMOTELY ACCEPTED**; C21.1.18 — **REMOTELY ACCEPTED PARTIAL / PREFIX COMPLETE / ACK TRANSPORT BLOCKED**; C21.1.19 — **REMOTELY ACCEPTED PARTIAL / REGISTRATION COMPLETE**; C21.1.20 — **REMOTELY ACCEPTED**; C21.1.21 — **REMOTELY ACCEPTED / COVERLESS METADATA ACK PROOF**; C21.1.22 — **REMOTELY ACCEPTED / BOUNDED STAGE APPLY**; C21.1.23 — **REMOTELY ACCEPTED / BOUNDED STAGE-ORDER APPLY**; C21.1.24 — **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION NOT LOCAL COMPLETE**; C21.1.25 — **REMOTELY ACCEPTED / ROUTE-AWARE PREREQUISITE**; C21.1.26 — **REMOTELY ACCEPTED / PROJECT HTML CONTENT APPLY + PREFIX/ACK**; C21.1.27 — **REMOTELY ACCEPTED / STAGE HTML CONTENT + ANCESTRY/PREFIX/ACK**; C21.1.28 — **REMOTELY ACCEPTED / PROJECT + STAGE PLAIN**; C21.1.29 — **REMOTELY ACCEPTED / PEER CONTENT CONFLICT**; C21.1.30 — **REMOTELY ACCEPTED / CONTENT + LOCAL-UNSEALED PROJECT HTML**; C21.1.31 — **REMOTELY ACCEPTED / HISTORICAL CONTENT LOCAL-CONFLICT LIFECYCLE**; C21.1.32 — **LOCAL COMPLETE / POST-SEAL CONTENT SIBLINGS / REMOTE CI PENDING**.\
 **Текущий статус C18:** Complete Project Sync — **CLOSED**; C18.4–C18.7 — **CLOSED**; C18.8 — **CLOSED / REMOTELY ACCEPTED**.\
-**Последняя независимая приёмка:** C21.1.30 `2b832a7d5b064a1ef313983b85f939d09e3ae128`, Cloud **38717317755 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.29 `074b9d3d9e633e14c4f510050cc963750040bd79`, Cloud **38703171604 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud **38662032578 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.27 `e540f56af505ba232a1f16b2abb70f91a2417cb1`, Cloud **38657482380 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner-supplied). Prior C21.1.26 `d1323fddb3187f60bf53bd3cf5c09f5d23fb5172`, Cloud **38649425407 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.25 `2c80641c76b81cc02731e30b9beece14b605d0c3`, Cloud **38641352769 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.24 `30b7c36ab685172a1ed584cc528e0837d621e7eb`, Cloud **38633076568 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, implementation NOT LOCAL COMPLETE. Prior C21.1.23 `27e249c140d7b25afd1bf339cfe2cbc055c5c2a9`, Cloud **38623967292 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.22 `24b6e90456e20aa73e1f735f573aed74e27cc5dc`, Cloud **38606705365 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.21 `5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f`, Cloud **38595238961 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.20 `5214e2941b7b6fbbcce7f74d297f5be7859ef5d9`, Cloud **38587064713 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.19 `deda194d8bbb7c5409964971cf2d868fb0c985dd`, Cloud **38577509647 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registration COMPLETE, ACK BLOCKED at accepted baseline. Prior C21.1.18 `6de5183e1fddcac4e4e4d1f8c70d4b3f47799bce`, Cloud **38568720231 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, proven-prefix COMPLETE, ACK transport BLOCKED. Prior C21.1.17 `75599e9809a7d3be5facc0e5abc46e845e5c51cd`, Cloud **38451825537 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.16 `92a66776c0b5d30295a9533ad561e89f6a5e5193`, Cloud **38440249775 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.15 `a386161d07b2918a30af4c2dae7328068adad914`, Cloud **38426555539 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior C21.1.14 `65e4fe4cc712162e1436970f9f6a62afbe9416d8`, Cloud **38402330568 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior  C21.1.13 `f99bbb6beb6e2da84c84ee4ebadafc273e04dd28`, Cloud **38392639737 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registry accepted and positive ACK correctly blocked. Prior  C21.1.12 `cc9bfb567afdbccdc77ce4a8aab84cc204757930`, Cloud **38386112458 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.11 `c1edcbb7befaab1bfff995ae6ef7f61b53e7348b`, Cloud **38380013246 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.10 `ffc018af7abeb7a5a696af26db0621640e6f0a5a`, Cloud **38317517321 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.09 blocker/audit `be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, capture NOT IMPLEMENTED / NOT LOCAL COMPLETE. Prior  C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. Prior C21.1.07 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. C21.1.06 prerequisite audit `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`, Cloud `38258729038` **SUCCESS**, all six required jobs SUCCESS; audit accepted, implementation remains BLOCKED / NOT LOCAL COMPLETE. Prior C21.1.05 / C21.1.05A accepted repair `af407f751cbda2898eb881f90fdd08177e2b28d3`, implementation `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud `38165641607` **SUCCESS**, all six required jobs SUCCESS (Frontend admin; PostgreSQL cloud and legacy regressions; mandatory foundation; mandatory content-action; mandatory complete-project; Android compression packaging). C21.1.05 and C21.1.05A **REMOTELY ACCEPTED** by owner/GPT. Prior C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
+**Последняя независимая приёмка:** C21.1.31 `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.30 `2b832a7d5b064a1ef313983b85f939d09e3ae128`, Cloud **38717317755 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.29 `074b9d3d9e633e14c4f510050cc963750040bd79`, Cloud **38703171604 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud **38662032578 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner supplied). Prior C21.1.27 `e540f56af505ba232a1f16b2abb70f91a2417cb1`, Cloud **38657482380 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED (owner-supplied). Prior C21.1.26 `d1323fddb3187f60bf53bd3cf5c09f5d23fb5172`, Cloud **38649425407 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.25 `2c80641c76b81cc02731e30b9beece14b605d0c3`, Cloud **38641352769 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.24 `30b7c36ab685172a1ed584cc528e0837d621e7eb`, Cloud **38633076568 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, implementation NOT LOCAL COMPLETE. Prior C21.1.23 `27e249c140d7b25afd1bf339cfe2cbc055c5c2a9`, Cloud **38623967292 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.22 `24b6e90456e20aa73e1f735f573aed74e27cc5dc`, Cloud **38606705365 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.21 `5d6d4e2293cacf6b17cbea3a05ec305f6f41f27f`, Cloud **38595238961 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.20 `5214e2941b7b6fbbcce7f74d297f5be7859ef5d9`, Cloud **38587064713 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.19 `deda194d8bbb7c5409964971cf2d868fb0c985dd`, Cloud **38577509647 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registration COMPLETE, ACK BLOCKED at accepted baseline. Prior C21.1.18 `6de5183e1fddcac4e4e4d1f8c70d4b3f47799bce`, Cloud **38568720231 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, proven-prefix COMPLETE, ACK transport BLOCKED. Prior C21.1.17 `75599e9809a7d3be5facc0e5abc46e845e5c51cd`, Cloud **38451825537 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.16 `92a66776c0b5d30295a9533ad561e89f6a5e5193`, Cloud **38440249775 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED. Prior C21.1.15 `a386161d07b2918a30af4c2dae7328068adad914`, Cloud **38426555539 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior C21.1.14 `65e4fe4cc712162e1436970f9f6a62afbe9416d8`, Cloud **38402330568 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL. Prior  C21.1.13 `f99bbb6beb6e2da84c84ee4ebadafc273e04dd28`, Cloud **38392639737 SUCCESS**, all six required Cloud jobs SUCCESS; REMOTELY ACCEPTED PARTIAL, registry accepted and positive ACK correctly blocked. Prior  C21.1.12 `cc9bfb567afdbccdc77ce4a8aab84cc204757930`, Cloud **38386112458 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.11 `c1edcbb7befaab1bfff995ae6ef7f61b53e7348b`, Cloud **38380013246 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.10 `ffc018af7abeb7a5a696af26db0621640e6f0a5a`, Cloud **38317517321 SUCCESS**, all six required jobs SUCCESS; REMOTELY ACCEPTED. Prior  C21.1.09 blocker/audit `be235b79e977f9f14aa573e9a606499f6aa687de`, Cloud **38310226431 SUCCESS**, all six required jobs SUCCESS; blocker/audit REMOTELY ACCEPTED, capture NOT IMPLEMENTED / NOT LOCAL COMPLETE. Prior  C21.1.08 `720aea2d8857de572a706e6332180a08e8d79727`, Cloud **38293629801 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. Prior C21.1.07 `83d6f40c971163d07e1077049df225f4c9fe8964`, Cloud **38285007363 SUCCESS**, all six required jobs SUCCESS; owner/GPT independently accepted. C21.1.06 prerequisite audit `cbd7a294e0e7c7dbbe4f99c0dbfdec5d67b341fc`, Cloud `38258729038` **SUCCESS**, all six required jobs SUCCESS; audit accepted, implementation remains BLOCKED / NOT LOCAL COMPLETE. Prior C21.1.05 / C21.1.05A accepted repair `af407f751cbda2898eb881f90fdd08177e2b28d3`, implementation `eed5ed298838c32ddc8f526b4ad2992b4fecd6c4`, Cloud `38165641607` **SUCCESS**, all six required jobs SUCCESS (Frontend admin; PostgreSQL cloud and legacy regressions; mandatory foundation; mandatory content-action; mandatory complete-project; Android compression packaging). C21.1.05 and C21.1.05A **REMOTELY ACCEPTED** by owner/GPT. Prior C21.1.04 `16ce1e09d0043076aa2112845b776ca6b38ee807`, Cloud `38151133406` **SUCCESS**, all six required Cloud jobs SUCCESS, upload acceptance/migration contract tests and real Chromium SUCCESS; SQLite not triggered / not expected. Prior C21.1.03 `8a9034782883baa2155a4bee2b2ed5952233c845`, Cloud `38143710650` **SUCCESS**, all six required Cloud jobs SUCCESS, persistence/syncDurability contract tests and real Chromium acceptance SUCCESS; SQLite not triggered / not expected. Prior C21.1.02 / C21.1.02A `245938f009c1914f52ee32927efe2e722858faef`, Cloud `38137926976` **SUCCESS**, all six required Cloud jobs SUCCESS, real Chromium persistence acceptance and persistence contract tests SUCCESS; SQLite not triggered / not expected. Prior C21.1.01 `0ad27ac4c5ccf09de99c2a8c3d29759003a39ee8`, Cloud `38127992242` **SUCCESS**, all required Cloud jobs SUCCESS; SQLite not triggered / not expected. Owner/GPT supplied prior C18 acceptance: C18.8 implementation `8d8675ed00d0ed3b5a8dfa99cf502350f7c3c958`; Cloud `38123427926` **SUCCESS**; SQLite `38123427916` **SUCCESS**, relevant required jobs independently verified green. C18.8 и C18 закрыты по этой независимой приёмке; официальный **84.0%**.
 
 **ОБЯЗАТЕЛЬНО ДЛЯ СЛЕДУЮЩЕГО ЧАТА: внимательно прочитать разделы 3, 8–15 и 47–50 о методике работы, затем разделы 60–65.** Terra Medium — модель по умолчанию. Следующий самостоятельный implementation stage не начинать. Codex может обновлять checkpoint-файл после meaningful slice, но **не имеет права самостоятельно объявлять новые этапы `CLOSED`, менять официальный процент или scoring methodology**.
 
 Документ предназначен для переноса **всего существенного контекста разработки** в следующий чат. Старый чекпоинт от 23.09.2026 фиксировал C15.5C как CI PENDING и 60,0%; настоящий документ заменяет устаревший статус. **Не пересчитывать проценты по собственным ощущениям, числу коммитов или объёму локальных изменений.**
 
-## C21.1.31 — durable Content local-conflict lifecycle
+## C21.1.32 — Content siblings after local Legacy seal
 
 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**.
+
+### Audit recorded before implementation
+
+C21.1.31 `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud **38787355382 SUCCESS**,
+all six required jobs SUCCESS; **REMOTELY ACCEPTED** (owner supplied).
+Clean branch `6.0`, HEAD/fetched origin match baseline; both protected bytecode hashes
+unchanged. Official **84.0%**, C21 **IN PROGRESS**, C21.1.06 **NOT LOCAL COMPLETE**,
+`ready=false`, no roadmap increment.
+
+Audit BEFORE production edits: legacyNoteApply requires localPlain and exact current
+intent/snapshot whenever an open group has local_unsealed origin. Legitimate seal
+deletes that original intent, retains open group/local member/frozen version, writes
+same-event local_sealed candidate + outbox and advances head. Current intent/source
+are not the authority for a NEW sibling after seal. Authenticated frozen branch,
+sealed candidate causal/route continuity and exact outbox pair are sufficient. Accepted
+state additionally requires its durable receipt; receipt does not change group identity.
+A distinct newer working intent may exist after seal; it cannot authorize or replace
+the original branch. Same-event intent + sealed evidence is impossible externally and
+must fail closed. No intent plus no sealed continuity blocks NEW admission, while old
+proof2 remains independently historical. Current-unsealed admission remains exact and
+separate. Group1 generation increments once per unique sibling; proof2 continues to
+bind the original frozen generation and new member generation, diagnostic remains
+unsealed_conflict. Candidate2/inbox8/group1/proof2/v8 need no evolution. Existing
+transaction inventories already CAS history/group/frozen/intents/outbox/receipts,
+Metadata, source and auth/key/session. Native reference retains conflict-version origin;
+no backend/native or writer protocol changes are needed.
+
+### Implementation
+
+Shared frozen/sealed branch verification plus explicit current-unsealed vs historical-
+sealed admission. Accepted outbox requires its exact receipt; original same-event
+intent must be absent after seal. No fallback from intent absence. Same-event pending
+plus sealed evidence is rejected. A distinct later working intent does not authorize
+or replace the historical branch. Initial creation checks remain strict.
+
+New project-HTML ID0/ID1 update/delete siblings reuse open group1, increment generation
+once and bind proof2 to original frozen version plus new member generation. R1/local
+member/frozen evidence unchanged; no local projection/source write. Existing native
+transaction inventory CAS covers lifecycle/group/source/Metadata/auth/key; stale
+unsealed→sealed and sealed→accepted plans require safe reprepare. Prefix diagnostics
+remain unsealed_conflict; ACK transport unchanged. Plain/Stage/mindmap local-conflict,
+Content self-echo/Resolution/writer remain blocked, ready=false.
+
+### Validation and release status
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+- New focused post-seal/ACK specs: **67 PASS / 2 files** (61 authority/route/proof/race/
+  atomicity/replay cases + 6 ACK cases). Final focused recheck after type corrections
+  also **67 PASS**. Lifecycle/peer/Legacy regression phase: **217 PASS / 7 files**.
+- Mandatory Cloud C21 persistence command: **1593 PASS / 54 files**, including existing
+  C21.1.31/.30/.29, Legacy coalescing/sealing/self-echo/upload and migration/open tests.
+- Installed real Chromium: **216 scenario groups PASS**, native IndexedDB/Web Locks,
+  **0 page errors**. New ID1 update56 after seal extends historical group to generation3;
+  ID0 delete57 and ID1 update58 after accepted receipt extend generations4/5. Earlier
+  members retain generations1/2. Original proof50/51 and frozen generation1 stay exact;
+  working Note unchanged. Prefix59/ACK59, unsealed_conflict6; barrier60 caps later safe65.
+- Chromium unsealed→sealed race56 and sealed→accepted race57 abort old tokens with
+  no partial writes, then fresh admission succeeds. Missing original intent without
+  sealed continuation blocks new56 while old proofs/prefix55/ACK55 remain valid.
+  Candidate/group/inbox/native abort/auth/key faults roll back every new sibling write.
+  Frozen/sealed causal tampering blocks ACK. Renderer and full disk/profile reopens
+  reauthenticate original and new proofs; sealed-only and accepted lifecycle restarts
+  remain covered. Accepted response is an isolated valid fixture through the real
+  durable acceptance commit, not a live Content upload.
+- Chromium network: API131, registration22, capability11, mode40, registry26,
+  bootstrap16, ACK16. Relative to C21.1.31: only two additional explicit ACK calls and
+  their four existing mode GETs; no new registration/capability/registry mechanism.
+  Apply/lifecycle/conflict/Metadata/prefix HTTP **0**. Content push/pull/Resolution/
+  protected apply/candidate-conflict/unrelated API requests **0**. No-progress zero HTTP.
+- Typecheck PASS; production Vite build PASS (existing dynamic-import/chunk warnings);
+  both browser helpers syntax PASS; workflow YAML PASS, both new specs mandatory,
+  no skip/xfail/continue-on-error; final diff check PASS.
+- Schema v8 and all persistent formats unchanged; no migration or format-driven row
+  rewrites. Normal new-sibling commit updates group/head and inserts candidate/inbox;
+  old proofs/local member/frozen/candidate/outbox/receipt are never rewritten.
+- Protected engine/game_data `.pyc` SHA256 unchanged. No backend/native/dependency edit.
+  Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED.
+  Remote CI PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
+
+### Простыми словами
+
+Ранее Web уже умел сохранить конфликт локальной правки и облачной Content-версии.
+Затем мы сделали это доказательство устойчивым после отправки локальной ветки. Теперь
+новая облачная конфликтующая версия может прийти и после того, как исходная локальная
+ветка была sealed или принята сервером. Web проверяет её связь с той же исторической
+веткой по frozen version, локальному sealed-кандидату и outbox/receipt. Старый pending
+intent больше не требуется.
+
+Конфликт остаётся одной общей историей Note, локальная заметка не заменяется.
+Гонки sealing/acceptance с новым входящим событием требуют безопасной повторной
+подготовки, без смешивания состояний. Stage/plain local-conflicts, Content self-echo,
+Resolution и Content writer остаются отдельными задачами. Полная Web-синхронизация
+ещё не готова. Следующий ограниченный шаг — аудит Legacy self-echo локальной ветки
+в смешанной Content/Legacy группе, без выбора победителя и включения Content writer.
+
+## C21.1.31 — durable Content local-conflict lifecycle
+
+**REMOTELY ACCEPTED**: `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS (owner supplied).
 
 ### Audit recorded before implementation
 

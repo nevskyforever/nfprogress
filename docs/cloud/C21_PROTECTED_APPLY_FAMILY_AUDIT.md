@@ -1,11 +1,11 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.31 status (2026-10-15):** Content project HTML local-conflict
-historical lifecycle LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. C21.1.30 REMOTELY ACCEPTED,
-SHA `2b832a7d5b064a1ef313983b85f939d09e3ae128`, Cloud `38717317755` SUCCESS,
+**Current C21.1.32 status (2026-10-15):** new Content project HTML sibling after
+local Legacy seal/acceptance LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. C21.1.31 REMOTELY ACCEPTED,
+SHA `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud `38787355382` SUCCESS,
 all six required jobs SUCCESS (owner supplied). Official84.0%, C21 IN PROGRESS,
-C21.1.06 NOT LOCAL COMPLETE, ready=false. Final C21.1.31 section has current semantics;
-earlier slice sections retain their historical scope.
+C21.1.06 NOT LOCAL COMPLETE, ready=false. Final C21.1.32 section has current semantics;
+earlier sections retain historical scope.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -2167,7 +2167,7 @@ intent to codec8 or activate Content writer/upload. Frozen historical evidence i
 
 C21.1.30 **REMOTELY ACCEPTED**: `2b832a7d5b064a1ef313983b85f939d09e3ae128`,
 Cloud `38717317755` **SUCCESS**, all six required jobs SUCCESS (owner supplied).
-C21.1.31 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**; official **84.0%**, C21 **IN PROGRESS**,
+C21.1.31 **REMOTELY ACCEPTED** (`0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS, owner supplied); official **84.0%**, C21 **IN PROGRESS**,
 C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`.
 
 ### Creation and stored history have different lifetimes
@@ -2265,3 +2265,140 @@ pending-запись навсегда остаётся неизменной. Т�
 и Stage/plain local-conflicts остаются отдельными задачами; полная Web-синхронизация
 ещё не готова. Следующий ограниченный шаг — аудит сохранения новых входящих siblings
 после sealing локальной ветки, без включения writer или Resolution.
+
+## C21.1.32 — new Content sibling after local Legacy seal
+
+C21.1.31 **REMOTELY ACCEPTED**: `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`,
+Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS (owner supplied).
+C21.1.32 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Official **84.0%**, C21 **IN PROGRESS**,
+C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`; no roadmap increment.
+
+### Audit and admission authority
+
+The former production conditions required localPlain and exact current intent/source
+for every open group containing local_unsealed. Legitimate Legacy seal removes that
+intent but retains the open group, frozen local_version1 and historical member source.
+Its authenticated candidate1 local_sealed and exact outbox prove same-event continuity.
+Neither a perpetual pending intent nor an unchanged current working Note is required
+by that historical branch. Native conflict-version origin is a reference, unchanged.
+
+Shared openContentLocalBranch verifies immutable frozen/header/digest/route/common
+parent and any later sealed candidate/outbox pair. Existing historical group verification
+uses it without changing stored-proof semantics. Separate verifyContentLocalAdmission
+adds the NEW-sibling authority requirement. verifyCurrentContentLocalVersion retains
+strict initial conflict-creation behavior and never silently accepts sealed state.
+
+Only two admission modes exist:
+
+| Mode | Required authority |
+|---|---|
+| Current-unsealed | original same-event authenticated intent, exact current snapshot/source, same bootstrap/parent/revision/ordinal, non-regressing generation, no same-event outbox/receipt |
+| Historical-sealed | frozen version plus authenticated same-event candidate1 local_sealed and exact validated outbox; original same-event intent absent |
+
+Accepted is the historical-sealed mode with an accepted outbox and mandatory valid
+receipt. Receipt identity/protocol/positive sequence must match the local event; it
+proves upload acceptance and never becomes a group-member identity. Candidate wire,
+account/device/project/Note/bootstrap/event/parent/revision/ordinal and mutation
+generation continuity are verified. Payload may have legally coalesced before seal.
+
+A newer distinct local revision/intent may exist: it neither replaces nor authorizes
+the original historical branch. Its current working projection is not overwritten.
+Same-event pending plus sealed evidence fails closed. Intent absence alone is never
+an admission fallback. If sealed continuation is missing, new R2 blocks while old R1
+can remain independently qualified by frozen history. Contradictory/tampered sealed
+candidate/outbox/receipt still fails historical verification as required by C21.1.31;
+this is distinct from merely lacking continuation evidence for a NEW admission.
+
+Incoming Content independently authenticates protocol3/codec8 ordinary-v1, peer device,
+Metadata dependency/bootstrap and project HTML/null Stage/map/node route. Same common
+parent and sibling revision are required; duplicate IDs, create, self-echo, Resolution,
+plain, Stage and mindmap local-origin routes remain blocked. ID0/ID1 update/delete
+siblings retain candidate2 conflict evidence with projection/source revision null.
+
+Group1 stays open with the same ID, parent, tip revision and historical local member.
+Each unique incoming sibling increments top-level generation once and adds a remote
+member at that generation; old member generations/proofs/frozen bytes remain exact.
+Sorted tips and existing head/frontier machinery are reused. New inbox8/proof2 binds
+the original frozen version ID/digest/generation and the new remote member generation.
+Replay returns already_applied without duplicates, generation or lifecycle writes.
+
+No local Note/project source write, source revision increment, frozen/sealed candidate
+rewrite, outbox rewrite or receipt rewrite occurs during sibling preservation. The
+same transaction atomically writes new candidate2, group/head and inbox8. Existing
+CAS snapshots history/group/frozen/intents/outbox/receipts, source, Metadata and auth/
+key/session. Unsealed→sealed, sealed→accepted and concurrent group extension invalidate
+old tokens; reprepare verifies the new state without optimistic generation merging.
+
+Proof2 diagnostics remain **unsealed_conflict**, denoting historical origin. Safe R2/R3
+qualify contiguous prefix and existing explicit ACK. An unadmitted R2 cannot itself
+retroactively invalidate R1. ACK transport/retry/server-success-before-cursor ordering
+are unchanged: at most one HTTP per advancing explicit invocation, no-progress zero.
+
+DB **v8**, group1/local_version1/proof2/candidate2/inbox8 unchanged. No migration,
+new store/index, format rewrite, new dependency, backend/PostgreSQL/Alembic/native/
+SQLite/Rust change. Codec, crypto/AAD/compression, Legacy writer/seal, Metadata/Stage
+and ACK contracts remain frozen. Apply/history/conflict/Metadata/prefix add **0 HTTP**.
+
+| Content Note boundary | Result |
+|---|---|
+| Current local-unsealed project HTML conflict | YES, retained |
+| Old historical proof after coalescing/seal/acceptance | YES, retained |
+| New Content update/delete sibling after local seal | YES |
+| New Content sibling after valid acceptance/receipt | YES |
+| Multiple remote siblings and exact replay | YES |
+| Newer working local projection preserved | YES |
+| Local-origin plain / Stage / mindmap conflicts | NO |
+| Content self-echo / Resolution / writer | NO |
+| ready / full Web synchronization | false / NOT COMPLETE |
+
+### Validation and release status
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+- New focused post-seal/ACK specs: **67 PASS / 2 files** (61 authority/route/proof/race/
+  atomicity/replay cases + 6 ACK cases). Final focused recheck after type corrections
+  also **67 PASS**. Lifecycle/peer/Legacy regression phase: **217 PASS / 7 files**.
+- Mandatory Cloud C21 persistence command: **1593 PASS / 54 files**, including existing
+  C21.1.31/.30/.29, Legacy coalescing/sealing/self-echo/upload and migration/open tests.
+- Installed real Chromium: **216 scenario groups PASS**, native IndexedDB/Web Locks,
+  **0 page errors**. New ID1 update56 after seal extends historical group to generation3;
+  ID0 delete57 and ID1 update58 after accepted receipt extend generations4/5. Earlier
+  members retain generations1/2. Original proof50/51 and frozen generation1 stay exact;
+  working Note unchanged. Prefix59/ACK59, unsealed_conflict6; barrier60 caps later safe65.
+- Chromium unsealed→sealed race56 and sealed→accepted race57 abort old tokens with
+  no partial writes, then fresh admission succeeds. Missing original intent without
+  sealed continuation blocks new56 while old proofs/prefix55/ACK55 remain valid.
+  Candidate/group/inbox/native abort/auth/key faults roll back every new sibling write.
+  Frozen/sealed causal tampering blocks ACK. Renderer and full disk/profile reopens
+  reauthenticate original and new proofs; sealed-only and accepted lifecycle restarts
+  remain covered. Accepted response is an isolated valid fixture through the real
+  durable acceptance commit, not a live Content upload.
+- Chromium network: API131, registration22, capability11, mode40, registry26,
+  bootstrap16, ACK16. Relative to C21.1.31: only two additional explicit ACK calls and
+  their four existing mode GETs; no new registration/capability/registry mechanism.
+  Apply/lifecycle/conflict/Metadata/prefix HTTP **0**. Content push/pull/Resolution/
+  protected apply/candidate-conflict/unrelated API requests **0**. No-progress zero HTTP.
+- Typecheck PASS; production Vite build PASS (existing dynamic-import/chunk warnings);
+  both browser helpers syntax PASS; workflow YAML PASS, both new specs mandatory,
+  no skip/xfail/continue-on-error; final diff check PASS.
+- Schema v8 and all persistent formats unchanged; no migration or format-driven row
+  rewrites. Normal new-sibling commit updates group/head and inserts candidate/inbox;
+  old proofs/local member/frozen/candidate/outbox/receipt are never rewritten.
+- Protected engine/game_data `.pyc` SHA256 unchanged. No backend/native/dependency edit.
+  Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED.
+  Remote CI PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
+
+### Простыми словами
+
+Ранее Web уже умел сохранить конфликт локальной правки и облачной Content-версии.
+Затем мы сделали это доказательство устойчивым после отправки локальной ветки. Теперь
+новая облачная конфликтующая версия может прийти и после того, как исходная локальная
+ветка была sealed или принята сервером. Web проверяет её связь с той же исторической
+веткой по frozen version, локальному sealed-кандидату и outbox/receipt. Старый pending
+intent больше не требуется.
+
+Конфликт остаётся одной общей историей Note, локальная заметка не заменяется.
+Гонки sealing/acceptance с новым входящим событием требуют безопасной повторной
+подготовки, без смешивания состояний. Stage/plain local-conflicts, Content self-echo,
+Resolution и Content writer остаются отдельными задачами. Полная Web-синхронизация
+ещё не готова. Следующий ограниченный шаг — аудит Legacy self-echo локальной ветки
+в смешанной Content/Legacy группе, без выбора победителя и включения Content writer.

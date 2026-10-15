@@ -1,5 +1,7 @@
 import {openFrozenLocalVersion} from './noteUnsealedVersion'
 import {validateNoteIntent} from './noteIntentRecords'
+import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
+import {unsealedPlaintext} from './noteUnsealedVersion'
 import type {AccountMasterKey} from '@/crypto'
 import {BrowserPersistenceError} from './persistence'
 import {immutableWireIdentity,validateBrowserUploadPair,validateBrowserInboxRecord,type BrowserInboxRecord,type BrowserSyncScope} from './syncDurability'
@@ -56,8 +58,8 @@ export function verifyCurrentContentLocalVersion(scope:BrowserSyncScope,g:Browse
  if(!head||head.record_kind!=='head'||head.linear_head_event_id!==g.common_parent_event_id||!v||current.length!==1||!same(current[0],v.intent)||notes.length!==1||!same(notes[0],v.intent.snapshot))bad()
 }
 export interface ContentLocalLifecycle {out:readonly unknown[];receipts:readonly unknown[]}
-/** local_unsealed records conflict-time origin, independently of the current working branch. */
-export async function verifyLocalContentGroup(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],amk:AccountMasterKey,lifecycle:ContentLocalLifecycle):Promise<void>{
+/** Shared immutable branch and optional sealed continuity; no current projection dependency. */
+async function openContentLocalBranch(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],amk:AccountMasterKey,lifecycle:ContentLocalLifecycle){
  const rows=validateNoteHistorySet(scope,history),member=g.members.find(m=>m.source==='local_unsealed'),v=member&&rows.find((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version'&&r.version_id===member.version_id),parent=rows.find((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'&&r.event_id===g.common_parent_event_id&&r.project_id===g.project_id&&r.note_id===g.note_id),head=rows.find(r=>r.record_kind==='head'&&r.project_id===g.project_id&&r.note_id===g.note_id)
  if(!v||!member||!parent||!head||head.record_kind!=='head'||g.members.some(m=>m.source==='remote_applied')||v.intent.bootstrap_id!==g.bootstrap_id||v.header.parent_event_id!==g.common_parent_event_id||v.header.revision!==g.tip_revision||member.local_mutation_generation!==v.intent.mutation_generation)bad()
  const local=await openFrozenLocalVersion(scope,v,amk),base=await openHistoryCandidate(scope,parent,amk)
@@ -74,6 +76,28 @@ export async function verifyLocalContentGroup(scope:BrowserSyncScope,g:BrowserNo
   if(out.local_ordinal!==v.intent.local_ordinal||out.protocol_version!==sealed.protocol_version||!same(body.items[0],JSON.parse(sealed.wire_item)))bad()
  }
 
+ return {rows,member,version:v,local,sealed}
+}
+/** NEW sibling admission needs a current pending branch OR a proven sealed continuation. */
+export async function verifyContentLocalAdmission(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],amk:AccountMasterKey,lifecycle:ContentLocalLifecycle,intents:readonly unknown[],localNotes:readonly unknown[],incoming:NoteSyncPlaintext){
+ function reject():never{throw new BrowserPersistenceError('note_conflict_unproven')}
+ const {member,version,local,sealed}=await openContentLocalBranch(scope,g,history,amk,lifecycle)
+ if(incoming.header.parent_event_id!==g.common_parent_event_id||incoming.header.revision!==g.tip_revision||route.some(k=>!same(incoming.note[k],local.note[k])))reject()
+ const current=intents.map(i=>validateNoteIntent(i,scope)),original=current.filter(i=>i.event_id===member.event_id)
+ if(original.length>1)reject()
+ if(sealed){
+  if(original.length)reject() // Same-event pending + sealed cannot be an externally observable legal state.
+  return 'historical_sealed' as const
+ }
+ const intent=original[0],own=current.filter(i=>i.project_id===g.project_id&&i.note_id===g.note_id),notes=localNotes.filter(n=>(n as {account_id:string;project_id:string;note_id:string}).account_id===scope.accountId&&(n as {project_id:string}).project_id===g.project_id&&(n as {note_id:string}).note_id===g.note_id)
+ if(!intent||own.length!==1||lifecycle.out.some(r=>(r as {event_id:string}).event_id===member.event_id)||lifecycle.receipts.some(r=>(r as {event_id:string}).event_id===member.event_id)||intent.bootstrap_id!==g.bootstrap_id||intent.project_id!==g.project_id||intent.note_id!==g.note_id||intent.parent_event_id!==g.common_parent_event_id||intent.revision!==g.tip_revision||intent.local_ordinal!==version.intent.local_ordinal||intent.mutation_generation<version.intent.mutation_generation||notes.length!==1||!same(notes[0],intent.snapshot))reject()
+ const value=await unsealedPlaintext(scope,intent,amk)
+ if(route.some(k=>!same(local.note[k],value.note[k])))reject()
+ return 'current_unsealed' as const
+}
+/** local_unsealed records conflict-time origin, independently of the current working branch. */
+export async function verifyLocalContentGroup(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],amk:AccountMasterKey,lifecycle:ContentLocalLifecycle):Promise<void>{
+ const {rows,version:v,local}=await openContentLocalBranch(scope,g,history,amk,lifecycle)
  for(const m of g.members){if(m.source==='local_unsealed')continue
   const c=rows.find((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'&&r.event_id===m.event_id),r=inbox.find(r=>r.event_id===m.event_id)
   if(!c||c.origin!=='peer'||c.source_device_id===scope.deviceId||!r||r.server_sequence!==m.server_sequence||c.header.parent_event_id!==g.common_parent_event_id||c.header.revision!==g.tip_revision||c.bootstrap_id!==g.bootstrap_id)bad()
