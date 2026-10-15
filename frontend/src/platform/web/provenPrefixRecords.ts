@@ -29,7 +29,7 @@ export function calculateBrowserPrefix(scope:BrowserSyncScope,v:BrowserPrefixInv
  }}
  const result:BrowserPrefixResult={current_proven_prefix:cursor.proven_prefix,candidate_proven_prefix:cursor.proven_prefix,pull_cursor:cursor.pull_cursor,first_blocking_sequence:null,blocker:null,unsupported_family:null,counts}
  for(let n=1;n<=cursor.pull_cursor;n++){const r=rows.find(r=>r.server_sequence===n);if(!r||!qualified.has(n)){if(n<=cursor.proven_prefix)bad();result.first_blocking_sequence=n;const event=r&&JSON.parse(r.wire_item).event;result.blocker=!r?'missing_sequence':event.entity_type==='project_metadata'?'metadata_proof_gap':event.entity_type==='note'&&['upsert','delete'].includes(event.operation)?'received_note':'unsupported_family';if(result.blocker==='unsupported_family')result.unsupported_family=event.entity_type;break}
-   if(r.state==='content_note_proven')counts.applied++;else if(r.state==='note_proven'){if(r.note_proof.outcome==='applied')counts.applied++;else counts.self_echo++}else if(r.state==='note_conflict_preserved'){if(r.note_conflict_proof.record_version===2)counts.unsealed_conflict++;else counts.conflict++}
+   if(r.state==='content_note_conflict_preserved')counts.conflict++;else if(r.state==='content_note_proven')counts.applied++;else if(r.state==='note_proven'){if(r.note_proof.outcome==='applied')counts.applied++;else counts.self_echo++}else if(r.state==='note_conflict_preserved'){if(r.note_conflict_proof.record_version===2)counts.unsealed_conflict++;else counts.conflict++}
    if(n>result.candidate_proven_prefix)result.candidate_proven_prefix=n
  }
  return result

@@ -24,3 +24,16 @@ export function validateContentNoteProof(value:unknown,scope:BrowserSyncScope):B
  try{if(canonicalizeSyncTimestamp(h.updated_at)!==canonicalizeSyncTimestamp(r.updated_at))bad();if(h.deleted_at!==null)canonicalizeSyncTimestamp(h.deleted_at)}catch{bad()}
  return p
 }
+
+export interface BrowserContentNoteConflictProof extends Omit<BrowserContentNoteProof,'outcome'|'mutation'|'source_revision'|'local_note_digest'> {
+ outcome:'conflict_preserved';mutation:'update'|'delete';group_id:string;conflict_generation:number;common_parent_event_id:string
+}
+export function validateContentNoteConflictProof(value:unknown,scope:BrowserSyncScope):BrowserContentNoteConflictProof{
+ if(!localExact(value,['record_version','owner_kind','outcome','account_id','bootstrap_id','protocol_version','reference','server_sequence','codec_id','frame_version','codec_version','header','mutation','history_event_id','wire_digest','logical_digest','dependency_digest','candidate_digest','transport_proof_digest','outcome_digest','group_id','conflict_generation','common_parent_event_id']))bad()
+ const p=value as unknown as BrowserContentNoteConflictProof
+ if(p.outcome!=='conflict_preserved'||!['update','delete'].includes(p.mutation)||!canonicalNoteUuid(p.group_id)||p.group_id[14]!=='4'||!localSafe(p.conflict_generation,1)||!canonicalNoteUuid(p.common_parent_event_id)||p.header?.parent_event_id!==p.common_parent_event_id)bad()
+ // Structural view only. Never store or use as an applied local projection.
+ const {group_id:_g,conflict_generation:_n,common_parent_event_id:_parent,...body}=p
+ validateContentNoteProof({...body,outcome:'applied',source_revision:1,local_note_digest:'0'.repeat(64)},scope)
+ return p
+}

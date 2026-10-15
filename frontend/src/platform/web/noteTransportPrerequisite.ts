@@ -9,7 +9,7 @@ import { prepareMetadataPrefix, verifiedMetadataSequences } from './metadataPref
 import { validateBrowserMetadataHead } from './metadataApplyRecords'
 import { immutableWireIdentity, snapshotBrowserSyncScope, validateBrowserInboxRecord, type BrowserInboxRecord, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
-import { NOTE_HISTORY_STORE, validateNoteHistoryRecord, type BrowserNoteCandidate, type BrowserNoteHistoryRecord } from './noteHistoryRecords'
+import { NOTE_HISTORY_STORE, validateNoteHistoryRecord, type BrowserNoteCandidate, type BrowserNoteTransportProof, type BrowserNoteHistoryRecord } from './noteHistoryRecords'
 import type { LocalNoteRecord } from './localAuthorityRecords'
 import { candidateDigest } from './noteHistory'
 import { noteProofDigest } from './legacyNoteApply'
@@ -40,20 +40,32 @@ export async function prepareNotePrerequisite(scope:BrowserSyncScope,row:Browser
  certificates.set(certificate,{scope:structuredClone(scope),row:structuredClone(row),binding:structuredClone(binding),owners:structuredClone(v.owners),bindings:structuredClone(v.bindings),dependency_digest,logical_material_digest,current})
  return {certificate,plaintext}
 }
-/** Bind the actual encrypted source result to its original transport before scheduling. */
-export async function prepareNoteTransportCommit(token:VerifiedNotePrerequisite,plaintext:NoteSyncPlaintext,projection:LocalNoteRecord):Promise<{candidate:BrowserNoteCandidate;hook:VerifiedNoteTransportCommit}>{
- plaintext=structuredClone(plaintext);projection=structuredClone(projection)
+/** A multi-branch plan must authenticate every Content dependency against one owner snapshot. */
+export function assertNotePrerequisiteCompatible(first:VerifiedNotePrerequisite,next:VerifiedNotePrerequisite):void {
+ const a=certificates.get(first),b=certificates.get(next)
+ if(!a||!b||!a.current()||!b.current()||!same(a.scope,b.scope)||!same(a.owners,b.owners)||!same(a.bindings,b.bindings))fail()
+}
+/** Bind authenticated logical material and optional actual projection to its original transport. */
+async function prepareTransportCandidate(token:VerifiedNotePrerequisite,plaintext:NoteSyncPlaintext,projection:LocalNoteRecord|null):Promise<{candidate:BrowserNoteCandidate;hook:VerifiedNoteTransportCommit}>{
+ plaintext=structuredClone(plaintext);projection=projection&&structuredClone(projection)
  const p=certificates.get(token);if(!p||!p.current())fail()
  if(await noteProofDigest(plaintext)!==p.logical_material_digest)fail()
  const opened=JSON.parse(p.row.wire_item),h=plaintext.header
  if(h.event_id!==p.row.event_id||h.project_id!==p.binding.project_id||h.entity_id!==opened.event.entity_id)fail()
- const wire_digest=await noteProofDigest({protocol_version:p.row.protocol_version,item:opened}),local_note_digest=await noteProofDigest(projection)
- const proof={proof_kind:'content_note_v1_prerequisite' as const,logical_digest:await noteProofDigest(plaintext),wire_digest,dependency_digest:p.dependency_digest,outcome:'applied' as const,source_revision:projection.source_revision,local_note_digest,proof_digest:''}
+ const wire_digest=await noteProofDigest({protocol_version:p.row.protocol_version,item:opened}),local_note_digest=projection?await noteProofDigest(projection):null
+ const fields={proof_kind:'content_note_v1_prerequisite' as const,logical_digest:await noteProofDigest(plaintext),wire_digest,dependency_digest:p.dependency_digest,proof_digest:''}
+ const proof:BrowserNoteTransportProof=projection?{...fields,outcome:'applied',source_revision:projection.source_revision,local_note_digest:local_note_digest!}:{...fields,outcome:'conflict_preserved',source_revision:null,local_note_digest:null}
  const {proof_digest:_digest,...body}=proof;proof.proof_digest=await noteProofDigest(body)
  const candidate:BrowserNoteCandidate={record_version:2,transport_kind:'content_note_v1',server_sequence:p.row.server_sequence,transport_proof:proof,account_id:p.scope.accountId,device_id:p.scope.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:p.binding.bootstrap_id,record_kind:'candidate',record_id:h.event_id,event_id:h.event_id,source_device_id:opened.event.device_id,protocol_version:3,origin:'peer',mutation_generation:null,header:structuredClone(h),wire_item:p.row.wire_item,wire_digest,record_digest:'',projection:structuredClone(projection),projection_digest:local_note_digest}
  candidate.record_digest=await candidateDigest(candidate);validateNoteHistoryRecord(candidate,p.scope)
  if(!p.current())fail();const hook=Object.freeze({}) as VerifiedNoteTransportCommit
  commits.set(hook,{certificate:p,candidate:structuredClone(candidate)});return{candidate,hook}
+}
+export function prepareNoteTransportCommit(token:VerifiedNotePrerequisite,plaintext:NoteSyncPlaintext,projection:LocalNoteRecord){if(!projection)fail();return prepareTransportCandidate(token,plaintext,projection)}
+/** Internal opaque prerequisite only; losing branch deliberately has no local projection. */
+export function prepareNoteTransportConflictCommit(token:VerifiedNotePrerequisite,plaintext:NoteSyncPlaintext){
+ if(!['update','delete'].includes(plaintext.mutation))fail()
+ return prepareTransportCandidate(token,plaintext,null)
 }
 export function isDeferredNoteTransportCandidate(token:VerifiedNoteTransportCommit|undefined,r:BrowserNoteHistoryRecord):boolean{
  if(!token)return false;const p=commits.get(token);if(!p||!p.certificate.current())fail()

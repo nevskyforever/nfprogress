@@ -16,11 +16,12 @@ export type BrowserNoteCandidate = NoteCandidateFields & (
  {record_version:1;transport_kind?:never;server_sequence?:never;transport_proof?:never} |
  {record_version:2;transport_kind:'content_note_v1';server_sequence:number;transport_proof:BrowserNoteTransportProof}
 )
-/** Dormant prerequisite evidence only. This is deliberately not an inbox/ACK proof. */
-export interface BrowserNoteTransportProof {
+/** Internal transport evidence; final applied/conflict inbox proof is additionally required. */
+interface NoteTransportProofFields {
  proof_kind:'content_note_v1_prerequisite';logical_digest:string;wire_digest:string;
- dependency_digest:string;outcome:'applied';source_revision:number;local_note_digest:string;proof_digest:string
+ dependency_digest:string;proof_digest:string
 }
+export type BrowserNoteTransportProof=NoteTransportProofFields & ({outcome:'applied';source_revision:number;local_note_digest:string}|{outcome:'conflict_preserved';source_revision:null;local_note_digest:null})
 export interface BrowserNoteLocalVersion extends Base {record_kind:'local_version';version_id:string;header:NoteSyncHeader;intent:BrowserNoteIntent;local_outbox_lifecycle:'unsealed';record_digest:string}
 export interface BrowserNoteHead extends Base {record_kind:'head';record_id:'head';head_revision:number;linear_head_event_id:string;tip_event_ids:string[]}
 export type BrowserNoteConflictMember={version_id:string;event_id:string;source:'remote_applied'|'remote';server_sequence:number;conflict_generation:number}|{version_id:string;event_id:string;source:'local_unsealed';server_sequence:null;conflict_generation:1;local_mutation_generation:number}
@@ -44,7 +45,8 @@ export function validateNoteHistoryRecord(value:unknown,scope:BrowserSyncScope):
   const retained=wire as {event:NoteSyncHeader&{device_id?:string;server_sequence?:number};object:unknown},event=retained.event
   if(r.record_version===2){
    const p=r.transport_proof
-   if(r.transport_kind!=='content_note_v1'||r.protocol_version!==3||r.origin!=='peer'||!localSafe(r.server_sequence,1)||event.device_id!==r.source_device_id||event.server_sequence!==r.server_sequence||(event.operation as string)!=='event'||event.deleted_at!==null||!p||!localExact(p,['proof_kind','logical_digest','wire_digest','dependency_digest','outcome','source_revision','local_note_digest','proof_digest'])||p.proof_kind!=='content_note_v1_prerequisite'||p.outcome!=='applied'||!localSafe(p.source_revision,1)||![p.logical_digest,p.wire_digest,p.dependency_digest,p.local_note_digest,p.proof_digest].every(noteHistoryHash)||p.wire_digest!==r.wire_digest||p.local_note_digest!==r.projection_digest||r.projection?.source_revision!==p.source_revision)bad()
+   if(r.transport_kind!=='content_note_v1'||r.protocol_version!==3||r.origin!=='peer'||!localSafe(r.server_sequence,1)||event.device_id!==r.source_device_id||event.server_sequence!==r.server_sequence||(event.operation as string)!=='event'||event.deleted_at!==null||!p||!localExact(p,['proof_kind','logical_digest','wire_digest','dependency_digest','outcome','source_revision','local_note_digest','proof_digest'])||p.proof_kind!=='content_note_v1_prerequisite'||!['applied','conflict_preserved'].includes(p.outcome)||![p.logical_digest,p.wire_digest,p.dependency_digest,p.proof_digest].every(noteHistoryHash)||p.wire_digest!==r.wire_digest)bad()
+   if(p.outcome==='applied'){if(!localSafe(p.source_revision,1)||!noteHistoryHash(p.local_note_digest)||p.local_note_digest!==r.projection_digest||r.projection?.source_revision!==p.source_revision)bad()}else if(r.projection!==null||r.projection_digest!==null||p.source_revision!==null||p.local_note_digest!==null||h.revision<2)bad()
    const {device_id:_device,server_sequence:_seq,...descriptor}=event
    validateBrowserSealedBody(JSON.stringify({protocol_version:3,encrypted_sync_version:3,device_id:r.source_device_id,items:[{event:descriptor,object:retained.object}]}),{...scope,deviceId:r.source_device_id})
   }else{

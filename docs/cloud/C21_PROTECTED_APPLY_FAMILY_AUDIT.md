@@ -1,11 +1,12 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.28 status (2026-10-15):** project + Stage plain Content protected
-apply/replay/reopen/prefix/explicit ACK LOCAL COMPLETE; REMOTE CI PENDING — NOT POLLED.
-C21.1.27 `e540f56af505ba232a1f16b2abb70f91a2417cb1`, Cloud `38657482380` SUCCESS,
+**Current C21.1.29 status (2026-10-15):** peer Content update/delete conflict
+preservation for project/Stage HTML/plain, mixed project HTML, shared group extension,
+reload/prefix/explicit ACK LOCAL COMPLETE; REMOTE CI PENDING — NOT POLLED.
+C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud `38662032578` SUCCESS,
 all six required jobs SUCCESS; REMOTELY ACCEPTED (independent owner acceptance).
 Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
-Final C21.1.28 section contains current evidence; older sections retain historical scope.
+Final C21.1.29 section contains current evidence; older sections retain historical scope.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -1861,3 +1862,156 @@ Missing/uncovered/unresolved/tombstoned Stage and dependency drift remain barrie
 - Полная Web-синхронизация ещё не готова. Следующий ограниченный шаг — аудит и реализация
   сохранение конфликтующих peer Content-версий в общей истории Note; Resolution
   и локальную отправку не включать без отдельного задания.
+
+## C21.1.29 — peer Content conflict preservation / shared Note group
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+C21.1.28 `f2c9a0ac2593c7c088f767f93c051492816be7b9`, Cloud `38662032578`
+SUCCESS, all six required jobs SUCCESS; **REMOTELY ACCEPTED** by independent owner
+acceptance. Official **84.0%**; C21 **IN PROGRESS**, C21.1.06 **NOT LOCAL COMPLETE**,
+`ready=false`; no roadmap increment.
+
+### Audit / exact decisions
+
+Before implementation the checkpoint recorded the current-code audit and owner acceptance.
+1. Content stopped at existing group/multiple tips and again after sibling detection.
+   Additional Legacy-only applied/conflict evidence checks rejected actual codec8 members.
+2. Reuse the existing group1 in legacyNoteHistory: common_parent_event_id, tip_revision,
+   sorted members/tips, one remote_applied, remote siblings, conflict_generation. No second
+   head, graph or store. Native note_sync.rs preserve_causal_note_conflict uses the same
+   parent/revision checks and generation.checked_add(1); delete siblings are valid.
+3. remote_applied must have actual retained applied evidence and candidate matching its
+   transport. New peer Content groups require origin=peer, source device different from
+   this device, exact header/wire/bootstrap, authenticated original plaintext/projection,
+   and the existing winning local Note digest. Legacy-only own receipt/self-echo and
+   local_unsealed paths retain their accepted validation and semantics.
+4. remote must have actual Legacy conflict1 or new Content conflict proof, exact sequence,
+   member generation and candidate. A group with Content cannot contain local_unsealed.
+5. Existing content_note_proven/inbox7/proof1 describes an incoming local projection:
+   it cannot truthfully describe a losing branch. Preserve it unchanged for clean apply.
+6. Candidate2 as-is required an applied projection. Its transport_proof is now an exact
+   backward-compatible discriminated union: applied (old fields/types unchanged) OR
+   conflict_preserved (projection=null, projection_digest=null, source_revision=null,
+   local_note_digest=null). Original wire/logical/dependency/proof digests remain mandatory.
+   No fake LocalNoteRecord, losing seal or temporary incoming projection is created.
+7. New inbox **record_version8 / content_note_conflict_preserved**, dedicated conflict
+   proof1. DB schema version remains **v8**; these version numbers describe different things.
+8. Third+ peer Content sibling extends the same group with generation+1 exactly once;
+   old member proof/generation remains immutable. Exact replay returns already_applied.
+9. Native Content feeds ordinary events into shared Note causality. Both mixed directions
+   are valid within frozen Legacy-compatible project HTML: Legacy applied→Content sibling,
+   Content applied→Legacy sibling. Stage/plain through Legacy still fails eligibility.
+10. Native content_note_sync.rs same_scope compares full route, including format, against
+    existing source and parents. Conflicts do not permit HTML/plain or Stage/source changes.
+11. After reload, original codec8 AEAD/frame, candidate2 proof, exact group/member,
+    common parent/revision/generation, peer evidence and current dependencies are checked.
+12. Prefix uses the existing opaque Content certificate, now covering both applied and
+    conflict states. Pure callers cannot manufacture qualification; counts.conflict
+    increases for a preserved Content branch, not counts.applied.
+13. IDBv8 is sufficient: no store/index/migration, existing records or payload rewrites.
+    The v5 structural migration validator explicitly rejects the new impossible-in-v5 state.
+
+### Implementation / supported subset
+
+| Route or outcome | Status |
+| --- | --- |
+| clean project HTML / Stage HTML / project plain / Stage plain | YES, unchanged |
+| peer Content update sibling, all four routes, ID0/ID1 | YES |
+| peer Content delete sibling, all four routes, ID0/ID1 | YES; winner untouched |
+| Content↔Content peer conflict | YES |
+| Legacy applied + incoming Content sibling | YES, project HTML |
+| Content applied + incoming Legacy sibling | YES, project HTML |
+| third+ peer Content sibling / same group generation2+ | YES |
+| conflicting create / route mutation | NO |
+| local-unsealed + incoming Content / Content join to local-unsealed group | NO |
+| self-echo Content / Resolution v2 / local Content writer / mindmap | NO |
+
+The opaque prepareNoteTransportConflictCommit consumes the original authenticated
+prerequisite, binds exact logical material and original codec8 wire, and schedules a
+null-projection candidate through the existing deferred transport hook. Candidate,
+group, head/frontier and inbox8 commit in ONE shared transaction. Local Note/project
+shell/source revision and ACK cursor are unchanged. Source/history/inbox/bindings/
+owner CAS and auth/key guards abort the whole transaction on drift or failure.
+
+Current Metadata prerequisite is mandatory for each Content branch; Stage routes also
+use the accepted Stage proof/ancestry check. When Legacy ingress uses Content history,
+its plan retains an opaque Content replay hook so owner/dependency CAS still occurs in
+that SAME final transaction. Opaque prerequisite snapshots from all Content branches
+must have identical owners/bindings; mixed snapshots fail before commit, and the shared
+snapshot is checked again in the final transaction. Legacy-only history remains on its
+original path.
+
+Shared peer-group verification reads each actual transport, authenticates each event,
+compares routes with the common parent, binds the one linear winner and all exact
+member sequence/generation facts. Applied Content remains usable as remote_applied.
+The losing update/delete is only a history candidate. Open groups cannot authorize an
+ordinary Content child or a Legacy child to silently choose a winner; Resolution stays
+blocked. A different/uncovered fork remains a barrier rather than a new conflict graph.
+
+### Verification / browser / network
+
+- Baseline before implementation: **184 PASS /3files**, including reproduced Content
+  sibling hard-stop, Legacy peer conflict and Legacy local-unsealed behavior.
+- New Content conflict spec: **82 PASS**; project/Stage × HTML/plain × ID0/ID1 ×
+  update/delete; original winner evidence/local envelopes unchanged; candidate null
+  projection; group extension/replay; current Stage ancestry; valid second-Stage route
+  mutation refusal; local-unsealed intent/open group barriers; proof/group/member/
+  generation/dependency/wire tampering; candidate/group/inbox/auth/key/abort failures;
+  Metadata/Stage/history/source CAS; Legacy ingress Content-owner CAS; incompatible
+  opaque branch snapshots are rejected even when cursor stays unchanged.
+- New Content conflict ACK spec: **9 PASS**, all four routes, bad dependencies,
+  explicit max1/no-progress, HTTP/commit retry, prepared ACK invalidated by group tamper.
+- Clean Content / Legacy conflict / local-unsealed / migration/open regression phase:
+  **369 PASS /10files**. Mandatory Cloud C21 suite: **1421 PASS /49files**.
+  After the last mixed-group guard and restoration of the original Legacy-only
+  self-echo allowance, final focused Content conflict/ACK + Legacy apply/conflict/
+  local-unsealed check: **166 PASS /5files**. No repeated broad unit loops.
+- Initial new test injection targeted group.add, whereas accepted shared history uses
+  group.put; the fixture was corrected. Initial fixture TypeScript shape errors were
+  corrected. No remaining failed/skipped tests; no skip/xfail/continue-on-error.
+- **Chromium208 groups PASS, page errors0**, native IDB/Web Locks, renderer and complete
+  disk-profile reopen. Existing clean HTML/plain cases retained. Project plain winner38,
+  sibling update39 and losing delete40 form a generation2 group without local writes.
+  Stage plain winner41/sibling42/losing delete43 likewise; Stage44 safe advancement
+  preserves original conflict42 proof and ancestry. HTML parent45/winner46/losing
+  delete47 also preserves winner. Prefix/ACK cross all five conflicts to **48**.
+- Actual native candidate/group/inbox/abort/auth/key failure injections at39 and42
+  preserve every store. Tampered group/common parent, member sequence and wrapper cannot
+  prepare ACK; isolated fixtures are restored byte-for-byte. Legacy root49 + pending
+  unsealed edit + incoming Content50 remains barrier with zero writes. Safe Legacy51/58
+  cannot leapfrog50. Legacy ordinary child59 cannot choose the unresolved HTML winner.
+  Session60 invalidation has no partial writes. After disk reopen, **35 Content histories**
+  including inbox7/inbox8 and candidate2 reauthenticate; shared groups and exact plain
+  winner text persist. Durable proven48/ACK48/pull60; reconstructed candidate prefix49.
+- Prefix examples: Metadata1/parent2/A3/conflict4/Note5→**5**;
+  Metadata1/Stage2/parent3/A4/conflict5/Note6→**6**;
+  bad dependency4→**3**. Local-unsealed open-group Content4→**3**;
+  Chromium Content50→**49**, no leapfrog. Unsupported Resolution/self-echo still barriers.
+- Network **UNCHANGED** vs C21.1.28: API122, registration22, capability11, mode34,
+  registry26, bootstrap16, ACK13. Conflict apply/proof/dependencies/prefix addedHTTP0;
+  push/pull/Resolution/unrelated0. Existing explicit ACK retains server-success-before-
+  cursor, one request max per invocation, unchanged retry/no-progress; no background ACK.
+- Typecheck, production build, workflow YAML/mandatory new spec inclusion, browser-script
+  syntax and git diff --check PASS. Existing build size/dynamic-import warnings only.
+- Production backend/PostgreSQL/Alembic/native/Rust/SQLite/new dependencies: NONE.
+  Frozen Note/codec8/crypto/AAD/compression/backend/Metadata/Stage/route/Legacy-unsealed/
+  ACK contracts unchanged. Protected .pyc hashes unchanged. Task preview/output cleaned.
+- Expected Cloud backend tests; SQLite sync substrate NOT EXPECTED. Remote CI PENDING,
+  NOT POLLED / NOT WAITED. Commit/push authorized by the attached C21.1.29 task.
+
+### Простыми словами
+
+- Раньше браузер принимал Content-заметки только с линейной историей.
+- Теперь две конфликтующие версии от разных устройств можно безопасно сохранить,
+  не выбирая автоматически окончательного победителя.
+- Конфликтующая версия хранится в общей истории Note вместе с исходной зашифрованной
+  codec8-обёрткой. Текущая локальная заметка остаётся прежней; даже конфликтующее удаление
+  её не стирает.
+- После перезапуска браузер заново криптографически проверяет версию, зависимости и
+  принадлежность общей группе конфликта.
+- Безопасно сохранённый конфликт учитывается в prefix и подтверждении серверу ACK.
+- Конфликт с локальной ещё не отправленной версией, self-echo, Resolution и локальная
+  отправка Content остаются отдельными задачами.
+- Полная Web-синхронизация ещё не готова: ready=false, прогресс остаётся 84.0%.
+- Следующий ограниченный шаг — аудит local-unsealed + incoming Content, начиная с
+  project HTML и существующего Legacy pending intent; writer/Resolution не включать.
