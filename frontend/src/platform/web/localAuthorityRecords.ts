@@ -60,7 +60,19 @@ export function validateLocalProject(value: unknown): NativeLocalProject {
   }
   return structuredClone(p)
 }
-export function validateLocalNote(value: unknown, project: string): LocalNoteSource {
+/** Content-only project HTML route. Cloud codec and Legacy eligibility remain frozen. */
+export function assertContentNoteRoute(note:NoteSyncRecord|NoteSyncTombstone):void {
+ if(note.source_type!=='project'||note.source_map_id!==null||note.source_node_id!==null||note.content_format!=='html')localFailure('unsupported_local_source')
+ if(note.stage_id!==null)localId(note.stage_id)
+}
+export function validateLocalNote(value: unknown, project: string): LocalNoteSource {return validateNoteSource(value,project,false)}
+export function validateContentLocalNote(value:unknown,project:string):LocalNoteSource{return validateNoteSource(value,project,true)}
+/** Read existing encrypted source; write/capture callers still use validateLocalNote. No payload evolution. */
+export function validatePersistedLocalNote(value:unknown,project:string):LocalNoteSource {
+ const stage=(value as LocalNoteSource)?.note?.stage_id
+ return stage===null?validateLocalNote(value,project):validateContentLocalNote(value,project)
+}
+function validateNoteSource(value:unknown,project:string,content:boolean):LocalNoteSource {
   if (!value || typeof value !== 'object') localFailure()
   const s = value as LocalNoteSource
   if (!localExact(s, s.state === 'live' ? ['state','note'] : ['state','note','revision']) || !['live','tombstone'].includes(s.state)) localFailure()
@@ -79,7 +91,7 @@ export function validateLocalNote(value: unknown, project: string): LocalNoteSou
   const at = s.state === 'live' ? s.note.updated_at : s.note.deleted_at
   // Semantic validator view only. No cloud event is encoded, sealed, allocated or persisted.
   const view = { version: 1, header: { event_id: '00000000-0000-4000-8000-000000000000', parent_event_id: null, project_id: project, entity_id: s.note.id, entity_type: 'note', operation: s.state === 'live' ? 'upsert' : 'delete', revision: 1, updated_at: at, deleted_at: s.state === 'live' ? null : at }, mutation: s.state === 'live' ? 'create' : 'delete', note } as NoteSyncPlaintext
-  try { validateNoteSyncPlaintext(view); if (!noteSyncEligibility(view).eligible) localFailure('unsupported_local_source') }
+  try { validateNoteSyncPlaintext(view); if(content){assertContentNoteRoute(note);if(s.state==='live'&&Object.keys(s.note.metadata).length)localFailure('unsupported_local_source')}else if (!noteSyncEligibility(view).eligible) localFailure('unsupported_local_source') }
   catch (e) { if (e instanceof BrowserPersistenceError) throw e; localFailure() }
   return structuredClone(s)
 }

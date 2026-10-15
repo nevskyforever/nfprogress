@@ -15,7 +15,7 @@ import { immutableWireIdentity,snapshotBrowserSyncScope,type BrowserSyncScope,ty
 import { deriveInitialLegacyCohort } from './initialNoteCapture'
 import { validateBrowserProjectBinding,type BrowserProjectBinding } from './projectBindings'
 import { NOTE_HISTORY_STORE,validateNoteHistoryRecord,validateNoteHistorySet,noteFrontier,type BrowserNoteCandidate,type BrowserNoteHead,type BrowserNoteHistoryRecord,type BrowserNoteLocalVersion } from './noteHistoryRecords'
-import { localId,localExact,validateLocalNote,type LocalNoteRecord } from './localAuthorityRecords'
+import { localId,localExact,validateContentLocalNote,validateLocalNote,type LocalNoteRecord } from './localAuthorityRecords'
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
 export const historyRange=(scope:BrowserSyncScope,project?:string,note?:string)=>IDBKeyRange.bound([scope.accountId,...(project?[project]:[]),...(note?[note]:[])],[scope.accountId,...(project?[project]:[]),...(note?[note]:[]),[]])
 function fail(code:'candidate_history_unavailable'|'corrupt_record'|'stale_authority'|'closed'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
@@ -31,7 +31,7 @@ async function verifyProjection(scope:BrowserSyncScope,c:BrowserNoteCandidate,va
  try{nonce=decodeBase64Url(p.envelope.nonce);ciphertext=decodeBase64Url(p.envelope.ciphertext);bytes=await decryptObjectBytes(amk,{userId:scope.canonicalUserId,projectId:c.project_id,entityId:c.note_id,entityType:'note'},{crypto_version:1,aad_version:1,nonce,ciphertext})
   const raw=new TextDecoder('utf-8',{fatal:true}).decode(bytes),opened=JSON.parse(raw)
   if(canonical(opened)!==raw||!localExact(opened,['local_format','kind','account_id','device_id','project_id','note_id','source_revision','source'])||opened.local_format!==1||opened.kind!=='note'||opened.account_id!==scope.accountId||opened.device_id!==scope.deviceId||opened.project_id!==c.project_id||opened.note_id!==c.note_id||opened.source_revision!==p.source_revision)fail()
-  const source=validateLocalNote(opened.source,c.project_id);if(source.note.id!==c.note_id||(source.state==='tombstone')!==p.deleted||(source.state==='live'?source.note.revision:source.revision)!==p.note_revision||(value.mutation==='delete')!==(source.state==='tombstone'))fail()
+  const source=(c.record_version===2?validateContentLocalNote:validateLocalNote)(opened.source,c.project_id);if(source.note.id!==c.note_id||(source.state==='tombstone')!==p.deleted||(source.state==='live'?source.note.revision:source.revision)!==p.note_revision||(value.mutation==='delete')!==(source.state==='tombstone'))fail()
   const local={...source.note} as Record<string,unknown>;delete local.revision;const remote={...value.note} as Record<string,unknown>
   for(const field of value.mutation==='delete'?['deleted_at']:['created_at','updated_at']){local[field]=canonicalizeSyncTimestamp(local[field] as string);remote[field]=canonicalizeSyncTimestamp(remote[field] as string)}
   if(!same(local,remote))fail()

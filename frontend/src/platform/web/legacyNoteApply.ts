@@ -51,6 +51,10 @@ function requireOwnReceipt(scope:BrowserSyncScope,inventory:Inventory,row:Browse
 export function verifiedLegacyNoteForLocal(token:VerifiedLegacyNotePlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):NoteSyncPlaintext {
   const p=plans.get(token);if(!p||p.local!==local||!same(p.scope,scope)||!p.current()||!p.plaintext||p.proof.outcome!=='applied')fail('stale_source');return p.plaintext
 }
+/** Private plan route for protected local admission; never inferred from an arbitrary DTO. */
+export function verifiedNoteRouteForLocal(token:VerifiedNoteCausalPlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):'legacy'|'content_note_v1'{
+ verifiedLegacyNoteForLocal(token,local,scope);return plans.get(token)!.proof.owner_kind==='legacy_note'?'legacy':'content_note_v1'
+}
 export class BrowserLegacyNoteApply {
   constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthority,private readonly sessionCurrent:()=>boolean){}
   bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext):BrowserLegacyNoteApplyRuntime{return new BrowserLegacyNoteApplyRuntime(this.transaction,this.local.bind(auth,bindings,keys),this.sessionCurrent,auth,bindings,keys)}
@@ -129,6 +133,10 @@ export class BrowserLegacyNoteApplyRuntime {
       }else{
         const own=reference.device_id===scope.deviceId,linear=head&&candidates.find(c=>c.event_id===head!.linear_head_event_id)
         if(own){requireOwnReceipt(scope,inventory,row);if(!candidates.some(c=>c.event_id===h.event_id))fail('candidate_history_unavailable');if(linear&&linear.header.revision===h.revision&&linear.event_id!==h.event_id)fail('note_conflict_unproven')}
+        if(linear){const prior=await openHistoryCandidate(scope,linear,amk)
+          if(content&&['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((prior.note as unknown as Record<string,unknown>)[k],(plaintext.note as unknown as Record<string,unknown>)[k])))fail('unsupported_local_source')
+          if(!content&&!dormant&&prior.note.stage_id!==null)fail('unsupported_local_source')
+        }
         const source=await this.local.readSnapshot(scope,binding.project_id)
         let preserve:BrowserNoteConflictGroup|undefined
         if(!own){

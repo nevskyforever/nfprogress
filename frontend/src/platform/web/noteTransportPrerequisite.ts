@@ -1,3 +1,4 @@
+import {requireContentStageDependency} from './contentStageDependency'
 import type { BrowserPrefixInventory } from './provenPrefixRecords'
 import type { AccountMasterKey } from '@/crypto'
 import type { NoteSyncPlaintext } from '@/cloud/noteSyncCodec'
@@ -30,7 +31,8 @@ export async function prepareNotePrerequisite(scope:BrowserSyncScope,row:Browser
  const raw=v.owners.find(r=>(r as {owner_kind:string;owner_id:string}).owner_kind==='project_metadata'&&(r as {owner_id:string}).owner_id===binding.project_id)
  if(!raw)fail()
  const head=validateBrowserMetadataHead(raw,scope),dependency=head.history.find(p=>p.event_id===content.dependencies.metadata_event_id),tip=head.history.find(p=>p.event_id===head.tip_event_ids[0])
- if(head.bootstrap_id!==binding.bootstrap_id||!dependency||dependency.operation==='delete'||!sequences.has(dependency.server_sequence)||head.tip_event_ids.length!==1||!tip||tip.operation==='delete'||!sequences.has(tip.server_sequence)||content.dependencies.stage_event_ids.length)fail()
+ if(head.bootstrap_id!==binding.bootstrap_id||!dependency||dependency.operation==='delete'||!sequences.has(dependency.server_sequence)||head.tip_event_ids.length!==1||!tip||tip.operation==='delete'||!sequences.has(tip.server_sequence))fail()
+ await requireContentStageDependency(scope,row,content,v,amk,current,cert)
  if(!current())throw new BrowserPersistenceError('closed')
  const dependency_digest=await noteProofDigest({scope,bootstrap_id:binding.bootstrap_id,project_id:binding.project_id,note_id:plaintext.header.entity_id,event_id:plaintext.header.event_id,transport:row,dependencies:content.dependencies,owners:v.owners,bindings:v.bindings})
  const logical_material_digest=await noteProofDigest(plaintext);if(!current())throw new BrowserPersistenceError('closed')

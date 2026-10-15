@@ -1,3 +1,4 @@
+import {assertContentNoteRoute} from './localAuthorityRecords'
 import { decodeBase64Url } from '@/api/base64url'
 import { decryptObjectBytes, type AccountMasterKey } from '@/crypto'
 import { decodeNoteSyncPlaintext, noteSyncEligibility, type NoteSyncPlaintext } from '@/cloud/noteSyncCodec'
@@ -31,7 +32,8 @@ export async function openNoteTransport(scope: BrowserSyncScope, amk: AccountMas
   const h=plaintext.header
   if(h.event_id!==r.event_id||h.project_id!==r.project_id||h.entity_id!==r.entity_id||h.revision!==r.revision||canonicalizeSyncTimestamp(h.updated_at)!==canonicalizeSyncTimestamp(r.updated_at))fail()
   if(kind==='legacy'&&(h.operation!==r.operation||(h.deleted_at===null)!==(r.deleted_at===null)||h.deleted_at!==null&&canonicalizeSyncTimestamp(h.deleted_at)!==canonicalizeSyncTimestamp(r.deleted_at)))fail()
-  if(!noteSyncEligibility(plaintext).eligible||plaintext.note.stage_id!==null||plaintext.note.source_type!=='project'||plaintext.note.source_map_id!==null||plaintext.note.source_node_id!==null)throw new BrowserPersistenceError('unsupported_local_source')
+  if(kind==='content_note_v1')assertContentNoteRoute(plaintext.note)
+  else if(!noteSyncEligibility(plaintext).eligible||plaintext.note.stage_id!==null||plaintext.note.source_type!=='project'||plaintext.note.source_map_id!==null||plaintext.note.source_node_id!==null)throw new BrowserPersistenceError('unsupported_local_source')
   return {plaintext,...(content?{content}:{})}
  } catch(e) {if(e instanceof BrowserPersistenceError)throw e;return fail()}
  finally {nonce?.fill(0);ciphertext?.fill(0);bytes?.fill(0)}

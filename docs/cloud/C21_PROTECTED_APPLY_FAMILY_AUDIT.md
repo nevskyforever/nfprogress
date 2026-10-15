@@ -1,11 +1,12 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.26 status (2026-10-15):** ordinary codec8 project HTML/stage=null
-peer create/update/delete/replay production protected apply and prefix/bounded ACK
-LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. ID0/ID1, v8/twelve stores, no migration.
-Resolution/plain/Stage/conflict/self-echo remain barriers; ready=false. C21.1.25
-SHA2c80641c76b81cc02731e30b9beece14b605d0c3, Cloud38641352769 SUCCESS/all six jobs
-SUCCESS; REMOTELY ACCEPTED. Final C21.1.26 section records current evidence.
+**Current C21.1.27 status (2026-10-15):** Stage-scoped project HTML Content
+create/update/delete/replay, Content-only local admission, authenticated bounded Stage
+ancestry and prefix/explicit ACK LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED.
+Project Content accepted; Legacy eligibility frozen; plain/Resolution/conflicts/self-
+echo/local writer remain blocked. v8/twelve stores and local_format1 unchanged, ready=false.
+C21.1.26 SHAd1323fddb3187f60bf53bd3cf5c09f5d23fb5172, Cloud38649425407 SUCCESS/all six
+jobs SUCCESS; REMOTELY ACCEPTED. Final C21.1.27 section contains current evidence.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -1504,7 +1505,7 @@ replay/conflict/self-echo admission audit; Resolution remains separate.
 
 ## C21.1.26 — production Content Note ordinary v1 / project HTML
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** for the bounded subset.
+**REMOTELY ACCEPTED** for the bounded subset. SHA `d1323fddb3187f60bf53bd3cf5c09f5d23fb5172`, Cloud `38649425407` SUCCESS, all six required jobs SUCCESS.
 C21.1.25 SHA `2c80641c76b81cc02731e30b9beece14b605d0c3`, Cloud `38641352769` SUCCESS, all six required jobs SUCCESS; REMOTELY ACCEPTED.
 Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; ready=false; no points.
 
@@ -1607,3 +1608,124 @@ then explicitly bounded protected apply; keep Resolution/local writer/self-echo 
 - После проверки обоих доказательств безопасная Content Note может входить в непрерывную подтверждаемую серверу последовательность; явное подтверждение серверу проверено.
 - Resolution, plain, заметки внутри Stage, конфликты и self-echo пока специально не включены. Поздние безопасные события не обходят эти барьеры.
 - Web-синхронизация ещё не полностью готова: ready=false, C21 IN PROGRESS, официальный прогресс 84.0%. Следующий ограниченный шаг — аудит и подготовка Stage-scoped Content admission и точного Stage dependency.
+
+## C21.1.27 — Stage-scoped HTML Content / Content-only local admission
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** for ordinary peer project HTML
+Content, stage=null OR one concrete authenticated Stage; create/update/delete/replay.
+C21.1.26 SHA `d1323fddb3187f60bf53bd3cf5c09f5d23fb5172`, Cloud `38649425407` SUCCESS, all six required jobs SUCCESS; REMOTELY ACCEPTED.
+Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE; ready=false; no points.
+
+Current-code/native audit: frozen noteSyncEligibility rejects stage_id and remains
+byte-for-byte unchanged. Previously openNoteTransport applied that Legacy gate to both
+routes; prerequisite rejected all Stage refs; local source/projection validation also
+used the Legacy gate. Content now has explicit project/null map/node/HTML route
+admission; a concrete Stage ID must pass existing ID validation AND authenticated
+Stage dependency. Legacy JSON reader/writer/capture/backfill/conflict admission stays
+unchanged. No codecs/crypto/AAD/compression/backend/native changes or new dependencies.
+
+Local admission uses preferred option A: split persisted-source and Content validation
+from Legacy writer eligibility. Existing encrypted local_format1 already stores stage_id
+in both live Note and tombstone; no new discriminator/version needed. Protected source
+writer selects Content validation only through the private verified causal-plan route,
+not a caller DTO. Persisted Stage HTML decrypt/reopen uses Content validation; project
+stage=null continues its old read path. Public initialize/create/update/tombstone and
+Legacy intent/capture still use the original Legacy validator. Old project Notes,
+local payloads, envelopes and serialization are unchanged; no bulk rewrite. Title500/
+content300000/codepoint/source/envelope limits stay unchanged; live Content metadata
+must be empty as required by its owning codec. No plaintext durable Note data.
+
+One existing Note causal graph/head remains authoritative. Source route is immutable
+across protected continuation, including after tombstone: id/project/stage/source/map/
+node/format must match authenticated prior material. Legacy cannot strip a Stage route
+from a Content parent. Clean Stage delete uses the existing tombstone and retains Stage
+identity; no Content-specific tombstone. Conflicts/self-echo/local Content writer remain
+blocked, plain and Resolution remain reader-only barriers. Project stage=null regression
+and its valid mixed Legacy/Content ancestry remain accepted.
+
+Native stage_sync::content_reference_ready643 consumes one live compatible projected
+tip. reference_coverage594 traverses actual parent_event_ids from current tips to refs,
+stops at refs, requires every tip to reach a ref and all refs to be covered, with cached
+non-reference expansion budget256. Equality-only is wrong: current B may be a safe
+linear descendant of referenced A. Web Stage head/history has complete parents and
+existing clean accepted history limit200 (stricter; unchanged). The same existing
+proveStageReferenceCoverage helper implements native256 semantics; no parser duplication.
+
+Content Stage dependency reuses force prepareStagePrefix + stageSequences after the
+unchanged force Metadata prerequisite. Exact Stage owner/project/bootstrap/history/tip
+must validate and all its rows must be cryptographically qualified. Web Stage projection
+is derived from the authenticated single tip by existing Stage read machinery; no
+separate mutable Stage plaintext projection can diverge. Unknown/foreign refs, foreign
+parents, missing/corrupt histories, multiple/unresolved tips, nonlive/tombstone state,
+uncovered or redundant refs and ancestry overflow fail closed. Earlier retained
+unqualified Stage events cannot authorize a newer Content event; a received preceding
+Stage delete reports stage_tombstone_child_manifest_incomplete. Later received Stage
+rows remain their own barriers; safely applied advancement is reauthenticated and
+covered, preserving historical Content proof. Stage-order is not required.
+
+Existing opaque prerequisite binds original authenticated route/refs and the exact
+owners/bindings snapshot, including Stage history/current tip, plus auth/key/session
+currentness. Existing dependency_digest already includes original wire and full owner
+inventory, so inbox7/content_note_proven proof1 and candidate2/content_note_v1 stay
+unchanged. Historical digests remain immutable while fresh reauthentication proves
+current native-compatible coverage; original Content proof/candidate are not rewritten
+when Stage advances. The accepted same Note readwrite transaction performs Stage/Meta
+owner CAS together with inbox/history/head/intents/source/outbox/receipts/cursor CAS
+and atomic candidate/wrapper/source writes. Stage drift without cursor change aborts
+inside the actual hook, not merely a preflight/cursor failure; explicit reprepare against
+an authenticated covered descendant can succeed. No second receipt transaction.
+
+Prefix certificate/reopen automatically uses the extended prerequisite for Stage-scoped
+Content. Both final inbox7/candidate2/projection/causal outcome AND Metadata/Stage crypto
+coverage are mandatory; candidate-only/wrapper-only never qualifies. Examples:
+Metadata1/Stage2/Content3/Legacy4→prefix4;
+Meta1/StageA2/Content3/StageB4/Content-update5→prefix5;
+unknown Stage ref/plain/Resolution Content3 after Meta1/Stage2→prefix2.
+ACK transport/gates/target=committed proven_prefix/retry remain unchanged, at most one
+ACK HTTP per explicit call and server success before local ack_cursor. No background ACK.
+
+Schema remains IndexedDB v8/twelve stores; migration/store/index changes NONE; local
+payload evolution NONE; old records rewritten by migration NONE. No change to other
+family statuses, Stage causal/apply/deletion/conflict/self-echo contracts or Metadata.
+
+Validation: mandatory Cloud C21 suite1171 tests/46 files PASS; final focused Stage
+Content36 + ACK5 =41 tests/2 files PASS, including two added owner/foreign-Stage cases.
+Local persisted/Legacy admission, ID0/ID1 create/update/delete/replay, exact and ancestor
+refs, safe A→B historical revalidation, unchanged-cursor Stage CAS, missing/foreign/
+wrong-scope/bootstrap/proof/wire/parent/uncovered/unresolved/tombstone dependencies,
+256 expansion boundary/overflow, route immutability after tombstone, Legacy writer/
+capture barriers, atomic rollback, project Content/Legacy/Stage/prefix/ACK/migration/open
+regressions PASS. Typecheck/production build/workflow/YAML/JS syntax/diff PASS; existing
+build chunk/dynamic-import warnings only; protected bytecodes unchanged.
+
+Chromium205 groups PASS/native IDB+Web Locks: project outcomes10–15 unchanged; Stage
+Content ID0 create16/update17/delete18 and ID1 create19/update21/delete22; Stage advances
+at20 to a safe descendant, prior Content16 remains byte-identical/valid with ancestor
+refs. Legacy23 yields prefix23/ACK23. Actual Stage wrapper/candidate/source/abort/auth/
+key rollback, Stage-owner CAS without cursor drift, encrypted local route/tombstone,
+Legacy write refusal, renderer and disk-profile reopen with twelve Content proofs,
+original codec8 wires, single Note heads and protected local_format1 all reauthenticate.
+Readable unknown Stage24/Resolution25/Stage plain26/foreign Stage27/self28, conflict29
+and session-aborted31 remain barriers; later Legacy30 cannot leapfrog. Page errors0.
+The first browser attempt found a fixture tombstone losing stage_id; test data corrected
+and final full Chromium acceptance PASS; production deletion was already passing.
+
+HTTP counters unchanged from accepted .26: cumulative122 = registration22/capability11/
+mode34/registry26/ACK13/bootstrap16. Stage dependency/Content apply/proof/prefix HTTP0;
+new registration/capability/registry/bootstrap/pull/push/Resolution/unrelated0. Existing
+explicit ACK now crosses safe Stage Content with no additional API calls. Mandatory
+Cloud Stage specs and Chromium acceptance, no skip/xfail/continue-on-error. Cloud EXPECTED;
+SQLite substrate NOT EXPECTED; remote CI NOT POLLED. Task harness removed after stop.
+
+Recommended next bounded slice: Content-only plain admission/reopen audit while keeping
+Legacy eligibility frozen; Resolution/conflicts/self-echo/local writer remain separate.
+
+### Простыми словами
+
+- Web уже умел применять обычные HTML-заметки проекта нового формата, включая сжатые события.
+- Теперь поддержаны HTML-заметки, привязанные к конкретному этапу: создание, обновление, удаление и точный повтор.
+- Браузер не просто верит идентификатору этапа, а проверяет его защищённую историю, принадлежность проекту и связи между событиями.
+- Если событие этапа A сменилось нормальным потомком B, ранее принятая заметка остаётся действительной: её исходное доказательство не переписывается.
+- Legacy-механизм не расширен. Его writer и capture по-прежнему не могут создавать или отправлять Stage-заметки через новое разрешение.
+- Plain, Resolution, конфликты, собственные отправленные Content Note и локальный Content writer остаются отдельными задачами.
+- Полная Web-синхронизация ещё не готова: ready=false, официальный прогресс 84.0%, C21 IN PROGRESS. Следующий ограниченный шаг — аудит Content-only plain admission и безопасного reopen.

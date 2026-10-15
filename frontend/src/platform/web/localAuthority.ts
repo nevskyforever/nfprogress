@@ -1,5 +1,5 @@
 import type { BrowserNoteIntentRuntime, NoteMutationPlan } from './noteIntents'
-import { verifiedLegacyNoteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
+import { verifiedLegacyNoteForLocal, verifiedNoteRouteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { AuthoritativeKeyContextLease, RuntimeKeyContext } from '@/auth/keyContext'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
@@ -8,7 +8,7 @@ import { decodeBase64Url, encodeBase64Url } from '@/api/base64url'
 import { canonical, timestamp } from '@/cloud/projectMetadataCodec'
 import { BrowserPersistenceError } from './persistence'
 import { immutableWireIdentity, snapshotBrowserSyncScope, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
-import { localCanonicalBytes, localExact, localFailure as fail, localId, localSafe, MAX_LOCAL_NOTES, validateLocalNote, validateLocalNoteRecord, validateLocalProject, validateLocalProjectRecord, type LocalEnvelope, type LocalNotePayload, type LocalNoteRecord, type LocalNoteSource, type LocalProjectPayload, type LocalProjectRecord, type NativeLegacyNote, type NativeLocalProject } from './localAuthorityRecords'
+import { localCanonicalBytes, localExact, localFailure as fail, localId, localSafe, MAX_LOCAL_NOTES, validateContentLocalNote, validatePersistedLocalNote, validateLocalNote, validateLocalNoteRecord, validateLocalProject, validateLocalProjectRecord, type LocalEnvelope, type LocalNotePayload, type LocalNoteRecord, type LocalNoteSource, type LocalProjectPayload, type LocalProjectRecord, type NativeLegacyNote, type NativeLocalProject } from './localAuthorityRecords'
 import type { ProjectNotePatch } from '@/types/notes'
 
 export interface LocalSourceToken { readonly verifiedLocalSource: unique symbol }
@@ -143,7 +143,7 @@ export class BrowserLocalAuthorityRuntime {
       if (!localExact(raw, ['local_format','kind','account_id','device_id','project_id','note_id','source_revision','source'])) fail('corrupt_record')
       const note = raw as unknown as LocalNotePayload
       if (note.local_format !== 1 || note.kind !== 'note' || note.account_id !== scope.accountId || note.device_id !== scope.deviceId || note.project_id !== p.project_id || note.note_id !== row.note_id || note.source_revision !== row.source_revision || row.source_revision > p.source_revision) fail('corrupt_record')
-      const source = validateLocalNote(note.source, p.project_id)
+      const source = validatePersistedLocalNote(note.source, p.project_id)
       if (source.note.id !== row.note_id || (source.state === 'tombstone') !== row.deleted || (source.state === 'live' ? source.note.revision : source.revision) !== row.note_revision) fail('corrupt_record')
       notes.push(source)
     }
@@ -261,7 +261,8 @@ export class BrowserLocalAuthorityRuntime {
     return guard.lease.use(async amk=>{
       const opened=await this.open(scope,p.project,p.notes,amk),revision=p.project.source_revision+1
       // Native peer payload has local mutation revision0; sync revision stays in Note proof.
-      const source=validateLocalNote(incoming.mutation==='delete'?{state:'tombstone',note:incoming.note,revision:0}:{state:'live',note:{...incoming.note,revision:0}},p.project.project_id)
+      const admit=verifiedNoteRouteForLocal(verified,this,scope)==='content_note_v1'?validateContentLocalNote:validateLocalNote
+      const source=admit(incoming.mutation==='delete'?{state:'tombstone',note:incoming.note,revision:0}:{state:'live',note:{...incoming.note,revision:0}},p.project.project_id)
       const old=opened.notes.findIndex(n=>n.note.id===source.note.id)
       if(old<0)opened.notes.push(source);else opened.notes[old]=source
       if(opened.notes.length>MAX_LOCAL_NOTES)fail('source_limit')
