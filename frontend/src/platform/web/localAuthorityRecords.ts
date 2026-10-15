@@ -60,17 +60,18 @@ export function validateLocalProject(value: unknown): NativeLocalProject {
   }
   return structuredClone(p)
 }
-/** Content-only project HTML route. Cloud codec and Legacy eligibility remain frozen. */
+/** Content-only project HTML/plain route. Cloud codec and Legacy eligibility remain frozen. */
 export function assertContentNoteRoute(note:NoteSyncRecord|NoteSyncTombstone):void {
- if(note.source_type!=='project'||note.source_map_id!==null||note.source_node_id!==null||note.content_format!=='html')localFailure('unsupported_local_source')
+ if(note.source_type!=='project'||note.source_map_id!==null||note.source_node_id!==null||!['html','plain'].includes(note.content_format))localFailure('unsupported_local_source')
  if(note.stage_id!==null)localId(note.stage_id)
 }
 export function validateLocalNote(value: unknown, project: string): LocalNoteSource {return validateNoteSource(value,project,false)}
 export function validateContentLocalNote(value:unknown,project:string):LocalNoteSource{return validateNoteSource(value,project,true)}
 /** Read existing encrypted source; write/capture callers still use validateLocalNote. No payload evolution. */
 export function validatePersistedLocalNote(value:unknown,project:string):LocalNoteSource {
- const stage=(value as LocalNoteSource)?.note?.stage_id
- return stage===null?validateLocalNote(value,project):validateContentLocalNote(value,project)
+ const note=(value as LocalNoteSource)?.note
+ // These routes cannot be produced by Legacy initialization, capture or mutation.
+ return note?.stage_id!==null||note?.content_format==='plain'?validateContentLocalNote(value,project):validateLocalNote(value,project)
 }
 function validateNoteSource(value:unknown,project:string,content:boolean):LocalNoteSource {
   if (!value || typeof value !== 'object') localFailure()

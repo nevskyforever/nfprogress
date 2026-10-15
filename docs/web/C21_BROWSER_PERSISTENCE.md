@@ -1,12 +1,11 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
-**Current C21.1.27 status (2026-10-15):** Stage-scoped project HTML Content
-create/update/delete/replay, Content-only local admission, authenticated bounded Stage
-ancestry and prefix/explicit ACK LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED.
-Project Content accepted; Legacy eligibility frozen; plain/Resolution/conflicts/self-
-echo/local writer remain blocked. v8/twelve stores and local_format1 unchanged, ready=false.
-C21.1.26 SHAd1323fddb3187f60bf53bd3cf5c09f5d23fb5172, Cloud38649425407 SUCCESS/all six
-jobs SUCCESS; REMOTELY ACCEPTED. Final C21.1.27 section contains current evidence.
+**Current C21.1.28 status (2026-10-15):** project + Stage plain Content protected
+apply/replay/reopen/prefix/explicit ACK LOCAL COMPLETE; REMOTE CI PENDING — NOT POLLED.
+C21.1.27 `e540f56af505ba232a1f16b2abb70f91a2417cb1`, Cloud `38657482380` SUCCESS,
+all six required jobs SUCCESS; REMOTELY ACCEPTED (independent owner acceptance).
+Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
+Final C21.1.28 section contains current evidence; older sections retain historical scope.
 
 
 **Current C21.1.23 update (2026-10-14):** v8 /12 stores, clean imported Stage-order
@@ -2681,3 +2680,136 @@ Legacy eligibility frozen; Resolution/conflicts/self-echo/local writer remain se
 - Legacy-механизм не расширен. Его writer и capture по-прежнему не могут создавать или отправлять Stage-заметки через новое разрешение.
 - Plain, Resolution, конфликты, собственные отправленные Content Note и локальный Content writer остаются отдельными задачами.
 - Полная Web-синхронизация ещё не готова: ready=false, официальный прогресс 84.0%, C21 IN PROGRESS. Следующий ограниченный шаг — аудит Content-only plain admission и безопасного reopen.
+
+## C21.1.28 — plain Content / Content-only format admission
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+C21.1.27 accepted SHA `e540f56af505ba232a1f16b2abb70f91a2417cb1`,
+Cloud `38657482380` SUCCESS, all six required jobs SUCCESS; **REMOTELY ACCEPTED**
+(independent owner acceptance). Official **84.0%**, C21 **IN PROGRESS**,
+C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`; no roadmap increment.
+
+### Audit and durable admission decision
+
+Audited exact current noteTransport, localAuthorityRecords/localAuthority, shared
+legacyNoteApply planner, contentNoteApply/proof/records/prefix, transport prerequisite,
+Stage prerequisite, frozen noteSyncCodec/contentNoteCodec, ProjectNote and native
+content_note_sync.rs before production edits (checkpoint preflight records findings).
+Native portable accepts html/plain; Web ProjectNote already supports both.
+Native `same_scope` compares id/project/stage/source/map/node/**content_format**
+against current source and parent history, including after tombstone. Therefore
+**HTML→plain and plain→HTML causal updates remain BLOCKED**; each entity retains
+one shared Note authority. Legacy HTML cannot strip a previously applied plain route.
+This adds a guard only for the newly admissible Content-only source; all previously
+admissible Legacy HTML behavior, global eligibility, codec/writer/capture are unchanged.
+
+Content-specific assertContentNoteRoute now permits project-owned HTML or plain,
+map/node null and valid Stage or null. openNoteTransport owns this admission;
+prepareNotePrerequisite removes its redundant HTML-only gate. Metadata and Stage
+prerequisites, Stage ancestry, owner/binding CAS and ACK machinery are unchanged.
+No domain/UI changes, conversion, escaping, trimming or text normalization.
+Existing local limits remain title500/content300000 codepoints/envelope8MiB.
+
+**No encrypted payload discriminator/version is necessary.** local_format1 already
+contains content_format in live Notes AND tombstones. Reopen selects Content validator
+on plain or nonnull Stage; project HTML still uses existing Legacy validator.
+Producer provenance: initialize/create/update/tombstone call validateLocalNote;
+Legacy capture uses frozen eligibility; writer/unsealed source uses Legacy validation.
+Private noteRow/seal/write/mutate offer no public raw DTO write. Protected local writes
+need a current owner/scope WeakMap Note plan whose private route is Content, followed
+by same-transaction source CAS. Low-level IDB is untrusted storage, not an admission API.
+AEAD/canonical payload/identity/revision validation runs on every reopen, followed by
+strict source-route validation; mindmap/map/node/future formats and extra fields fail.
+No v9/new store/migration, no existing records or HTML payload rewrites.
+
+**Proof1/candidate2/inbox7 remain unchanged.** Logical digest covers full inner
+plaintext, including content_format; original codec8 wire digest, encrypted projection
+and transport/outcome digests bind the result. History reopen compares authenticated
+original Note with encrypted projection. Tests change format in an authenticated
+projection and recompute public candidate digests: original-wire comparison still fails.
+Changing format after prerequisite mint fails the logical-material digest check.
+Prefix reauthenticates original wire/projection and current Metadata/Stage coverage.
+
+### Supported production subset
+
+| Content codec8 ordinary v1 route | Protected apply / replay / reopen / prefix / explicit ACK |
+| --- | --- |
+| project HTML | YES, existing semantics retained |
+| Stage HTML | YES, existing ancestry semantics retained |
+| project plain | YES, ID0/ID1 create/update/delete/replay |
+| Stage plain | YES, ID0/ID1 create/update/delete/replay + authenticated Stage coverage |
+| mindmap/map/node-owned plain | NO |
+| future format / nonempty Content metadata | NO |
+| Resolution v2 (including plain result) | NO; canonical reader-only barrier |
+| Content conflict / self-echo / local writer | NO |
+| Legacy plain | NO; eligibility/capture/writer/reader/apply unchanged |
+
+Exact content, format, title/checklist/tags/color and route are retained. Plain
+tombstones keep project/stage/source/map/node/format/deleted_at. HTML and plain do not
+create separate graphs. Project plain requires exact Metadata and no Stage refs;
+Stage plain additionally requires accepted authenticated live single Stage tip,
+native-compatible bounded ancestry coverage, matching bootstrap and same owner CAS.
+Safe later Stage advancement preserves prior plain proof and original bytes.
+Missing/uncovered/unresolved/tombstoned Stage and dependency drift remain barriers.
+
+### Verification and network
+
+- New admission/source tests: initial **37 PASS**; final contentPlain **45 PASS**
+  includes Legacy stripping rejection, both logical format substitutions, bad-source prefix.
+- Shared project + Stage apply regression specs execute for **HTML AND plain**:
+  **212 PASS /2files**, including ID0/ID1 create/update/delete/replay, metadata/Stage
+  negative references, ancestry, original-wire/proof/candidate/source tampering,
+  owner CAS and actual source/wrapper/candidate/auth/key/abort rollback.
+- Shared project/Stage ACK specs execute for both formats: **32 PASS /2files**;
+  one explicit request, unchanged retry/lost-success/no-progress/stale proof semantics.
+- Mandatory Cloud C21 persistence/Legacy/unsealed/capture/history/prefix/ACK/migration
+  suite: **1328 PASS /47files**. After the final newly admissible plain-route guard and
+  extra tests, focused Content/Legacy/gateway suite: **269 PASS /4files**. No remaining
+  failed/skipped checks. Initial test-wrapper import syntax error corrected before testing;
+  production path unchanged by that correction. No repeated broad loops.
+- Real Chromium: **206 groups PASS**, native IDB/Web Locks, **page errors0**.
+  Existing HTML10–22 tests preserved; plain project23–28 and Stage29–35 cover ID0/ID1
+  create/update/delete/replay, exact whitespace/literal markup, original candidate2/inbox7
+  and local encrypted format1. Actual native source/wrapper/candidate/abort/auth/key
+  injections run for project23 and Stage29. Session46 invalidation leaves no partial writes.
+  Stage33 descendant preserves original plain29 proof; ancestor-ref update34/delete35
+  works. Project36/Stage37 remain live and preserve exact plain strings on renderer and
+  full disk-profile reopen. All26 Content histories reauthenticate without proof rewrite.
+  Prefix/ACK38, pull46 survive profile restart; unresolved Stage39, Resolution40 plain,
+  invalid mindmap41, missing Stage42, self43 and sibling44 remain received; safe Legacy45
+  cannot leapfrog39. No plaintext content stored in durable records or logs.
+- **Scenario-C clarification:** frozen/native owning Content codec rejects mindmap-owned
+  payload (`content_note_map_owned`) before reader acceptance. Making that fixture
+  readable would violate frozen contracts. Chromium verifies AEAD-authenticated codec
+  rejection, no production writes and prefix barrier instead. Map/node admission likewise
+  remains forbidden. This does not block the requested project/Stage plain subset.
+- Prefix examples: Metadata1/projectPlain2/Legacy3→**3**;
+  Metadata1/Stage2/StagePlain3/Legacy4→**4**;
+  bad projectPlain2→**1**; bad StagePlain3→**2**. No unsupported event qualifies.
+- Existing explicit ACK crosses project+Stage plain; max1 HTTP per invocation,
+  server success before local cursor, retry behavior unchanged; no background ACK.
+- Network **UNCHANGED vs accepted C21.1.27**: API122, registration22, capability11,
+  mode34, registry26, bootstrap16, ACK13. Apply/proof/Metadata/Stage/prefix addedHTTP0;
+  push/pull/Resolution/unrelated0. Only existing explicit ACK uses its existing network gates.
+- Typecheck, production build, browser-script syntax, workflow YAML/mandatory spec
+  inclusion and git diff --check PASS. Existing bundle-size/dynamic-import warnings only.
+- Production backend/PostgreSQL/Alembic/native/SQLite/Rust/new dependencies: **NONE**.
+  Legacy codec/global eligibility, codec8/crypto/AAD/compression/backend/Metadata/Stage/
+  ACK contracts: **UNCHANGED**. Protected .pyc hashes unchanged.
+- Expected Cloud backend tests; SQLite sync substrate NOT EXPECTED. Remote CI PENDING,
+  **NOT POLLED / NOT WAITED**. Commit/push are authorized by the attached task.
+
+### Простыми словами
+
+- Новый Content-механизм уже безопасно принимал HTML.
+- Теперь браузер принимает и обычный текстовый формат plain: заметки проекта и этапа.
+- Текст сохраняется именно как plain, без преобразования в HTML, с точными пробелами
+  и переносами строк. После закрытия и повторного открытия браузера он остаётся прежним.
+- Безопасно принятые заметки учитываются в подтверждении серверу. Сломанные зависимости
+  продолжают останавливать подтверждение; готовность синхронизации остаётся false.
+- Старый Legacy-механизм не расширен: plain через него не принимается и не отправляется.
+- Заметки карты, Resolution, конфликты, self-echo и локальная отправка Content остаются
+  отдельными задачами. Формат существующей заметки нельзя менять между HTML и plain.
+- Полная Web-синхронизация ещё не готова. Следующий ограниченный шаг — аудит и реализация
+  сохранение конфликтующих peer Content-версий в общей истории Note; Resolution
+  и локальную отправку не включать без отдельного задания.

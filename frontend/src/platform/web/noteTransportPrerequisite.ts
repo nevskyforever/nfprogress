@@ -20,11 +20,11 @@ const certificates=new WeakMap<object,Certificate>()
 const commits=new WeakMap<object,{certificate:Certificate;candidate:BrowserNoteCandidate}>()
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
 function fail():never{throw new BrowserPersistenceError('stale_authority')}
-/** Project-HTML prerequisite only. Minted from original AEAD + authenticated Metadata, never a caller DTO. */
+/** Content-only prerequisite. Minted from original AEAD + authenticated Metadata/Stage, never a caller DTO. */
 export async function prepareNotePrerequisite(scope:BrowserSyncScope,row:BrowserInboxRecord,binding:BrowserProjectBinding,amk:AccountMasterKey,current:()=>boolean,transaction:BrowserSyncTransaction|undefined,inventory?:BrowserPrefixInventory):Promise<{certificate:VerifiedNotePrerequisite;plaintext:NoteSyncPlaintext}>{
  scope=snapshotBrowserSyncScope(scope);row=validateBrowserInboxRecord(structuredClone(row),scope);binding=validateBrowserProjectBinding(structuredClone(binding),scope)
  const {plaintext,content}=await openNoteTransport(scope,amk,row.protocol_version,row.wire_item,'content_note_v1')
- if(!content||content.dependencies.bootstrap_id!==binding.bootstrap_id||content.event.version!==1||content.event.note.content_format!=='html'||content.device_id===scope.deviceId)throw new BrowserPersistenceError('unsupported_local_source')
+ if(!content||content.dependencies.bootstrap_id!==binding.bootstrap_id||content.event.version!==1||content.device_id===scope.deviceId)throw new BrowserPersistenceError('unsupported_local_source')
  const v=inventory??await transaction!<BrowserPrefixInventory>(scope,['inbox','outbox','receipts','projectBindings','ownerHeads','legacyNoteHistory','cursors'],'readonly',(tx,result,abort)=>readStageInventory(tx,scope,result,abort))
  if(!same(v.rows.find(r=>(r as BrowserInboxRecord).server_sequence===row.server_sequence),row)||!v.bindings.some(b=>same(b,binding)))fail()
  const cert=await prepareMetadataPrefix(scope,v,amk,current,true),sequences=verifiedMetadataSequences(cert,scope,v)
