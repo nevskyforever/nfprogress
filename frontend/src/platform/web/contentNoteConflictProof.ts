@@ -2,7 +2,7 @@ import {openFrozenLocalVersion} from './noteUnsealedVersion'
 import {validateNoteIntent} from './noteIntentRecords'
 import type {AccountMasterKey} from '@/crypto'
 import {BrowserPersistenceError} from './persistence'
-import {immutableWireIdentity,validateBrowserInboxRecord,type BrowserInboxRecord,type BrowserSyncScope} from './syncDurability'
+import {immutableWireIdentity,validateBrowserUploadPair,validateBrowserInboxRecord,type BrowserInboxRecord,type BrowserSyncScope} from './syncDurability'
 import {validateNoteHistorySet,type BrowserNoteCandidate,type BrowserNoteConflictGroup,type BrowserNoteHistoryRecord,type BrowserNoteLocalVersion} from './noteHistoryRecords'
 import {openHistoryCandidate} from './noteHistory'
 import {noteProofDigest,noteOutcomeDigest,verifyStoredNoteProof,openRetainedNote} from './legacyNoteApply'
@@ -47,15 +47,33 @@ export async function verifyPeerNoteGroup(scope:BrowserSyncScope,g:BrowserNoteCo
   }else bad()
  }
 }
-/** Narrow project-HTML local-unsealed mode; accepted peer verifier remains unchanged. */
-export async function verifyLocalContentGroup(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],amk:AccountMasterKey,intents:readonly unknown[],localNotes:readonly unknown[]):Promise<void>{
- const rows=validateNoteHistorySet(scope,history),member=g.members.find(m=>m.source==='local_unsealed'),v=member&&rows.find((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version'&&r.version_id===member.version_id),parent=rows.find((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'&&r.event_id===g.common_parent_event_id&&r.project_id===g.project_id&&r.note_id===g.note_id),head=rows.find(r=>r.record_kind==='head'&&r.project_id===g.project_id&&r.note_id===g.note_id)
- if(!v||!member||!parent||!head||head.record_kind!=='head'||head.linear_head_event_id!==g.common_parent_event_id||g.members.some(m=>m.source==='remote_applied')||v.intent.bootstrap_id!==g.bootstrap_id||v.header.parent_event_id!==g.common_parent_event_id||v.header.revision!==g.tip_revision||member.local_mutation_generation!==v.intent.mutation_generation)bad()
+/** Creation-time current authority check. Never use this to qualify an already committed proof. */
+export function verifyCurrentContentLocalVersion(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],intents:readonly unknown[],localNotes:readonly unknown[]):void{
+ const member=g.members.find(m=>m.source==='local_unsealed');if(!member)return
+ const v=history.find((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version'&&r.version_id===member.version_id),head=history.find(r=>r.record_kind==='head'&&r.project_id===g.project_id&&r.note_id===g.note_id)
  const current=intents.map(i=>validateNoteIntent(i,scope)).filter(i=>i.project_id===g.project_id&&i.note_id===g.note_id)
- const currentNotes=localNotes.filter(n=>(n as {account_id:string;project_id:string;note_id:string}).account_id===scope.accountId&&(n as {project_id:string}).project_id===g.project_id&&(n as {note_id:string}).note_id===g.note_id)
- if(current.length!==1||!same(current[0],v.intent)||currentNotes.length!==1||!same(currentNotes[0],v.intent.snapshot))bad()
+ const notes=localNotes.filter(n=>(n as {account_id:string;project_id:string;note_id:string}).account_id===scope.accountId&&(n as {project_id:string}).project_id===g.project_id&&(n as {note_id:string}).note_id===g.note_id)
+ if(!head||head.record_kind!=='head'||head.linear_head_event_id!==g.common_parent_event_id||!v||current.length!==1||!same(current[0],v.intent)||notes.length!==1||!same(notes[0],v.intent.snapshot))bad()
+}
+export interface ContentLocalLifecycle {out:readonly unknown[];receipts:readonly unknown[]}
+/** local_unsealed records conflict-time origin, independently of the current working branch. */
+export async function verifyLocalContentGroup(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],amk:AccountMasterKey,lifecycle:ContentLocalLifecycle):Promise<void>{
+ const rows=validateNoteHistorySet(scope,history),member=g.members.find(m=>m.source==='local_unsealed'),v=member&&rows.find((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version'&&r.version_id===member.version_id),parent=rows.find((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'&&r.event_id===g.common_parent_event_id&&r.project_id===g.project_id&&r.note_id===g.note_id),head=rows.find(r=>r.record_kind==='head'&&r.project_id===g.project_id&&r.note_id===g.note_id)
+ if(!v||!member||!parent||!head||head.record_kind!=='head'||g.members.some(m=>m.source==='remote_applied')||v.intent.bootstrap_id!==g.bootstrap_id||v.header.parent_event_id!==g.common_parent_event_id||v.header.revision!==g.tip_revision||member.local_mutation_generation!==v.intent.mutation_generation)bad()
  const local=await openFrozenLocalVersion(scope,v,amk),base=await openHistoryCandidate(scope,parent,amk)
  if(local.note.stage_id!==null||local.note.source_type!=='project'||local.note.source_map_id!==null||local.note.source_node_id!==null||local.note.content_format!=='html'||route.some(k=>!same(base.note[k],local.note[k])))bad()
+ // The later sealed branch may contain newer coalesced payload, but cannot change causal identity.
+ const sealed=rows.find((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'&&r.event_id===member.event_id)
+ if(sealed){
+  if(sealed.record_version!==1||sealed.origin!=='local_sealed'||sealed.source_device_id!==scope.deviceId||sealed.project_id!==g.project_id||sealed.note_id!==g.note_id||sealed.bootstrap_id!==g.bootstrap_id||sealed.header.parent_event_id!==g.common_parent_event_id||sealed.header.revision!==g.tip_revision||(sealed.mutation_generation??0)<v.intent.mutation_generation)bad()
+  const value=await openHistoryCandidate(scope,sealed,amk)
+  if(route.some(k=>!same(local.note[k],value.note[k])))bad()
+  const matching=lifecycle.out.filter(r=>(r as {event_id:string}).event_id===member.event_id),receipts=lifecycle.receipts.filter(r=>(r as {event_id:string}).event_id===member.event_id)
+  if(matching.length!==1||receipts.length>1)bad()
+  const out=validateBrowserUploadPair(matching[0],receipts[0],scope),body=JSON.parse(out.raw_body)
+  if(out.local_ordinal!==v.intent.local_ordinal||out.protocol_version!==sealed.protocol_version||!same(body.items[0],JSON.parse(sealed.wire_item)))bad()
+ }
+
  for(const m of g.members){if(m.source==='local_unsealed')continue
   const c=rows.find((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'&&r.event_id===m.event_id),r=inbox.find(r=>r.event_id===m.event_id)
   if(!c||c.origin!=='peer'||c.source_device_id===scope.deviceId||!r||r.server_sequence!==m.server_sequence||c.header.parent_event_id!==g.common_parent_event_id||c.header.revision!==g.tip_revision||c.bootstrap_id!==g.bootstrap_id)bad()
@@ -65,9 +83,9 @@ export async function verifyLocalContentGroup(scope:BrowserSyncScope,g:BrowserNo
   else if(r.state==='note_conflict_preserved'){const p=r.note_conflict_proof;if(c.record_version!==1||p.record_version!==2||p.local_version_id!==v.version_id||p.local_version_digest!==v.record_digest||p.local_mutation_generation!==v.intent.mutation_generation||p.group_id!==g.group_id||p.bootstrap_id!==g.bootstrap_id||p.conflict_generation!==m.conflict_generation||!same(p.header,c.header)||await noteProofDigest({protocol_version:r.protocol_version,event:wire.event,object:wire.object})!==p.wire_digest||await noteOutcomeDigest(p)!==p.outcome_digest)bad()}else bad()
  }
 }
-export async function verifyContentGroup(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],amk:AccountMasterKey,intents:readonly unknown[]=[],localNotes:readonly unknown[]=[]){
- if(g.members.some(m=>m.source==='local_unsealed'))await verifyLocalContentGroup(scope,g,history,inbox,amk,intents,localNotes);else await verifyPeerNoteGroup(scope,g,history,inbox,amk)
+export async function verifyContentGroup(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],amk:AccountMasterKey,lifecycle:ContentLocalLifecycle={out:[],receipts:[]}){
+ if(g.members.some(m=>m.source==='local_unsealed'))await verifyLocalContentGroup(scope,g,history,inbox,amk,lifecycle);else await verifyPeerNoteGroup(scope,g,history,inbox,amk)
 }
-export async function verifyStoredContentConflictProof(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],intents:readonly unknown[]=[],localNotes:readonly unknown[]=[]){
- const {group}=contentConflictHistoryJoin(scope,row,history);await verifyContentGroup(scope,group,history,inbox,amk,intents,localNotes)
+export async function verifyStoredContentConflictProof(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord,history:BrowserNoteHistoryRecord[],inbox:BrowserInboxRecord[],lifecycle:ContentLocalLifecycle={out:[],receipts:[]}){
+ const {group}=contentConflictHistoryJoin(scope,row,history);await verifyContentGroup(scope,group,history,inbox,amk,lifecycle)
 }

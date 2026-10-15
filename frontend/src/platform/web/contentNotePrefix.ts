@@ -22,7 +22,7 @@ export async function prepareContentNotePrefix(scope:BrowserSyncScope,v:BrowserP
  for(const raw of v.rows){const row=validateBrowserInboxRecord(raw,scope);if(row.state!=='content_note_proven'&&row.state!=='content_note_conflict_preserved')continue
   const proof=row.state==='content_note_proven'?row.content_note_proof:row.content_note_conflict_proof
   const binding=bindings.find(b=>b.project_id===proof.header.project_id);if(!binding||binding.mode!=='import_remote'||binding.phase!=='captured'||binding.remote_state!=='active'||binding.bootstrap_id!==proof.bootstrap_id)throw new BrowserPersistenceError('corrupt_record')
-  if(row.state==='content_note_proven')await verifyStoredContentNoteProof(scope,amk,row,history);else await verifyStoredContentConflictProof(scope,amk,row,history,v.rows.map(r=>validateBrowserInboxRecord(r,scope)) as BrowserInboxRecord[],v.intents??[],v.localNotes??[])
+  if(row.state==='content_note_proven')await verifyStoredContentNoteProof(scope,amk,row,history);else await verifyStoredContentConflictProof(scope,amk,row,history,v.rows.map(r=>validateBrowserInboxRecord(r,scope)) as BrowserInboxRecord[],v)
   await prepareNotePrerequisite(scope,row,binding,amk,current,undefined,v)
   sequences.add(row.server_sequence)
  }
