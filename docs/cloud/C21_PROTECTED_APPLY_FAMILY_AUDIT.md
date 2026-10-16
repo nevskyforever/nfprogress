@@ -1,11 +1,11 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.32 status (2026-10-15):** new Content project HTML sibling after
-local Legacy seal/acceptance LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. C21.1.31 REMOTELY ACCEPTED,
-SHA `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud `38787355382` SUCCESS,
-all six required jobs SUCCESS (owner supplied). Official84.0%, C21 IN PROGRESS,
-C21.1.06 NOT LOCAL COMPLETE, ready=false. Final C21.1.32 section has current semantics;
-earlier sections retain historical scope.
+**Current C21.1.33 status (2026-10-16):** existing Legacy own self-echo in mixed
+Content conflict group LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED; production unchanged.
+C21.1.32 REMOTELY ACCEPTED, SHA `4302477aa756ab7ee83ff4e3ee63b8030e158b4d`,
+Cloud `38793623485` SUCCESS, all six required jobs SUCCESS (owner supplied).
+Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
+Final C21.1.33 section has current evidence; earlier sections retain historical scope.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -2270,7 +2270,7 @@ pending-запись навсегда остаётся неизменной. Т�
 
 C21.1.31 **REMOTELY ACCEPTED**: `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`,
 Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS (owner supplied).
-C21.1.32 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Official **84.0%**, C21 **IN PROGRESS**,
+C21.1.32 **REMOTELY ACCEPTED** (`4302477aa756ab7ee83ff4e3ee63b8030e158b4d`, Cloud **38793623485 SUCCESS**, all six required jobs SUCCESS, owner supplied). Official **84.0%**, C21 **IN PROGRESS**,
 C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`; no roadmap increment.
 
 ### Audit and admission authority
@@ -2402,3 +2402,142 @@ intent больше не требуется.
 Resolution и Content writer остаются отдельными задачами. Полная Web-синхронизация
 ещё не готова. Следующий ограниченный шаг — аудит Legacy self-echo локальной ветки
 в смешанной Content/Legacy группе, без выбора победителя и включения Content writer.
+
+## C21.1.33 — Legacy self-echo in a mixed Content conflict group
+
+C21.1.32 **REMOTELY ACCEPTED**: `4302477aa756ab7ee83ff4e3ee63b8030e158b4d`,
+Cloud **38793623485 SUCCESS**, all six required jobs SUCCESS (owner supplied).
+C21.1.33 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Official **84.0%**, C21 **IN PROGRESS**,
+C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`, no roadmap increment.
+
+### Audit result: existing production behavior, explicit acceptance tests
+
+No production edit is required by the observed behavior. Existing Legacy self-echo
+admission already validates the entire mixed group before retaining an own-event proof.
+requireOwnReceipt requires the local device, accepted outbox and durable receipt via
+validateBrowserUploadPair, matching protocol and exact receipt server_sequence, plus
+exact event descriptor/encrypted object after removing the server wrapper's device/
+sequence fields. It never infers upload acceptance from pull and never creates a receipt.
+
+The local candidate1 local_sealed already exists from Legacy seal. Mixed-group history
+verification authenticates that candidate, exact causal identity, original frozen local
+version and candidate/outbox continuity; source_device, bootstrap, project/Note/event/
+parent/revision and crypto remain strict. The group is open and the historical local
+member remains source=local_unsealed. Head is L after seal, or a legitimate later local
+head; echo never selects a winner or rolls the head backward.
+
+The existing own path skips peer conflict extension and protected local projection
+writes. It emits existing NoteProof1 outcome=self_echo_applied in inbox3/note_proven,
+source_revision/local_note_digest=null. group1, head, frozen local_version1, candidate1,
+Content candidate2/proof2/inbox8, outbox and receipt remain byte-identical. No current
+intent or old frozen/current-source equality is required. A newer working Note and
+subsequent local Legacy mutations remain usable without applying old cloud text back.
+
+commitHistoryChange receives identical retained history and takes its exact no-op
+branch. The mixed Content dependency replay hook rechecks current Metadata owner/
+binding inventory and finds its original candidate already present; it performs no
+history write. Tests explicitly reject any write outside inbox during self-echo and
+observe exactly inbox:put; exact replay observes zero writes.
+
+verifyLocalContentGroup already accepts valid accepted lifecycle. The own proven inbox
+row is extra corroboration, not a conflict member and not a requirement for old R1.
+The full Legacy planner validates existing own proofs through verifyStoredNoteProof
+and requireOwnReceipt, including before new Content sibling admission. Full prefix
+verification authenticates the own proof and exact candidate/outbox/receipt join
+independently of Content prefix. Corrupt proven echo blocks replay/new Content/prefix;
+absence of echo leaves historical Content qualification unchanged. No extra group-level
+state, circular proof dependency or persistent record is necessary.
+
+Prefix counts own Legacy echo as **self_echo**, Content proof2 as **unsealed_conflict**.
+Before receipt, own received row is a barrier and R1 remains qualified. Once exact
+acceptance is durable, fresh prepare produces self_echo_applied and prefix/ACK may cross.
+Explicit ACK remains at most one request per advancing call, no-progress zero HTTP,
+server-success-before-cursor and retry semantics unchanged. No background mechanism.
+
+Existing inventory CAS covers history/group/frozen, accepted outbox/receipt, binding,
+cursor, current source where already anchored, Metadata and auth/key/session. Changed
+inventory aborts stale self-echo plans atomically; fresh prepare validates current
+accepted evidence. Legitimate unrelated upload acceptance is also covered as a stale-
+inventory race. Prepare without receipt yields no proven token or partial proof.
+
+Both R1→echo→R2 and R1→R2→echo preserve equivalent unresolved group semantics modulo
+IDs/server sequence ordering. Additional Content siblings after echo use C21.1.32
+historical-accepted authority; only that new sibling advances group generation. Receipt
+and own echo prove cloud durability of L, never conflict resolution or a winning branch.
+
+| Boundary | Result |
+|---|---|
+| Standalone Legacy own self-echo | YES, retained |
+| Legacy own self-echo in mixed Content group | YES, explicitly tested |
+| Multiple Content members / subsequent sibling after echo | YES |
+| Group/frozen/Content proof/local projection rewritten by echo | NO |
+| Local-origin project HTML Content conflicts | YES, retained |
+| Local-origin plain / Stage expansion | NO |
+| Content self-echo / Content writer / Resolution | NO |
+| ready / full Web synchronization | false / NOT COMPLETE |
+
+DB **v8** and all existing persistent formats remain unchanged. No migration, new store,
+index, dependency, backend/PostgreSQL/Alembic/native/SQLite/Rust or protocol change.
+The only self-echo write is the normal received→note_proven inbox transition.
+Self-echo apply, receipt/group verification and prefix add **0 HTTP**. Existing explicit
+ACK and authenticated reader/registry gates are reused.
+
+### Validation and release status
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-16).
+**Production code changed: NO.** This slice accepts the existing path through mandatory
+regression tests, Chromium scenarios, workflow coverage and documentation.
+
+- New mixed-self-echo tests: **56 PASS** (47 core cases + 9 ACK cases) in the final
+  mandatory run. Initial focused phase **55 PASS / 2 files**; final added case explicitly
+  verifies subsequent Legacy mutation/seal after self-echo without resolving the group.
+- Relevant C21.1.32/.31/Legacy self-echo/upload regression phase: **147 PASS / 6 files**.
+- Final mandatory Cloud C21 persistence suite: **1649 PASS / 56 files**, no skipped tests;
+  includes C21.1.30/.29, standalone self-echo, clean HTML/plain/Stage, lifecycle,
+  upload acceptance and migration/open baselines.
+- Real installed Chromium: **219 scenario groups PASS**, native IndexedDB/Web Locks,
+  **0 page errors**. Own Legacy echo60 is proven after valid receipt in a group already
+  containing multiple ID1/ID0 Content siblings. Only inbox:put is observed; group/head/
+  frozen/candidates/Content proofs/local source/outbox/receipt remain exact. Auth/key/
+  inbox/native-abort injections roll back every write. Exact replay performs no writes.
+- Current working Note is edited after seal; echo60 does not overwrite it. New ID1
+  Content sibling61 remains admissible after echo, advances only its own group generation.
+  Prefix61/ACK61 counts **self_echo1 / unsealed_conflict7**; route barrier62 still caps
+  later safe67. Receipt/outbox/own proof/group/candidate tampering prevents ACK.
+- Own Legacy echo70 arrives before receipt on another mixed group, stays received over
+  a full disk/profile restart, then exact durable acceptance enables fresh self-echo
+  proof without group/source changes. Another disk/profile reopen validates replay.
+  Main echo60 and all old/new Content proofs also reauthenticate after renderer/profile
+  reopen. Acceptance uses isolated valid response fixtures through the real durable
+  commit, not a live server upload or a new pull mechanism.
+- Chromium network: API134, registration22, capability11, mode42, registry26,
+  bootstrap16, ACK17. Relative to C21.1.32, one added explicit ACK scenario and its two
+  existing mode GETs. Self-echo apply/receipt/group verification/prefix HTTP **0**;
+  push/pull/Content writer/Resolution/protected apply/candidate-conflict/unrelated API
+  requests **0**. No new registration/capability mechanism; no-progress zero HTTP.
+- Typecheck PASS after correcting test-helper inventory types; production Vite build
+  PASS (existing dynamic-import/chunk warnings); both browser helpers syntax PASS;
+  workflow YAML PASS, both specs mandatory with no skip/xfail/continue-on-error;
+  final diff check PASS. No production TypeScript file was edited.
+- DBv8, proof/history/group formats unchanged; only normal received→note_proven own
+  inbox transition. Protected engine/game_data `.pyc` SHA256 unchanged. No backend,
+  PostgreSQL/Alembic, native/SQLite/Rust, dependency or frozen-contract changes.
+- Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED.
+  Remote CI PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
+
+### Простыми словами
+
+Локальная Legacy-версия может быть отправлена на сервер, даже когда вокруг неё уже
+есть конфликт с Content-версиями. Когда сервер возвращает ту же версию обратно, Web
+распознаёт self-echo, а не новую конфликтную ветку. Подтверждение сервера не означает,
+что локальная версия победила: группа конфликта и Content-версии остаются неизменными.
+
+Локальная заметка не перезаписывается старой отправленной версией. Точность self-echo
+подтверждается accepted outbox и receipt. После проверки событие входит в prefix и
+может быть подтверждено через ACK. До receipt оно остаётся барьером; после receipt
+проверку можно безопасно подготовить заново.
+
+Этот путь уже существовал в production; slice закрепляет его обязательными тестами
+и браузерной приёмкой. Content self-echo, Resolution и Content writer остаются отдельными
+задачами, полная Web-синхронизация ещё не готова. Следующий ограниченный шаг — аудит
+Content self-echo и необходимой own-wire/receipt authority без включения writer/Resolution.
