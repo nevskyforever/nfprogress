@@ -1,15 +1,83 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
-**Current C21.2.03A status (2026-10-17):** NUMBERING NORMALIZATION — LOCAL COMPLETE /
-REMOTE CI PENDING — NOT POLLED; docs only, no functional progress.
-Canonical C21.2.03 REMOTELY ACCEPTED, SHA `582c671eed7227250bd7c06b3c34e2f9b379a104`,
-Cloud `38852780341` SUCCESS, all six required jobs SUCCESS (owner supplied).
-Official84.0%, C21 and C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
-The numbering note below is authoritative; technical sections retain their accepted scope.
+**Current C21.2.04 status (2026-10-18): AUDIT COMPLETE / IMPLEMENTATION BLOCKED.**
+Decision B AUTHORITY ABSENT; no functional implementation. C21.2.03A REMOTELY ACCEPTED,
+SHA `d3a3c1b600eec63851a4a5a1200200d6b6dd9012`, Cloud39063756905 SUCCESS,
+all six required jobs SUCCESS (owner supplied). Official84.0%, C21/C21.2 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE, ready=false.
+
+## C21.2.04 — Content self-echo authority audit
+
+Exact blocker: **Browser Web has no legitimate current local codec8 writer/outbox/receipt authority from which to prove own Content self-echo.**
+
+| # | Question | Production evidence / conclusion |
+|---|---|---|
+| 1 | Why proof1 rejects own device | `contentNoteRecords.ts:validateContentNoteProof` requires reference.device_id != scope.deviceId, outcome applied and projection revision/digest. It certifies a peer protected apply, not outbound deduplication. Conflict proofs inherit this peer invariant. |
+| 2 | Own codec8 planner today | `legacyNoteApply.ts:prepareContentOrdinary/prepareRoute` invokes `noteTransportPrerequisite.ts:prepareNotePrerequisite`, which rejects authenticated own codec8 immediately with unsupported_local_source (content.device_id === scope.deviceId), before generic own detection/receipt logic. This holds with no outbox, a synthetic accepted pair, or peer candidate. Downstream generic checks also require every outbound row to have a candidate and reject duplicate same-event candidates on received Content. The unreachable clean own branch constructs dormant_note_prerequisite/self_echo_applied, not Content proof; `proofRow` rejects that owner. No admissible Content self-echo commit. |
+| 3 | Receipt codec8-compatible | YES structurally. `requireOwnReceipt` + `validateBrowserUploadPair` join accepted protocol3 body, local device/event, exact encrypted object and receipt server sequence. They do not establish local codec8 authorship. |
+| 4 | Legitimate browser Content outbox | NO complete current producer authority. Generic `BrowserEncryptedSync.enqueue` can mechanically store a supplied valid protocol3 wire; that API is not a Content author/sealer or causal candidate producer. |
+| 5 | Production outbox creator | NONE for browser Content. `initialNoteCapture.ts` and `noteIntents.ts:commitSeal` create Legacy protocol2 rows and candidate1. No production browser Content enqueue call site. |
+| 6 | Production receipt creator | Generic `BrowserEncryptedSync.commitUploadAcceptance` records a validated server response for an existing queued row; no independently authored browser Content row to accept. A fabricated pair in a negative test is not production authority. |
+| 7 | Own Content candidate creator | NONE. `noteHistory.ts:makeHistoryCandidate`/initial backfill/seal create Legacy candidate1; `noteTransportPrerequisite.ts` creates Content candidate2 only from authenticated incoming peer transport. |
+| 8 | Native authority visible in IndexedDB | NO. `ContentNoteRuntime` invokes native commands and native SQLite tables; Browser persistence uses separate IndexedDB. `cloudSession.ts:initialize` constructs native sync only on Tauri. |
+| 9 | Supported native import migration | NONE. `persistence.ts` v1–v8 upgrades only browser stores/validation; no native writer/outbox/receipt import. |
+| 10 | Same user, another device | Peer. Exact source device identity, not account ownership, defines self-echo; account authentication still required. |
+| 11 | Candidate2 peer-only | YES. `noteHistoryRecords.ts:validateNoteHistoryRecord` requires origin peer, source device different from scope, operation event descriptor, protocol3 and positive retained server sequence. |
+| 12 | Existing local Content candidate | NONE. Legacy candidate1 local_sealed is not a codec8 original-wire candidate. |
+| 13 | Existing durable Content self-echo proof | NONE. Content proof1 and conflict proof1/2 are peer-only. Legacy inbox3 self_echo_applied and dormant prerequisite are not Content proof. |
+| 14 | New proof required | Explicit durable Content self-echo semantics would be required in a separately approved design; no current format can be safely reused by weakening peer proof1. STOP; no new version in this slice. |
+| 15 | Writer prerequisite | Genuine local browser Content author/seal/outbound provenance is missing. It must exist before self-echo can be reachable; do not enable writer just to pass this audit. |
+| 16 | Server evidence | Existing immutable exact wire + event/device/sequence receipt can support an exact join to locally authored bytes. Server acceptance alone cannot prove prior local authorship or supply missing browser candidate authority. No server change indicated by this audit. |
+| 17 | Schema v8 | Sufficient for unchanged fail-closed behavior/tests. Current persistent contracts are insufficient for safe functional self-echo; no claim that a future writer/proof needs no migration. v8→v8 here. |
+| 18 | Legitimate browser reachability | NO current legitimate own Content producer/candidate/outbox/receipt chain. Native writer existence and synthetic fixtures do not change this. |
+
+Native reference: `contentNoteRuntime.ts:beginNotes/sealNotes/uploadNotes` calls
+native capture, list_pending_content_notes, seal_content_note and receipt_content_note.
+`content_note_writer.rs` persists cloud_content_note_candidates/writer_events,
+cloud_sync_outbox/event_objects/upload_receipts. `content_note_sync.rs:receipt`
+joins exact own frame/device/object to writer evidence and updates native acceptance;
+activation requires a native writer event. These tables are not browser stores.
+
+| Browser matrix | State |
+|---|---|
+| Content peer reader / ordinary-v1 protected apply | YES, existing admitted routes, ID0/ID1 |
+| Content peer + mixed Content/Legacy conflict preservation | YES |
+| Legacy self-echo | YES, exact browser Legacy candidate/outbox/accepted receipt |
+| Content self-echo | NO, missing local browser outbound authority |
+| Content writer / Resolution | BLOCKED / NOT ACTIVATED |
+| Prefix / ACK at own Content | Stops before unqualified own event; earlier proofs remain valid |
+| Full Web synchronization / ready | NOT COMPLETE / false |
+
+### Простыми словами
+
+Браузер читает Content-события других устройств. Legacy self-echo уже работает:
+браузер создаёт Legacy outbox, хранит точный wire и receipt. Для Content такого
+локального writer пока нет. Получить событие со своим device id недостаточно,
+чтобы доказать его прежнее создание и отправку этим браузером. Подделывать историю
+нельзя. Поэтому Content self-echo ждёт настоящей Content writer/outbox authority;
+Native/Tauri не передаёт её автоматически в IndexedDB. Peer Content и смешанные
+конфликты продолжают работать. ACK не пересекает заблокированное own Content,
+перезапуск сохраняет границу. Полная Web-синхронизация ещё не готова.
+Следующий шаг — отдельный ограниченный дизайн локальной Content outbound authority.
+
+C21.2.04 local validation (2026-10-18): focused authority boundary10 PASS; peer266 PASS;
+Legacy31 PASS; mixed283 PASS; prefix/ACK97 PASS. Mandatory Cloud C21 selection
+**1661 PASS / 57 files**, zero skips. Chromium **221 groups PASS**, native IndexedDB
+and Web Locks; renderer/full-profile disk reopen retains own Content62 received,
+no own outbox/receipt/candidate and no projection writes; peer67 applies/replays;
+prefix61/ACK61 cannot cross62. Existing Legacy own60/70 and mixed groups remain valid.
+Isolated auth/HTTP fixtures, real storage/crypto, no production Content writer fabricated.
+Chromium API134: registration22/capability11/mode42/registry26/bootstrap16/ACK17;
+push/pull/Resolution/unrelated0; pageErrors0. Typecheck, production build, modified
+browser-script syntax, workflow YAML/mandatory coverage/path filters and
+`git diff --check` PASS. Existing bundle-size/dynamic-import warnings only.
+Production/backend/native/dependencies unchanged; IndexedDB v8→v8.
+Remote CI PENDING — NOT POLLED. Expected Actions: Cloud backend tests YES;
+SQLite sync substrate NO. Protected engine/game_data bytecode unchanged.
 
 ## C21.2.03A — numbering normalization / C21.1 boundary repair
 
-**C21.2.03A NUMBERING NORMALIZATION — LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**
+**C21.2.03A NUMBERING NORMALIZATION — REMOTELY ACCEPTED**
 (2026-10-17). Docs only; no new functional progress or roadmap increment.
 
 **Authoritative numbering boundary:** C21.1 is capped at 30 slices. C21.1.30 is the
@@ -46,9 +114,9 @@ Code, tests, browser scripts, workflow behavior, dependencies and support matric
 unchanged. Validation: targeted repository searches, exact SHA/Cloud/status mapping,
 manual documentation diff review and `git diff --check`; no test suite, Chromium,
 backend/native suite, typecheck or build rerun. Expected Actions after push: Cloud
-backend tests **YES**, SQLite sync substrate **NO**. Repair CI remains PENDING — NOT POLLED.
+backend tests **YES**, SQLite sync substrate **NO**. Repair Cloud39063756905 SUCCESS, all six required jobs SUCCESS (owner supplied).
 
-The next functional slice is **C21.2.04**, only after this normalization is accepted.
+C21.2.04 follows this accepted normalization as a bounded authority audit.
 No Content self-echo, Resolution, writer, prefix, ACK or conflict implementation is
 continued by C21.2.03A.
 

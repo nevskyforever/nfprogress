@@ -1,15 +1,67 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.2.03A status (2026-10-17):** NUMBERING NORMALIZATION — LOCAL COMPLETE /
-REMOTE CI PENDING — NOT POLLED; docs only, no functional progress.
+## C21.2.04 — Content self-echo authority audit
+
+**AUDIT COMPLETE / IMPLEMENTATION BLOCKED — B AUTHORITY ABSENT.**
+Exact blocker: **Browser Web has no legitimate current local codec8 writer/outbox/receipt authority from which to prove own Content self-echo.**
+C21.2.03A REMOTELY ACCEPTED: SHA `d3a3c1b600eec63851a4a5a1200200d6b6dd9012`,
+Cloud39063756905 SUCCESS, all six required jobs SUCCESS (owner supplied).
+
+| Family / evidence | Browser state |
+|---|---|
+| Peer Content codec8 ordinary-v1 ID0/ID1 | Protected apply YES on admitted routes; original-wire candidate2 + proof1 |
+| Peer Content conflicts / mixed Content-Legacy | Preservation YES, unchanged winner and historical proof semantics |
+| Own Legacy | Self-echo YES, exact local candidate1 + accepted outbox + receipt |
+| Own Content codec8 | Self-echo NO; no production local Content author/seal/candidate/outbox authority |
+| Generic protocol3 outbox + receipt | Structurally codec8-compatible; not independent authorship evidence |
+| Native/Tauri Content writer/receipts | Separate SQLite runtime; no supported migration into Browser IndexedDB |
+| Same account, different source device | Peer; never self-echo based on user identity alone |
+| Own Content prefix/ACK | Unqualified event caps prefix/ACK before sequence; later peer apply remains possible |
+| Content writer / Resolution / ready | BLOCKED / BLOCKED / false |
+
+Detailed audit of all 18 questions and exact production creators/absence:
+`docs/web/C21_BROWSER_PERSISTENCE.md`, C21.2.04 section. Content proof1 and candidate2
+retain peer-only invariants. No new self-echo format; functional work stopped.
+IndexedDB v8 unchanged; no migration/stores/indexes/backend/native/dependencies.
+Official84.0%, C21/C21.2 IN PROGRESS, C21.1 final canonical slice .30,
+C21.1.06 NOT LOCAL COMPLETE. No new functional progress or roadmap points.
+
+### Простыми словами
+
+Content от других устройств читается, смешанные конфликты сохраняются. Legacy
+self-echo подтверждается собственной историей отправки браузера и receipt сервера.
+Content writer в браузере пока не активирован, такой истории для Content нет.
+Поэтому свой device id в Content нельзя честно признать доказательством собственной
+отправки. Подделывать историю нельзя: Content self-echo заблокирован до настоящей
+локальной Content writer/outbox authority. Native/Tauri хранит её отдельно.
+Это не ломает peer Content и mixed conflicts. Полная Web-синхронизация ещё не готова;
+следующий шаг — отдельный дизайн browser Content outbound authority и proof-контракта.
+
+
+**C21.2.03A historical normalization:** REMOTELY ACCEPTED; docs only, no functional progress.
 Canonical C21.2.03 REMOTELY ACCEPTED, SHA `582c671eed7227250bd7c06b3c34e2f9b379a104`,
 Cloud `38852780341` SUCCESS, all six required jobs SUCCESS (owner supplied).
 Official84.0%, C21 and C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
 The numbering note below is authoritative; technical sections retain their accepted scope.
 
+C21.2.04 local validation (2026-10-18): focused authority boundary10 PASS; peer266 PASS;
+Legacy31 PASS; mixed283 PASS; prefix/ACK97 PASS. Mandatory Cloud C21 selection
+**1661 PASS / 57 files**, zero skips. Chromium **221 groups PASS**, native IndexedDB
+and Web Locks; renderer/full-profile disk reopen retains own Content62 received,
+no own outbox/receipt/candidate and no projection writes; peer67 applies/replays;
+prefix61/ACK61 cannot cross62. Existing Legacy own60/70 and mixed groups remain valid.
+Isolated auth/HTTP fixtures, real storage/crypto, no production Content writer fabricated.
+Chromium API134: registration22/capability11/mode42/registry26/bootstrap16/ACK17;
+push/pull/Resolution/unrelated0; pageErrors0. Typecheck, production build, modified
+browser-script syntax, workflow YAML/mandatory coverage/path filters and
+`git diff --check` PASS. Existing bundle-size/dynamic-import warnings only.
+Production/backend/native/dependencies unchanged; IndexedDB v8→v8.
+Remote CI PENDING — NOT POLLED. Expected Actions: Cloud backend tests YES;
+SQLite sync substrate NO. Protected engine/game_data bytecode unchanged.
+
 ## C21.2.03A — numbering normalization / C21.1 boundary repair
 
-**C21.2.03A NUMBERING NORMALIZATION — LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**
+**C21.2.03A NUMBERING NORMALIZATION — REMOTELY ACCEPTED**
 (2026-10-17). Docs only; no new functional progress or roadmap increment.
 
 **Authoritative numbering boundary:** C21.1 is capped at 30 slices. C21.1.30 is the
@@ -46,9 +98,9 @@ Code, tests, browser scripts, workflow behavior, dependencies and support matric
 unchanged. Validation: targeted repository searches, exact SHA/Cloud/status mapping,
 manual documentation diff review and `git diff --check`; no test suite, Chromium,
 backend/native suite, typecheck or build rerun. Expected Actions after push: Cloud
-backend tests **YES**, SQLite sync substrate **NO**. Repair CI remains PENDING — NOT POLLED.
+backend tests **YES**, SQLite sync substrate **NO**. Repair Cloud39063756905 SUCCESS, all six required jobs SUCCESS (owner supplied).
 
-The next functional slice is **C21.2.04**, only after this normalization is accepted.
+C21.2.04 follows this accepted normalization as a bounded authority audit.
 No Content self-echo, Resolution, writer, prefix, ACK or conflict implementation is
 continued by C21.2.03A.
 
