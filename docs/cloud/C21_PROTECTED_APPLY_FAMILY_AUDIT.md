@@ -1,11 +1,56 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
-**Current C21.1.33 status (2026-10-16):** existing Legacy own self-echo in mixed
-Content conflict group LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED; production unchanged.
-C21.1.32 REMOTELY ACCEPTED, SHA `4302477aa756ab7ee83ff4e3ee63b8030e158b4d`,
-Cloud `38793623485` SUCCESS, all six required jobs SUCCESS (owner supplied).
-Official84.0%, C21 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
-Final C21.1.33 section has current evidence; earlier sections retain historical scope.
+**Current C21.2.03A status (2026-10-17):** NUMBERING NORMALIZATION — LOCAL COMPLETE /
+REMOTE CI PENDING — NOT POLLED; docs only, no functional progress.
+Canonical C21.2.03 REMOTELY ACCEPTED, SHA `582c671eed7227250bd7c06b3c34e2f9b379a104`,
+Cloud `38852780341` SUCCESS, all six required jobs SUCCESS (owner supplied).
+Official84.0%, C21 and C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, ready=false.
+The numbering note below is authoritative; technical sections retain their accepted scope.
+
+## C21.2.03A — numbering normalization / C21.1 boundary repair
+
+**C21.2.03A NUMBERING NORMALIZATION — LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**
+(2026-10-17). Docs only; no new functional progress or roadmap increment.
+
+**Authoritative numbering boundary:** C21.1 is capped at 30 slices. C21.1.30 is the
+final canonical slice of C21.1. Subsequent work belongs to C21.2.
+C21.1.30 remains **REMOTELY ACCEPTED**; C21 and C21.2 remain **IN PROGRESS**.
+Official progress remains **84.0%**; C21.1.06 remains **NOT LOCAL COMPLETE**;
+`ready=false`.
+
+One-time historical alias map (old execution labels are provenance only):
+
+| Historical execution label (alias only) | Canonical stage | Unchanged SHA | Unchanged Cloud run | Status |
+|---|---|---|---|---|
+| C21.1.31 | C21.2.01 | `0e9adfb75d47c3f6d094d29d502dc729d11a60bc` | `38787355382` | REMOTELY ACCEPTED |
+| C21.1.32 | C21.2.02 | `4302477aa756ab7ee83ff4e3ee63b8030e158b4d` | `38793623485` | REMOTELY ACCEPTED |
+| C21.1.33 | C21.2.03 | `582c671eed7227250bd7c06b3c34e2f9b379a104` | `38852780341` | REMOTELY ACCEPTED |
+
+Original commits remain authoritative: `feat(c21): stabilize content conflict lifecycle`,
+`feat(c21): accept content siblings after local seal`, and
+`test(c21): accept mixed legacy self echo`, respectively.
+This is numbering normalization only. No code, implementation, test semantics or
+technical work was redone. SHAs and CI runs remain unchanged; Git history is
+intentionally not rewritten. No amend, rebase, force push, commit recreation or tag change.
+
+Canonical **C21.2.03** is **LOCAL COMPLETE / REMOTELY ACCEPTED**:
+SHA `582c671eed7227250bd7c06b3c34e2f9b379a104`, Cloud **38852780341 SUCCESS**,
+all six required jobs SUCCESS (independent owner acceptance): Frontend admin;
+Android compression packaging; PostgreSQL cloud and legacy regressions;
+PostgreSQL mandatory (foundation); PostgreSQL mandatory (content-action);
+PostgreSQL mandatory (complete-project). Production code change: **NONE**; mixed Legacy
+self-echo acceptance is test/docs coverage over existing production behavior.
+
+This docs-only repair changes stage labels/provenance/current acceptance status only.
+Code, tests, browser scripts, workflow behavior, dependencies and support matrices are
+unchanged. Validation: targeted repository searches, exact SHA/Cloud/status mapping,
+manual documentation diff review and `git diff --check`; no test suite, Chromium,
+backend/native suite, typecheck or build rerun. Expected Actions after push: Cloud
+backend tests **YES**, SQLite sync substrate **NO**. Repair CI remains PENDING — NOT POLLED.
+
+The next functional slice is **C21.2.04**, only after this normalization is accepted.
+No Content self-echo, Resolution, writer, prefix, ACK or conflict implementation is
+continued by C21.2.03A.
 
 
 **Current C21.1.23 update:** Stage reader-ready YES / accepted peer create-update and
@@ -2084,7 +2129,7 @@ them again in the final prefix/ACK transaction. No stores/indexes were added. St
 apply/prerequisite code and Legacy frozen-version verification remain unchanged.
 New Content proof2 increments **unsealed_conflict**, not conflict/applied.
 
-**Historical C21.1.30 limitation (superseded by C21.1.31 below):** changing, removing or sealing the current intent,
+**Historical C21.1.30 limitation (superseded by C21.2.01 below):** changing, removing or sealing the current intent,
 or changing its snapshot/generation, invalidates new Content proof2 qualification.
 Historical Legacy conflict proofs keep their accepted behavior. This slice does not
 invent requalification after later local edits/sealing, resolve a conflict, convert the
@@ -2163,11 +2208,13 @@ intent to codec8 or activate Content writer/upload. Frozen historical evidence i
 - Следующий ограниченный шаг — аудит безопасной повторной квалификации proof2 после
   Legacy coalescing/sealing, с сохранением frozen history и без Content writer/Resolution.
 
-## C21.1.31 — durable Content local-conflict lifecycle
+## C21.2.01 — durable Content local-conflict lifecycle
+
+Historical execution label: C21.1.31; canonicalized by C21.2.03A. No implementation or CI identity changed.
 
 C21.1.30 **REMOTELY ACCEPTED**: `2b832a7d5b064a1ef313983b85f939d09e3ae128`,
 Cloud `38717317755` **SUCCESS**, all six required jobs SUCCESS (owner supplied).
-C21.1.31 **REMOTELY ACCEPTED** (`0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS, owner supplied); official **84.0%**, C21 **IN PROGRESS**,
+C21.2.01 **REMOTELY ACCEPTED** (`0e9adfb75d47c3f6d094d29d502dc729d11a60bc`, Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS, owner supplied); official **84.0%**, C21 **IN PROGRESS**,
 C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`.
 
 ### Creation and stored history have different lifetimes
@@ -2227,7 +2274,7 @@ proof verification and prefix add **0 HTTP**. Legacy acceptance uses its existin
 
 ### Validation and release status
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+**Historical local execution status: LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
 - Mandatory Cloud persistence command: **1526 PASS / 52 files**, including the new
   **36 lifecycle tests**, 57 Content-local creation/tamper regressions and 8 ACK tests.
 - Focused local lifecycle/ACK phase: 100 PASS before the final additional source-boundary
@@ -2249,7 +2296,7 @@ proof verification and prefix add **0 HTTP**. Legacy acceptance uses its existin
   with no skip/xfail/continue-on-error. Migration/open tests pass in mandatory suite.
 - Protected engine/game_data `.pyc` SHA256 unchanged; no backend/native/dependency edits.
 - Final required checks pass; expected Cloud backend tests, SQLite sync substrate
-  NOT EXPECTED. Remote CI PENDING — NOT POLLED / NOT WAITED. No roadmap increment.
+  NOT EXPECTED. Original execution report: remote CI was PENDING — NOT POLLED / NOT WAITED. No roadmap increment.
 
 ### Простыми словами
 
@@ -2266,11 +2313,13 @@ pending-запись навсегда остаётся неизменной. Т�
 ещё не готова. Следующий ограниченный шаг — аудит сохранения новых входящих siblings
 после sealing локальной ветки, без включения writer или Resolution.
 
-## C21.1.32 — new Content sibling after local Legacy seal
+## C21.2.02 — new Content sibling after local Legacy seal
 
-C21.1.31 **REMOTELY ACCEPTED**: `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`,
+Historical execution label: C21.1.32; canonicalized by C21.2.03A. No implementation or CI identity changed.
+
+C21.2.01 **REMOTELY ACCEPTED**: `0e9adfb75d47c3f6d094d29d502dc729d11a60bc`,
 Cloud **38787355382 SUCCESS**, all six required jobs SUCCESS (owner supplied).
-C21.1.32 **REMOTELY ACCEPTED** (`4302477aa756ab7ee83ff4e3ee63b8030e158b4d`, Cloud **38793623485 SUCCESS**, all six required jobs SUCCESS, owner supplied). Official **84.0%**, C21 **IN PROGRESS**,
+C21.2.02 **REMOTELY ACCEPTED** (`4302477aa756ab7ee83ff4e3ee63b8030e158b4d`, Cloud **38793623485 SUCCESS**, all six required jobs SUCCESS, owner supplied). Official **84.0%**, C21 **IN PROGRESS**,
 C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`; no roadmap increment.
 
 ### Audit and admission authority
@@ -2306,7 +2355,7 @@ the original historical branch. Its current working projection is not overwritte
 Same-event pending plus sealed evidence fails closed. Intent absence alone is never
 an admission fallback. If sealed continuation is missing, new R2 blocks while old R1
 can remain independently qualified by frozen history. Contradictory/tampered sealed
-candidate/outbox/receipt still fails historical verification as required by C21.1.31;
+candidate/outbox/receipt still fails historical verification as required by C21.2.01;
 this is distinct from merely lacking continuation evidence for a NEW admission.
 
 Incoming Content independently authenticates protocol3/codec8 ordinary-v1, peer device,
@@ -2353,12 +2402,12 @@ and ACK contracts remain frozen. Apply/history/conflict/Metadata/prefix add **0 
 
 ### Validation and release status
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
+**Historical local execution status: LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-15).
 - New focused post-seal/ACK specs: **67 PASS / 2 files** (61 authority/route/proof/race/
   atomicity/replay cases + 6 ACK cases). Final focused recheck after type corrections
   also **67 PASS**. Lifecycle/peer/Legacy regression phase: **217 PASS / 7 files**.
 - Mandatory Cloud C21 persistence command: **1593 PASS / 54 files**, including existing
-  C21.1.31/.30/.29, Legacy coalescing/sealing/self-echo/upload and migration/open tests.
+  C21.2.01, C21.1.30 and C21.1.29, Legacy coalescing/sealing/self-echo/upload and migration/open tests.
 - Installed real Chromium: **216 scenario groups PASS**, native IndexedDB/Web Locks,
   **0 page errors**. New ID1 update56 after seal extends historical group to generation3;
   ID0 delete57 and ID1 update58 after accepted receipt extend generations4/5. Earlier
@@ -2373,7 +2422,7 @@ and ACK contracts remain frozen. Apply/history/conflict/Metadata/prefix add **0 
   remain covered. Accepted response is an isolated valid fixture through the real
   durable acceptance commit, not a live Content upload.
 - Chromium network: API131, registration22, capability11, mode40, registry26,
-  bootstrap16, ACK16. Relative to C21.1.31: only two additional explicit ACK calls and
+  bootstrap16, ACK16. Relative to C21.2.01: only two additional explicit ACK calls and
   their four existing mode GETs; no new registration/capability/registry mechanism.
   Apply/lifecycle/conflict/Metadata/prefix HTTP **0**. Content push/pull/Resolution/
   protected apply/candidate-conflict/unrelated API requests **0**. No-progress zero HTTP.
@@ -2385,7 +2434,7 @@ and ACK contracts remain frozen. Apply/history/conflict/Metadata/prefix add **0 
   old proofs/local member/frozen/candidate/outbox/receipt are never rewritten.
 - Protected engine/game_data `.pyc` SHA256 unchanged. No backend/native/dependency edit.
   Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED.
-  Remote CI PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
+  Original execution report: remote CI was PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
 
 ### Простыми словами
 
@@ -2403,11 +2452,13 @@ Resolution и Content writer остаются отдельными задача�
 ещё не готова. Следующий ограниченный шаг — аудит Legacy self-echo локальной ветки
 в смешанной Content/Legacy группе, без выбора победителя и включения Content writer.
 
-## C21.1.33 — Legacy self-echo in a mixed Content conflict group
+## C21.2.03 — Legacy self-echo in a mixed Content conflict group
 
-C21.1.32 **REMOTELY ACCEPTED**: `4302477aa756ab7ee83ff4e3ee63b8030e158b4d`,
+Historical execution label: C21.1.33; canonicalized by C21.2.03A. No implementation or CI identity changed.
+
+C21.2.02 **REMOTELY ACCEPTED**: `4302477aa756ab7ee83ff4e3ee63b8030e158b4d`,
 Cloud **38793623485 SUCCESS**, all six required jobs SUCCESS (owner supplied).
-C21.1.33 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED**. Official **84.0%**, C21 **IN PROGRESS**,
+C21.2.03 **LOCAL COMPLETE / REMOTELY ACCEPTED** (`582c671eed7227250bd7c06b3c34e2f9b379a104`, Cloud **38852780341 SUCCESS**, all six required jobs SUCCESS (owner supplied)). Official **84.0%**, C21 **IN PROGRESS**,
 C21.1.06 **NOT LOCAL COMPLETE**, `ready=false`, no roadmap increment.
 
 ### Audit result: existing production behavior, explicit acceptance tests
@@ -2461,7 +2512,7 @@ accepted evidence. Legitimate unrelated upload acceptance is also covered as a s
 inventory race. Prepare without receipt yields no proven token or partial proof.
 
 Both R1→echo→R2 and R1→R2→echo preserve equivalent unresolved group semantics modulo
-IDs/server sequence ordering. Additional Content siblings after echo use C21.1.32
+IDs/server sequence ordering. Additional Content siblings after echo use C21.2.02
 historical-accepted authority; only that new sibling advances group generation. Receipt
 and own echo prove cloud durability of L, never conflict resolution or a winning branch.
 
@@ -2484,14 +2535,14 @@ ACK and authenticated reader/registry gates are reused.
 
 ### Validation and release status
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-16).
+**Historical local execution status: LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-16).
 **Production code changed: NO.** This slice accepts the existing path through mandatory
 regression tests, Chromium scenarios, workflow coverage and documentation.
 
 - New mixed-self-echo tests: **56 PASS** (47 core cases + 9 ACK cases) in the final
   mandatory run. Initial focused phase **55 PASS / 2 files**; final added case explicitly
   verifies subsequent Legacy mutation/seal after self-echo without resolving the group.
-- Relevant C21.1.32/.31/Legacy self-echo/upload regression phase: **147 PASS / 6 files**.
+- Relevant C21.2.02 / C21.2.01 / Legacy self-echo/upload regression phase: **147 PASS / 6 files**.
 - Final mandatory Cloud C21 persistence suite: **1649 PASS / 56 files**, no skipped tests;
   includes C21.1.30/.29, standalone self-echo, clean HTML/plain/Stage, lifecycle,
   upload acceptance and migration/open baselines.
@@ -2511,7 +2562,7 @@ regression tests, Chromium scenarios, workflow coverage and documentation.
   reopen. Acceptance uses isolated valid response fixtures through the real durable
   commit, not a live server upload or a new pull mechanism.
 - Chromium network: API134, registration22, capability11, mode42, registry26,
-  bootstrap16, ACK17. Relative to C21.1.32, one added explicit ACK scenario and its two
+  bootstrap16, ACK17. Relative to C21.2.02, one added explicit ACK scenario and its two
   existing mode GETs. Self-echo apply/receipt/group verification/prefix HTTP **0**;
   push/pull/Content writer/Resolution/protected apply/candidate-conflict/unrelated API
   requests **0**. No new registration/capability mechanism; no-progress zero HTTP.
@@ -2523,7 +2574,7 @@ regression tests, Chromium scenarios, workflow coverage and documentation.
   inbox transition. Protected engine/game_data `.pyc` SHA256 unchanged. No backend,
   PostgreSQL/Alembic, native/SQLite/Rust, dependency or frozen-contract changes.
 - Cloud backend tests EXPECTED; SQLite sync substrate NOT EXPECTED.
-  Remote CI PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
+  Original execution report: remote CI was PENDING — NOT POLLED / NOT WAITED. Official progress remains84.0%.
 
 ### Простыми словами
 
