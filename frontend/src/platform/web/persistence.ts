@@ -1,3 +1,4 @@
+import {validateBrowserV8State} from './contentAuthorityMigration'
 import { BrowserContentNoteApply } from './contentNoteApply'
 import {BrowserStageOrderApply} from './stageOrderApply'
 import { BrowserStageApply } from './stageApply'
@@ -21,7 +22,7 @@ import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } f
 import { BrowserSyncDurability, validateBrowserV2SyncState, validateBrowserV3SyncState, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 8
+export const WEB_DATABASE_VERSION = 9
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
@@ -48,7 +49,7 @@ function validateSchema(database: IDBDatabase, transaction: IDBTransaction, vers
   for (const [name, key, indexes] of schema) {
     const store = transaction.objectStore(name)
     if (JSON.stringify(store.keyPath) !== JSON.stringify(key) || store.autoIncrement || store.indexNames.length !== indexes.length
-      || indexes.some(([index, path, unique]) => !store.indexNames.contains(index) || store.index(index).unique !== unique || JSON.stringify(store.index(index).keyPath) !== JSON.stringify(path))) throw new BrowserPersistenceError('corrupt_record')
+      || indexes.some(([index, path, unique]) => !store.indexNames.contains(index) || store.index(index).unique !== unique || store.index(index).multiEntry || JSON.stringify(store.index(index).keyPath) !== JSON.stringify(path))) throw new BrowserPersistenceError('corrupt_record')
   }
 }
 
@@ -162,7 +163,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7].includes(event.oldVersion)) {
+      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7, 8].includes(event.oldVersion)) {
         abortUpgrade()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
@@ -171,7 +172,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
         const transaction = request.transaction!
         if (event.oldVersion > 0) {
           validateSchema(request.result, transaction, event.oldVersion)
-          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : event.oldVersion === 6 ? 10 : 11).map(([name]) => name)
+          const names = event.oldVersion === 1 ? STORES : SCHEMA.slice(0, event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : event.oldVersion === 6 ? 10 : event.oldVersion === 7 ? 11 : 12).map(([name]) => name)
           const requests = names.map(name => transaction.objectStore(name).getAll())
           let received = 0
           const validate = () => {
@@ -182,6 +183,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
               for (const identity of identities) validateRecords(identity, bindings.find(b => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
               if (event.oldVersion === 2) validateBrowserV2SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result)
               if (event.oldVersion === 3 || event.oldVersion === 4) validateBrowserV3SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result, requests[5]!.result)
+              if (event.oldVersion === 8) validateBrowserV8State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 7) validateBrowserV7State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 6) validateBrowserV6State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 5) validateBrowserV5State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
@@ -190,7 +192,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
           }
           for (const read of requests) read.onsuccess = validate
         }
-        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : event.oldVersion === 6 ? 10 : 11)) {
+        for (const [name, keyPath, indexes] of SCHEMA.slice(event.oldVersion === 0 ? 0 : event.oldVersion === 1 ? 2 : event.oldVersion === 2 ? 5 : event.oldVersion === 3 ? 6 : event.oldVersion === 4 ? 7 : event.oldVersion === 5 ? 8 : event.oldVersion === 6 ? 10 : event.oldVersion === 7 ? 11 : 12)) {
           const store = request.result.createObjectStore(name, { keyPath })
           for (const [index, path, unique] of indexes) store.createIndex(index, path, { unique })
         }

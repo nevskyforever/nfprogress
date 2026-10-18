@@ -1,17 +1,86 @@
 # C21.2.05 — Browser Content outbound authority and self-echo contract
 
-**DESIGN LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED. DESIGN ONLY.**
+**C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY.**
+C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY: SHA `86641d80c00305f9756c1d9fce8a2f7e81977ccc`,
+Cloud `39153860372` SUCCESS, all six required jobs SUCCESS (owner supplied).
 Date: 2026-10-18. Branch: `6.0`. Audited baseline:
 `13b9ff7b5ef6bfed97f40b563f426aea07f440d1` (`test(c21): audit content self echo authority`).
 C21.2.04 is **REMOTELY ACCEPTED — AUDIT ONLY**: Cloud `39066576774`,
 SUCCESS, all six required jobs SUCCESS (owner supplied). Its Content self-echo
 implementation remains BLOCKED; acceptance did not activate a writer.
 
-All contracts below marked **proposed** require future implementation and acceptance.
-Current database remains v8, writer/self-echo/Resolution remain disabled, `ready=false`.
+At the C21.2.05 baseline all contracts below were proposed; current implementation
+status is recorded in the C21.2.06 section. Writer/self-echo/Resolution remain disabled, `ready=false`.
 Official progress84.0%; C21/C21.2 IN PROGRESS; C21.1 ends at C21.1.30;
 C21.1.06 NOT LOCAL COMPLETE. No roadmap points. No production, migration, test,
 browser-script, workflow, dependency, native or backend edits in C21.2.05.
+
+## C21.2.06 — Browser Content durable formats / IndexedDB v9
+
+**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-19).
+C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY: SHA `86641d80c00305f9756c1d9fce8a2f7e81977ccc`,
+Cloud `39153860372` SUCCESS, all six required jobs SUCCESS (owner supplied).
+
+Current database **v9**, migrated from v8 as a compatibility/format gate. Exactly
+12 stores, unchanged key paths/indexes; no additions/deletions/recreation/downgrade.
+Versionchange validates the complete old schema (including multiEntry=false), old
+scope/record allowlists, source/history/receipt/ordinal/cohort joins and structural
+prefix/ACK constraints, without crypto or HTTP awaits. Existing rows are not rewritten;
+structural failures abort and preserve the v8 profile. Cryptographic authenticity
+is separately checked after unlock, never inferred from a SHA-256 digest.
+
+Read-only foundation: exact Content intent2, own candidate3, authenticated receipt2,
+separate self-echo proof2 and inbox9. New format/authentication/inventory validators
+are in contentAuthorityRecords.ts, contentAuthorityAuthentication.ts and
+contentAuthorityInventory.ts; keyless old-state gate in contentAuthorityMigration.ts.
+Version dispatch retains existing peer candidate2/proof1/conflict1/2 and Legacy
+candidate1/intent1/head1/group1/local_version1 contracts. Shared allocation counts
+both live intent versions. New evidence is authenticated before protected consumers
+use it; unrelated Legacy paths retain their own source and frozen wire semantics.
+
+No production producer creates I2/C3/R2/P2/inbox9. Legacy writer cannot take over a
+Content-owned candidate/intent. P2/inbox9 is recognized but remains **unqualified**:
+no new prefix certificate, no self-echo activation and no ACK crossing. Candidate3
+cannot become a new group1 local member or synthetic peer candidate. Existing
+Legacy mutation/seal/upload/self-echo and peer/mixed Content flows remain protected.
+No Content writer/sealer/uploader, Resolution, backend/native or dependency activation.
+
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1 final canonical slice C21.1.30;
+C21.1.06 NOT LOCAL COMPLETE; ready=false. No roadmap points.
+
+### Простыми словами
+
+Браузерное хранилище получает версию9 и строгие правила будущих записей Content.
+Существующие заметки и история при миграции не переписываются. Старый v8-клиент
+не может открыть v9: он не понимает новые форматы и должен безопасно отказаться.
+Если старая структура или данные повреждены, upgrade прерывается, исходный v8
+сохраняется. Проверка шифрования выполняется отдельно после разблокировки ключа.
+Content writer, отправка Content, собственное Content self-echo и Resolution ещё
+выключены; даже новый proof не даёт пройти ACK. Следующий ограниченный C21.2.07 —
+канонический источник и атомарное локальное Content intent/ownership без активации
+отправки. Полная Web-синхронизация ещё не готова.
+
+Validation: pre-bump keyless v8 preflight 15 PASS; final format/migration focused
+69 PASS (50 format/negative/read-only tests + 19 migration tests); affected Legacy,
+peer/mixed Content and prefix/ACK regressions 640 PASS / 20 files. Native Chromium
+231 case groups PASS, page errors0; nine v8/v9 variants cover populated sealed and
+accepted profiles, exact ciphertext/source/history preservation, interrupted upgrade,
+malformed schema/index, corrupt old record, cryptographic failure after unlock,
+future-version rejection, old v8 VersionError and full profile restart. Migration
+variants make zero API requests; existing overall suite has134 expected API calls,
+zero push/pull/Resolution/unrelated API calls. Existing prefix61/ACK61 and own Content
+barrier62 survive migration/reopen. Mandatory affected C21 suite **1730 PASS / 59 files**;
+post-type-fix focused + initial capture **100 PASS / 3 files**. Typecheck and production
+Vite build PASS (non-blocking existing bundling warnings); workflow YAML, mandatory
+suite inclusion, helper syntax, path filters and git diff --check PASS. Initial stale
+schema assertions, shared corruption-fixture mutation and two type errors were fixed;
+no unresolved failures. No native/backend builds; protected .pyc hashes unchanged.
+Expected Actions: Cloud backend tests YES; SQLite sync substrate NO. CI NOT POLLED.
+
+The original numbered design below remains the authoritative lifecycle contract.
+Its source inventory and "current v8" statements describe the accepted .05 baseline;
+C21.2.06 now implements its read-only formats and v9 gate. Producer/activation
+requirements in .07–.11 remain future work. No proposed field allowlists changed.
 
 ## 1. Existing authority inventory
 
@@ -77,7 +146,7 @@ writing are not automatically authorized. No mindmap, Resolution or full-Web cla
 **Four new top-level record variants**, plus the new inbox wrapper for one of them.
 No separate working-source store, frozen Content version, outbound-binding store or
 accepted-binding store. Version numbers below are reservations in this design only;
-recheck they remain unused before implementation.
+C21.2.06 reserves and validates these exact versions; production creation remains disabled.
 
 Notation: S=(canonicalUserId, accountId, deviceId); H is the existing canonical
 SHA-256 helper noteProofDigest, not a MAC; E is existing LocalEnvelope crypto1/AAD1.
@@ -504,7 +573,7 @@ reset. Recovery never copies native authority or fabricates proof from peer data
 | 2 — v9 format gate, same physical stores/indexes | Old v8 client fails VersionError/unsupported_version before accessing the new profile. Explicit one-way acceptance boundary; existing unique Note/event/ordinal/sequence indexes reused. | Upgrade prevents opening that profile with v8 even before writer activation; all account-wide readers need new dispatch. Upgrade/reopen acceptance required. | Validate old schema and structural retained invariants atomically; preserve all old bytes; crypto verification after unlock before authority use. Abort upgrade on structural corruption; no generated provenance. **RECOMMENDED.** |
 | 3 — separate authority DB/store family or other minimal format gate | Separate new writer data can be isolated by name; avoids adding variants to some old readers. | Separate database breaks one-transaction source/intent/outbox atomicity and old source ownership safety. An extra store still needs v9 because current validateSchema requires exact stores/indexes. Additional per-Note ownership/source format adds complexity. | Cross-DB recovery/reconciliation would require a larger protocol. A new-store variant also needs explicit versioning and more migration coverage. Reject; no dual canonical sources. |
 
-**Recommend Option2: future IndexedDB v9. No migration is implemented now.** This is
+**Option2 selected: C21.2.06 implements the v9 format gate, with no writer activation.** This is
 an intentional format/old-client exclusion decision, not a claim IDB physically
 requires a version bump just to hold JSON. Current v8 remains correct for its barrier.
 

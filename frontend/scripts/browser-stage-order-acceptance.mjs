@@ -1,6 +1,6 @@
 import {acceptContentNoteBoundary} from './browser-content-note-boundary-acceptance.mjs'
 import assert from 'node:assert/strict'
-export async function acceptStageOrder({page,scope:originalScope,cases,reopenProfile,network}){
+export async function acceptStageOrder({page,scope:originalScope,cases,reopenProfile,network,captureV8Profile}){
  const names=['identities','accountBindings','inbox','outbox','receipts','cursors','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents'],project='stage-order-project',stamp='2026-10-14T00:00:00.000000Z',peer='44444444-4444-4444-8444-444444444444'
  const snap=()=>page.evaluate(async names=>Object.fromEntries(await Promise.all(names.map(async n=>[n,await nativeRows(n)]))),names)
  const counts=()=>Object.fromEntries(Object.entries(network).map(([k,v])=>[k,v.length])),start=counts()
@@ -75,7 +75,7 @@ export async function acceptStageOrder({page,scope:originalScope,cases,reopenPro
   const afterOwnPhase=await snap();assert.deepEqual(afterOwnPhase.legacyNoteHistory.filter(r=>r.record_kind==='group'||r.record_kind==='local_version'),beforeOwnPhase.legacyNoteHistory.filter(r=>r.record_kind==='group'||r.record_kind==='local_version'));if(phase==='accept'){assert.deepEqual(afterOwnPhase.localNotes,beforeOwnPhase.localNotes);assert.deepEqual(afterOwnPhase.localProjects,beforeOwnPhase.localProjects)}
 
   assert.equal((await page.evaluate(scope=>sp.advance(scope),retainedScope)).candidate_proven_prefix,61)
-  const phaseSnapshot=await snap();page=await reopenProfile();await open()
+  const phaseSnapshot=await snap();if(captureV8Profile)captureV8Profile({scope:retainedScope,snapshot:phaseSnapshot,phase});page=await reopenProfile();await open()
   assert.equal((await page.evaluate(scope=>sp.advance(scope),retainedScope)).candidate_proven_prefix,61)
   for(const seq of [50,51,54,56,57,58,61,67])assert.equal(await page.evaluate(({scope,seq})=>session.contentNotes.bind(meta.auth,meta.bindings,meta.keys).apply(scope,seq),{scope:retainedScope,seq}),'already_applied')
   assert.equal(await page.evaluate(async({scope,phase})=>{if(phase==='accept')return await session.notes.bind(meta.auth,meta.bindings,meta.keys).apply(scope,70)==='already_applied';const rows=await nativeRows('inbox');return rows.find(r=>r.account_id===scope.accountId&&r.server_sequence===70).state==='received'},{scope:retainedScope,phase}),true)

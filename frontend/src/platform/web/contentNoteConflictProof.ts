@@ -1,5 +1,5 @@
+import {validateNoteIntentRecord} from './noteIntentRecords'
 import {openFrozenLocalVersion} from './noteUnsealedVersion'
-import {validateNoteIntent} from './noteIntentRecords'
 import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {unsealedPlaintext} from './noteUnsealedVersion'
 import type {AccountMasterKey} from '@/crypto'
@@ -53,7 +53,7 @@ export async function verifyPeerNoteGroup(scope:BrowserSyncScope,g:BrowserNoteCo
 export function verifyCurrentContentLocalVersion(scope:BrowserSyncScope,g:BrowserNoteConflictGroup,history:BrowserNoteHistoryRecord[],intents:readonly unknown[],localNotes:readonly unknown[]):void{
  const member=g.members.find(m=>m.source==='local_unsealed');if(!member)return
  const v=history.find((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version'&&r.version_id===member.version_id),head=history.find(r=>r.record_kind==='head'&&r.project_id===g.project_id&&r.note_id===g.note_id)
- const current=intents.map(i=>validateNoteIntent(i,scope)).filter(i=>i.project_id===g.project_id&&i.note_id===g.note_id)
+ const current=intents.map(i=>validateNoteIntentRecord(i,scope)).filter(i=>i.project_id===g.project_id&&i.note_id===g.note_id)
  const notes=localNotes.filter(n=>(n as {account_id:string;project_id:string;note_id:string}).account_id===scope.accountId&&(n as {project_id:string}).project_id===g.project_id&&(n as {note_id:string}).note_id===g.note_id)
  if(!head||head.record_kind!=='head'||head.linear_head_event_id!==g.common_parent_event_id||!v||current.length!==1||!same(current[0],v.intent)||notes.length!==1||!same(notes[0],v.intent.snapshot))bad()
 }
@@ -83,14 +83,14 @@ export async function verifyContentLocalAdmission(scope:BrowserSyncScope,g:Brows
  function reject():never{throw new BrowserPersistenceError('note_conflict_unproven')}
  const {member,version,local,sealed}=await openContentLocalBranch(scope,g,history,amk,lifecycle)
  if(incoming.header.parent_event_id!==g.common_parent_event_id||incoming.header.revision!==g.tip_revision||route.some(k=>!same(incoming.note[k],local.note[k])))reject()
- const current=intents.map(i=>validateNoteIntent(i,scope)),original=current.filter(i=>i.event_id===member.event_id)
+ const current=intents.map(i=>validateNoteIntentRecord(i,scope)),original=current.filter(i=>i.event_id===member.event_id)
  if(original.length>1)reject()
  if(sealed){
   if(original.length)reject() // Same-event pending + sealed cannot be an externally observable legal state.
   return 'historical_sealed' as const
  }
  const intent=original[0],own=current.filter(i=>i.project_id===g.project_id&&i.note_id===g.note_id),notes=localNotes.filter(n=>(n as {account_id:string;project_id:string;note_id:string}).account_id===scope.accountId&&(n as {project_id:string}).project_id===g.project_id&&(n as {note_id:string}).note_id===g.note_id)
- if(!intent||own.length!==1||lifecycle.out.some(r=>(r as {event_id:string}).event_id===member.event_id)||lifecycle.receipts.some(r=>(r as {event_id:string}).event_id===member.event_id)||intent.bootstrap_id!==g.bootstrap_id||intent.project_id!==g.project_id||intent.note_id!==g.note_id||intent.parent_event_id!==g.common_parent_event_id||intent.revision!==g.tip_revision||intent.local_ordinal!==version.intent.local_ordinal||intent.mutation_generation<version.intent.mutation_generation||notes.length!==1||!same(notes[0],intent.snapshot))reject()
+ if(!intent||intent.record_version!==1||own.length!==1||lifecycle.out.some(r=>(r as {event_id:string}).event_id===member.event_id)||lifecycle.receipts.some(r=>(r as {event_id:string}).event_id===member.event_id)||intent.bootstrap_id!==g.bootstrap_id||intent.project_id!==g.project_id||intent.note_id!==g.note_id||intent.parent_event_id!==g.common_parent_event_id||intent.revision!==g.tip_revision||intent.local_ordinal!==version.intent.local_ordinal||intent.mutation_generation<version.intent.mutation_generation||notes.length!==1||!same(notes[0],intent.snapshot))reject()
  const value=await unsealedPlaintext(scope,intent,amk)
  if(route.some(k=>!same(local.note[k],value.note[k])))reject()
  return 'current_unsealed' as const

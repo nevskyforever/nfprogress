@@ -1,3 +1,4 @@
+import {validateContentReceipt2,contentBaseReceipt,validateContentSelfEchoProof2,type BrowserContentSelfEchoProof2,type BrowserAnyUploadReceipt} from './contentAuthorityRecords'
 import {validateContentNoteConflictProof,type BrowserContentNoteConflictProof} from './contentNoteRecords'
 import { validateContentNoteProof,type BrowserContentNoteProof } from './contentNoteRecords'
 import {validateStageOrderProof,type BrowserStageOrderProof} from './stageOrderRecords'
@@ -29,7 +30,8 @@ export interface BrowserStageOrderInboxRecord extends Omit<BrowserReceivedInboxR
 export interface BrowserStageInboxRecord extends Omit<BrowserReceivedInboxRecord,'record_version'|'state'> {record_version:5;state:'stage_proven';stage_proof:BrowserStageProof}
 export interface BrowserContentNoteConflictInboxRecord extends Omit<BrowserReceivedInboxRecord,'record_version'|'state'> {record_version:8;state:'content_note_conflict_preserved';content_note_conflict_proof:BrowserContentNoteConflictProof}
 export interface BrowserContentNoteInboxRecord extends Omit<BrowserReceivedInboxRecord,'record_version'|'state'> {record_version:7;state:'content_note_proven';content_note_proof:BrowserContentNoteProof}
-export type BrowserInboxRecord = BrowserContentNoteConflictInboxRecord | BrowserContentNoteInboxRecord | BrowserStageOrderInboxRecord | BrowserStageInboxRecord | BrowserReceivedInboxRecord | BrowserAppliedInboxRecord | BrowserNoteInboxRecord | BrowserNoteConflictInboxRecord
+export interface BrowserContentSelfEchoInboxRecord extends Omit<BrowserReceivedInboxRecord,'record_version'|'state'> {record_version:9;state:'content_note_self_echo_proven';content_note_self_echo_proof:BrowserContentSelfEchoProof2}
+export type BrowserInboxRecord = BrowserContentSelfEchoInboxRecord | BrowserContentNoteConflictInboxRecord | BrowserContentNoteInboxRecord | BrowserStageOrderInboxRecord | BrowserStageInboxRecord | BrowserReceivedInboxRecord | BrowserAppliedInboxRecord | BrowserNoteInboxRecord | BrowserNoteConflictInboxRecord
 export interface BrowserUploadReceipt {
   record_version: 1; account_id: string; device_id: string; event_id: string
   protocol_version: 2 | 3; server_sequence: number; duplicate: boolean
@@ -39,7 +41,7 @@ export type BrowserEncryptedHistoryReference = V3Descriptor | AccountDescriptor
 export interface BrowserRetainedEncryptedHistory {
   reference: BrowserEncryptedHistoryReference
   outbox: BrowserOutboxRecord | null
-  receipt: BrowserUploadReceipt | null
+  receipt: BrowserAnyUploadReceipt | null
   inbox: BrowserInboxRecord | null
 }
 
@@ -168,10 +170,20 @@ export function validateBrowserUploadPair(value: unknown, receipt: unknown, scop
   const row = outbox(value, scope)
   if (receipt === undefined) { if (row.state !== 'sealed') failure(); return row }
   if (!exact(receipt, ['record_version','account_id','device_id','event_id','protocol_version','server_sequence','duplicate'])) failure()
-  const proof = receipt as BrowserUploadReceipt
+  const proof = receipt as BrowserAnyUploadReceipt
   if (row.state !== 'accepted' || proof.record_version !== 1 || proof.account_id !== row.account_id || proof.device_id !== row.device_id
     || proof.event_id !== row.event_id || proof.protocol_version !== row.protocol_version || !safe(proof.server_sequence, 1) || typeof proof.duplicate !== 'boolean') failure()
   return row
+}
+
+/** Version-aware storage read, NOT authenticated acceptance or permission to ACK. */
+export function validateBrowserStoredUploadPair(value:unknown,receipt:unknown,scope:BrowserSyncScope):BrowserOutboxRecord{
+ if((receipt as {record_version?:number})?.record_version===2){
+  const r=validateContentReceipt2(receipt,scope),o=validateBrowserUploadPair(value,contentBaseReceipt(r),scope),e=JSON.parse(o.raw_body).items[0].event
+  if(o.protocol_version!==3||e.entity_type!=='note'||e.operation!=='event'||e.deleted_at!==null)failure()
+  return o
+ }
+ return validateBrowserUploadPair(value,receipt,scope)
 }
 
 export function prepareBrowserUploadAcceptance(scope: BrowserSyncScope, expected: BrowserOutboxRecord, response: unknown): BrowserUploadReceipt {
@@ -226,13 +238,25 @@ export function validateBrowserV3SyncState(scopes: BrowserSyncScope[], outbound:
 }
 
 export function validateBrowserInboxRecord(value: unknown, scope: BrowserSyncScope): BrowserInboxRecord {
+  if((value as {record_version?:number})?.record_version===9||(value as {state?:string})?.state==='content_note_self_echo_proven'){
+    if(!exact(value,['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item','content_note_self_echo_proof']))failure()
+    const r=value as BrowserContentSelfEchoInboxRecord
+    if(r.record_version!==9||r.state!=='content_note_self_echo_proven'||r.protocol_version!==3)failure()
+    const {content_note_self_echo_proof:proof,...base}=r
+    // Received structural view only; never a synthetic Legacy/peer outcome or stored write.
+    validateBrowserInboxRecord({...base,record_version:1,state:'received'},scope)
+    const p=validateContentSelfEchoProof2(proof,scope)
+    if(p.history_event_id!==r.event_id||p.server_sequence!==r.server_sequence||immutableWireIdentity(p.reference)!==immutableWireIdentity(JSON.parse(r.wire_item).event))failure()
+    return r
+  }
+
   const contentConflict=(value as BrowserInboxRecord)?.state==='content_note_conflict_preserved'
   const content=(value as BrowserInboxRecord)?.state==='content_note_proven'
   const order=(value as BrowserInboxRecord)?.state==='stage_order_proven'
   const stage=(value as BrowserInboxRecord)?.state==='stage_proven'
   const applied = (value as BrowserInboxRecord)?.state === 'applied', note = (value as BrowserInboxRecord)?.state === 'note_proven', conflict=(value as BrowserInboxRecord)?.state==='note_conflict_preserved'
   if (!exact(value, ['record_version','account_id','device_id','event_id','server_sequence','protocol_version','state','wire_item', ...(applied ? ['applied_proof'] : note ? ['note_proof'] : conflict ? ['note_conflict_proof'] : stage ? ['stage_proof'] : order ? ['stage_order_proof'] : content ? ['content_note_proof'] : contentConflict ? ['content_note_conflict_proof'] : [])])) failure()
-  const row = value as BrowserInboxRecord
+  const row = value as Exclude<BrowserInboxRecord,BrowserContentSelfEchoInboxRecord>
   if (row.record_version !== (applied ? 2 : note ? 3 : conflict ? 4 : stage ? 5 : order ? 6 : content ? 7 : contentConflict ? 8 : 1) || row.account_id !== scope.accountId || row.device_id !== scope.deviceId || !['received','applied','note_proven','note_conflict_preserved','stage_proven','stage_order_proven','content_note_proven','content_note_conflict_preserved'].includes(row.state) || !safe(row.server_sequence, 1)) failure()
   const item = wireJSON(row.wire_item, true) as WireItem
   validatePage({ protocol_version: row.protocol_version, encrypted_sync_version: row.protocol_version, items: [item], next_cursor: row.server_sequence, has_more: false }, row.server_sequence - 1, scope.canonicalUserId)
@@ -277,21 +301,21 @@ export function validateBrowserRetainedHistory(
 ): BrowserRetainedEncryptedHistory {
   scope = snapshotScope(scope); reference = historyReference(reference, scope)
   let outgoing: BrowserOutboxRecord | null = null, received: BrowserInboxRecord | null = null
-  if (outbound !== undefined || receipt !== undefined) outgoing = validateBrowserUploadPair(outbound, receipt, scope)
+  if (outbound !== undefined || receipt !== undefined) outgoing = validateBrowserStoredUploadPair(outbound, receipt, scope)
   if (inbound !== undefined) received = validateBrowserInboxRecord(inbound, scope)
   if (outgoing && outgoing.event_id !== reference.event_id || received && received.event_id !== reference.event_id) failure('conflicting_record')
   if (outgoing && received) {
     assertOwnEcho(outgoing, wireJSON(received.wire_item) as WireItem)
-    if (receipt !== undefined && (receipt as BrowserUploadReceipt).server_sequence !== received.server_sequence) failure('conflicting_record')
+    if (receipt !== undefined && (receipt as BrowserAnyUploadReceipt).server_sequence !== received.server_sequence) failure('conflicting_record')
   }
   const accepted = outgoing?.state === 'accepted' ? outgoing : null
   if (!accepted && !received) throw new BrowserPersistenceError('missing_history')
   const descriptor = received ? (wireJSON(received.wire_item) as WireItem).event : {
     ...(wireJSON(accepted!.raw_body) as WirePage).items[0]!.event,
-    device_id: accepted!.device_id, server_sequence: (receipt as BrowserUploadReceipt).server_sequence,
+    device_id: accepted!.device_id, server_sequence: (receipt as BrowserAnyUploadReceipt).server_sequence,
   }
   if (immutableWireIdentity(descriptor) !== immutableWireIdentity(reference)) failure('conflicting_record')
-  return { reference, outbox: accepted, receipt: accepted ? receipt as BrowserUploadReceipt : null, inbox: received }
+  return { reference, outbox: accepted, receipt: accepted ? receipt as BrowserAnyUploadReceipt : null, inbox: received }
 }
 
 /** Dormant encrypted transport/upload proof durability. No fetch, keys, plaintext, apply or ACK methods. */
@@ -319,7 +343,7 @@ export class BrowserSyncDurability {
               if (++ready !== 2) return
               try {
                 if (read.result !== undefined) {
-                  const stored = validateBrowserUploadPair(read.result, proof.result, scope)
+                  const stored = validateBrowserStoredUploadPair(read.result, proof.result, scope)
                   if (immutableWireIdentity(wireJSON(stored.raw_body)) !== immutableWireIdentity(wireJSON(input.raw))) failure('conflicting_record')
                   results.push({ status: 'already_enqueued', item: stored })
                 } else {
@@ -353,7 +377,7 @@ export class BrowserSyncDurability {
           const proof = tx.objectStore('receipts').get([scope.accountId, current.value.event_id])
           proof.onsuccess = () => {
             try {
-              const row = validateBrowserUploadPair(current.value, proof.result, scope)
+              const row = validateBrowserStoredUploadPair(current.value, proof.result, scope)
               if (!eligibleOnly || row.state === 'sealed') records.push(row)
               if (records.length === limit) result(records)
               else current.continue()
@@ -366,7 +390,7 @@ export class BrowserSyncDurability {
   listSealed(scope: BrowserSyncScope, limit = 200): Promise<BrowserOutboxRecord[]> { return this.listOutbound(scope, limit, true) }
   listOutbox(scope: BrowserSyncScope, limit = 200): Promise<BrowserOutboxRecord[]> { return this.listOutbound(scope, limit, false) }
 
-  readUploadReceipt(scope: BrowserSyncScope, eventId: string): Promise<BrowserUploadReceipt | null> {
+  readUploadReceipt(scope: BrowserSyncScope, eventId: string): Promise<BrowserAnyUploadReceipt | null> {
     scope = snapshotScope(scope)
     return this.transaction(scope, ['outbox', 'receipts'], 'readonly', (tx, result, fail) => {
       const event = tx.objectStore('outbox').get([scope.accountId, eventId]), proof = tx.objectStore('receipts').get([scope.accountId, eventId])
@@ -375,7 +399,7 @@ export class BrowserSyncDurability {
         if (++ready !== 2) return
         try {
           if (event.result === undefined && proof.result === undefined) { result(null); return }
-          validateBrowserUploadPair(event.result, proof.result, scope)
+          validateBrowserStoredUploadPair(event.result, proof.result, scope)
           result(proof.result ?? null)
         } catch (error) { fail(error) }
       }
@@ -398,7 +422,7 @@ export class BrowserSyncDurability {
           if (++ready !== 5) return
           try {
             if (event.result === undefined) failure('conflicting_record')
-            const row = validateBrowserUploadPair(event.result, proof.result, scope)
+            const row = validateBrowserStoredUploadPair(event.result, proof.result, scope)
             if (row.raw_body !== expected.raw_body || row.local_ordinal !== expected.local_ordinal || row.protocol_version !== expected.protocol_version
               || row.event_id !== expected.event_id || row.account_id !== expected.account_id || row.device_id !== expected.device_id) failure('conflicting_record')
             if (sequence.result !== undefined && sequence.result.event_id !== row.event_id) failure('conflicting_record')
@@ -507,7 +531,7 @@ export class BrowserSyncDurability {
                   if (++received !== 4) return
                   try {
                     if (outbound.result !== undefined) {
-                      assertOwnEcho(validateBrowserUploadPair(outbound.result, proof.result, scope), item)
+                      assertOwnEcho(validateBrowserStoredUploadPair(outbound.result, proof.result, scope), item)
                       if (proof.result !== undefined && proof.result.server_sequence !== seq) failure('conflicting_record')
                     }
                     else if (proof.result !== undefined) failure()

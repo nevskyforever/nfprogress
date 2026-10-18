@@ -12,11 +12,11 @@ export function validateBrowserV5State(scopes: BrowserSyncScope[], stores: unkno
   const [outbound, inbound, cursors, receipts, bindings, heads] = stores as [unknown[],unknown[],unknown[],unknown[],unknown[],unknown[]]
   const scopeFor = (value: unknown) => scopes.find(s => s.accountId === (value as { account_id?: string })?.account_id) ?? bad()
   const inbox = inbound.map(value => validateBrowserInboxRecord(value, scopeFor(value)))
-  if(inbox.some(row=>['note_proven','note_conflict_preserved','stage_proven','stage_order_proven','content_note_proven','content_note_conflict_preserved'].includes(row.state)))bad() // v5 never contained Note or Stage runtime outcomes.
+  if(inbox.some(row=>['note_proven','note_conflict_preserved','stage_proven','stage_order_proven','content_note_proven','content_note_conflict_preserved','content_note_self_echo_proven'].includes(row.state)))bad() // v5 never contained Note or Stage runtime outcomes.
   // Detached received views validate legacy transport invariants without erasing applied state/proof.
   validateBrowserV3SyncState(scopes, outbound, inbox.map(row => {
     if (row.state === 'received') return structuredClone(row)
-    if (row.state === 'note_proven'||row.state==='note_conflict_preserved'||row.state==='stage_proven'||row.state==='stage_order_proven'||row.state==='content_note_proven'||row.state==='content_note_conflict_preserved') return bad()
+    if (row.state === 'note_proven'||row.state==='note_conflict_preserved'||row.state==='stage_proven'||row.state==='stage_order_proven'||row.state==='content_note_proven'||row.state==='content_note_conflict_preserved'||row.state==='content_note_self_echo_proven') return bad()
     const { applied_proof: _proof, ...received } = row
     return { ...received, record_version: 1, state: 'received' }
   }), cursors, receipts)

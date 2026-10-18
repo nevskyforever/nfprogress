@@ -1,3 +1,4 @@
+import {authenticateContentCandidate3} from './contentAuthorityAuthentication'
 import { openNoteTransport } from './noteTransport'
 import { isDeferredNoteTransportCandidate, type VerifiedNoteTransportCommit } from './noteTransportPrerequisite'
 import { openFrozenLocalVersion } from './noteUnsealedVersion'
@@ -38,7 +39,7 @@ async function verifyProjection(scope:BrowserSyncScope,c:BrowserNoteCandidate,va
  }finally{bytes?.fill(0);nonce?.fill(0);ciphertext?.fill(0)}
 }
 export async function openHistoryCandidate(scope:BrowserSyncScope,c:BrowserNoteCandidate,amk:AccountMasterKey):Promise<NoteSyncPlaintext>{
- validateNoteHistoryRecord(c,scope);const item=JSON.parse(c.wire_item)
+ validateNoteHistoryRecord(c,scope);if(c.record_version===3)return authenticateContentCandidate3(scope,c,amk,()=>true);const item=JSON.parse(c.wire_item)
  try{if(await candidateDigest(c)!==c.record_digest||await noteProofDigest({protocol_version:c.protocol_version,item})!==c.wire_digest)fail()
   const {plaintext:value,content}=await openNoteTransport(scope,amk,c.protocol_version,c.wire_item,c.record_version===1?'legacy':'content_note_v1')
   if(!same(value.header,c.header))fail()

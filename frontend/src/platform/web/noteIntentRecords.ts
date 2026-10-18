@@ -1,3 +1,4 @@
+import {validateContentIntent2,type BrowserAnyNoteIntent} from './contentAuthorityRecords'
 import type { NoteSyncSealState,NoteSyncSealErrorCode } from '@/cloud/noteSyncIntent'
 import { timestamp } from '@/cloud/projectMetadataCodec'
 import { BrowserPersistenceError } from './persistence'
@@ -26,4 +27,9 @@ export function validateNoteIntent(v:unknown,s:BrowserSyncScope):BrowserNoteInte
  validateLocalNoteRecord({...r.snapshot,envelope:r.intent_envelope},s,r.project_id)
  const p=validateLocalNoteRecord(r.snapshot,s,r.project_id);if(p.note_id!==r.note_id||p.deleted!==(r.operation==='delete'))bad()
  return r
+}
+
+/** Structural version dispatch; neither branch authenticates an encrypted intent. */
+export function validateNoteIntentRecord(value:unknown,scope:BrowserSyncScope):BrowserAnyNoteIntent {
+ return (value as {record_version?:number})?.record_version===2?validateContentIntent2(value,scope):validateNoteIntent(value,scope)
 }

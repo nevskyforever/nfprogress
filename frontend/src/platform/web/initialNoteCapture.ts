@@ -1,4 +1,6 @@
-import { NOTE_INTENT_STORE,validateNoteIntent } from './noteIntentRecords'
+import {CONTENT_AUTHORITY_STORES,readContentAuthorityInventory,authenticateContentAuthorityInventory,contentAuthorityAnchor,type ContentAuthorityInventory} from './contentAuthorityInventory'
+import {validateNoteIntentRecord} from './noteIntentRecords'
+import { NOTE_INTENT_STORE } from './noteIntentRecords'
 import { makeHistoryCandidate,nextNoteHead,historyRange } from './noteHistory'
 import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteCandidate } from './noteHistoryRecords'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
@@ -12,17 +14,17 @@ import { encodeNoteSyncPlaintext, noteSyncEligibility } from '@/cloud/noteSyncCo
 import { BrowserPersistenceError } from './persistence'
 import { BrowserLocalAuthority, assertLocalSourceInTransaction, type LocalSourceToken } from './localAuthority'
 import { BrowserProjectBindings, validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
-import { immutableWireIdentity, readBrowserSyncCursor, snapshotBrowserSyncScope, validateBrowserSealedBody, validateBrowserInboxRecord, validateBrowserUploadPair, type BrowserOutboxRecord, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
+import { immutableWireIdentity, readBrowserSyncCursor, snapshotBrowserSyncScope, validateBrowserSealedBody, validateBrowserInboxRecord, validateBrowserStoredUploadPair, type BrowserOutboxRecord, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
 
 export interface InitialLegacyNotePlan { readonly verifiedInitialLegacyNotePlan: unique symbol }
 export interface InitialLegacyCohortStatus { event_count: number; accepted_count: number; complete: boolean; max_server_sequence: number }
 export interface InitialLegacyCaptureResult { status: 'captured' | 'already_captured'; binding: BrowserProjectBinding }
 interface PreparedEvent { noteId: string; eventId: string; raw: string; candidate:BrowserNoteCandidate }
-interface Plan { owner: BrowserInitialNoteCaptureRuntime; scope: BrowserSyncScope; binding: BrowserProjectBinding; source: LocalSourceToken; sourceRevision: number; events: PreparedEvent[]; current: () => boolean }
+interface Plan { authorityAnchor:string;owner: BrowserInitialNoteCaptureRuntime; scope: BrowserSyncScope; binding: BrowserProjectBinding; source: LocalSourceToken; sourceRevision: number; events: PreparedEvent[]; current: () => boolean }
 const plans = new WeakMap<object, Plan>()
 const same = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b)
 const range = (account: string) => IDBKeyRange.bound([account], [account, []])
-function fail(code: 'corrupt_record' | 'conflicting_record' | 'stale_lineage' | 'invalid_lineage_transition' | 'closed' | 'unsupported_local_source' | 'source_limit' = 'corrupt_record'): never { throw new BrowserPersistenceError(code) }
+function fail(code: 'corrupt_record' | 'conflicting_record' | 'stale_source' | 'stale_lineage' | 'invalid_lineage_transition' | 'closed' | 'unsupported_local_source' | 'source_limit' = 'corrupt_record'): never { throw new BrowserPersistenceError(code) }
 function eligible(row: BrowserProjectBinding): void {
   if (row.mode !== 'upload_existing' || row.phase !== 'registered' || row.remote_state !== 'initializing') fail('invalid_lineage_transition')
 }
@@ -42,7 +44,7 @@ export function deriveInitialLegacyCohort(scope: BrowserSyncScope, value: unknow
   const count = binding.initial_event_count, hi = binding.initial_local_ordinal_hi, lo = hi - count + 1
   const candidates = outbound.filter(v => { const r = v as BrowserOutboxRecord; return r.account_id === scope.accountId && r.device_id === scope.deviceId && count > 0 && r.local_ordinal >= lo && r.local_ordinal <= hi })
   if (candidates.length !== count) fail()
-  const rows = candidates.map(v => validateBrowserUploadPair(v, receipts.find(p => (p as { account_id: string; event_id: string }).account_id === scope.accountId && (p as { event_id: string }).event_id === (v as BrowserOutboxRecord).event_id), scope)).sort((a,b) => a.local_ordinal - b.local_ordinal)
+  const rows = candidates.map(v => validateBrowserStoredUploadPair(v, receipts.find(p => (p as { account_id: string; event_id: string }).account_id === scope.accountId && (p as { event_id: string }).event_id === (v as BrowserOutboxRecord).event_id), scope)).sort((a,b) => a.local_ordinal - b.local_ordinal)
   const entities = new Set<string>(), events = new Set<string>(), sequences = new Set<number>()
   let accepted = 0, max = 0, previousId: string | undefined
   rows.forEach((row, i) => {
@@ -73,6 +75,7 @@ export class BrowserInitialNoteCaptureRuntime {
   async prepare(scope: BrowserSyncScope, expected: BrowserProjectBinding): Promise<InitialLegacyNotePlan> {
     scope = snapshotBrowserSyncScope(scope); expected = validateBrowserProjectBinding(expected, scope); eligible(expected)
     const current = await this.guard(scope)
+    const authority=await this.transaction<ContentAuthorityInventory>(scope,CONTENT_AUTHORITY_STORES,'readonly',(tx,result,abort)=>readContentAuthorityInventory(tx,scope,result,abort))
     if (!same(await this.projects.read(scope, expected.project_id), expected)) fail('stale_lineage')
     const source = this.local.bind(this.auth, this.bindings, this.keys), snapshot = await source.readSnapshot(scope, expected.project_id)
     const events = await source.withDecryptedSnapshot(scope, snapshot.token, async data => {
@@ -89,6 +92,7 @@ export class BrowserInitialNoteCaptureRuntime {
       const lease = this.keys.leaseForAccount(scope.accountId)
       if (!lease || !current()) fail('closed')
       return lease.use(async amk => {
+        await authenticateContentAuthorityInventory(scope,authority,amk,current)
         const result: PreparedEvent[] = []
         for (const p of prepared) {
           let bytes: Uint8Array | undefined, object: ObjectCryptoEnvelope | undefined
@@ -110,7 +114,7 @@ export class BrowserInitialNoteCaptureRuntime {
     })
     if (!current()) fail('closed')
     const token = Object.freeze({}) as InitialLegacyNotePlan
-    plans.set(token, { owner: this, scope, binding: expected, source: snapshot.token, sourceRevision: snapshot.source_revision, events, current })
+    plans.set(token, { authorityAnchor:contentAuthorityAnchor(scope,authority),owner: this, scope, binding: expected, source: snapshot.token, sourceRevision: snapshot.source_revision, events, current })
     return token
   }
   async commit(scope: BrowserSyncScope, token: InitialLegacyNotePlan): Promise<InitialLegacyCaptureResult> {
@@ -133,13 +137,14 @@ export class BrowserInitialNoteCaptureRuntime {
           if (!same(cohort.rows.map(r => ({ noteId: JSON.parse(r.raw_body).items[0].event.entity_id, eventId: r.event_id, raw: r.raw_body })), p.events.map(e=>({noteId:e.noteId,eventId:e.eventId,raw:e.raw})))) fail('conflicting_record')
           result({ status: 'already_captured', binding: old }); return // No current source read/re-capture.
         }
+        readContentAuthorityInventory(tx,scope,authority=>{try{if(contentAuthorityAnchor(scope,authority)!==p.authorityAnchor)fail('stale_source')
         eligible(old); if (!same(old, p.binding)) fail('stale_lineage')
         assertLocalSourceInTransaction(tx, scope, p.source, () => {
           readBrowserSyncCursor(tx, scope, state => { try {
             if (!p.current()) fail('closed')
-            const rows = out.result.map(v => validateBrowserUploadPair(v, receipts.result.find(receipt => receipt.event_id === v.event_id), scope))
+            const rows = out.result.map(v => validateBrowserStoredUploadPair(v, receipts.result.find(receipt => receipt.event_id === v.event_id), scope))
             if (receipts.result.some(receipt => !rows.some(r => r.event_id === receipt.event_id))) fail()
-            const pending=intents.result.map(v=>validateNoteIntent(v,scope)),ordinals=[...rows,...pending].map(r=>r.local_ordinal).sort((a,b)=>a-b),highest=ordinals.at(-1)??0
+            const pending=intents.result.map(v=>validateNoteIntentRecord(v,scope)),ordinals=[...rows,...pending].map(r=>r.local_ordinal).sort((a,b)=>a-b),highest=ordinals.at(-1)??0
             if(ordinals.some((v,i)=>v!==i+1)||state.next_local_ordinal!==highest+1)fail()
             const count = p.events.length, end = state.next_local_ordinal + count
             if (!Number.isSafeInteger(end)) fail('source_limit')
@@ -165,6 +170,7 @@ export class BrowserInitialNoteCaptureRuntime {
             result({ status: 'captured', binding: target })
           } catch (e) { abort(e) } }, abort)
         }, abort)
+        }catch(e){abort(e)}},abort)
       } catch (e) { abort(e) } }
       binding.onsuccess = finish; out.onsuccess = finish; receipts.onsuccess = finish; incoming.onsuccess = finish; history.onsuccess=finish; intents.onsuccess=finish
     }).finally(() => unsubscribe?.())

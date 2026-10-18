@@ -1,3 +1,4 @@
+import {validateContentCandidate3,type BrowserContentCandidate3} from './contentAuthorityRecords'
 import { validateNoteIntent,type BrowserNoteIntent } from './noteIntentRecords'
 import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import type { NoteSyncHeader } from '@/cloud/noteSyncCodec'
@@ -12,10 +13,10 @@ interface NoteCandidateFields extends Omit<Base,'record_version'> {
  header:NoteSyncHeader;wire_item:string;wire_digest:string;record_digest:string
  projection:LocalNoteRecord|null;projection_digest:string|null
 }
-export type BrowserNoteCandidate = NoteCandidateFields & (
+export type BrowserNoteCandidate = (NoteCandidateFields & (
  {record_version:1;transport_kind?:never;server_sequence?:never;transport_proof?:never} |
  {record_version:2;transport_kind:'content_note_v1';server_sequence:number;transport_proof:BrowserNoteTransportProof}
-)
+)) | BrowserContentCandidate3
 /** Internal transport evidence; final applied/conflict inbox proof is additionally required. */
 interface NoteTransportProofFields {
  proof_kind:'content_note_v1_prerequisite';logical_digest:string;wire_digest:string;
@@ -33,7 +34,8 @@ export const noteHistoryHash=(v:unknown):v is string=>typeof v==='string'&&/^[0-
 function bad():never{throw new BrowserPersistenceError('corrupt_record')}
 function tips(v:unknown):v is string[]{return Array.isArray(v)&&v.length>0&&v.every(canonicalNoteUuid)&&v.every((id,i)=>i===0||v[i-1]!<id)}
 export function validateNoteHistoryRecord(value:unknown,scope:BrowserSyncScope):BrowserNoteHistoryRecord {
- const r=value as BrowserNoteHistoryRecord
+ if((value as {record_version?:number})?.record_version===3)return validateContentCandidate3(value,scope)
+ const r=value as Exclude<BrowserNoteHistoryRecord,BrowserContentCandidate3>
  if(!r||![1,2].includes(r.record_version)||r.record_version===2&&r.record_kind!=='candidate'||r.account_id!==scope.accountId||r.device_id!==scope.deviceId||!canonicalNoteUuid(r.bootstrap_id))bad();localId(r.project_id);localId(r.note_id)
  if(r.record_kind==='candidate'){
   if(!localExact(r,[...base,'event_id','source_device_id','protocol_version','origin','mutation_generation','header','wire_item','wire_digest','record_digest','projection','projection_digest',...(r.record_version===2?['transport_kind','server_sequence','transport_proof']:[])])||r.record_id!==r.event_id||!canonicalNoteUuid(r.event_id)||!canonicalNoteUuid(r.source_device_id)||![2,3].includes(r.protocol_version)||!['initial_capture','initial_backfill','peer','local_sealed'].includes(r.origin)||!noteHistoryHash(r.wire_digest)||!noteHistoryHash(r.record_digest))bad()
@@ -79,7 +81,7 @@ export function validateNoteHistorySet(scope:BrowserSyncScope,values:unknown[]):
   if(r.record_kind==='candidate'&&r.header.revision>1){const parent=own.find(c=>c.event_id===r.header.parent_event_id);if(!parent||parent.header.revision!==r.header.revision-1)bad()}
   if(r.record_kind==='head'){if(!own.some(c=>c.event_id===r.linear_head_event_id)||immutableWireIdentity(noteFrontier(own))!==immutableWireIdentity(r.tip_event_ids))bad()}
   if(r.record_kind==='local_version'){const parent=own.find(c=>c.event_id===r.header.parent_event_id);if(!parent||parent.header.revision!==r.header.revision-1)bad()}
-  if(r.record_kind==='group'){if(!own.some(c=>c.event_id===r.common_parent_event_id))bad();for(const m of r.members){const c=m.source==='local_unsealed'?rows.find((v):v is BrowserNoteLocalVersion=>v.record_kind==='local_version'&&v.version_id===m.version_id&&v.project_id===r.project_id&&v.note_id===r.note_id&&v.bootstrap_id===r.bootstrap_id):own.find(c=>c.event_id===m.event_id);if(!c||c.header.parent_event_id!==r.common_parent_event_id||c.header.revision!==r.tip_revision)bad()}}
+  if(r.record_kind==='group'){if(!own.some(c=>c.event_id===r.common_parent_event_id))bad();for(const m of r.members){const c=m.source==='local_unsealed'?rows.find((v):v is BrowserNoteLocalVersion=>v.record_kind==='local_version'&&v.version_id===m.version_id&&v.project_id===r.project_id&&v.note_id===r.note_id&&v.bootstrap_id===r.bootstrap_id):own.find(c=>c.event_id===m.event_id);if(!c||c.record_kind==='candidate'&&c.record_version===3||c.header.parent_event_id!==r.common_parent_event_id||c.header.revision!==r.tip_revision)bad()}}
  }
  return rows
 }

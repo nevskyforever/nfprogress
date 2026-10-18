@@ -14,7 +14,7 @@ export async function acceptNoteIntents({page,scope,users,cases,expectCode,reope
  await seed(null)
  const bind=()=>page.evaluate(()=>{globalThis.writer=session.noteIntents.bind(meta.auth,meta.bindings,meta.keys);globalThis.writerLocal=writer.local;globalThis.writerHistory=session.noteHistory.bind(meta.auth,meta.bindings,meta.keys);globalThis.writerApply=session.notes.bind(meta.auth,meta.bindings,meta.keys);globalThis.writerRegistry=session.registry.bind(meta.auth,meta.bindings,meta.keys)})
  const open=async()=>{await page.evaluate(async({scope,users})=>{globalThis.scopeA=scope;globalThis.users=users;globalThis.session=await c21.openBrowserPersistence(users[0]);globalThis.meta=await c21.metadataFixture(session,scope)},{scope,users});await bind()}
- await open();assert.deepEqual(await inspect(),{version:8,stores:[...all].sort()});assert.deepEqual(await snapshot(),original)
+ await open();assert.deepEqual(await inspect(),{version:9,stores:[...all].sort()});assert.deepEqual(await snapshot(),original)
  cases.push('clean v7→v8 preserves every old row/schema exactly and adds one empty intent store, zero inferred intents')
  const project='intent-project',stamp='2026-10-13T00:00:00.000000Z'
  await page.evaluate(async({scope,project})=>{const local=session.localSource.bind(meta.auth,meta.bindings,meta.keys);await local.initializeProject(scope,{project:{id:project,name:'PRIVATE_INTENT_PROJECT',goal:null,infinite:true,unit:'symbols',status:'active',created_at:null,updated_at:null,payload:{}},notes:[]});await session.projects.importRemote(scope,{project_id:project,bootstrap_id:crypto.randomUUID(),remote_state:'active',remote_high_water:0})},{scope,project})

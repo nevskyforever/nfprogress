@@ -6,7 +6,7 @@ import { decodeBase64Url } from '@/api/base64url'
 import { openProjectMetadataEvent, type ProjectMetadataEvent } from '@/cloud/projectMetadataCodec'
 import { BrowserPersistenceError, type BrowserPersistenceCode } from './persistence'
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
-import { validateBrowserSyncCursor, immutableWireIdentity, snapshotBrowserSyncScope, validateBrowserRetainedHistory, validateBrowserUploadPair, type BrowserSyncScope, type BrowserSyncTransaction, type BrowserSyncDurability, type BrowserRetainedEncryptedHistory } from './syncDurability'
+import { validateBrowserSyncCursor, immutableWireIdentity, snapshotBrowserSyncScope, validateBrowserRetainedHistory, validateBrowserStoredUploadPair, type BrowserSyncScope, type BrowserSyncTransaction, type BrowserSyncDurability, type BrowserRetainedEncryptedHistory } from './syncDurability'
 import { validateBrowserMetadataHead, type BrowserMetadataHead, type BrowserMetadataProof } from './metadataApplyRecords'
 
 /** Tokens have no public data/constructor; only the authenticated reader can mint one. */
@@ -152,7 +152,7 @@ export class BrowserImportedMetadataApply {
           if (!same(binding, plan.binding)) fail('stale_lineage')
           if (!same(actual, plan.expected)) fail('stale_authority')
           if (plan.proof.source_device_id === scope.deviceId) fail('self_echo_unavailable')
-          const outgoing = local.result.map(row => validateBrowserUploadPair(row, localReceipts.result.find(proof => proof.event_id === row.event_id), scope))
+          const outgoing = local.result.map(row => validateBrowserStoredUploadPair(row, localReceipts.result.find(proof => proof.event_id === row.event_id), scope))
           if (localReceipts.result.some(proof => !outgoing.some(row => row.event_id === proof.event_id))) fail('corrupt_record')
           if (outgoing.some(row => JSON.parse(row.raw_body).items.some((item: { event: V3Descriptor }) => item.event.entity_type === 'project_metadata' && item.event.project_id === plan.proof.project_id))) fail('local_incompatible')
           const next = transition(scope, actual, plan.proof)
