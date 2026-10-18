@@ -1,8 +1,22 @@
 # C21.1.06 — protected apply family matrix and prerequisite stop
 
+## C21.2.05 — Content outbound authority design cross-reference
+
+**DESIGN LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED.** Docs only.
+C21.2.04 REMOTELY ACCEPTED — AUDIT ONLY: SHA `13b9ff7b5ef6bfed97f40b563f426aea07f440d1`,
+Cloud `39066576774` SUCCESS, all six required jobs SUCCESS (owner supplied).
+Content self-echo IMPLEMENTATION BLOCKED; accepted audit is not implementation.
+[Browser Content outbound design](../web/C21_BROWSER_CONTENT_OUTBOUND_DESIGN.md)
+proposes intent2, own candidate3, authenticated receipt2 and separate self-echo proof2
+(inbox9), future v9 format gate with unchanged12 stores/indexes. No format/migration
+or implementation is delivered here. Existing peer candidate2/proof1/conflict1/2,
+Legacy writer/self-echo, group1 and ACK transport remain frozen. Content writer,
+Content self-echo and Resolution remain blocked; current v8 and ready=false unchanged.
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE.
+
 ## C21.2.04 — Content self-echo authority audit
 
-**AUDIT COMPLETE / IMPLEMENTATION BLOCKED — B AUTHORITY ABSENT.**
+**REMOTELY ACCEPTED — AUDIT ONLY / IMPLEMENTATION BLOCKED — B AUTHORITY ABSENT.**
 Exact blocker: **Browser Web has no legitimate current local codec8 writer/outbox/receipt authority from which to prove own Content self-echo.**
 C21.2.03A REMOTELY ACCEPTED: SHA `d3a3c1b600eec63851a4a5a1200200d6b6dd9012`,
 Cloud39063756905 SUCCESS, all six required jobs SUCCESS (owner supplied).
@@ -56,8 +70,8 @@ push/pull/Resolution/unrelated0; pageErrors0. Typecheck, production build, modif
 browser-script syntax, workflow YAML/mandatory coverage/path filters and
 `git diff --check` PASS. Existing bundle-size/dynamic-import warnings only.
 Production/backend/native/dependencies unchanged; IndexedDB v8→v8.
-Remote CI PENDING — NOT POLLED. Expected Actions: Cloud backend tests YES;
-SQLite sync substrate NO. Protected engine/game_data bytecode unchanged.
+Cloud39066576774 SUCCESS, all six required jobs SUCCESS (owner supplied);
+REMOTELY ACCEPTED — AUDIT ONLY. Protected engine/game_data bytecode unchanged.
 
 ## C21.2.03A — numbering normalization / C21.1 boundary repair
 

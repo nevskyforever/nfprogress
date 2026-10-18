@@ -1,10 +1,14 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
-**Current C21.2.04 status (2026-10-18): AUDIT COMPLETE / IMPLEMENTATION BLOCKED.**
-Decision B AUTHORITY ABSENT; no functional implementation. C21.2.03A REMOTELY ACCEPTED,
-SHA `d3a3c1b600eec63851a4a5a1200200d6b6dd9012`, Cloud39063756905 SUCCESS,
-all six required jobs SUCCESS (owner supplied). Official84.0%, C21/C21.2 IN PROGRESS,
-C21.1.06 NOT LOCAL COMPLETE, ready=false.
+**Current C21.2.05 status: DESIGN LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED.**
+C21.2.04 REMOTELY ACCEPTED — AUDIT ONLY: SHA `13b9ff7b5ef6bfed97f40b563f426aea07f440d1`,
+Cloud `39066576774` SUCCESS, all six required jobs SUCCESS (owner supplied).
+Content self-echo IMPLEMENTATION BLOCKED; accepted audit is not implementation.
+C21.2.05 is design only: [Content outbound authority design](C21_BROWSER_CONTENT_OUTBOUND_DESIGN.md).
+Proposed intent2/candidate3/receipt2/separate self-echo proof2 (inbox9), future v9
+format gate with same12 stores/indexes; no migration or production activation now.
+Current schema remains v8; peer invariants, Legacy writer, conflict group1, ACK and
+ready=false unchanged. Official84.0%, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE.
 
 ## C21.2.04 — Content self-echo authority audit
 
@@ -15,9 +19,9 @@ Exact blocker: **Browser Web has no legitimate current local codec8 writer/outbo
 | 1 | Why proof1 rejects own device | `contentNoteRecords.ts:validateContentNoteProof` requires reference.device_id != scope.deviceId, outcome applied and projection revision/digest. It certifies a peer protected apply, not outbound deduplication. Conflict proofs inherit this peer invariant. |
 | 2 | Own codec8 planner today | `legacyNoteApply.ts:prepareContentOrdinary/prepareRoute` invokes `noteTransportPrerequisite.ts:prepareNotePrerequisite`, which rejects authenticated own codec8 immediately with unsupported_local_source (content.device_id === scope.deviceId), before generic own detection/receipt logic. This holds with no outbox, a synthetic accepted pair, or peer candidate. Downstream generic checks also require every outbound row to have a candidate and reject duplicate same-event candidates on received Content. The unreachable clean own branch constructs dormant_note_prerequisite/self_echo_applied, not Content proof; `proofRow` rejects that owner. No admissible Content self-echo commit. |
 | 3 | Receipt codec8-compatible | YES structurally. `requireOwnReceipt` + `validateBrowserUploadPair` join accepted protocol3 body, local device/event, exact encrypted object and receipt server sequence. They do not establish local codec8 authorship. |
-| 4 | Legitimate browser Content outbox | NO complete current producer authority. Generic `BrowserEncryptedSync.enqueue` can mechanically store a supplied valid protocol3 wire; that API is not a Content author/sealer or causal candidate producer. |
+| 4 | Legitimate browser Content outbox | NO complete current producer authority. Generic `BrowserSyncDurability.enqueue` can mechanically store a supplied valid protocol3 wire; that API is not a Content author/sealer or causal candidate producer. |
 | 5 | Production outbox creator | NONE for browser Content. `initialNoteCapture.ts` and `noteIntents.ts:commitSeal` create Legacy protocol2 rows and candidate1. No production browser Content enqueue call site. |
-| 6 | Production receipt creator | Generic `BrowserEncryptedSync.commitUploadAcceptance` records a validated server response for an existing queued row; no independently authored browser Content row to accept. A fabricated pair in a negative test is not production authority. |
+| 6 | Production receipt creator | Generic `BrowserSyncDurability.commitUploadAcceptance` records a validated server response for an existing queued row; no independently authored browser Content row to accept. A fabricated pair in a negative test is not production authority. |
 | 7 | Own Content candidate creator | NONE. `noteHistory.ts:makeHistoryCandidate`/initial backfill/seal create Legacy candidate1; `noteTransportPrerequisite.ts` creates Content candidate2 only from authenticated incoming peer transport. |
 | 8 | Native authority visible in IndexedDB | NO. `ContentNoteRuntime` invokes native commands and native SQLite tables; Browser persistence uses separate IndexedDB. `cloudSession.ts:initialize` constructs native sync only on Tauri. |
 | 9 | Supported native import migration | NONE. `persistence.ts` v1–v8 upgrades only browser stores/validation; no native writer/outbox/receipt import. |
@@ -72,8 +76,8 @@ push/pull/Resolution/unrelated0; pageErrors0. Typecheck, production build, modif
 browser-script syntax, workflow YAML/mandatory coverage/path filters and
 `git diff --check` PASS. Existing bundle-size/dynamic-import warnings only.
 Production/backend/native/dependencies unchanged; IndexedDB v8→v8.
-Remote CI PENDING — NOT POLLED. Expected Actions: Cloud backend tests YES;
-SQLite sync substrate NO. Protected engine/game_data bytecode unchanged.
+Cloud39066576774 SUCCESS, all six required jobs SUCCESS (owner supplied);
+REMOTELY ACCEPTED — AUDIT ONLY. Protected engine/game_data bytecode unchanged.
 
 ## C21.2.03A — numbering normalization / C21.1 boundary repair
 
