@@ -1,8 +1,83 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
-## C21.2.06 — Browser Content durable formats / IndexedDB v9
+## C21.2.07 — Canonical Content source / atomic intent2 / dormant ownership
 
 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-19).
+C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`,
+Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
+
+`contentNoteIntents.ts` adds an explicitly constructed internal dormant runtime;
+BrowserPersistence/user composition/startup/UI do not select or expose it. It reuses
+localAuthority's writer hook and canonical encrypted localNotes/localProjects.
+A single strict T_mutate includes source, membership/source_revision, authenticated
+intent_format2/I2 and the shared allocation cursor. Crypto is outside IDB. Exact
+source-token, full account inventory/cursor, binding/owner history, same-Note head,
+prior intent/generation, inbox/outbox/receipt and auth/key/session CAS precede writes.
+A failed request, abort or invalidated context preserves the old state and ordinal.
+
+Initial support: explicit clean active import_remote/captured project HTML, stage=null,
+source_type=project, no map/node fields and existing Content metadata admission.
+Genuine absent Note genesis allocates UUID4/revision1/parent null/ordinal once;
+existing unbound local Notes cannot be rebranded as genesis. Handover uses the exact
+single authenticated linear head with matching canonical source; every earlier local
+candidate must have accepted immutable outbox/receipt and proven Legacy self-echo.
+Peer Content alone never chooses the writer. Pending Legacy, group1/local versions,
+forks, unresolved received evidence and C3 sealed lifecycle block same-Note writing.
+Other eligible Notes continue, including Legacy intent1, on the common dense ordinal.
+
+Metadata dependencies come from prepareMetadataPrefix(force=true), original AEAD
+and an exact active bootstrap/head; pinned covered ancestors remain pinned during
+coalescing. Same-operation unsealed upsert I2 coalescing authenticates its prior envelope/source,
+preserves event/parent/cloud revision/ordinal, increments generation and local edit/
+source counters independently, and resets retry diagnostics. First deletion of an
+eligible clean live head is supported. Pending create→delete/update→delete,
+resurrection, cancellation, repeated delete of an existing tombstone and sealed-event
+coalescing remain blocked. Authenticated historical Legacy self-echo/peer Content
+replay remains read-only after I2 handover; new received mutations still cannot
+overwrite an outstanding I2.
+
+I2 is the writer claim, not a second mutable Note store. Legacy writer and raw
+source-only edits cannot overwrite I2/C3-owned Notes. No ownership Boolean, validator
+weakening, peer/Legacy conversion or conflict winner. No C3/outbox/R2/P2/inbox9 producer,
+codec8 framing/compression selection/outbound ciphertext, upload, HTTP endpoint,
+self-echo/Resolution activation or prefix/ACK change. IndexedDB remains9, same12
+stores/indexes/key paths; no migration. Existing v8→v9 compatibility gate retained.
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1 ends .30; .06 NOT LOCAL COMPLETE; ready=false.
+
+### Простыми словами
+
+I2 хранит зашифрованный снимок незавершённой Content-правки и её постоянные event,
+parent, cloud revision и ordinal. Заметка, состав проекта и намерение сохраняются
+одной транзакцией: после сбоя остаётся либо прежний набор, либо целиком новый.
+Повторная совместимая правка обновляет снимок и поколение того же намерения;
+новое событие и номер очереди не создаются. После перезапуска I2 снова проверяется
+текущим ключом. Обычные Legacy-заметки сохраняют свой writer, а возврат Content
+к Legacy запрещён. Runtime вызывается только явно в тестовом стенде; пользовательский
+Content writer и отправка ещё выключены. C21.2.08 добавит атомарное codec8 sealing
+с неизменяемыми C3/outbox; это отдельный следующий шаг, не выполненный здесь.
+
+Validation: **65 focused producer/atomicity/coalescing/handover/security tests PASS**
+(two new mandatory specs). Existing targeted Legacy/peer/mixed/prefix regressions:
+**599 PASS / 20 files**. Mandatory affected C21 suite, including all accepted .06
+format/migration coverage: **1795 PASS / 61 files**. Native Chromium: **238 case groups
+PASS, page errors0**; seven .07 groups exercise genuine producer I2, every source/
+intent/cursor write abort, exclusive writer lock, renderer + disk reopen, coalescing,
+clean peer handover/read-only historical replay, existing mixed group blocker,
+auth/key invalidation and independent Legacy/Content ordinals. New scenario HTTP0;
+overall existing134 expected API requests unchanged, push/pull/Resolution0. The initial
+new test's re-entrant logout wait was corrected; final full browser run PASS.
+Typecheck and production Vite build PASS (existing non-blocking bundling warnings).
+Workflow YAML, both new mandatory spec entries/path filters, helper syntax and
+`git diff --check` PASS. No remaining failures or skipped required checks; no new
+migration, dependencies, native/backend builds or CI polling. Protected .pyc unchanged.
+Current slice LOCAL COMPLETE / REMOTE CI PENDING; no independent .07 CI acceptance claimed.
+Expected Actions: Cloud backend tests YES; SQLite sync substrate NO. CI NOT POLLED.
+
+C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`, Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
+
+## C21.2.06 — Browser Content durable formats / IndexedDB v9
+
+**REMOTELY ACCEPTED** (2026-10-19).
 C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY: SHA `86641d80c00305f9756c1d9fce8a2f7e81977ccc`,
 Cloud `39153860372` SUCCESS, all six required jobs SUCCESS (owner supplied).
 

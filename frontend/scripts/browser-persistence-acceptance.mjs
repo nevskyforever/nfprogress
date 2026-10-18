@@ -1,3 +1,4 @@
+import {acceptContentAtomicIntents} from './browser-content-intent-acceptance.mjs'
 import {acceptContentAuthorityMigration} from './browser-content-authority-migration-acceptance.mjs'
 import {acceptNoteTransportGateway} from './browser-note-transport-gateway-acceptance.mjs'
 import {acceptStageOrder} from './browser-stage-order-acceptance.mjs'
@@ -1063,6 +1064,7 @@ try {
   page=await acceptStageOrder({page,scope:scopeA,cases,captureV8Profile:profile=>authorityMigrationProfiles.push(profile),network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   page=await acceptNoteTransportGateway({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   await acceptContentAuthorityMigration({origin,profiles:authorityMigrationProfiles,cases})
+  await acceptContentAtomicIntents({origin,cases,mixedPage:page,mixedScope:authorityMigrationProfiles[0].scope})
   const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))
   const finalDurability = await metadataSnapshot()

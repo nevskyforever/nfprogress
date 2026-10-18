@@ -1,3 +1,5 @@
+import {BrowserContentNoteIntents} from '../src/platform/web/contentNoteIntents'
+import type {BrowserSyncTransaction} from '../src/platform/web/syncDurability'
 import {openBrowserCanonicalObject} from '../src/platform/web/canonicalReaders'
 import {frameStructuralEvent} from '../src/cloud/stageCodec'
 import { compressCanonicalFrame } from '../src/cloud/frameCompression'
@@ -31,6 +33,13 @@ async function metadataFixture(session: Awaited<ReturnType<typeof persistence.op
   amk.fill(0); wrapped.ciphertext.fill(0); wrapped.nonce.fill(0); wrapped.kdf.salt.fill(0)
   return { auth, bindings, keys }
 }
+// Explicit test-only construction over the REAL session transaction/identity/lock tracking.
+// No positive Content gate is added to BrowserPersistence or normal user composition.
+function contentIntentFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>) {
+  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
+  const transaction:BrowserSyncTransaction=(...args)=>internal.syncTransaction(...args)
+  return new BrowserContentNoteIntents(transaction,session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys)
+}
 // Identity-only fixture deliberately provisions no crypto reader/writer capabilities.
 async function deviceFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, user: string) {
   const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-device-access', refresh_token: 'fixture-device-refresh', access_expires_in: 60 }), refresh: async () => { throw Error('fixture_no_refresh') }, logout: async () => {}, me: async () => ({ id: user, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: '2026-10-14T00:00:00Z' }) })
@@ -41,4 +50,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

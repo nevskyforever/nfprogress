@@ -1,4 +1,6 @@
-import type { BrowserNoteIntentRuntime, NoteMutationPlan } from './noteIntents'
+import type { NoteMutationPlan } from './noteIntents'
+import {validateNoteIntentRecord} from './noteIntentRecords'
+import {validateNoteHistorySet} from './noteHistoryRecords'
 import { verifiedLegacyNoteForLocal, verifiedNoteRouteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { AuthoritativeKeyContextLease, RuntimeKeyContext } from '@/auth/keyContext'
@@ -12,6 +14,12 @@ import { localCanonicalBytes, localExact, localFailure as fail, localId, localSa
 import type { ProjectNotePatch } from '@/types/notes'
 
 export interface LocalSourceToken { readonly verifiedLocalSource: unique symbol }
+/** Internal source/intent transaction hook. Binding a writer never activates user composition. */
+export interface LocalNoteMutationWriter {
+  readonly mutationStores: string[]
+  prepareMutation(scope: BrowserSyncScope, notes: LocalNoteRecord[], amk: AccountMasterKey, source: LocalSourceToken): Promise<NoteMutationPlan>
+  scheduleMutation(tx: IDBTransaction, plan: NoteMutationPlan, ready: () => void, abort: (e: unknown) => void): void
+}
 export interface LocalSourceSnapshot {
   record_version: 1; account_id: string; project_id: string; source_revision: number
   project: LocalProjectRecord; notes: readonly LocalNoteRecord[]; token: LocalSourceToken
@@ -80,9 +88,9 @@ export class BrowserLocalAuthority {
   }
 }
 export class BrowserLocalAuthorityRuntime {
-  constructor(private readonly owner: BrowserLocalAuthority, private readonly transaction: BrowserSyncTransaction, private readonly auth: NormalUserAuthRuntime, private readonly bindings: AuthoritativeAccountBinding, private readonly keys: RuntimeKeyContext, private readonly writer?: BrowserNoteIntentRuntime) {}
+  constructor(private readonly owner: BrowserLocalAuthority, private readonly transaction: BrowserSyncTransaction, private readonly auth: NormalUserAuthRuntime, private readonly bindings: AuthoritativeAccountBinding, private readonly keys: RuntimeKeyContext, private readonly writer?: LocalNoteMutationWriter) {}
   /** Internal dormant writer binding; ordinary local-only runtime remains unchanged. */
-  withNoteWriter(writer: BrowserNoteIntentRuntime): BrowserLocalAuthorityRuntime { return new BrowserLocalAuthorityRuntime(this.owner,this.transaction,this.auth,this.bindings,this.keys,writer) }
+  withNoteWriter(writer: LocalNoteMutationWriter): BrowserLocalAuthorityRuntime { return new BrowserLocalAuthorityRuntime(this.owner,this.transaction,this.auth,this.bindings,this.keys,writer) }
   private async guard(scope: BrowserSyncScope): Promise<Guard> {
     const { context } = await this.bindings.ensureForCurrentUser(scope.accountId)
     const lease = this.keys.leaseForAccount(scope.accountId)
@@ -207,7 +215,7 @@ export class BrowserLocalAuthorityRuntime {
   private write(scope: BrowserSyncScope, guard: Guard, expected: LocalSourceToken | null, project: LocalProjectRecord, notes: LocalNoteRecord[], deletion = false, mutation?: NoteMutationPlan): Promise<number> {
     if (!guard.current()) fail('closed')
     let unsubscribe: (() => void) | undefined
-    return this.transaction<number>(scope, ['localProjects','localNotes', ...(deletion ? ['projectBindings'] : []), ...(mutation ? this.writer!.mutationStores : [])], 'readwrite', (tx, result, abort) => {
+    return this.transaction<number>(scope, [...new Set(['localProjects','localNotes','legacyNoteIntents','legacyNoteHistory', ...(deletion ? ['projectBindings'] : []), ...(mutation ? this.writer!.mutationStores : [])])], 'readwrite', (tx, result, abort) => {
       unsubscribe = this.auth.onInvalidated(() => abort(new BrowserPersistenceError('closed')))
       const commit = () => {
         const reads = notes.map(note => tx.objectStore('localNotes').index('identity').get([scope.accountId, note.note_id]))
@@ -223,7 +231,19 @@ export class BrowserLocalAuthorityRuntime {
           writes.forEach(write => { write.onsuccess = () => { if (!guard.current()) abort(new BrowserPersistenceError('closed')) } })
           result(project.source_revision)
           }
-          if(mutation)this.writer!.scheduleMutation(tx,mutation,persist,abort);else persist()
+          if(mutation)this.writer!.scheduleMutation(tx,mutation,persist,abort)
+          else {
+            // Source-only access cannot overwrite a Content writer's canonical Note.
+            const range=IDBKeyRange.bound([scope.accountId],[scope.accountId,[]])
+            const intents=tx.objectStore('legacyNoteIntents').getAll(range),history=tx.objectStore('legacyNoteHistory').getAll(range);let n=0
+            const check=()=>{if(++n!==2)return;try{
+              if(!guard.current())fail('closed')
+              const claimed=new Set([...intents.result.map(v=>validateNoteIntentRecord(v,scope)).filter(i=>i.record_version===2).map(i=>i.note_id),...validateNoteHistorySet(scope,history.result).filter(h=>h.record_kind==='candidate'&&h.record_version===3).map(h=>h.note_id)])
+              if(notes.some(note=>claimed.has(note.note_id)))fail('unsupported_local_source')
+              persist()
+            }catch(e){abort(e)}}
+            intents.onsuccess=check;history.onsuccess=check
+          }
         } catch (error) { abort(error) } }
         if (!requests.length) finish(); else requests.forEach(read => { read.onsuccess = finish })
       }
@@ -251,7 +271,7 @@ export class BrowserLocalAuthorityRuntime {
       const row: LocalProjectRecord = { ...p.project, source_revision: revision, deleted: deletedAt !== null, envelope: await this.seal(scope, p.project.project_id, 'project', opened.project, amk) }
       const notes: LocalNoteRecord[] = []
       for (const source of changed) notes.push(await this.noteRow(scope, source, revision, amk))
-      const mutation=this.writer ? await this.writer.prepareMutation(scope,notes,amk) : undefined
+      const mutation=this.writer ? await this.writer.prepareMutation(scope,notes,amk,token) : undefined
       return this.write(scope, guard, token, row, notes, deletedAt !== null, mutation)
     })
   }

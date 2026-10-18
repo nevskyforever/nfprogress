@@ -85,7 +85,9 @@ export class BrowserLegacyNoteApplyRuntime {
     const raw=JSON.parse(row.wire_item),reference=raw.event,{device_id:_source,server_sequence:_sequence,...event}=reference,item={event,object:raw.object}
     return lease.use(async amk=>{
       await authenticateContentAuthorityInventory(scope,{history:inventory.allHistory,out:inventory.out,receipts:inventory.receipts,rows:inventory.rows,intents:inventory.intents},amk,current)
-      if(inventory.history.some(h=>h.record_kind==='candidate'&&h.record_version===3)||inventory.intents.some(i=>i.record_version===2&&i.project_id===binding.project_id&&i.note_id===reference.entity_id))fail('unsupported_local_source')
+      // A claimed Note still permits authenticated historical read-only replay.
+      // New inbound mutations/forks remain blocked; no I2 can become a group member.
+      if(inventory.history.some(h=>h.record_kind==='candidate'&&h.record_version===3)||inventory.intents.some(i=>i.record_version===2&&i.project_id===binding.project_id&&i.note_id===reference.entity_id)&&!['note_proven','content_note_proven'].includes(row.state))fail('unsupported_local_source')
       const prerequisite=dormant||content?await prepareNotePrerequisite(scope,row,binding,amk,current,this.transaction):undefined
       let plaintext:NoteSyncPlaintext;try{plaintext=prerequisite?prerequisite.plaintext:await openRetainedNote(scope,amk,row)}catch(e){if(row.state!=='received')fail('corrupt_record');throw e}const h=plaintext.header
       const records=inventory.history,candidates=records.filter((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'),groups=records.filter((r):r is BrowserNoteConflictGroup=>r.record_kind==='group'),versions=records.filter((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version')

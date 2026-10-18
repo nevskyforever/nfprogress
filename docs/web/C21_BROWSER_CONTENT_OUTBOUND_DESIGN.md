@@ -10,14 +10,117 @@ SUCCESS, all six required jobs SUCCESS (owner supplied). Its Content self-echo
 implementation remains BLOCKED; acceptance did not activate a writer.
 
 At the C21.2.05 baseline all contracts below were proposed; current implementation
-status is recorded in the C21.2.06 section. Writer/self-echo/Resolution remain disabled, `ready=false`.
+status is recorded in the C21.2.06/C21.2.07 sections. Writer/self-echo/Resolution remain disabled, `ready=false`.
 Official progress84.0%; C21/C21.2 IN PROGRESS; C21.1 ends at C21.1.30;
 C21.1.06 NOT LOCAL COMPLETE. No roadmap points. No production, migration, test,
 browser-script, workflow, dependency, native or backend edits in C21.2.05.
 
-## C21.2.06 — Browser Content durable formats / IndexedDB v9
+## C21.2.07 — Canonical Content source / atomic intent2 / dormant ownership
 
 **LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-19).
+C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`,
+Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
+
+`contentNoteIntents.ts` adds an explicitly constructed internal dormant runtime;
+BrowserPersistence/user composition/startup/UI do not select or expose it. It reuses
+localAuthority's writer hook and canonical encrypted localNotes/localProjects.
+A single strict T_mutate includes source, membership/source_revision, authenticated
+intent_format2/I2 and the shared allocation cursor. Crypto is outside IDB. Exact
+source-token, full account inventory/cursor, binding/owner history, same-Note head,
+prior intent/generation, inbox/outbox/receipt and auth/key/session CAS precede writes.
+A failed request, abort or invalidated context preserves the old state and ordinal.
+
+Initial support: explicit clean active import_remote/captured project HTML, stage=null,
+source_type=project, no map/node fields and existing Content metadata admission.
+Genuine absent Note genesis allocates UUID4/revision1/parent null/ordinal once;
+existing unbound local Notes cannot be rebranded as genesis. Handover uses the exact
+single authenticated linear head with matching canonical source; every earlier local
+candidate must have accepted immutable outbox/receipt and proven Legacy self-echo.
+Peer Content alone never chooses the writer. Pending Legacy, group1/local versions,
+forks, unresolved received evidence and C3 sealed lifecycle block same-Note writing.
+Other eligible Notes continue, including Legacy intent1, on the common dense ordinal.
+
+Metadata dependencies come from prepareMetadataPrefix(force=true), original AEAD
+and an exact active bootstrap/head; pinned covered ancestors remain pinned during
+coalescing. Same-operation unsealed upsert I2 coalescing authenticates its prior envelope/source,
+preserves event/parent/cloud revision/ordinal, increments generation and local edit/
+source counters independently, and resets retry diagnostics. First deletion of an
+eligible clean live head is supported. Pending create→delete/update→delete,
+resurrection, cancellation, repeated delete of an existing tombstone and sealed-event
+coalescing remain blocked. Authenticated historical Legacy self-echo/peer Content
+replay remains read-only after I2 handover; new received mutations still cannot
+overwrite an outstanding I2.
+
+I2 is the writer claim, not a second mutable Note store. Legacy writer and raw
+source-only edits cannot overwrite I2/C3-owned Notes. No ownership Boolean, validator
+weakening, peer/Legacy conversion or conflict winner. No C3/outbox/R2/P2/inbox9 producer,
+codec8 framing/compression selection/outbound ciphertext, upload, HTTP endpoint,
+self-echo/Resolution activation or prefix/ACK change. IndexedDB remains9, same12
+stores/indexes/key paths; no migration. Existing v8→v9 compatibility gate retained.
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1 ends .30; .06 NOT LOCAL COMPLETE; ready=false.
+
+### Простыми словами
+
+I2 хранит зашифрованный снимок незавершённой Content-правки и её постоянные event,
+parent, cloud revision и ordinal. Заметка, состав проекта и намерение сохраняются
+одной транзакцией: после сбоя остаётся либо прежний набор, либо целиком новый.
+Повторная совместимая правка обновляет снимок и поколение того же намерения;
+новое событие и номер очереди не создаются. После перезапуска I2 снова проверяется
+текущим ключом. Обычные Legacy-заметки сохраняют свой writer, а возврат Content
+к Legacy запрещён. Runtime вызывается только явно в тестовом стенде; пользовательский
+Content writer и отправка ещё выключены. C21.2.08 добавит атомарное codec8 sealing
+с неизменяемыми C3/outbox; это отдельный следующий шаг, не выполненный здесь.
+
+Validation: **65 focused producer/atomicity/coalescing/handover/security tests PASS**
+(two new mandatory specs). Existing targeted Legacy/peer/mixed/prefix regressions:
+**599 PASS / 20 files**. Mandatory affected C21 suite, including all accepted .06
+format/migration coverage: **1795 PASS / 61 files**. Native Chromium: **238 case groups
+PASS, page errors0**; seven .07 groups exercise genuine producer I2, every source/
+intent/cursor write abort, exclusive writer lock, renderer + disk reopen, coalescing,
+clean peer handover/read-only historical replay, existing mixed group blocker,
+auth/key invalidation and independent Legacy/Content ordinals. New scenario HTTP0;
+overall existing134 expected API requests unchanged, push/pull/Resolution0. The initial
+new test's re-entrant logout wait was corrected; final full browser run PASS.
+Typecheck and production Vite build PASS (existing non-blocking bundling warnings).
+Workflow YAML, both new mandatory spec entries/path filters, helper syntax and
+`git diff --check` PASS. No remaining failures or skipped required checks; no new
+migration, dependencies, native/backend builds or CI polling. Protected .pyc unchanged.
+Current slice LOCAL COMPLETE / REMOTE CI PENDING; no independent .07 CI acceptance claimed.
+Expected Actions: Cloud backend tests YES; SQLite sync substrate NO. CI NOT POLLED.
+
+## C21.2.07 — pre-implementation production audit (2026-10-19)
+
+Baseline/local/origin `198f50df429bddbb398ac7572d2834a950fa7d02`, branch6.0,
+clean preflight; protected bytecode hashes recorded and retained. The full accepted
+.05 design and implemented .06 formats were read before production changes.
+
+| Audit question | Actual production finding / bounded implementation decision |
+|---|---|
+| 1 canonical content | localNotes encrypted local_format1, localProjects encrypted membership/source_revision; keep both. |
+| 2 Legacy ownership | BrowserNoteIntentRuntime binds localAuthority.withNoteWriter; no automatic Content selection. |
+| 3 source transaction | localAuthority.write asserts source token/membership and identity index, writes project+Note, resolves at native strict transaction completion. |
+| 4 Legacy allocation | prepareMutation/scheduleMutation reserve shared event/ordinal; same-event generation coalescing and full inventory CAS; keep identity contract. |
+| 5 I2 | Separate exact validateContentIntent2 and authenticateContentIntent2 decrypt intent_format2 plus source; hashes alone are insufficient. |
+| 6 existing guards | Legacy prepareMutation/prepareSeal reject I2/C3. Raw source-only mutation also needs an ownership guard to prevent overwriting an outstanding I2. |
+| 7 dormant composition | A standalone Content runtime can reuse the writer hook without adding any BrowserPersistence property, UI import, startup or background producer. |
+| 8 atomic commit | Narrow structural writer hook accepts source token; reuse existing source write with intent/history/cursor/binding/outbox/receipt/inbox plus ownerHeads in SAME transaction. Crypto stays outside. |
+| 9 dependency authority | prepareMetadataPrefix(force=true) authenticates retained Metadata ciphertext/history; verifiedMetadataSequences plus exact active binding/head supplies a current tip or covered pinned ancestor. No supplied UUID authority. |
+| 10 conflicts | Retained group1/local versions, non-linear frontier and unresolved same-Note inbound evidence block handover/mutation; no conflict conversion. Other Notes stay eligible. |
+| 11 tabs | Existing exclusive session Web Lock excludes another tab; strict source/inventory/cursor CAS handles competing asynchronous plans in one session. No new lock. |
+| 12 invalidation | Current normal-user context, bound account and AMK lease after awaits and write callbacks; auth invalidation aborts transaction, session close aborts tracked transactions. |
+
+Implementation will admit only explicit clean project HTML import_remote handover
+or genuinely absent Note genesis; authenticate each causal candidate and final peer/
+Legacy proof, require all earlier same-Note local events accepted and self-echo proven,
+compare canonical source to authenticated head, and preserve pinned I2 identity.
+No C3/outbox/R2/P2/inbox9 creation, frame/compression selection, HTTP, migration,
+production writer activation, Resolution or ACK change. Official84.0%, ready=false.
+
+C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`, Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
+
+## C21.2.06 — Browser Content durable formats / IndexedDB v9
+
+**REMOTELY ACCEPTED** (2026-10-19).
 C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY: SHA `86641d80c00305f9756c1d9fce8a2f7e81977ccc`,
 Cloud `39153860372` SUCCESS, all six required jobs SUCCESS (owner supplied).
 

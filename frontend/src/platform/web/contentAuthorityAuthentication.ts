@@ -4,7 +4,7 @@ import {canonical} from '@/cloud/projectMetadataCodec'
 import {createNoteSyncPlaintext} from '@/cloud/encryptedSyncProtocol'
 import {unframeContentNote,validateContentNote,type ContentNoteEvent} from '@/cloud/contentNoteCodec'
 import {BrowserPersistenceError} from './persistence'
-import {validateContentLocalNote,localExact,type LocalEnvelope} from './localAuthorityRecords'
+import {validateContentLocalNote,validateLocalNoteRecord,localExact,type LocalEnvelope,type LocalNoteRecord} from './localAuthorityRecords'
 import {noteProofDigest} from './legacyNoteApply'
 import {immutableWireIdentity,validateBrowserUploadPair,type BrowserSyncScope,type BrowserOutboxRecord,type BrowserInboxRecord} from './syncDurability'
 import {validateContentIntent2,validateContentCandidate3,validateContentSelfEchoProof2,contentIntentIdentity,contentBaseReceipt,joinContentReceipt2,contentAuthorityCorrupt as bad,type BrowserContentCandidate3,type BrowserContentReceipt2} from './contentAuthorityRecords'
@@ -15,14 +15,21 @@ async function open(s:BrowserSyncScope,project:string,note:string,e:LocalEnvelop
  try{bytes=await decryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:project,entityId:note,entityType:'note'},{...e,nonce,ciphertext});check(current);return bytes.slice()}finally{bytes?.fill(0);nonce.fill(0);ciphertext.fill(0)}
 }
 async function json(s:BrowserSyncScope,project:string,note:string,e:LocalEnvelope,amk:AccountMasterKey,current:()=>boolean){const bytes=await open(s,project,note,e,amk,current);try{const raw=new TextDecoder('utf-8',{fatal:true}).decode(bytes),value=JSON.parse(raw);if(canonical(value)!==raw)bad();return value}finally{bytes.fill(0)}}
+/** Existing encrypted canonical source, shared by I2 authentication and dormant mutation. */
+export async function openContentIntentSource(s:BrowserSyncScope,row:LocalNoteRecord,amk:AccountMasterKey,current:()=>boolean){
+ validateLocalNoteRecord(row,s,row.project_id)
+ const p=await json(s,row.project_id,row.note_id,row.envelope,amk,current)
+ if(!localExact(p,['local_format','kind','account_id','device_id','project_id','note_id','source_revision','source'])||p.local_format!==1||p.kind!=='note'||p.account_id!==s.accountId||p.device_id!==s.deviceId||p.project_id!==row.project_id||p.note_id!==row.note_id||p.source_revision!==row.source_revision)bad()
+ const source=validateContentLocalNote(p.source,row.project_id)
+ if(source.note.id!==row.note_id||(source.state==='tombstone')!==row.deleted||(source.state==='live'?source.note.revision:source.revision)!==row.note_revision)bad()
+ return source
+}
 /** Read-only authentication. Never creates an intent, candidate, receipt, proof or authority token. */
 export async function authenticateContentIntent2(s:BrowserSyncScope,value:unknown,amk:AccountMasterKey,current:()=>boolean):Promise<ContentNoteEvent>{
  check(current);const r=validateContentIntent2(value,s)
  if(!same(await json(s,r.project_id,r.note_id,r.intent_envelope,amk,current),{intent_format:2,identity:contentIntentIdentity(r)})||await noteProofDigest(r.snapshot)!==r.snapshot_digest)bad()
- const p=await json(s,r.project_id,r.note_id,r.snapshot.envelope,amk,current)
- if(!localExact(p,['local_format','kind','account_id','device_id','project_id','note_id','source_revision','source'])||p.local_format!==1||p.kind!=='note'||p.account_id!==s.accountId||p.device_id!==s.deviceId||p.project_id!==r.project_id||p.note_id!==r.note_id||p.source_revision!==r.snapshot.source_revision)bad()
- const source=validateContentLocalNote(p.source,r.project_id)
- if(source.note.id!==r.note_id||(source.state==='tombstone')!==r.snapshot.deleted||(source.state==='live'?source.note.revision:source.revision)!==r.snapshot.note_revision||(source.note.stage_id===null)!==(r.dependencies.stage_event_ids.length===0))bad()
+ const source=await openContentIntentSource(s,r.snapshot,amk,current)
+ if(source.note.id!==r.note_id||(source.note.stage_id===null)!==(r.dependencies.stage_event_ids.length===0))bad()
  const note={...source.note} as any;delete note.revision
  const {plaintext}=createNoteSyncPlaintext({event_id:r.event_id,project_id:r.project_id,entity_id:r.note_id,entity_type:'note',operation:r.operation,revision:r.revision,updated_at:r.updated_at,deleted_at:r.deleted_at},r.parent_event_id,note)
  const event:ContentNoteEvent={version:1,account_id:s.canonicalUserId,device_id:s.deviceId,dependencies:structuredClone(r.dependencies),event:plaintext};validateContentNote(event);check(current);return event
