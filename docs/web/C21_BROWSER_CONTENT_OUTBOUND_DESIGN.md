@@ -1,5 +1,38 @@
 # C21.2.05 — Browser Content outbound authority and self-echo contract
 
+## C21.2.08 — pre-implementation audit / STOP (2026-10-19)
+
+Baseline: clean branch6.0 at local/origin
+`67135b15d7de2ba8f256ab13abece09393a35a1d`; the docs-only VPS release gate at this
+baseline is preserved. C21.2.07 was independently accepted by the owner: SHA
+`a0e248c7b22d0b707f6f2e3e488708612964a2fa`, Cloud `39167228308` SUCCESS, 6/6 jobs.
+
+The code audit confirms the format and local cryptographic building blocks are
+present: authenticated I2/source through `authenticateContentIntent2`; strict C3 v3
+shape and C3 authorship AEAD through `authenticateContentCandidate3`; ordinary-v1
+payload inside canonical codec8/frame1; ID0/ID1 bounded compression primitives;
+crypto1/AAD1 Note object encryption; protocol3 single Note/event body validation;
+immutable outbox1 raw_body; reserved dense ordinal; source-token/history/head CAS;
+forced Metadata dependency authentication; and current auth/key/session checks.
+Stored C3 alone remains outside receipt, self-echo, proven-prefix and ACK authority.
+
+**STOP before functional edits:** the current browser reader declaration verifies
+generic transport mode and declares only `compression_id1`. Browser Note-family
+reader declaration and its all-device `noteReaderGate` are absent from browser
+composition; the existing family API is used by native Tauri `ContentNoteRuntime`.
+The `compressionWriter` response only authorizes compression ID1. There is no
+existing browser Content writer authorization or explicit writer activation token.
+Reusing either generic compression authority or the native caller would violate the
+frozen gate and browser-only scope. A test boolean would manufacture positive
+authority. No safe I2→C3 transition can be prepared under the current contract, so
+this slice made no production, test, Chromium, workflow, or schema changes. No new
+wire format or migration was introduced. No tests were run because no code changed;
+CI was not polled. Official progress84.0%, C21/C21.2 IN PROGRESS, ready=false.
+
+The next design decision must provide a genuine browser Note writer gate and a
+browser-local way to prove Note reader declaration/currentness while keeping normal
+application composition dormant. Until then C21.2.08 is audit-only and blocked.
+
 **C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY.**
 C21.2.05 REMOTELY ACCEPTED — DESIGN ONLY: SHA `86641d80c00305f9756c1d9fce8a2f7e81977ccc`,
 Cloud `39153860372` SUCCESS, all six required jobs SUCCESS (owner supplied).
@@ -17,9 +50,9 @@ browser-script, workflow, dependency, native or backend edits in C21.2.05.
 
 ## C21.2.07 — Canonical Content source / atomic intent2 / dormant ownership
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-19).
-C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`,
-Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
+**REMOTELY ACCEPTED** (2026-10-19; owner supplied). Implementation SHA
+`a0e248c7b22d0b707f6f2e3e488708612964a2fa`, Cloud `39167228308` SUCCESS, 6/6 required
+jobs SUCCESS. Continuation baseline `67135b15d7de2ba8f256ab13abece09393a35a1d` is preserved.
 
 `contentNoteIntents.ts` adds an explicitly constructed internal dormant runtime;
 BrowserPersistence/user composition/startup/UI do not select or expose it. It reuses
@@ -68,8 +101,9 @@ parent, cloud revision и ordinal. Заметка, состав проекта �
 новое событие и номер очереди не создаются. После перезапуска I2 снова проверяется
 текущим ключом. Обычные Legacy-заметки сохраняют свой writer, а возврат Content
 к Legacy запрещён. Runtime вызывается только явно в тестовом стенде; пользовательский
-Content writer и отправка ещё выключены. C21.2.08 добавит атомарное codec8 sealing
-с неизменяемыми C3/outbox; это отдельный следующий шаг, не выполненный здесь.
+Content writer и отправка ещё выключены. C21.2.08 пока остановлен на аудите:
+браузеру требуется отдельное подтверждённое Content writer полномочие; этот этап
+не начат функционально.
 
 Validation: **65 focused producer/atomicity/coalescing/handover/security tests PASS**
 (two new mandatory specs). Existing targeted Legacy/peer/mixed/prefix regressions:
@@ -85,7 +119,7 @@ Typecheck and production Vite build PASS (existing non-blocking bundling warning
 Workflow YAML, both new mandatory spec entries/path filters, helper syntax and
 `git diff --check` PASS. No remaining failures or skipped required checks; no new
 migration, dependencies, native/backend builds or CI polling. Protected .pyc unchanged.
-Current slice LOCAL COMPLETE / REMOTE CI PENDING; no independent .07 CI acceptance claimed.
+C21.2.07 is REMOTELY ACCEPTED: SHA `a0e248c7b22d0b707f6f2e3e488708612964a2fa`, Cloud `39167228308` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
 Expected Actions: Cloud backend tests YES; SQLite sync substrate NO. CI NOT POLLED.
 
 ## C21.2.07 — pre-implementation production audit (2026-10-19)

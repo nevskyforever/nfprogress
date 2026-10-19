@@ -1,10 +1,45 @@
 # C21.1.02–C21.1.12 — Browser durable persistence / E2EE adapter contract
 
+## C21.2.08 — atomic codec8 sealing prerequisite audit / STOP
+
+Baseline branch6.0 local/origin `67135b15d7de2ba8f256ab13abece09393a35a1d`, clean;
+docs-only VPS release-gate additions at baseline preserved. C21.2.07 acceptance:
+implementation `a0e248c7b22d0b707f6f2e3e488708612964a2fa`, Cloud `39167228308`
+SUCCESS, six of six required jobs SUCCESS (owner supplied).
+
+The v9 browser persistence already validates I2/C3/R2/P2 shapes without producing
+them. `.07` authenticates I2 and its canonical local_format1 source; account-wide
+inventory retains the shared ordinal; exact binding, Metadata dependency, head,
+frontier, inbox and auth/key/session checks are available. `validateContentCandidate3`
+and `authenticateContentCandidate3` enforce the frozen Content C3 fields, authorship
+AEAD, encrypted codec8 frame and digest joins. `BrowserOutboxRecord1` validates
+protocol3 raw bodies. None provides a Content sealing transaction or authorizes its
+caller. The database remains v9 with twelve existing stores and indexes.
+
+**STOP:** `BrowserReaderCapabilityRuntime.declare` establishes generic browser
+compression-reader ID1 only. It deliberately has no Note-family declaration. The
+existing `noteReaderCapabilities`/`noteReaderGate` path belongs to native
+`ContentNoteRuntime`, not the browser IndexedDB runtime. `compressionWriter` only
+authorizes ID1; current mode3 is transport selection. A genuine browser Content
+writer gate and current browser Note-reader capability proof are therefore missing.
+Creating C3 under a synthetic test flag or treating compression readiness as writer
+authority would bypass the required gate. No functional changes, schema changes, or
+tests were made. Keep upload, receipt, self-echo, ACK and Resolution off. Official
+84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; ready=false. CI was not
+polled.
+
+### Простыми словами
+
+Браузерная база умеет проверить форму I2 и C3, а ключи и шифрование поддерживают
+нужный формат. Но у браузера нет отдельного подтверждённого права создавать Content
+записи. Пока это право не определено безопасно, I2 нельзя превращать в C3 и
+удалять из базы.
+
 ## C21.2.07 — Canonical Content source / atomic intent2 / dormant ownership
 
-**LOCAL COMPLETE / REMOTE CI PENDING — NOT POLLED** (2026-10-19).
-C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`,
-Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
+**REMOTELY ACCEPTED** (2026-10-19; owner supplied). Implementation SHA
+`a0e248c7b22d0b707f6f2e3e488708612964a2fa`, Cloud `39167228308` SUCCESS, 6/6 required
+jobs SUCCESS. Continuation baseline `67135b15d7de2ba8f256ab13abece09393a35a1d` is preserved.
 
 `contentNoteIntents.ts` adds an explicitly constructed internal dormant runtime;
 BrowserPersistence/user composition/startup/UI do not select or expose it. It reuses
@@ -53,8 +88,9 @@ parent, cloud revision и ordinal. Заметка, состав проекта �
 новое событие и номер очереди не создаются. После перезапуска I2 снова проверяется
 текущим ключом. Обычные Legacy-заметки сохраняют свой writer, а возврат Content
 к Legacy запрещён. Runtime вызывается только явно в тестовом стенде; пользовательский
-Content writer и отправка ещё выключены. C21.2.08 добавит атомарное codec8 sealing
-с неизменяемыми C3/outbox; это отдельный следующий шаг, не выполненный здесь.
+Content writer и отправка ещё выключены. C21.2.08 пока остановлен на аудите:
+браузеру требуется отдельное подтверждённое Content writer полномочие; этот этап
+не начат функционально.
 
 Validation: **65 focused producer/atomicity/coalescing/handover/security tests PASS**
 (two new mandatory specs). Existing targeted Legacy/peer/mixed/prefix regressions:
@@ -70,7 +106,7 @@ Typecheck and production Vite build PASS (existing non-blocking bundling warning
 Workflow YAML, both new mandatory spec entries/path filters, helper syntax and
 `git diff --check` PASS. No remaining failures or skipped required checks; no new
 migration, dependencies, native/backend builds or CI polling. Protected .pyc unchanged.
-Current slice LOCAL COMPLETE / REMOTE CI PENDING; no independent .07 CI acceptance claimed.
+C21.2.07 is REMOTELY ACCEPTED: SHA `a0e248c7b22d0b707f6f2e3e488708612964a2fa`, Cloud `39167228308` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
 Expected Actions: Cloud backend tests YES; SQLite sync substrate NO. CI NOT POLLED.
 
 C21.2.06 REMOTELY ACCEPTED: SHA `198f50df429bddbb398ac7572d2834a950fa7d02`, Cloud `39162803233` SUCCESS, 6/6 required jobs SUCCESS (owner supplied).
