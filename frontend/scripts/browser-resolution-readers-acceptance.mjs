@@ -1,4 +1,4 @@
-/** Isolated readers over a real disposable v9 profile; never stores a future authority format. */
+/** Isolated readers over a real disposable v10 profile; never stores a future authority format. */
 import assert from 'node:assert/strict'
 import {mkdtemp,rm} from 'node:fs/promises'
 import {join} from 'node:path'
@@ -39,6 +39,6 @@ try{
   const user='11111111-1111-4111-8111-111111111111',session=await c21.openBrowserPersistence(user)
   try{const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents'];return {version:c21.WEB_DATABASE_VERSION,saved:Object.fromEntries(await Promise.all(names.map(async name=>[name,await nativeRows(name)])))}}finally{await session.close()}
  })
- assert.equal(after.version,9);assert.deepEqual(after.saved,before);assert.deepEqual(requests,[]);assert.deepEqual(errors,[])
- console.log('PASS: Chromium v9 real encrypted Legacy history; isolated readers read only; exact disk reopen; no future records, HTTP, ACK or writer activation; page errors 0')
+ assert.equal(after.version,10);assert.deepEqual(after.saved,before);assert.deepEqual(requests,[]);assert.deepEqual(errors,[])
+ console.log('PASS: Chromium v10 real encrypted Legacy history; isolated readers read only; exact disk reopen; no future records, HTTP, ACK or writer activation; page errors 0')
 }finally{await context?.close();await rm(directory,{recursive:true,force:true})}

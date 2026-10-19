@@ -1,5 +1,94 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## C21.2.08D — IndexedDB v10 compatibility gate / safe migration
+
+**LOCAL COMPLETE / REMOTE CI PENDING — MIGRATION ONLY** (2026-10-19).
+C21.2.08C **REMOTELY ACCEPTED — READERS ONLY**: implementation SHA
+`2ef393383d7e7e558485ae610dcf2856e7a4e846`, Cloud `39224079273` SUCCESS,
+all 6 required jobs SUCCESS (owner supplied; no Actions polling).
+Starting branch6.0 local/origin match that SHA; clean preflight.
+
+The active database target is10, with the same12 stores, key paths and indexes.
+Explicit native 9→10 versionchange is structural validation only: no conversion,
+repair, record rewrite, deletion or fabricated evidence. The native transaction
+aborts completely on schema/record/request/transaction failure, retaining version9
+and original encrypted rows. Supported old1–8 upgrade validators remain unchanged;
+new/empty databases create the same schema directly at10.
+
+Dedicated indexedDbV9Migration.ts uses current version dispatch and Content authority
+inventory joins rather than reusing the v8 gate. It checks identity/account/device
+ownership (opener plus unique schema indexes), binding/bootstrap, encrypted source
+outer records, Note-to-project source revisions, history/head/group/frozen versions,
+Legacy1/Content I2 intents, candidate1/2/C3, outbox1/receipt1/R2, inbox1–9/proofs,
+owner histories, event/sequence uniqueness, dense shared intent/outbox ordinals,
+exact pull high-water and ACK≤prefix≤pull. Proven prefix must be contiguous and
+cannot cross received or inbox9 self-echo barriers. Pending snapshots match current
+source; parent and I2/C3 historical Metadata/Stage dependency witnesses must exist.
+Encrypted project member_ids and plaintext content cannot be inspected keylessly:
+existing source AEAD/member checks remain mandatory after unlock. Envelope structure
+is checked during upgrade; successful migration is never an AEAD certificate.
+
+Active consumer compatibility audit:
+
+| Consumers | Compatibility decision |
+|---|---|
+| persistence.ts / syncDurability.ts | Explicit target10, exact physical schema, existing account/device and wire validators; no new record producer or generic unknown-format fallback. |
+| noteHistory.ts / noteHistoryRecords.ts | Existing candidate1/2/3/head1/group1/local_version1 contract retained; unknown Resolution4/head2/transition rejected. Existing joins and current-key opening remain required. |
+| noteIntents.ts / contentNoteIntents.ts / contentAuthorityInventory.ts | Legacy1 and I2 dispatch, C3/R2/inbox9 joins, shared ordinals and source ownership preserved. I2 stays dormant in production; no C3 producer added. |
+| localAuthority.ts / legacyNoteApply.ts / contentNoteApply.ts / noteTransportGateway.ts | Current source AEAD/auth/key/session/CAS gates retained. Unsupported future history fails before source changes; existing I2/C3 ownership blocks Legacy/source-only overwrite. |
+| provenPrefix.ts / ackPrerequisites.ts / registry and transport gates | Existing current-key proof qualification unchanged. Unknown history/inbox rejects; inbox9 remains an unqualified barrier; migration never advances prefix or ACK. |
+| resolutionRecords.ts / resolutionDag.ts / resolutionAuthentication.ts | Isolated read-only future dispatch from accepted .08C; no production import, durable new-format write, readiness or ACK certificate. |
+
+Version10 is an old-opener exclusion boundary, not permission to persist future
+Resolution variants. Active old-format readers may reject unsupported future rows;
+Resolution producers remain absent. This package does not assert full v10 Resolution
+apply compatibility. A future producer still requires every consumer's explicit
+new-format dispatch and protected apply/prefix acceptance before activation.
+
+Owned sessions already revoke on versionchange, abort/drain tracked transactions,
+close their connection and release the exclusive writer lock. An unrelated native
+connection can block upgrading: return upgrade_blocked, never force-close another
+tab, abort any delayed failed-open upgrade and allow a later retry. Old explicit9
+openers receive VersionError after upgrade; there is no downgrade/clear/recreation.
+Reopen and disk restart retain encrypted source/history/intent/transport/cursor rows.
+New session auth/account binding/current AMK lease are needed again; no positive
+authority token is persisted. Wrong keys, AEAD corruption or invalidated auth retain
+evidence and fail closed after unlock, with no downgrade.
+
+Validation: 42 focused v9 migration tests PASS; 236 affected migration/I2/C3/
+Resolution regressions PASS (11-file run included the first39 migration cases).
+Final mandatory affected C21 suite: 1895 tests PASS /64 files, including all42 new
+cases. Chromium persistence acceptance PASS, including15 new disposable native
+v9→v10 profiles, rich Legacy/peer Content/mixed frozen history, genuine dormant I2,
+blocked upgrade/retry, native abort, browser interruption, structural corruption,
+old9 VersionError, post-unlock AEAD/key failure and exact full disk reopen. C3/R2/
+inbox9 specimens have real AEAD in unit tests; no browser C3 producer is claimed.
+Separate Resolution readers Chromium v10 restart PASS. New migration scenarios:
+HTTP0, new ACK0, page errors0; existing broader controlled transport scenarios retain
+134 fixture API calls including17 bounded ACKs, no push or Resolution calls.
+Typecheck/production build PASS (existing Vite dynamic-import/chunk-size warnings).
+Workflow YAML, both path filters, mandatory focused and awaited browser coverage,
+and git diff --check PASS. Initial stale version expectations were updated; final
+checks have no failures or skips. Backend/native suites not required and not run.
+Protected .pyc SHA256 unchanged; no Actions polling/waiting.
+
+No Resolution4/Head2/GroupTransition2/inbox10/proof1 creation, protected apply,
+Resolution producer, new Note capability, Content sealing/upload/self-echo,
+positive Resolution ACK or production writer activation. Existing bounded ACK
+semantics remain intact. Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL
+COMPLETE; C21.2.08 functional sealing BLOCKED; .09 NOT STARTED; ready=false.
+VPS security release gate, checkpoint history and roadmap numbering unchanged.
+
+### Простыми словами
+
+Обновляется только номер базы и проверяется согласованность её записей. Проекты,
+заметки и зашифрованная история не переписываются. Если проверка или обновление
+прерваны, база остаётся прежней v9. После успешного перехода старый клиент v9
+получит отказ, чтобы не читать базу по устаревшим правилам. Разблокировка ключа и
+проверка шифрования нужны заново; сам переход версии не доказывает подлинность
+содержимого. Resolution apply и отправка Content остаются выключенными. Следующий
+ограниченный шаг — C21.2.08E, read-only planner для Resolution-v2.
+
 ## C21.2.08C — Browser Resolution-v2 strict readers / DAG / no migration
 
 **LOCAL COMPLETE / REMOTE CI PENDING — READERS ONLY** (2026-10-19).

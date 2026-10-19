@@ -4,7 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 /** Real dormant producer, real normal-user key/identity runtime, native IDB/locks. */
-export async function acceptContentAtomicIntents({origin,cases,mixedPage,mixedScope}){
+export async function acceptContentAtomicIntents({origin,cases,mixedPage,mixedScope,captureV9Profile}){
  if(mixedPage){
   await mixedPage.evaluate(async scope=>{
    await meta.keys.dispose();await session.close();globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId);globalThis.meta=await c21.metadataFixture(session,scope)
@@ -78,6 +78,7 @@ export async function acceptContentAtomicIntents({origin,cases,mixedPage,mixedSc
   assert.equal(afterPeer.cursor.proven_prefix,1);assert.equal(afterPeer.cursor.ack_cursor,0);assert.equal(afterPeer.prefix,2);assert.equal(retained.legacyNoteHistory.some(h=>h.record_kind==='candidate'&&h.record_version===3),false)
   await context.close();await launch();await bind();assert.deepEqual(await snapshot(),retained);assert.deepEqual(await inspect(),afterPeer)
   cases.push('C21.2.07 native genuine peer Content head explicitly hands over to I2; historical proof replays without source/intent/head writes, pending I2 adds no prefix/ACK qualification')
+  captureV9Profile?.({phase:"intent",scope,snapshot:retained})
   assert.deepEqual(errors,[]);assert.deepEqual(requests,[])
   cases.push('C21.2.07 genuine dormant producer creates encrypted canonical Note/membership + authenticated I2; renderer and disk restart preserve exact bytes and event/ordinal/parent')
   cases.push('C21.2.07 compatible edit after disk reopen coalesces same event/ordinal into generation2; source-only/Legacy fallback, pending delete and Legacy seal rejected atomically')

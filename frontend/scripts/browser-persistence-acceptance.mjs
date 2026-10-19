@@ -1,3 +1,4 @@
+import {acceptIndexedDbV10} from './browser-indexeddb-v10-acceptance.mjs'
 import {acceptContentAtomicIntents} from './browser-content-intent-acceptance.mjs'
 import {acceptContentAuthorityMigration} from './browser-content-authority-migration-acceptance.mjs'
 import {acceptNoteTransportGateway} from './browser-note-transport-gateway-acceptance.mjs'
@@ -28,6 +29,7 @@ const directory = await mkdtemp(join(tmpdir(), 'c21-persistence-'))
 const users = ['11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333', '44444444-4444-4444-8444-444444444444']
 const cases = []
 const authorityMigrationProfiles=[]
+const v9IntentProfiles=[]
 let context
 const unexpected = []
 const completionRequests = []
@@ -407,7 +409,7 @@ try {
     await new Promise((resolve, reject) => { const r = indexedDB.deleteDatabase(c21.WEB_DATABASE_NAME); r.onsuccess = resolve; r.onerror = reject; r.onblocked = reject })
     globalThis.session = await c21.openBrowserPersistence(users[0])
   })
-  assert.deepEqual(await nativeSchema(), { version: 9, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'legacyNoteHistory', 'legacyNoteIntents', 'localNotes', 'localProjects', 'outbox', 'ownerHeads', 'projectBindings', 'receipts'] })
+  assert.deepEqual(await nativeSchema(), { version: 10, stores: ['accountBindings', 'cursors', 'identities', 'inbox', 'legacyNoteHistory', 'legacyNoteIntents', 'localNotes', 'localProjects', 'outbox', 'ownerHeads', 'projectBindings', 'receipts'] })
   assert.equal((await page.evaluate(() => nativeRows('identities'))).length, 1)
   assert.equal((await page.evaluate(() => nativeRows('accountBindings'))).length, 1)
   assert.deepEqual(await page.evaluate(async () => [await nativeRows('outbox'), await nativeRows('inbox'), await nativeRows('cursors')]), [[], [], []])
@@ -638,7 +640,7 @@ try {
   assert.deepEqual(await historyRead(page), historySaved)
   assert.deepEqual(await durableSnapshot(), historyBefore)
   assert.deepEqual(await page.evaluate(scope => session.sync.readCheckpoint(scope), scopeA), saved.cursor)
-  assert.deepEqual(await nativeSchema(), { version: 9, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 10, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
   cases.push('unknown retained record and broken acceptance half fail after reopen; no automatic repair, schema/head writes, apply proof or ACK advancement')
   // Accepted C21 v3 fixture: all six old stores, including immutable accepted bodies/receipts.
   const v3 = await durableSnapshot()
@@ -701,7 +703,7 @@ try {
   assert.deepEqual(await nativeSchema(), { version: 3, stores: [...allStores].sort() })
   assert.deepEqual(await durableSnapshot(), v3)
   await page.evaluate(async () => { globalThis.session = await c21.openBrowserPersistence(users[0]) })
-  assert.deepEqual(await nativeSchema(), { version: 9, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
+  assert.deepEqual(await nativeSchema(), { version: 10, stores: [...allStores, 'projectBindings', 'ownerHeads', 'localProjects', 'localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
   assert.deepEqual(await durableSnapshot(), v3)
   assert.deepEqual(await page.evaluate(() => nativeRows('projectBindings')), [])
   cases.push('real v3 to current v6 preserves all six legacy stores including accepted ciphertext/receipts; corrupt/quota/request-abort/blocked-upgrade failures preserve intact v3, projectBindings starts empty')
@@ -1064,7 +1066,8 @@ try {
   page=await acceptStageOrder({page,scope:scopeA,cases,captureV8Profile:profile=>authorityMigrationProfiles.push(profile),network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   page=await acceptNoteTransportGateway({page,scope:scopeA,cases,network:{registration:registrationRequests,capability:capabilityRequests,mode:modeRequests,ack:ackRequests,registry:registryRequests},reopenProfile:async()=>{await context.close();await start();return tab()}})
   await acceptContentAuthorityMigration({origin,profiles:authorityMigrationProfiles,cases})
-  await acceptContentAtomicIntents({origin,cases,mixedPage:page,mixedScope:authorityMigrationProfiles[0].scope})
+  await acceptContentAtomicIntents({origin,cases,captureV9Profile:profile=>v9IntentProfiles.push(profile),mixedPage:page,mixedScope:authorityMigrationProfiles[0].scope})
+  await acceptIndexedDbV10({origin,cases,profiles:[...authorityMigrationProfiles,...v9IntentProfiles]})
   const finalIntents=await page.evaluate(()=>nativeRows('legacyNoteIntents'))
   const finalHistory = await page.evaluate(()=>nativeRows('legacyNoteHistory'))
   const finalDurability = await metadataSnapshot()

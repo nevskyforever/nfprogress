@@ -4,7 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 // Frozen v8 physical schema. Seed only newly created disposable profiles; never reset a profile.
-const schema=[
+export const schema=[
  ['identities','canonical_user_id',[['local_account_id','local_account_id',true],['device_id','device_id',true]]],
  ['accountBindings','local_account_id',[['canonical_user_id','canonical_user_id',true]]],
  ['outbox',['account_id','event_id'],[['ordinal',['account_id','device_id','local_ordinal'],true],['state',['account_id','state','local_ordinal'],false]]],
@@ -28,7 +28,7 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
   try{
    let page=await launch()
    await page.evaluate(async({schema,data,variant})=>{
-    const q=indexedDB.open(c21.WEB_DATABASE_NAME,variant==='future'?10:8)
+    const q=indexedDB.open(c21.WEB_DATABASE_NAME,variant==='future'?11:8)
     q.onupgradeneeded=()=>{for(const [name,keyPath,indexes] of schema){const store=q.result.createObjectStore(name,{keyPath});for(const [index,path,unique] of indexes)if(!(variant==='schema'&&name==='localNotes'&&index==='identity'))store.createIndex(index,path,{unique,multiEntry:variant==='schema-multientry'&&name==='identities'&&index==='local_account_id'})}}
     const db=await new Promise((resolve,reject)=>{q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})
     try{await c21.runBrowserTransaction(db,schema.map(s=>s[0]),'readwrite',(tx,result)=>{if(variant!=='empty')for(const [store,rows] of Object.entries(data))for(const row of rows)tx.objectStore(store).add(row);result(undefined)})}finally{db.close()}
@@ -37,10 +37,10 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
     const q=indexedDB.open(c21.WEB_DATABASE_NAME),db=await new Promise((resolve,reject)=>{q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})
     try{const names=Array.from(db.objectStoreNames),t=db.transaction(names),data={},schema=[];await Promise.all(names.map(name=>new Promise((resolve,reject)=>{const store=t.objectStore(name),r=store.getAll();schema.push([name,store.keyPath,Array.from(store.indexNames).map(n=>[n,store.index(n).keyPath,store.index(n).unique,store.index(n).multiEntry])]);r.onsuccess=()=>{data[name]=r.result;resolve()};r.onerror=()=>reject(r.error)})));return{version:db.version,schema,data}}finally{db.close()}
    })
-   const before=await snapshot();assert.equal(before.version,variant==='future'?10:8);assert.equal(before.schema.length,12)
+   const before=await snapshot();assert.equal(before.version,variant==='future'?11:8);assert.equal(before.schema.length,12)
    const opened=await page.evaluate(async({scope,variant})=>{
     const open=IDBFactory.prototype.open
-    if(variant==='interrupted')IDBFactory.prototype.open=function(...args){const q=open.apply(this,args);q.addEventListener('upgradeneeded',e=>{if(e.oldVersion===8&&e.newVersion===9)q.transaction.abort()},{once:true});return q}
+    if(variant==='interrupted')IDBFactory.prototype.open=function(...args){const q=open.apply(this,args);q.addEventListener('upgradeneeded',e=>{if(e.oldVersion===8&&e.newVersion===10)q.transaction.abort()},{once:true});return q}
     try{globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId);return'opened'}catch(e){return e.code}finally{IDBFactory.prototype.open=open}
    },{scope,variant})
    if(['schema','schema-multientry','corrupt','interrupted','future'].includes(variant)){
@@ -48,10 +48,10 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
     assert.deepEqual(await snapshot(),before)
     if(variant==='interrupted'){
      await page.evaluate(async scope=>{await navigator.locks.request('worta-web:writer',()=>{});globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId)},scope)
-     assert.equal((await snapshot()).version,9);assert.deepEqual((await snapshot()).data,before.data)
+     assert.equal((await snapshot()).version,10);assert.deepEqual((await snapshot()).data,before.data)
     }
    }else{
-    assert.equal(opened,'opened',variant);const after=await snapshot();assert.equal(after.version,9);assert.deepEqual(after.schema,before.schema)
+    assert.equal(opened,'opened',variant);const after=await snapshot();assert.equal(after.version,10);assert.deepEqual(after.schema,before.schema)
     if(variant==='empty'){for(const name of schema.map(s=>s[0]).filter(s=>!['identities','accountBindings'].includes(s)))assert.deepEqual(after.data[name],[])}
     else assert.deepEqual(after.data,before.data)
     assert.equal(await page.evaluate(async()=>new Promise(resolve=>{const q=indexedDB.open(c21.WEB_DATABASE_NAME,8);q.onsuccess=()=>{q.result.close();resolve('unsafe_open')};q.onerror=()=>resolve(q.error.name)})),'VersionError')

@@ -1,3 +1,4 @@
+import {validateBrowserV9State} from './indexedDbV9Migration'
 import {validateBrowserV8State} from './contentAuthorityMigration'
 import { BrowserContentNoteApply } from './contentNoteApply'
 import {BrowserStageOrderApply} from './stageOrderApply'
@@ -22,7 +23,7 @@ import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } f
 import { BrowserSyncDurability, validateBrowserV2SyncState, validateBrowserV3SyncState, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 9
+export const WEB_DATABASE_VERSION = 10
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
@@ -163,7 +164,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7, 8].includes(event.oldVersion)) {
+      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].includes(event.oldVersion)) {
         abortUpgrade()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
@@ -183,6 +184,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
               for (const identity of identities) validateRecords(identity, bindings.find(b => b.canonical_user_id === identity.canonical_user_id), identity.canonical_user_id)
               if (event.oldVersion === 2) validateBrowserV2SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result)
               if (event.oldVersion === 3 || event.oldVersion === 4) validateBrowserV3SyncState(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests[2]!.result, requests[3]!.result, requests[4]!.result, requests[5]!.result)
+              if (event.oldVersion === 9) validateBrowserV9State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 8) validateBrowserV8State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 7) validateBrowserV7State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
               if (event.oldVersion === 6) validateBrowserV6State(identities.map(identity => ({ canonicalUserId: identity.canonical_user_id, accountId: identity.local_account_id, deviceId: identity.device_id })), requests.slice(2).map(r => r.result))
