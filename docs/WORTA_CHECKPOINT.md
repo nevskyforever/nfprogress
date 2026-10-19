@@ -1,5 +1,56 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## C21.2.08B — Browser Resolution-v2 protected apply / contract design
+
+**DESIGN ONLY / LOCAL DOCUMENTATION COMPLETE / REMOTE CI PENDING** (2026-10-19).
+Starting branch6.0 local/origin `90159a7ec56f46b83f4aa5f4b64ba2605ab02b0e`, clean.
+C21.2.08A is **REMOTELY ACCEPTED AUDIT ONLY**: same SHA, Cloud `39206686051`
+SUCCESS, all 6 mandatory jobs SUCCESS (owner supplied). Its functional implementation
+remains BLOCKED. C21.2.08 sealing BLOCKED; C21.2.09 NOT STARTED. Official84.0%;
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; ready=false.
+
+Selected architecture A: complete browser Resolution-v2 protected apply, all four
+frozen strategies (choose_version/manual_merge/delete/keep_both), genuine encrypted
+source, published parent witnesses, full multi-parent DAG, local generation/source/
+Metadata/Stage CAS and atomic one/two-Note application. Remote group identity and
+generation are sender evidence; local group values may differ and must be bound by
+exact scoped parent/snapshot/ancestry equivalence. Decoder success alone is insufficient.
+
+Propose **IndexedDB v10**: current v9 ordinary candidate/head/group/proof contracts
+cannot safely represent Resolution. New immutable Resolution4, typed Head2,
+append-only GroupTransition2 and inbox10/ResolutionProof1; exact fields, encrypted
+evidence and digest dependencies in [outbound design B1–B10](web/C21_BROWSER_CONTENT_OUTBOUND_DESIGN.md#c21208b--resolution-v2-protected-apply-contract--design-only).
+Same 12 stores/key paths/indexes; no existing record rewrite. Old group1/candidates/
+frozen versions/history stay; only effective closure is derived from authenticated
+new evidence. keep_both has one event-bearing record and two scoped result anchors,
+not a duplicate candidate or invented clone genesis. Source/project/head/closure/proof
+commit together; replay writes nothing. Orphans stay received and cap prefix/ACK.
+
+V10 is proposed only: actual database remains v9, no migration or production edits.
+Future upgrade validates existing structure atomically, rolls back on failure and
+reauthenticates after unlock; old explicit-v9 clients must fail opening a v10 profile.
+Alternative B, server capability separation, is rejected here: opaque Note/event
+ciphertext and a single account cursor cannot safely let an ordinary-only browser
+ACK past Resolution. Existing gate remains all-device reader readiness, not an
+independent writer grant. No backend change is required for selected A.
+
+Ordered implementation packages (no new stage numbers): strict versioned readers/
+DAG → v10 compatibility gate → read-only planner → atomic protected source/apply →
+historical proof/prefix acceptance → Chromium/full-profile restart and independent
+reader acceptance → revisit .08A dormant readiness gate. No Note capability claim
+before full acceptance. C21.2.08 sealing/upload/self-echo and .09 remain blocked.
+VPS Security Audit release gate, history and roadmap numbering are preserved.
+
+### Простыми словами
+
+Браузер умеет разобрать Resolution-v2, но ещё не умеет безопасно выполнить всё
+решение конфликта: проверить исходные версии, сохранить историю и применить результат
+без потери новой локальной правки. Для «сохранить обе» две заметки меняются вместе.
+Выбрана будущая v10 с отдельной историей решения, без переписывания старых данных.
+Сейчас выполнен только проект. Следующий пакет — строгие читатели новых записей
+и графа родителей; Content upload остаётся выключенным до реализации и приёмки
+всего reader и readiness gate.
+
 ## C21.2.08 — Browser Content atomic codec8 sealing / audit-only STOP
 
 **BLOCKED BEFORE FUNCTIONAL IMPLEMENTATION / AUDIT ONLY** (2026-10-19). Required

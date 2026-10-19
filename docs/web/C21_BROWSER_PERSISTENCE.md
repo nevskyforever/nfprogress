@@ -3800,3 +3800,85 @@ truthfully. No browser capability registration/token, writer gate, persistence,
 Content sealing/upload, self-echo or ACK change was made. C21.2.08 remains blocked
 until Resolution apply is implemented and accepted or the backend contract is
 separately revised and accepted. Official progress 84.0%; `ready=false`.
+
+## C21.2.08B — proposed Resolution-v2 persistence / v10 decision
+
+**DESIGN ONLY, not implemented.** C21.2.08A is independently accepted AUDIT ONLY:
+SHA `90159a7ec56f46b83f4aa5f4b64ba2605ab02b0e`, Cloud `39206686051` SUCCESS,
+6/6 mandatory jobs. Neither .08 nor .08A is functionally complete. C21.2.08 sealing
+BLOCKED; C21.2.09 NOT STARTED; progress84.0%; C21/C21.2 IN PROGRESS;
+C21.1.06 NOT LOCAL COMPLETE; ready=false. Current database remains v9.
+
+The implementation-ready authority is the
+[Resolution design B1–B10](C21_BROWSER_CONTENT_OUTBOUND_DESIGN.md#c21208b--resolution-v2-protected-apply-contract--design-only),
+including exact outer/inner record fields, strategy equivalence and test matrix.
+Selected path A is complete browser Resolution protected apply; backend capability
+separation is rejected for the present opaque account stream. No backend change.
+
+### Why v9 is insufficient
+
+History candidate1/2/3 headers are ordinary and single-parent, noteFrontier only
+consumes one parent, head1 requires a candidate, group1 accepts only lifecycle=open
+and one group per Note, and ordinary Content proof joins walk only a linear chain.
+Inbox7/8 are ordinary applied/conflict outcomes; inbox9 is own Content P2. None
+can encode a truthful Resolution, closed conflict or the keep_both clone's same-event
+anchor. Casting Resolution into candidate2/3 or changing group1 semantics in place
+would break accepted readers. V10 must gate opening the new variants.
+
+### Smallest proposed extension
+
+| Store / new variant | Durable meaning |
+|---|---|
+| legacyNoteHistory / Resolution4 | One event-indexed immutable applied Resolution: exact original encrypted wire, frozen multi-parent header, source device/sequence, payload/dependency/group digests, remote and local group identities/generations and authenticated encrypted evidence. Original wire retains exact canonical payload bytes; encrypted evidence binds parent publication/snapshot references, final group1, prior head and encrypted before/after source. |
+| legacyNoteHistory / Head2 | Same mutable head key; head_revision CAS+1. Typed ordinary or Resolution-result node reference, original/retained role and exact frontier. No event_id index entry on heads. |
+| legacyNoteHistory / GroupTransition2 | Append-only authenticated closure linked to Resolution4 and final group1 digest/generation. Old group1 stays byte-exact; effective open/resolved is derived. At most one effective open group; multiple historical closed groups are retained. |
+| inbox / inbox10 + ResolutionProof1 | Exact original wire fields, state=note_resolution_proven, independently reauthenticated applied proof. Proof references Resolution/transition and encrypted output digests; never an ordinary Content proof or P2. |
+| localProjects / localNotes | Existing record1/encrypted local_format1. Generalize the internal protected source hook to one or two Notes in one transaction; do not create a second mutable source. Tombstones stay in stored membership; local mutation revision is separate from cloud revision. |
+
+The exact field allowlists and nullability are in design B5. Proposed version numbers
+are scoped by record_kind/store; they do not rename accepted candidate2/3. Existing
+12 stores, key paths and indexes remain unchanged. The unique history event index
+belongs only to the original Resolution4. A keep_both clone head references its
+retained output across the same authenticated project inventory; never insert a
+second event-bearing record or synthetic genesis for that clone. Future ordinary
+children resolve the scoped original/retained anchor at cloud revision+1.
+
+No existing candidate, frozen local_version, group1, inbox proof, outbox or receipt
+is converted. Old group proofs remain historical witnesses; future readers must
+verify them through authenticated closure/prior-head evidence rather than wrongly
+compare an old applied branch with the current head. Update every v10 history,
+source ownership, prefix and ACK consumer before enabling the format gate.
+Unknown records, dangling closure/clone references or invalid crypto block mutation
+and ACK. A hash match or database-open success is not cryptographic acceptance.
+
+### Atomicity and upgrade contract
+
+Prepare outside IDB under current normal-user auth/AMK lease; exact whole-project
+source and account inventory, group generation, every parent/publication and current
+Metadata/Stage authority are pinned. One strict transaction CASes these anchors and
+writes the Resolution, closure, both heads, one/two encrypted Note rows, encrypted
+project membership and inbox10. No persisted applying half-state, new intent, ordinal,
+outbox, upload receipt or cursor advancement. Request failure, quota, stale lease,
+logout, profile close, second-tab ownership loss or native transaction abort leaves
+all old bytes. Exact post-commit retry authenticates and writes nothing.
+
+9→10 is a versionchange compatibility barrier with structural validation and **no
+record rewrite**. Validate old v9 shapes/joins/uniqueness/source/cursor consistency;
+keep existing earlier upgrade validation. Abort leaves v9 and all data intact.
+After successful upgrade, crypto failure after unlock blocks write/ACK; never
+silently downgrade/delete. Old explicit v9 clients get VersionError; live old tabs
+must close on versionchange, otherwise upgrade_blocked. Full-profile restart rebuilds
+scope/lease and authenticates all stored authority; no runtime token survives.
+
+Implement independently: strict record/DAG readers → populated migration gate →
+read-only planner → atomic four-strategy source/apply → historical proof/prefix
+verification → Chromium/disk reopen and independent acceptance. Only then revisit
+.08A dormant capability/gate and .08 sealing. No new C-stage numbers assigned.
+
+### Простыми словами
+
+Одного чтения формата мало: нужно доказать, какие версии действительно участвовали
+в конфликте, сохранить историю и применить всё решение без половинчатого состояния.
+Для двух заметок требуется одна транзакция. Предложена v10, чтобы старый браузер
+не открыл новую историю как обычную. Старые данные не переписываются. Следующий
+пакет — читатели новых записей и графа; миграция и Content upload пока выключены.

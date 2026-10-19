@@ -2860,3 +2860,74 @@ runtime. No backend change, sealing, upload, self-echo, Resolution activation or
 advancement. The prerequisite is a reviewed and tested browser Resolution-v2
 protected apply path (or a separately accepted server capability-contract change).
 Official progress remains 84.0%; `ready=false`.
+
+## C21.2.08B — Resolution-v2 family / protected apply design
+
+**DESIGN ONLY / REMOTE CI PENDING.** Prior C21.2.08A audit acceptance: SHA
+`90159a7ec56f46b83f4aa5f4b64ba2605ab02b0e`, Cloud `39206686051` SUCCESS,
+6/6 required jobs (owner supplied). .08A remains FUNCTIONALLY BLOCKED; .08 sealing
+BLOCKED; .09 NOT STARTED. No production, migration, capability or writer activation.
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; ready=false.
+
+Selected architecture A: implement a full browser-native protected Resolution2
+reader with a proposed v10 compatibility gate, preserving frozen wire/backend/native
+contracts. Exact schemas, crypto bindings, transaction and ordered work packages:
+[Resolution-v2 design B1–B10](../web/C21_BROWSER_CONTENT_OUTBOUND_DESIGN.md#c21208b--resolution-v2-protected-apply-contract--design-only).
+Current implementation remains unchanged; the following is acceptance design.
+
+| Family / boundary | Required future authority / outcome |
+|---|---|
+| choose_version | Exact parent set and selected published branch; result operation/record equals that branch, including tombstone. |
+| manual_merge | Authenticated sender upsert over the exact complete conflict; no receiver-invented merge or preferred branch. |
+| delete | Authenticated original-route tombstone, preserved source/history and correct head/closure. |
+| keep_both | Two proven live branches; original equals selected; retained equals other except allowed new ID/created_at/updated_at. Both encrypted sources, project membership, heads, closure and proof commit atomically. Collision across account identities/history/pending owners aborts. |
+| Account/device/wire | Original retained descriptor + AMK AEAD; exact canonical wrapper/Resolution payload, bootstrap, source device, event/sequence/revision/time. No native authority, caller DTO or unsigned outer digest substitutes for evidence. |
+| Dependency | Forced fresh Metadata coverage and exact Stage authority for Content route; pin all owners/bindings and CAS after crypto. Legacy protocol2 Resolution uses its own explicit eligibility route, not framed fallback. |
+| Conflict | Local group/generation CAS, authenticated remote group/generation retained separately. Native tests prove these values may differ. Map by exact published tip set, snapshots and scoped ancestry; unsealed local intent cannot impersonate a published parent. |
+| Multi-parent | Canonical 2..64 sorted unique IDs; primary+additional equals resolved set, revision=max+1, all parents authenticated. New DAG resolver includes both outputs of earlier Resolution through explicit scoped anchors. |
+| Source | Genuine decrypted canonical project and Note, exact source token and current working branch. New local edit, I2/C3 ownership or pending unpublished branch blocks overwrite. Historical frozen admission and later accepted sealed generation are distinguished. |
+| Durable history | New Resolution4, Head2 and append-only GroupTransition2; preserve group1/candidates/frozen records and historical proofs. No group1.lifecycle rewrite, v1 coercion or lost losing branch. |
+| Final proof | New ResolutionProof1 in inbox10, independently reopened with current keys and exact original wire. Historical outputs remain evidence after later valid edits. No ordinary proof or own Content inbox9 reuse. |
+| Prefix/ACK | Separate authenticated certificate qualifies only the Resolution sequence; keep_both counts once. All gaps/orphans/own echoes/unsupported-family barriers remain. Applying does not itself update prefix or ACK; existing registration/mode/registry/reader checks stay mandatory. |
+
+Missing dependencies/parents/group/publication remain received and unqualified;
+bounded explicit retry after prerequisites arrive, including full profile restart.
+Wrong scope, extra tips, altered wire or duplicate event/sequence is a fail-closed
+error. Replay must match immutable event, canonical payload, both outputs and closure;
+zero source/history/counter writes even after a lost response. A second incompatible
+Resolution over a closed group is not auto-selected. Own Resolution remains blocked
+without genuine accepted author evidence; no self-echo activation in this design.
+
+V9 is insufficient: single-parent ordinary candidates/frontier, open-only group and
+ordinary proofs cannot represent the required contract. Propose v10, same 12 stores,
+keys/indexes, no migration rewrite or plaintext content. Structural upgrade failure
+rolls back; unlock reauthenticates AEAD before mutation/ACK. Old explicit-v9 clients
+cannot open v10, blocked tabs do not trigger destructive cleanup. One original
+Resolution event owns the clone anchor; no duplicate unique-index event ID.
+
+Backend alternative B rejected for this scope: current server sees opaque codec8
+Note/event ciphertext and one account-wide sequence/ACK cursor. An ordinary-only
+client may retain Resolution ciphertext and ACK only the earlier proven prefix;
+it cannot safely process/ACK across Resolution or dependent descendants. Versioned
+separation would need a reviewed discriminator/routing/dependency/ACK and rollout
+contract. Merely relaxing the all-device gate would weaken safety. No backend change
+is required for A; noteReaderGate remains readiness, not independent writer authority.
+
+Future mandatory acceptance: all strategies with real encrypted source and history;
+Stage/plain/ID0/ID1; multi-parent ancestry and clone children; publication/frozen
+history; generation/source/Metadata CAS; orphan/replay/duplicate rejection; failures
+at every transaction write, especially original→clone; auth/key/account/profile/two-tab
+invalidation; populated v9 upgrade/old-client rejection/AEAD corruption; full disk
+restart; existing Legacy/peer/mixed/I2 regressions and negative prefix/ACK barriers.
+Real Chromium must exercise genuine protected apply, zero page errors, no production
+Content writer/sealing/outbox/upload/self-echo or automatic capability/ACK activation.
+No synthetic proof records establish positive readiness. Tests become mandatory in
+CI when those work packages are implemented; none are added or run by this docs slice.
+
+### Простыми словами
+
+Решение конфликта должно доказать все исходные версии и сохранить их историю.
+Особенно важно сохранить обе заметки вместе при keep_both. Декодер этого не делает.
+Выбран полный browser reader и будущая v10 без переписывания старых данных;
+ослабление серверной проверки не решает проблему общего потока. Следующий пакет —
+строгие читатели записей и графа истории. Capability и Content upload пока выключены.

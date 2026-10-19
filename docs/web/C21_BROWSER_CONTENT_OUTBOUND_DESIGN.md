@@ -950,3 +950,380 @@ upload/self-echo and Resolution remain blocked. Next prerequisite: implement and
 accept browser Resolution-v2 protected apply (or separately approve a truthful
 server capability contract); then revisit the dormant gate. `ready=false`, progress
 84.0%; no roadmap renumbering.
+
+## C21.2.08B — Resolution-v2 protected apply contract / design only
+
+**DESIGN ONLY / LOCAL DOCUMENTATION COMPLETE / REMOTE CI PENDING.** Baseline and
+C21.2.08A audit SHA `90159a7ec56f46b83f4aa5f4b64ba2605ab02b0e`; independent
+Cloud `39206686051` SUCCESS, 6/6 mandatory jobs (owner supplied). C21.2.08A is
+REMOTELY ACCEPTED AUDIT ONLY, functionally blocked. C21.2.08 sealing remains
+BLOCKED; C21.2.09 NOT STARTED. Official84.0%; C21/C21.2 IN PROGRESS;
+C21.1.06 NOT LOCAL COMPLETE; ready=false. Everything proposed below is unimplemented.
+This section extends the future reader design, not the existing C3 writer contract.
+
+### B1. Audited code and decision
+
+| Actual source | Constraint / reference behavior |
+|---|---|
+| [contentNoteApply.ts](../../frontend/src/platform/web/contentNoteApply.ts), [noteTransport.ts](../../frontend/src/platform/web/noteTransport.ts), [noteTransportPrerequisite.ts](../../frontend/src/platform/web/noteTransportPrerequisite.ts) | Production browser Content preparation selects ordinary-v1 only. Original AEAD, Metadata and Stage prerequisites issue opaque current certificates; none authorizes Resolution. |
+| [noteHistoryRecords.ts](../../frontend/src/platform/web/noteHistoryRecords.ts), [noteHistory.ts](../../frontend/src/platform/web/noteHistory.ts) | candidate1/2/3 use ordinary headers; parent revision must be previous revision, frontier removes only single parents; head1 requires a candidate; group1 is open-only and currently one per Note. Immutable candidates/frozen versions cannot be rewritten. |
+| [legacyNoteApply.ts](../../frontend/src/platform/web/legacyNoteApply.ts), [localAuthority.ts](../../frontend/src/platform/web/localAuthority.ts), [localAuthorityRecords.ts](../../frontend/src/platform/web/localAuthorityRecords.ts) | Plans bind real history, encrypted source and current lease. Current protected source hook writes one Note plus project, not the two-Note keep_both mutation. Project member_ids include stored tombstones. |
+| [contentNoteProof.ts](../../frontend/src/platform/web/contentNoteProof.ts), [contentNoteConflictProof.ts](../../frontend/src/platform/web/contentNoteConflictProof.ts) | Applied proof ancestry follows a single chain. Open group verification assumes the current head or frozen branch; historical verification after closure needs a separately authenticated transition. |
+| [ackPrerequisites.ts](../../frontend/src/platform/web/ackPrerequisites.ts), [provenPrefix.ts](../../frontend/src/platform/web/provenPrefix.ts), [persistence.ts](../../frontend/src/platform/web/persistence.ts) | Prefix requires exact authenticated family outcomes; schema is v9 / 12 stores; no Resolution proof or closed-group representation. Inbox9 is already reserved for own Content P2, not Resolution. |
+| [canonicalReaders.ts](../../frontend/src/platform/web/canonicalReaders.ts), [contentNoteCodec.ts](../../frontend/src/cloud/contentNoteCodec.ts), [noteSyncResolutionV2Codec.ts](../../frontend/src/cloud/noteSyncResolutionV2Codec.ts) | Read-only decoding supports codec8/frame1 ID0/ID1 and embedded Resolution2; the frozen decoder defines four strategies, sorted 2..64 parents and portable Content route restrictions. Parsing is not protected apply. |
+| [contentNoteRuntime.ts](../../frontend/src/cloud/contentNoteRuntime.ts), [contentNoteReader.ts](../../frontend/src/cloud/contentNoteReader.ts) | Native declaration/reader uses Tauri persistence; do not import this as browser authority. |
+| [note_sync.rs](../../frontend/src-tauri/src/note_sync.rs), [content_note_sync.rs](../../frontend/src-tauri/src/content_note_sync.rs), [SQLite applied Resolution ledger](../../nfprogress/core/sqlite/migrations/023_note_sync_applied_resolutions.sql) | apply_resolution_with_content, peer_resolution_tip_proofs, peer_result_evidence_with_content and peer_resolution_replay_matches require published parents, exact local group/CAS, original objects and result evidence. Remote group IDs/generations may differ from local ones. keep_both advances both entity heads under the single Resolution event. Reference semantics only; native IPC/SQLite authority cannot be copied. |
+| [backend services](../../backend/app/cloud/services.py), [capability schema](../../backend/app/cloud/schemas.py), [v3 routes](../../backend/app/cloud/sync_v3_router.py) | Declaration persists authenticated registered-device protocol metadata. content_note_gate requires all devices ready plus mode3. Opaque note/event push is rejected if the gate fails; pull also checks device readiness after Note events exist. This is readiness, not an independent server-issued writer permission. |
+
+**Decision: select A, complete browser Resolution-v2 protected apply; propose v10.**
+V9's bytes can physically store another object, but its accepted validators and old
+clients cannot safely understand multi-parent nodes, conflict closure, clone anchors
+or a new proof. Do not encode Resolution as ordinary candidate2/3, mutate group1 to
+an unrecognized lifecycle, or reuse inbox9. V10 is an opening compatibility barrier;
+no migration or production code changes occur in this slice.
+
+### B2. Reader boundary and immutable input
+
+The future browser-only reader takes `(current BrowserSyncScope, retained sequence)`;
+caller-provided plaintext, result DTOs or proof flags are never authority. It loads
+the original retained wire, decrypts with the current account AMK lease and binds
+canonical user, account/device/profile, auth epoch and source device to the retained
+descriptor. AMK AEAD plus the server descriptor is the existing identity contract,
+not a new per-device signature. Crypto1/AAD1 binds user/project/Note.
+
+For mode3: require protocol3, Note/event, deleted_at=null, WORTA-C1 frame1/codec8 v1,
+ID0 or existing bounded ID1 decoding, wrapper account/device and exact descriptor
+identity/revision/canonical time. Require embedded version2; preserve both the
+original encrypted wire (including original nonce/ciphertext) and exact authenticated
+canonical wrapper/Resolution payload under that original AEAD. Reopen the original
+ciphertext whenever exact payload bytes are needed; do not persist duplicate
+plaintext payloads. Never reframe, recompress or synthesize a v1 wire. Also specify a separate explicit C17 protocol2 Note/resolution decoder for
+already retained legacy Resolution2: no codec fallback, no writer cutover and no
+change to ordinary Legacy routing. The mode3 capability acceptance concerns the
+framed Content route; legacy Resolution transport acceptance is tested separately.
+
+Complete means all four frozen strategies within each owning codec's accepted
+routes. Content retains project HTML/plain, stage-null or proven Stage, empty
+metadata, no mindmap ownership, exact route consistency with all parents and the
+keep_both retained Note. Legacy Resolution retains its existing C17 eligibility
+restrictions. Do not claim mindmap or unsupported route support. Enforce frozen
+payload/resource bounds and preflight local encrypted-source size/quota limits;
+never truncate data or declare a rejected event applied. New typed Resolution source
+admission must validate Content routes without widening Legacy source validators.
+Audit the existing smaller local title/content limits explicitly during source-hook
+implementation; unsupported size stays a visible barrier until that admission is
+accepted. No capability declaration is justified merely by successful decoding.
+
+### B3. Evidence needed before a result may touch source
+
+1. Snapshot registered local identity, binding and active bootstrap. For Content,
+   force fresh original-AEAD Metadata coverage and require the declared Metadata
+   event to be a covered live ancestor of the exact current single live head.
+   Authenticate exact Stage dependencies for both outputs; missing/changed/deleted
+   Metadata or Stage authority blocks. A legacy envelope has no invented Content
+   dependencies: bind its accepted bootstrap/current project authority explicitly.
+2. Authenticate every parent from original retained Legacy/Content candidates or an
+   already proven Resolution result anchor. All parents belong to this account,
+   bootstrap, project, original Note and route. Require sorted unique resolved IDs
+   (2..64), primary=first ID, additional=remaining IDs, exact equality with the
+   payload's resolved_event_ids, no self-parent, and revision=max(parent revisions)+1.
+   Traverse the full DAG, detect cycles, missing edges and cross-Note anchors; never
+   follow just the primary parent or accept an arbitrary set of UUIDs.
+3. Authenticate the complete current effective open local conflict group, its final
+   members, generations, common ancestor and current frontier. Exact resolved IDs
+   must equal its published tip IDs; a strict subset means missing evidence, extra
+   or different tips mean stale conflict. Remote group UUID/generation are retained
+   as authenticated sender metadata; they need not equal locally allocated values.
+   Record an explicit remote-to-local mapping justified by the exact parent set,
+   scope, snapshots and ancestry, never by matching group names alone.
+4. A remote branch needs original AEAD plus actual applied/conflict-preserved inbox
+   evidence. A local frozen branch needs its genuine frozen admission AND the exact
+   sealed candidate, immutable accepted outbox/receipt and current lifecycle proof.
+   Unpublished local intent is not a resolvable published parent. If later sealing
+   coalesced the same local event, compare the actual published snapshot/generation,
+   not the earlier frozen text; retain both witnesses. No pending I2/C3 branch,
+   unsealed edit or newer canonical source may be silently consumed.
+5. Decrypt canonical localProjects/localNotes and authenticate membership, current
+   head/working branch, source revisions and whole-project source token. The source
+   must equal the proven currently displayed branch, not merely have the same ID.
+   Preserve the historical branch even when the result selects another version.
+   An unrelated new local edit aborts instead of being overwritten.
+
+These checks make the Resolution a decision over exactly the existing conflict,
+not an authenticated request to overwrite whatever Note happens to exist now.
+Manual merge is a received authenticated decision, not a merge invented by Web.
+
+### B4. All frozen strategies
+
+| Strategy | Mandatory result check and source effect |
+|---|---|
+| choose_version | selected_event_id is exactly one proven parent; result operation and full wire Note/tombstone equal that published parent's snapshot. Apply that result to the original Note. No implicit preferred branch. |
+| manual_merge | Result must be an upsert, pass complete frozen validation, retain the original Note/project/route, and resolve the exact full parent set. The sender's authenticated merged content is used without recalculation. |
+| delete | Result must be the validated original-route tombstone. Keep encrypted local tombstone and historical content; do not physically delete history or pretend one parent was chosen. |
+| keep_both | Exactly two distinct live upsert parents. Original result is byte-semantic equal to selected parent. Retained result equals the other parent's wire record except its new id and received created_at/updated_at (the native frozen contract's allowed changes). Same project/Stage/format; never generate a new ID or timestamps on the receiver. Apply both in one transaction. |
+
+keep_both collision checks cover the entire account's localNotes unique identity,
+including tombstones and other projects, all history/clone anchors, pending intents,
+sealed/accepted outbox, receipts and retained inbox descriptors, plus reserved output
+IDs of any Resolution. A received future child may reference the planned clone but
+is not an existing clone allocation; distinguish that reference from a conflicting
+create/owner. Only exact proven replay may reuse an allocated clone. Both source
+rows use existing encrypted local_format1/record1; project member_ids becomes the
+sorted set of stored Note IDs (including tombstones), adding the clone once. One
+project source_revision increment covers both rows; local mutation revision follows
+the current protected peer-apply convention (0), while cloud revision is the
+Resolution revision in history. Resource/identity limits abort the whole mutation.
+
+### B5. Proposed exact durable extension (not implemented)
+
+Use the same 12 stores, paths and indexes. Existing strict record variants retain
+their shapes. UUIDs, safe integers, canonical timestamps, SHA256 hex and bounded
+crypto1/AAD1 envelopes use existing validators. Unknown/additional fields reject.
+`H` below is exactly account_id, device_id, project_id, note_id, bootstrap_id,
+record_kind, record_id; each new history variant adds record_version as specified.
+
+| Proposed record | Exact fields beyond H and record_version; invariants |
+|---|---|
+| Resolution4 in legacyNoteHistory | record_version=4; record_kind='resolution'; record_id=event_id; event_id, source_device_id, protocol_version, transport_kind, server_sequence, header, wire_item, wire_digest, payload_digest, dependency_digest, remote_group_id, remote_generation, local_group_id, local_generation, group_digest, parent_event_ids, strategy, result_operation, retained_note_id, evidence_envelope, record_digest. transport_kind is 'content_note_resolution_v2' (protocol3) or 'legacy_resolution_v2' (protocol2); header is exact frozen Resolution2 header. retained_note_id is null except keep_both. One immutable applied event, not candidate2/3; event index remains unique. |
+| Head2 in legacyNoteHistory | record_version=2; record_kind='head'; record_id='head'; head_revision, linear_head_event_id, tip_event_ids, node_ref. node_ref is exactly {kind:'candidate',event_id} or {kind:'resolution_result',resolution_event_id,result_role,resolution_digest}; role is 'original' or 'retained'. No top-level event_id, so no event-index collision. Replace only this mutable head key with exact previous-head CAS and head_revision+1; preserve the previous head in encrypted Resolution evidence. |
+| GroupTransition2 in legacyNoteHistory | record_version=2; record_kind='group_transition'; record_id=group_id; group_id, from_generation, from_digest, resolution_event_id, resolution_digest, resolved_parent_ids, effective_lifecycle='resolved', record_digest. One append-only closure per group; freeze original group1 bytes at this generation. It is invalid without authenticated Resolution4. Do not rewrite group1.lifecycle or delete it. |
+| ResolutionProof1 inside inbox10 | proof record_version=1, owner_kind='note_resolution', outcome='applied'; account_id, bootstrap_id, protocol_version, reference, server_sequence, header, wire_digest, payload_digest, dependency_digest, resolution_digest, transition_digest, output_digests, outcome_digest. reference is exact original transport descriptor; output_digests is exactly {original:string,retained:string|null}, hashing the encrypted output records. No plaintext Note. |
+| Inbox10 in inbox | Existing retained wire fields unchanged; record_version=10; state='note_resolution_proven'; resolution_proof=ResolutionProof1. The new version is unrelated to database version10 and cannot reuse inbox9/P2. |
+
+Resolution4.evidence_envelope decrypts to an exact inner schema:
+`resolution_format=1, kind='resolution_apply', identity, authenticated_payload,
+parents, group_snapshot, head_before, source_before, source_after`.
+Identity is all public Resolution4 fields except evidence_envelope/record_digest;
+it is compared exactly, not trusted from the outer row. authenticated_payload is
+exactly `{wire_frame_digest,wrapper_payload_digest,resolution_payload_digest}`: original
+AEAD plaintext digest, canonical wrapper digest (null on protocol2), and frozen
+Resolution digest. Original retained ciphertext preserves the exact bytes and must
+be reopened and compared; hashes do not replace that payload. parents is the ordered array of exactly
+`{event_id,revision,operation,history_digest,inbox_digest,publication_source,
+server_sequence,local_mutation_generation,frozen_version_digest,snapshot_digest}`;
+publication_source is remote, remote_applied or local_accepted; nullable local fields
+are null for remote parents, frozen_version_digest is required for a local witness.
+Each snapshot is rederived from its authenticated immutable history/publication
+reference and compared with snapshot_digest; do not duplicate up to 64 large parent
+snapshots in the new record. Group_snapshot is exact final group1; head_before is exact prior head; source_before
+is exactly `{project,notes}` with the prior encrypted project and the original Note
+record only (clone absence is pinned by inventory/identity CAS); source_after is
+exactly `{project,notes}` with the resulting encrypted project and original/optional
+retained encrypted Note records. Each notes array is sorted by note_id. The private
+plan still CASes the whole project source token; unrelated source rows are not copied
+into evidence.
+No unencrypted content/snapshot is added to durable metadata. Reuse Note
+crypto1/AAD1 under the original Note context, binding the new kind, identity and
+scope inside AEAD. Hashes alone never confer authority. New evidence-envelope
+plaintext is bounded at 64 MiB (five existing encrypted source records at most,
+each currently bounded by 8 MiB plus base64/metadata overhead); the complete new
+Resolution record is bounded at 128 MiB including the encrypted original wire and
+base64 evidence. Use a dedicated strict evidence-envelope validator, not the 8 MiB
+local-source validator. Preflight UTF-8/encoded sizes before encryption and before
+any IDB write; quota failure stays atomic. This does not increase transport or local
+source limits. The parent references make the bound independent of 64 parent
+snapshot sizes. Acceptance must cover worst-case encoded sizes and avoid loading
+unbounded history or plaintext copies; bounded sequential parent opening and
+zeroizing temporary buffers are required.
+
+Digest dependencies are acyclic: Resolution4 binds group-before/source-before and
+authenticated outputs; its digest excludes record_digest. Transition binds that
+Resolution digest; Head2 references it; inbox proof binds Resolution and transition
+digests. No Resolution field hashes its own proof/head-after/transition digest.
+
+The effective group lifecycle is derived: group1 without a valid transition is open;
+with exactly one authenticated transition it is historically resolved. Never trust
+its old literal 'open' as current after v10 dispatch. Allow multiple retained group1
+records on a Note only when all but at most one have proven closures; each retains
+its own immutable versions/proofs. Future groups start separately from the new
+proven parent. Closure freezes membership/generation, and later sibling arrival
+cannot append to the closed group or reopen it implicitly.
+
+Historical parent validation must not recursively use the new Resolution proof
+as justification for those same parents. First authenticate immutable wire and
+pre-closure outcome/group witnesses against head_before and the prior DAG; then
+validate the closure; only then expose the new DAG reachability to prefix consumers.
+Detect cyclic proof/reference dependencies and fail closed. Leaf AEAD validation,
+historical outcome validation and current-frontier qualification are separate passes.
+
+The DAG resolver operates on `(account,bootstrap,project,note,event)` and consumes
+all Resolution parents. A keep_both Resolution has **one** event-bearing Resolution4
+under the original Note; the clone Head2 references its retained output. There is
+no second candidate with the same event_id and no fake revision1 clone genesis.
+The resolver loads the cross-Note Resolution4 from the same authenticated project
+inventory. A clone's later ordinary child may use Resolution event ID as parent at
+revision+1, but only for that record's retained_note_id; it cannot borrow the original
+Note's scope. Frontier excludes all consumed parents, not just the first; fork tips
+remain until a later exact closure. Existing candidate versions stay unchanged.
+
+### B6. Preparation, atomic apply, history and prefix
+
+Propose a separate browser Resolution runtime with private WeakMap plans, current
+normal-user auth/key lease, profile lifecycle and existing exclusive writer lock.
+No raw projection write API, Tauri invoke, network request or persisted grant.
+After each await check currentness. Crypto/decompression/validation/encryption run
+outside IDB against a complete immutable inventory; transaction scheduling remains
+synchronous IDB callbacks. Plan is private, single-use, account/device/runtime-bound.
+
+One strict readwrite transaction includes inbox, cursors, projectBindings, ownerHeads,
+legacyNoteHistory, legacyNoteIntents, localProjects, localNotes, outbox and receipts.
+Re-read and exactly CAS inbox/wire, account inventory, pull checkpoint, binding,
+Metadata/Stage heads, all parents/publication evidence, active group/generation,
+old heads and canonical encrypted source. Check clone absence again via the unique
+identity index and inventory. Recheck auth/key/profile lifetime in every callback;
+subscribe to invalidation and abort. Any stale evidence requires a fresh prepare.
+
+Atomically add Resolution4, add GroupTransition2, update original Head2 and optional
+clone Head2, write pre-encrypted original/clone source and project membership, and
+replace only the received Resolution inbox row with inbox10/proof. Preserve every
+old candidate, frozen version, original group and historical inbox proof. No writes
+to outbox/receipt/intents or ordinal; no pull/proven-prefix/ACK cursor advancement.
+No durable 'applying' half-state: commit makes all outputs visible, abort makes none.
+A post-commit lost response is handled by exact replay, never re-encryption.
+
+Existing history helpers, producer ownership checks and all proof readers need
+explicit v10 dispatch before migration is enabled. Historical applied/conflict proofs
+must continue to authenticate original encrypted material and historical membership
+through the proven closure/previous-head snapshot; they must not require the current
+head to equal the old applied branch. This supplements historical verification;
+creation-time checks for an unresolved group remain strict. DAG ancestry keeps old
+applied branches reachable through all parents. A late sibling of a closed decision
+stays a new unproven/stale-conflict barrier unless a separately proven new conflict
+transition can preserve it; never rewrite the old Resolution result automatically.
+
+Future ordinary peer continuation must resolve both original and clone anchors,
+including tombstone continuation and a later new conflict, before declaring reader
+completion. Legacy mutation/sealing and Content I2/C3 producers must fail closed on
+Resolution-owned Notes until their own parent/ownership paths are separately accepted;
+untouched Notes retain existing behavior. Do not activate a writer as a reader test.
+
+A separate authenticated Resolution prefix certificate reopens original AEAD,
+evidence envelope, all parent proofs, closure and historical outputs; pins fresh
+Metadata/Stage and complete inventory; then qualifies exactly this server sequence.
+Do not equate stored inbox10 or a digest join with proof. Historical output records
+are evidence, not a demand that a later legitimate source still equal old text.
+Only a separately prepared contiguous-prefix commit may advance proven_prefix;
+existing ACK registration/reader/registry/current-mode gates remain required.
+All cross-family barriers stay in place. A keep_both event counts once, not twice.
+No own Resolution self-echo is fabricated: source_device==current device without a
+real accepted author chain stays blocked; designing peer apply does not authorize
+self-echo or enable the dormant Content P2/inbox9 path.
+
+### B7. Orphan, replay and reopen
+
+Missing parent, bootstrap/dependency, group, accepted local publication or causal
+ancestor leaves the original inbox record `received`, source/head/history untouched,
+with safe runtime diagnostics. No new orphan record variant is necessary. A bounded
+explicit retry pass can scan retained received rows after dependencies arrive;
+its in-memory bookmark is disposable and resets on profile reopen. It must revisit
+earlier orphans and process later prerequisites without skipping ACK gaps.
+Extra tips, wrong scope, conflicting event/sequence, changed source or incompatible
+route are distinct fail-closed errors, not an orphan turned into success. Conflicting
+Resolution decisions over an already closed group stay unqualified; do not choose one.
+
+Exact replay requires original sequence/event/wire, canonical payload, parents,
+remote/local mapping, closure and both output witnesses to match; it reauthenticates
+with the current lease and performs zero writes. No repeated clone creation,
+project counter increment or historical-source overwrite. Duplicate event ID at a
+different sequence or different event at the same sequence is rejected across the
+account, including histories/receipts. IDB unique indexes plus manual cross-store
+checks enforce this. Missing half-record, orphan closure, fake clone anchor or
+altered encrypted evidence is corruption and blocks reopening for mutation/ACK;
+never regenerate a proof from its outer hashes.
+
+### B8. Migration and backend alternative
+
+**V10 required; same 12 stores/indexes/key paths; no data conversion.** Implement
+an explicit 9→10 versionchange transaction only after all v10 read/validation paths
+are accepted. Structurally validate existing v9 identity, bindings, old variants,
+indices, uniqueness, joins, source records and cursor bounds, preserving every byte.
+Earlier supported upgrades must run their existing validation chain before this
+step. Do not mint Resolution, head2, transition or inbox10 records during migration.
+On corruption/request/quota/abort, abort the upgrade: v9 version and bytes remain.
+A successful version bump cannot later be downgraded if unlock fails. After unlock,
+reauthenticate original ciphertext, frozen I2/C3/Legacy history, all current source
+and new Resolution evidence before writes or prefix/ACK are allowed. Structural
+validation without keys is never cryptographic acceptance.
+
+Old connections must close on versionchange; a blocking tab yields upgrade_blocked
+and no destructive retry. Existing v9 openers explicitly request version9 and must
+fail VersionError on a v10 profile; never open without an explicit version, delete
+the database, clear stores or reinterpret unknown variants. Same-origin writer lock
+remains required. Full profile restart uses fresh auth/account binding/AMK lease;
+no plan, readiness token or flag survives. A valid v10-capable repair/read-only path
+may retain encrypted evidence on failure, never silently downgrade or purge it.
+
+Alternative B is an explicitly versioned server separation of ordinary and
+Resolution capability. Existing fields already express zero support but the current
+combined gate deliberately requires both; merely posting resolution=0 cannot safely
+enable writing. Server cannot distinguish ordinary and Resolution inside opaque
+codec8 Note/event ciphertext, and the stream has one account sequence/ACK cursor.
+An ordinary-only browser can retain ciphertext and keep ACK capped before the first
+Resolution; it cannot guarantee full stream ACK or ordinary descendants after that
+barrier. Skipping or treating retention as apply is unsafe. A truthful alternative
+would require a reviewed authenticated discriminator/versioned stream/dependency and
+ACK contract plus old-client compatibility; a boolean relaxation is insufficient.
+Reject B for this prerequisite. No backend API or readiness policy change proposed.
+
+| Criterion | A — complete browser reader (selected) | B — versioned server separation (rejected here) |
+|---|---|---|
+| Data safety | Exact conflict/parents/source CAS; full four-strategy proof. | Safe only with additional opaque-routing/dependency and ACK design; current stream insufficient. |
+| Compatibility | V10 blocks old local openers; frozen wire and native/backend contracts unchanged. | Must coordinate all server/native/browser versions and stale capability declarations. |
+| Scope | Browser DAG, source hook, proof, migration and tests. | Backend protocol, clients, routing/retention/ACK and rollout design. |
+| Migration | Browser v10 format gate; no existing record rewrite. | Likely server metadata/protocol rollout; does not by itself implement browser Resolution apply. |
+| Maintenance / users | One accepted Resolution semantics, retained v9 data; deploy migration only after acceptance. | Two capability paths and stream semantics; risks inconsistent desktop/browser behavior. |
+
+### B9. Ordered independently testable implementation plan
+
+These are work packages, not new C-stage assignments or roadmap renumbering.
+
+1. **Strict v10 record readers and DAG:** implement isolated new variants, encrypted
+   evidence authentication, multi-parent/clone resolver and historical-proof dispatch;
+   retain v9 bytes and old validator behavior. No producer, migration or capability.
+2. **V10 compatibility gate:** implement populated-profile upgrade/reopen/old-client
+   rejection only after all consumers safely dispatch new variants. No Resolution
+   producer or declaration; test atomic rollback and unlock crypto separately.
+3. **Read-only Resolution planner:** actual original-wire AEAD, dependency/parent/group
+   and publication validation, all four strategy checks and private scoped plan;
+   negative scope/generation/source tests. No durable changes or writer selection.
+4. **Atomic protected source/apply:** one/two-Note hook, clone collision checking,
+   append-only closure, Resolution4/head2/inbox10 and exact replay; genuine fixtures,
+   every write-fault rollback and ordinary peer continuation on both output anchors.
+5. **Historical proof and contiguous prefix acceptance:** fresh crypto certificate,
+   preserved old Legacy/Content proofs and closure chains, all cross-family negative
+   barriers; no automatic ACK scheduler, writer or self-echo activation.
+6. **Real Chromium/restart and readiness prerequisite:** disk profiles, real crypto,
+   source/history producer chains and genuine protected apply; focused/regressions,
+   typecheck/build and mandatory CI coverage. Only after independent acceptance of
+   the whole reader revisit C21.2.08A dormant declaration/gate/token. Declaration
+   requires current registered auth/device, authoritative mode3, ready=true AND
+   missing_devices=0; ID1 writer authorization remains separate. C21.2.08 can resume
+   only after that prerequisite is accepted; C21.2.09 remains unstarted meanwhile.
+
+### B10. Mandatory future acceptance matrix
+
+| Area | Required positive and negative evidence |
+|---|---|
+| Strategies | choose live/delete parents, authenticated manual merge, delete, keep_both; genuine original encrypted Legacy/Content parents and local source, Stage/null and HTML/plain Content routes, valid ID0/ID1; invalid result/route/selected/retained snapshots and source size/quota boundaries. |
+| Causality | 2, 3 and 64 parents; all edges, revision=max+1, primary/additional equality, sorted uniqueness, missing ancestor, cycles, extra tip, wrong scope, prior Resolution parent, clone child, post-Resolution new fork. |
+| Groups/publication | Remote ID/generation differs from local; exact local generation CAS; new tip between prepare/commit; published local seal/coalescing vs frozen admission; no unpublished-intent substitution; historical proof survives closure and later edits. |
+| Atomicity | Inject failure before/after every add/put and transaction completion, after original before clone, after head before proof, clone collision in another project/tombstone/pending owner; old source/evidence/counters exact on abort. Lost response and crash after commit replay without writes. |
+| Orphan/replay | Resolution before all parents, before group/dependencies, parent arrival after reopen, bounded retry reaches late prerequisites without ACK skipping; duplicate event/sequence, conflicting second Resolution, forged closure/head, corrupted envelope and orphaned half-state reject. |
+| Lifecycle | Wrong account/device/bootstrap, stale auth epoch, logout, key lock/rotation/invalidation, profile closure, two tabs/exclusive lock, source and Metadata/Stage drift at every await and commit boundary; no persistent authority flags. |
+| Migration | Populated real v9 source/history/legacy intents/I2/C3 accepted formats unchanged, old explicit v9 opener rejected, blocked connection, structural corruption abort rollback, unlock AEAD corruption blocks writes, full renderer and disk/browser profile restart. |
+| Prefix/regressions | Four-strategy authentic apply proof is required; fake outer hashes/inbox10 are insufficient. Original/clone count once; received/orphan/own echo/unsupported families remain barriers; no gap skipping or ACK>prefix/pull. Accepted Legacy self-echo, peer Content, mixed conflicts, local-unsealed frozen history, I2 ownership and unrelated Notes remain covered. |
+| Chromium/CI | Real browser/profile/source/history/apply using disposable data; controlled HTTP fixtures may serve actual contracts, never fabricate reader capability. Zero page errors; no Content seal/outbox/push/self-echo or automatic capability/ACK activation. Add focused tests and real-browser scenarios as mandatory workflow checks when implemented. |
+
+### Простыми словами
+
+Браузер уже понимает текст Resolution-v2, но ещё не проверяет и не применяет решение
+конфликта целиком. Для этого нужно доказать все исходные версии, неизменность
+заметки и состава конфликта, а затем одной транзакцией применить результат. При
+«сохранить обе» обе заметки и состав проекта должны измениться вместе.
+
+Выбран полный browser reader с будущей IndexedDB v10: старые записи сохраняются,
+а новая история явно описывает несколько родителей и завершение конфликта. Сейчас
+это только проект; база всё ещё v9. Следующий пакет — строгие читатели новых
+записей и проверка графа истории, без миграции и записи новых результатов. После
+реализации, перезапусков и независимой приёмки можно вернуться к честному объявлению
+capability и dormant gate. Content upload остаётся выключенным, C21.2.08 заблокирован.
