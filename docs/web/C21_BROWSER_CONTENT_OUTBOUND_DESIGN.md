@@ -1327,3 +1327,99 @@ These are work packages, not new C-stage assignments or roadmap renumbering.
 записей и проверка графа истории, без миграции и записи новых результатов. После
 реализации, перезапусков и независимой приёмки можно вернуться к честному объявлению
 capability и dormant gate. Content upload остаётся выключенным, C21.2.08 заблокирован.
+
+## C21.2.08C — strict future-v10 readers / authenticated DAG / no migration
+
+**LOCAL COMPLETE / REMOTE CI PENDING — READERS ONLY.** C21.2.08B is independently
+REMOTELY ACCEPTED — DESIGN ONLY: SHA `b641612a66494fdc025b9bdb36aa54325189bf85`,
+Cloud `39216444583` SUCCESS, 6/6 required jobs (owner supplied). C21.2.08A remains
+accepted AUDIT ONLY; C21.2.08 sealing BLOCKED; C21.2.09 NOT STARTED. Official84.0%;
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; ready=false.
+
+### Audit and bounded implementation
+
+Before implementation, existing candidate1 Legacy/candidate2 peer Content/candidate3
+own Content dispatch, single-parent head1/frontier, open-only group1, frozen
+local_version1, inbox1–9 and original-wire/crypto1/AAD1 joins were inspected. Existing
+history event index is unique across event-bearing records; heads/transitions do
+not acquire a duplicate event_id. Existing v9 validators reject unknown versions;
+no accepted validator or active persistence/prefix reader was changed. Native C17
+publication/strategy checks remain reference semantics only.
+
+| Isolated reader | Implemented behavior |
+|---|---|
+| resolutionRecords.ts | Exact B5 outer allowlists for Resolution4, Head2, GroupTransition2, ResolutionProof1 and inbox10; strict scope/bootstrap when supplied, UUIDs, canonical times, safe integers, digest/envelope/transport/parent checks. Future dispatcher delegates old leaves to their unchanged validators. |
+| resolutionAuthentication.ts | Reopens genuine original protocol2 Resolution or protocol3 codec8 ID0/ID1 wire and evidence AEAD under original Note crypto1/AAD1; exact inner schema and public identity; original payload/descriptor/source-device binding; genuine encrypted source before/after; parent publication and historical group/head witnesses; all four strategy equivalence rules. Explicit normal-user account/auth-epoch/key/profile wrapper; currentness checked after asynchronous work. No persistent authority token or apply/ACK certificate. |
+| resolutionDag.ts | Scoped full-parent graph, unique event/record identities, 2..64 parents, max(parent revision)+1, missing/cyclic/cross-scope ancestry rejection, all-parent frontier consumption. One keep_both event with distinct original/retained result anchors, no duplicate event or clone genesis; exact retained ID ownership and later scoped child. |
+| Historical lifecycle | Resolution authentication first validates immutable leaves, pre-closure group/working source and prior ancestors; then closure and resulting graph. No self-justifying parent proof. Old group1 remains literal open; only a fully authenticated matching transition gives effective resolved. Extra/dangling transitions or inbox10 reject; at most one effective open group. Later unresolved forks and old historical output projections can coexist. |
+
+These modules are deliberately absent from active BrowserPersistence composition.
+They take/read snapshots and return read-only interpretation, never schedule IDB,
+HTTP, source/head/group/outbox writes, capability declaration or prefix qualification.
+Current WEB_DATABASE_VERSION remains9, same12 stores/indexes/key paths; no migration.
+The future v10 format gate is still a separate package and cannot open new formats
+until its consumers are ready. The authenticated DAG result is not an ACK token.
+
+B5 field sets are unchanged. Reader details for existing digest fields are explicit:
+wire_digest hashes `{protocol_version,item}` using the retained item; payload_digest
+hashes the canonical Resolution; wire_frame_digest is SHA256 of original AEAD
+plaintext bytes (before frame normalization), and wrapper_payload_digest hashes the
+canonical Content wrapper (null for protocol2). Ordinary parent outcome digests
+must join exact original candidate/inbox wire, not merely matching event IDs.
+For local_accepted, candidate + actual accepted outbox/receipt + frozen admission
+are publication evidence. A missing self-echo is represented in the existing
+inbox_digest field by the hash of canonical null; it never fabricates an inbox row
+or grants self-echo. If retained inbox exists, its exact digest/wire must match.
+The evidence AEAD authenticates this commitment alongside all publication witnesses.
+
+Historical dependency_digest is checked against the exact authenticated inner
+identity and final proof. Fresh original Metadata/Stage crypto establishes current
+coverage separately; hashing today's changed owner heads cannot reproduce an old
+snapshot. Original wrapper dependencies/bootstrap must still match and remain
+covered. Historical source witnesses are decrypted and compared with the proven
+working branch/result, not today's mutable Note text. Legacy source admission
+retains its accepted metadata rules; Content source admission stays separate.
+
+Bounded reading: dedicated evidence limit64MiB, record limit128MiB; precheck encoded
+ciphertext size/canonical base64 bits before allocating decoded evidence; exact
+UTF-8/JSON byte budgeting, sequential parent opening, cleared temporary byte buffers.
+A snapshot above16384 history records is rejected in full, never truncated into a
+false frontier. This is a fail-closed read budget, not a new durable field or an
+activation/readiness claim. Future large-history paging/resource acceptance remains
+required before production reader capability can be declared.
+
+### Validation and limits of acceptance
+
+Focused suites: **58 PASS / 2 files**. Positive authentication uses real AEAD and
+actual protected ordinary parent history for the four strategies, 2/3 parents,
+local accepted Legacy publication before self-echo, protocol2 and codec8 ID0/ID1;
+wrong key/ciphertext, public/inner identity, source and parent/closure forgery reject.
+64-parent case checks structural DAG/frontier over genuine original-AEAD ordinary
+leaves; it is **not** a claim of 64-parent protected Resolution apply. The initial
+64-parent setup through repeated existing apply exceeded the bounded test time;
+it was replaced by the isolated reader/DAG case, not a capability stub or a skipped
+required check. Real mutation/transaction acceptance is reserved for the apply slice.
+
+Affected existing suites: **701 PASS / 22 files** (Legacy, peer/mixed Content,
+local-unsealed/post-seal history, I2/C3, prefix/ACK and frozen codecs). New mandatory
+Chromium test opens a disposable real v9 profile, creates genuine encrypted Legacy
+capture/history through existing runtime, verifies isolated future helpers do no
+writes/HTTP or new proof qualification, and compares all12 stores after full disk
+profile restart: PASS, page errors0. It does not store/authenticate a future applied
+Resolution in IndexedDB or claim protected apply acceptance. No gates were relaxed.
+New focused suites and browser runner are mandatory in Cloud workflow; filters
+preserved/extended, no skip/xfail/continue-on-error. Typecheck, production build,
+workflow validation and git diff --check PASS; protected bytecode unchanged.
+
+### Простыми словами
+
+Новые читатели проверяют шифротекст Resolution, его родителей и опубликованные
+версии, а затем историческое завершение конфликта. Они учитывают всех родителей,
+а не только первого. При keep_both одно событие имеет два результата с разными
+ID заметок; чужая заметка не может воспользоваться таким родителем.
+
+Завершённая группа остаётся в истории: отдельное проверенное доказательство сообщает,
+что она разрешена. Читатели ничего не меняют в заметках и не подтверждают новые
+события серверу. База остаётся v9, новые форматы в неё не записываются. Следующий
+ограниченный пакет — C21.2.08D, compatibility gate v10; реальный apply и capability
+потребуют отдельных реализаций и приёмки. Content sealing/upload остаются выключены.

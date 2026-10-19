@@ -1,5 +1,52 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## C21.2.08C — Browser Resolution-v2 strict readers / DAG / no migration
+
+**LOCAL COMPLETE / REMOTE CI PENDING — READERS ONLY** (2026-10-19).
+Starting local/origin6.0 `b641612a66494fdc025b9bdb36aa54325189bf85`, clean.
+C21.2.08B independently REMOTELY ACCEPTED — DESIGN ONLY: same SHA, Cloud
+`39216444583` SUCCESS, 6/6 required jobs (owner supplied). C21.2.08A remains
+REMOTELY ACCEPTED AUDIT ONLY; C21.2.08 functional sealing BLOCKED; .09 NOT STARTED.
+
+Implemented isolated future-v10 strict Resolution4/Head2/GroupTransition2/proof1/
+inbox10 dispatch, original-wire and evidence crypto1/AAD1 authentication, full-parent
+scoped DAG and read-only historical conflict/ownership interpretation. Old v9
+validators/composition remain unchanged; no format is persisted and database remains9,
+same12 stores/indexes. One keep_both event has distinct original/retained result
+anchors; no duplicate event or fake clone genesis. Group1 is retained; authenticated
+closure determines effective resolved. Parents/pre-closure evidence cannot use the
+new proof as their own justification. Reader output is not apply or ACK authority.
+
+Validation: 58 focused PASS/2 files; 701 affected Legacy/Content/I2-C3/history/prefix/
+ACK/codec regressions PASS/22 files. Positive Resolution authentication uses genuine
+AEAD and real protected ordinary history for2/3 parents and all four strategies;
+64-parent case is structural DAG/frontier over genuine encrypted leaves, not a
+claim of actual Resolution protected apply. Bounded Chromium real v9 encrypted
+Legacy history is unchanged across disk restart: zero reader writes, HTTP and ACK,
+page errors0. Typecheck/production build, workflow mandatory coverage/path filters
+and git diff --check PASS. Initial fixture timeout/type issues fixed; no unresolved
+failures or skipped required checks. Native/backend tests unnecessary and not run.
+Protected .pyc SHA256 preserved; no CI polling or waiting.
+
+No Resolution producer/protected apply, migration, Content sealing/upload/self-echo,
+Note capability, prefix/ACK qualification or production writer. Official84.0%;
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; ready=false. VPS security release
+gate, existing checkpoint history and roadmap numbering preserved. Next bounded
+slice: C21.2.08D — IndexedDB v10 compatibility gate, not Content writer activation.
+
+Protected SHA-256 unchanged:
+- engine.cpython-312.pyc: `a256bcf08940a513a98f6551e314511cf6961bf298b88b294fd6d9c133d4bec5`
+- game_data.cpython-312.pyc: `8bd116c0b5b284f4f4b80551d10199e20d3c4546fe8caac22c07ff2973d568d2`
+
+### Простыми словами
+
+Читатели проверяют зашифрованное Resolution, все исходные версии и историю
+завершения конфликта. Для keep_both проверяются два отдельных результата одного
+события. Старые группы сохраняются, а новая правка не сравнивается со старым текстом
+как будто он обязан быть текущим. Читатели пока не меняют рабочие заметки и не
+подтверждают новые события серверу. База остаётся v9; следующий пакет — отдельная
+защита открытия v10. Реальный apply и capability потребуют дальнейшей приёмки.
+
 ## C21.2.08B — Browser Resolution-v2 protected apply / contract design
 
 **DESIGN ONLY / LOCAL DOCUMENTATION COMPLETE / REMOTE CI PENDING** (2026-10-19).

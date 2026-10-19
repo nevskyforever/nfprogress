@@ -2931,3 +2931,38 @@ CI when those work packages are implemented; none are added or run by this docs 
 Выбран полный browser reader и будущая v10 без переписывания старых данных;
 ослабление серверной проверки не решает проблему общего потока. Следующий пакет —
 строгие читатели записей и графа истории. Capability и Content upload пока выключены.
+
+## C21.2.08C — authenticated history reader boundary
+
+**LOCAL COMPLETE / REMOTE CI PENDING — READERS ONLY.** C21.2.08B REMOTELY ACCEPTED
+DESIGN ONLY: SHA `b641612a66494fdc025b9bdb36aa54325189bf85`, Cloud `39216444583`
+SUCCESS, all6 mandatory jobs SUCCESS (owner supplied). .08A remains AUDIT ONLY;
+.08 functional sealing BLOCKED; .09 NOT STARTED. Official84.0%, C21/C21.2 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE, ready=false. Existing release gates/history preserved.
+
+| Boundary | C21.2.08C result |
+|---|---|
+| B5 strict versioned leaves | Isolated Resolution4/Head2/GroupTransition2/ResolutionProof1/inbox10 readers; unchanged old candidate1/2/3/head1/group1/local-version/inbox dispatch. Production v9 still rejects new variants. |
+| Real evidence | Original encrypted protocol2/codec8 ID0/ID1 wire plus evidence AEAD, exact canonical payload and scope/descriptor binding; no checksum-only acceptance. Historical encrypted source, publication and group/head witnesses authenticate separately before closure. |
+| Parent graph | All2..64 parent edges, revision=max+1, uniqueness, missing/cyclic/cross-scope rejection; frontier consumes every parent. 2/3-parent complete crypto fixtures; 64-parent structural DAG over real encrypted ordinary leaves, not actual Resolution mutation acceptance. |
+| keep_both | One indexed Resolution event, original/retained output identity checks and scoped later child; reject borrowed/duplicate clone ownership, no synthetic genesis. |
+| Conflict lifecycle | Existing group1 bytes retained; only an authenticated exact transition yields effective resolved. Historical closed group and later unresolved fork coexist; duplicate/orphan closures and dangling inbox10 reject. |
+| Historical proof | Original parents and pre-closure source/head verified without self-justifying Resolution proof. Later mutable text need not equal old projection. Local accepted publication uses actual sealed/accepted outbox/receipt and frozen witness; no self-echo is invented if absent. |
+| Auth/key/profile | Explicit normal-user wrapper, current account/AMK/auth epoch/profile after async requests; wrong key/scope/invalidation reject. No persistent authority or automatic reauthorization. |
+| Prefix/ACK | No new qualified sequence or certificate; stored inbox10 cannot pass active v9 prefix. Existing family barriers and transport gates unchanged. |
+| Persistence/activation | Database9, same12 stores/indexes, no migration or new record writes. No Resolution apply/producer, Content sealing/upload/self-echo, Note declaration or writer activation. |
+
+Focused58 PASS, existing affected701 PASS/22 files. Mandatory Chromium reader-only
+acceptance uses genuine encrypted Legacy capture in real v9, verifies zero new
+writes/HTTP and exact all-store disk restart, page errors0. New future Resolution
+apply in IndexedDB is deliberately not exercised or claimed. Mandatory Cloud tests
+and path filters updated without skips. Typecheck/production build/workflow/diff
+checks PASS; native/backend production unchanged, their suites not needed/run.
+Protected bytecode unchanged. Cloud expected YES; SQLite expected NO; CI not polled.
+
+### Простыми словами
+
+Проверяется подлинность истории и всех родителей, включая два разных результата
+keep_both. Завершённые конфликты остаются в истории. Читатель ничего не применяет
+к рабочему тексту и не разрешает ACK или upload. База остаётся v9. Следующий пакет
+C21.2.08D займётся compatibility gate v10; capability и apply ещё требуют приёмки.

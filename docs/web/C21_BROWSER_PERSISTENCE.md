@@ -3882,3 +3882,52 @@ verification → Chromium/disk reopen and independent acceptance. Only then revi
 Для двух заметок требуется одна транзакция. Предложена v10, чтобы старый браузер
 не открыл новую историю как обычную. Старые данные не переписываются. Следующий
 пакет — читатели новых записей и графа; миграция и Content upload пока выключены.
+
+## C21.2.08C — isolated future-v10 readers, active database remains v9
+
+**LOCAL COMPLETE / REMOTE CI PENDING — READERS ONLY.** Prior C21.2.08B acceptance:
+`b641612a66494fdc025b9bdb36aa54325189bf85`, Cloud `39216444583` SUCCESS,
+6/6 required jobs; REMOTELY ACCEPTED — DESIGN ONLY (owner supplied).
+
+New resolutionRecords.ts/resolutionDag.ts/resolutionAuthentication.ts implement the
+B5 leaves and read-only historical interpretation outside active v9 composition.
+Old candidate1/2/3, head1, group1, local_version1 and inbox1–9 still use unchanged
+validators; active v9 rejects new Resolution4/Head2/transition/inbox10. No new record
+is persisted, no producer/source write/migration/store/index exists. Version9 and
+all12 existing stores/paths/indexes remain unchanged. Exact fields and digest/resource
+interpretation are recorded in the outbound design's C21.2.08C implementation section.
+
+Authentication reopens original protocol2 or codec8/frame1 ID0/ID1 ciphertext and
+64MiB-bounded evidence, authenticates exact public/inner identity and original
+canonical payload, parent publication, historical source/group/head and final
+transition/proof. Source metadata retains separate Legacy/Content validators.
+Original dependency commitment is AEAD-bound; current Metadata/Stage coverage is
+freshly authenticated separately from that historical commitment. Parent witnesses
+never derive authority from the Resolution they justify. Source/output witnesses
+remain historical when a later legitimate Note or unresolved conflict exists.
+
+Full-parent DAG, revision/ownership checks and all-parent frontier keep missing,
+cyclic, cross-Note and foreign-bootstrap references closed. One keep_both event
+anchors original and retained results; the event index is not duplicated. Literal
+group1 is preserved; resolved is an effective state only after exact authenticated
+closure. Dangling proofs/contradictory closures reject. No positive prefix/ACK token.
+Normal-user auth/AMK lease/profile checks invalidate in-flight read verification.
+
+Validation: 58 focused PASS; 701 affected regressions PASS/22 files. 64-parent DAG
+uses authentic encrypted ordinary leaves but does not claim new protected apply.
+Chromium: real v9 encrypted capture/history, zero reader writes/HTTP, all12 stores
+exact after disk-profile restart, page errors0. It never persists future formats.
+Typecheck/build, workflow checks and diff check PASS. New focused/browser tests are
+mandatory in Cloud CI. Initial fixture timeout/type issues were repaired; no required
+checks remain skipped. No native/backend tests needed or run. Protected .pyc unchanged.
+
+C21.2.08 sealing BLOCKED; .08A AUDIT ONLY; .09 NOT STARTED; official84.0%;
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; ready=false.
+
+### Простыми словами
+
+Читатели понимают новую историю и проверяют шифрование и все родительские версии.
+Для keep_both проверяются два отдельных результата одного события; старая группа
+конфликта сохраняется. Изменять заметки они ещё не умеют и подтверждений серверу
+не дают. Миграции нет: база v9. Следующий пакет — отдельная защита открытия v10,
+после которой всё равно потребуются реализация и приёмка настоящего apply.
