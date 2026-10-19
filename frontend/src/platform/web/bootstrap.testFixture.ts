@@ -35,7 +35,13 @@ export async function fixture(ids = ['z','a']) {
     const select = (name: string, range: {lower: unknown[]}) => pending[name]!.filter(v => range.lower.every((part,i) => key(name,v)[i] === part))
     const store = (name: string) => {
       const write = (row: unknown, add: boolean) => { const index = pending[name]!.findIndex(v => eq(key(name,v),key(name,row))); if (index >= 0 && add) { error = new BrowserPersistenceError('conflicting_record'); return read(undefined) }; if (index >= 0) pending[name]![index] = structuredClone(row); else pending[name]!.push(structuredClone(row)); return read(undefined) }
-      return { delete: (k: unknown[]) => {pending[name]=pending[name]!.filter(v=>!eq(key(name,v),k));return read(undefined)}, get: (k: unknown[]) => read(pending[name]!.find(v => eq(key(name,v),k))), getAll: (r: {lower: unknown[]}) => read(select(name,r)), count: (r: {lower: unknown[]}) => read(select(name,r).length), add: (r: unknown) => write(r,true), put: (r: unknown) => write(r,false), index: (index: string) => ({ get: (k: unknown[]) => read(pending[name]!.find(v => { const r = v as Record<string,unknown>; return eq([r.account_id,index === 'identity' ? r.note_id : index === 'bootstrap' ? r.bootstrap_id : r.event_id],k) })) }) }
+      const openCursor = (range: {lower: unknown[]}) => {
+        const values=select(name,range);let position=0
+        const request=read(undefined)
+        const load=()=>{request.result=position<values.length?{value:structuredClone(values[position]),continue:()=>{position++;requests.push({result:undefined,onsuccess:()=>{load();request.onsuccess?.()}})}}:null}
+        load();return request
+      }
+      return { openCursor, delete: (k: unknown[]) => {pending[name]=pending[name]!.filter(v=>!eq(key(name,v),k));return read(undefined)}, get: (k: unknown[]) => read(pending[name]!.find(v => eq(key(name,v),k))), getAll: (r: {lower: unknown[]}) => read(select(name,r)), count: (r: {lower: unknown[]}) => read(select(name,r).length), add: (r: unknown) => write(r,true), put: (r: unknown) => write(r,false), index: (index: string) => ({ get: (k: unknown[]) => read(pending[name]!.find(v => { const r = v as Record<string,unknown>; return eq([r.account_id,index === 'identity' ? r.note_id : index === 'bootstrap' ? r.bootstrap_id : r.event_id],k) })) }) }
     }
     // Scheduling-contract driver only; native IDB isolation/constraint/rollback is proven in Chromium.
     schedule({ objectStore: store } as unknown as IDBTransaction, value => { result = value }, e => { error = e })

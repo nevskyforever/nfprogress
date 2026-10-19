@@ -1,5 +1,115 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## C21.2.08E — Browser Resolution-v2 read-only planner / no apply
+
+**LOCAL COMPLETE / REMOTE CI PENDING — PLANNER ONLY** (2026-10-19).
+Starting branch6.0 local/origin `57a80c62e1e4bb0468b636f1fecf3ab89869451c`, clean.
+C21.2.08D **REMOTELY ACCEPTED — MIGRATION ONLY**: same implementation SHA,
+Cloud `39234175733` SUCCESS, all6 required jobs SUCCESS (owner supplied).
+C21.2.08C REMOTELY ACCEPTED — READERS ONLY; .08A REMOTELY ACCEPTED — AUDIT ONLY.
+No Actions polling/waiting. Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT
+LOCAL COMPLETE; C21.2.08 functional prerequisite BLOCKED; .09 NOT STARTED; ready=false.
+
+Audit confirmed current IndexedDB10/same12 stores, intact v9 migration and isolated
+future readers. Existing ordinary protected apply can produce genuine open group1,
+original candidate1/2, encrypted working source and actual applied/conflict inbox
+witnesses; Legacy sealing plus immutable acceptance can publish a frozen local
+branch. No Resolution4/closure/proof needs to be invented to examine a received
+Resolution. Native C17 strategy/collision semantics are reference only; no SQLite,
+Tauri or native authority is reused.
+
+resolutionPlanner.ts is a dormant internal browser module, absent from normal
+persistence/editor/scheduler composition. It requires the existing private verified
+device token, normal user/account binding, current auth epoch/AMK lease and live
+owned profile. Registration is a separate existing prerequisite; planner never
+registers a device, performs HTTP, changes capability or persists an authority flag.
+The real browser scheduler checks durable identity/device/binding on readonly reads.
+
+| Boundary | Read-only admission |
+|---|---|
+| Inventory | Strict readonly native cursors scoped to this account; select relevant project/Note history; retain full account identity reservations. Cursor/proofs/outbox/receipts/intents/source/bindings/owner heads are pinned and reread before returning. |
+| Original wire | Crypto1/AAD1 under original canonical account/project/Note; protocol3 exact codec8/frame1 Resolution2 with account/device wrapper and ID0/ID1; protocol2 separate frozen C17 decoder, project HTML/stage-null route, no fallback or invented Content dependency. Original descriptor/event/sequence/revision/canonical time are bound; own source rejected without author authority. |
+| Parents / group | Accepted DAG and strict current history, 2–64 exact sorted parent IDs, full frontier/common ancestor/revision, actual local group generation/member witnesses. Fresh original candidate AEAD, real retained apply/conflict proof or exact accepted local seal/outbox/receipt plus frozen admission. Unsealed I2/pending intents are never publication. Remote group UUID/generation are sender labels mapped by exact authenticated parents/snapshots/scope/ancestry, not UUID equality. |
+| Dependencies | Fresh authenticated live Metadata ancestry and exact Stage reference coverage for both outputs; unavailable/changed/deleted authority blocks. Legacy uses real binding/bootstrap and authenticated project/source contract. |
+| Source | Existing current-key project/member/Note authentication and private whole-project source token; encrypted working projection and decrypted wire Note must equal the displayed published branch. Newer incompatible local content blocks preparation. |
+| Strategies | choose_version equals the selected published live/tombstone parent; manual_merge uses only authenticated valid sender upsert; delete requires original-route tombstone; keep_both uses exactly two live parents, copied selected output and the other output with only frozen ID/time changes. No receiver merge/ID/time generation. |
+| Clone | Account-wide live/tombstone Notes, other projects, history/anchors, intents, outbox/receipt identities, inbox and authenticated pending Resolution reservations. An authenticated ordinary future child referencing this Resolution is a reference, not an allocated clone. Unknown/unproven reservations fail closed. |
+| Token | Empty opaque object, module-private WeakMap, exact runtime/scope/device/auth/key/profile and inventory/source/group/publication/dependency binding. Bounded status explicitly says commitAuthorized=false and ackAuthorized=false. inspect rechecks source and inventory; drift/revocation rejects and no token is accepted by prefix/ACK. |
+
+Resource admission uses native cursors, not an unbounded getAll followed by a late
+size check: at most16384 rows/store and32MiB aggregate encoded inventory, plus16MiB
+aggregate opened ordinary history material. Each cursor callback checks lifecycle;
+parents open sequentially; existing decrypted-source8MiB/4000-Note and smaller
+500-codepoint title/300000-codepoint content limits stay unchanged. Oversized valid
+network material gets an explicit resource/source blocker, never truncation or a
+positive plan. Temporary owned crypto/digest/serialization byte arrays are wiped.
+No arbitrary storage/crypto errors or plaintext are returned as diagnostics.
+
+Orphans get bounded missing_parent/missing_publication/missing_bootstrap/
+dependency_unavailable/missing_conflict errors. Wrong identity, forged proof, extra
+tips, source drift and clone collision reject without changing inbox or source.
+Repeated prepares are read-only. After logout/account/device/key/profile or inventory
+change a token cannot authorize further use. A future .08F transaction must
+independently revalidate/CAS every witness before its first write; this token is
+not an accepted Resolution proof, replay ledger or prefix certificate.
+
+Genuine-witness boundary: accepted browser paths currently produce ordinary open
+conflicts, not committed Resolution4/head2/closure/inbox10. The planner does not
+manufacture those witnesses or admit a prior Resolution result as a published
+parent merely from its UUID/hash. Closed-history replay, post-Resolution conflict
+planning and durable result-anchor continuation are not claimed; they need actual
+future apply/consumer-dispatch acceptance. C3 cannot be substituted for an accepted
+Legacy frozen branch, and no new Content author/self-echo chain is claimed.
+
+Validation: 81 focused planner tests PASS. Final mandatory affected C21 suite:
+1976 tests PASS /65 files, including Legacy/Content/I2-C3, v10 migration,
+Resolution readers/DAG and prefix/ACK regressions. Genuine protected ordinary
+history supplies2/3 parents and the64-parent Legacy conflict; no structural-only
+DAG specimen is claimed as positive conflict admission. All four strategies pass
+for protocol2 and protocol3, including current Stage/plain/ID1 coverage; genuine
+sealed/accepted frozen Legacy parent, pending I2 barrier, ciphertext/key/scope,
+publication/group/source/dependency/collision/resource and lifecycle negatives pass.
+
+Real Chromium10 disposable disk profile PASS: two protocols × four strategies,
+actual encrypted local source, imported Metadata, ordinary protected apply and
+conflict preservation, original Resolution wires, full browser/disk restart and
+repeat fresh authenticated planning. Every native readwrite/add/put/delete/clear
+attempt during planning is trapped: attempts0. Inbox remains received; outbox,
+receipts, source, history and cursors stay exact. Missing parent/newer genuine local
+source edit block; key/logout revoke; competing tab gets writer_busy. Planner HTTP0,
+push0/new ACK0/Resolution writes0/page errors0. Four controlled registration calls
+are external setup/rebind fixtures, not planner traffic or a production-server
+registration acceptance claim. Stage/plain and64-parent admission are focused
+real-AEAD/runtime tests; browser coverage uses genuine project HTML peer conflicts.
+
+Typecheck/production build PASS; existing Vite dynamic-import/chunk-size warnings.
+Workflow YAML/mandatory focused spec/browser step and both path filters, history/
+release-gate preservation and git diff --check PASS. Initial fixture-reference,
+stress-setup and TypeScript narrowing issues corrected; final failures0/skips0.
+Backend/native suites unnecessary and not run. Protected .pyc SHA256 unchanged.
+No GitHub Actions polling or waiting.
+
+IndexedDB remains10; no migration/store/index/wire/backend/native changes. No
+Resolution protected apply/producer/Resolution4/head2/transition/inbox10/proof write,
+Content sealing/upload/self-echo, new Note capability, production Content writer,
+Resolution prefix/ACK qualification or automatic retry scheduler. Existing Legacy
+behavior and cross-family barriers remain unchanged. VPS security release gate,
+previous checkpoint history and roadmap numbering remain intact.
+
+### Простыми словами
+
+Планировщик проверяет входящее решение конфликта: открывает исходный зашифрованный
+пакет, доказывает каждую опубликованную родительскую версию и проверяет, что состав
+конфликта, его поколение и текущая заметка всё ещё совпадают с доказанной историей.
+Идентификатор группы у другого устройства может отличаться; сопоставление основано
+на версиях и их происхождении. Проверяются выбор версии, готовое объединение от
+отправителя, удаление и сохранение обеих заметок. Для второй заметки дополнительно
+проверяется, что её идентификатор не занят, включая удалённые записи и историю.
+Новая локальная правка не может быть молча заменена старым решением. Успешная
+проверка возвращает только временный приватный токен: ни заметки, ни история,
+ни подтверждение серверу не меняются. Следующий шаг .08F должен добавить отдельно
+проверенную атомарную запись результата, истории и обеих заметок при keep_both.
+
 ## C21.2.08D — IndexedDB v10 compatibility gate / safe migration
 
 **LOCAL COMPLETE / REMOTE CI PENDING — MIGRATION ONLY** (2026-10-19).
