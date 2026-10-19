@@ -4245,3 +4245,131 @@ intent or ordinal mutation. Full Web synchronization and full C21.2.08 are not c
 и подтверждение Resolution серверу выключены: ещё нужно отдельно доказать чтение
 исторических результатов после дальнейших изменений и безопасный непрерывный
 подтверждённый префикс. Следующий шаг — C21.2.08G, historical proof / contiguous prefix.
+
+## C21.2.08G — Resolution historical proof / contiguous prefix audit — STOP
+
+**AUDIT COMPLETE / FUNCTIONALLY BLOCKED — DOCS ONLY** (2026-10-19).
+This is not G LOCAL COMPLETE, a new historical certificate, prefix acceptance or
+reader-capability acceptance. No implementation, production consumer, validator,
+workflow, migration or wire contract changed.
+
+Preflight: clean branch6.0; required local HEAD, origin/6.0 and independently checked
+remote ref all `e562203a24c8dcb666539b5ed5d125ad45fdff4a`.
+C21.2.08F **REMOTELY ACCEPTED — DORMANT ATOMIC APPLY**: same SHA,
+Cloud `39284081252` SUCCESS,6/6 required jobs SUCCESS (owner-supplied acceptance).
+C21.2.08C/D/E remain REMOTELY ACCEPTED; .08A AUDIT ACCEPTED, functional gate incomplete.
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE;
+C21.2.08 FUNCTIONALLY BLOCKED; C21.2.09 NOT STARTED; ready=false.
+
+### Exact missing dependency and STOP decision
+
+**No accepted browser mutation/apply path currently produces authenticated ordinary
+continuation from a Resolution original/retained Head2.** Consequently the mandatory
+positive historical-after-a-genuine-later-edit case cannot currently be constructed
+through accepted producers. This is the continuation/consumer dependency explicitly
+left out of F, not a failure of its remotely accepted atomic apply. B6 requires
+separate acceptance of those parent/ownership paths; B9/B10 require genuine
+continuation, including clone/tombstone/fork cases, before reader completion.
+
+| Actual boundary at accepted F baseline | Audit result |
+|---|---|
+| `resolutionAuthentication.ts:96` | Reopens original protocol2/protocol3 wire and evidence AEAD, parent publications, pre-closure group/head and historical encrypted outputs; derives effective closure. Its readOnly diagnostics are not a prefix token and do not prove today's newer working source. |
+| `resolutionPlanner.ts:394` reconcile | Exact F replay additionally requires both current typed anchors and current encrypted project/output equality. Retain this accepted boundary; removing equality alone would accept unproven source drift. |
+| `localAuthority.ts:270` | Source-only mutation validates the account history with the old strict history set. Resolution4/Head2/transition reject before source/project writes. |
+| `noteIntents.ts:52`, `contentNoteIntents.ts:67` | Accepted Legacy-intent and dormant I2 preparation also use old history/inventory authority. They cannot publish an original/retained Resolution child; no C3/author chain can be invented as a substitute. |
+| `legacyNoteApply.ts:72`, shared `contentNoteApply.ts` | Ordinary peer apply reads account inbox/history using old strict dispatch. A real retained successor encounters inbox10/Head2/Resolution4 and fails before source mutation. |
+| `noteHistoryRecords.ts:76` | Head1 and ordinary parent joins require candidate ancestry; Resolution anchors are deliberately not reinterpreted as candidates or fake clone genesis. |
+| `contentNoteProof.ts:18` and `:22`, `contentNoteConflictProof.ts` | Old proof joins validate their own format and current ordinary ancestry/group assumptions. They need an explicit authenticated historical v10 adapter; filtering new leaves or guessing an earlier head is not sufficient. |
+| `contentNotePrefix.ts:21`, `provenPrefix.ts:41`, `provenPrefixRecords.ts`, `ackPrerequisites.ts` | Existing family qualification rejects the mixed future inventory. A stored inbox10, matching digest, structural DAG or readOnly Resolution count cannot authorize a server sequence or cursor write. |
+| `syncDurability.ts:502` | A NEW ordinary encrypted page can still be durably retained through the accepted transport path; retention and pull progress are not protected apply or prefix proof. Exact replay of an interval containing inbox10 is a separate unsupported old-dispatch boundary. |
+
+The frozen v10 schema and original AEAD are sufficient for the accepted F event;
+no backend/native/crypto/schema blocker was found or proposed. The missing acceptance
+is browser continuation plus historical family-consumer integration. Existing strict
+production readers must remain fail-closed. Creating direct-IDB candidate/proof/
+head records as a positive continuation, fabricating an accepted publication,
+coercing Resolution to ordinary history, or enabling an unsupported writer would
+violate the requested STOP conditions. No such workaround was used.
+
+### Reproduction and observed safety boundary
+
+Use the actual F planner and atomic apply over genuine ordinary protected conflict
+history, then reopen with fresh auth/AMK. Existing `authenticateResolutionHistory`
+reports one authenticated event and effective resolved group; F exact replay succeeds
+without writes. Attempt a normal local edit (or a new Note after the delete strategy):
+`corrupt_record`, with source/project/history/inbox/outbox/receipts/cursors unchanged.
+Legacy-intent and dormant Content-intent local editing likewise reject before writes.
+
+Receive an ACTUAL encrypted ordinary successor through `commitInboundPage`, with
+parent equal to the Resolution event and revision4, correctly scoped to the original
+or keep_both retained ID. The native row is retained as received and pull advances
+normally. Existing ordinary apply and prefix prepare then return `corrupt_record`;
+no source/history/proof/ordinal/proven_prefix/ack_cursor change occurs. This retained
+ciphertext is a negative barrier specimen, never a fabricated positive continuation.
+F exact replay still authenticates the historical decision, showing why historical
+validity, current-source/apply authority and contiguous qualification are separate.
+
+The isolated leaf reader can authenticate immutable Resolution evidence without
+requiring current mutable heads to exist. A corruption-only missing-head specimen
+therefore does not turn its readOnly diagnostics into full inventory authority:
+F reconcile and production prefix still reject. G's future certificate must separately
+bind original/retained anchor ownership, current-source authority, fresh dependencies
+and the exact inventory. No private G certificate, future-v10 contiguous calculator
+or local prefix commit was minted in this audit. No prefix rollback/reset, gap
+skipping, ACK advancement or arbitrary source drift was accepted.
+
+Validation: 15 disposable focused audit checks PASS with actual F apply, both transports/
+all four strategies,2/3/64-parent crypto, old-consumer rejection, Legacy/I2 mutation
+barriers, real received successors and missing-anchor corruption. These are audit
+reproductions, not new positive G proof fixtures or committed functional specs.
+Affected baseline regressions2039 PASS /67 files, including Legacy self-echo/conflict,
+Content, frozen/I2-C3, F atomic apply, migration, DAG/planner and prefix/ACK.
+Disposable native Chromium PASS as an audit:8 genuine F applies,8 full disk restarts,
+16 zero-write replays,24 native rollback cases; after restart8 local mutation attempts,
+10 actual original/retained peer continuations and8 prefix prepares blocked safely.
+New ordinary packets were received via the real durability API, never direct-IDB
+positive proof insertion. Source/history/outbox/receipts/ordinals stayed exact;
+proven_prefix and ack_cursor unchanged; new ACK0/Content push0/page errors0.
+22 controlled registration calls were external fixture setup/rebind, not G traffic.
+Typecheck/production build PASS (existing Vite warnings). Existing workflow YAML,
+mandatory F coverage and docs-trigger path filters checked; no workflow modification
+because implementation stopped. Disposable audit artifacts removed from the worktree;
+no persistent test skip/xfail or consumer exception added. git diff --check PASS.
+Final failures0/skips0. Backend/native suites and remote CI not run or polled.
+Protected .pyc hashes recorded and unchanged. All historical document contents,
+roadmap numbering and VPS security RELEASE GATE are preserved. No Actions polling.
+
+### Required next bounded dependency
+
+Use the requested C21.2.08H reader-integration slice to establish a separately
+accepted, explicitly dormant v10-aware ordinary continuation/apply path on original
+and retained anchors, including tombstone continuation and a later independent
+conflict. Add authenticated historical Legacy/Content family adapters that preserve
+original publication/closure/source witnesses and complete all-parent reachability.
+Then return to G's mandatory genuine later-edit acceptance, private Resolution
+certificate, isolated contiguous calculation and exact-CAS local prefix commit.
+No production activation is implied by that ordering; do not renumber the roadmap.
+
+Only after genuine consumer/reader/Chromium acceptance may .08A capability
+prerequisites be reconsidered. Content sealing/upload/self-echo, new Note capability,
+Resolution producer/ACK/prepareAck integration and production Content writer remain
+OFF. IndexedDB10/same12 stores/indexes; migration NONE. Existing unrelated old-format
+behavior and all current cross-family prefix/ACK barriers remain unchanged.
+
+### Простыми словами
+
+Подлинность старого решения и право заменить сегодняшнюю заметку — разные проверки.
+Старое решение должно оставаться доказуемым после законной правки: его исходный
+шифротекст, опубликованные родительские версии и исторические результаты сохраняются.
+Закрытый конфликт подтверждается неизменяемой записью закрытия, а не изменением старой
+группы. Но сейчас принятые пути ещё не умеют применить следующую правку после такого
+решения. Настоящий входящий пакет можно сохранить; это ещё не доказательство применения.
+
+Поэтому новый префикс не объявлен доказанным и локальный proven_prefix не продвинут.
+Будущий механизм должен проверить каждое событие по порядку, включая все семейства:
+пропуск или недоказанный пакет останавливает продвижение. keep_both считается одним
+событием. Подтверждение серверу остаётся выключенным и не следует автоматически даже
+из локального префикса. Следующий шаг — безопасное продолжение от обеих заметок и
+историческая интеграция читателей, затем положительная проверка G. Возврат к .08A и
+Content sealing возможен только после приёмки этих доказательств; полной Web-синхронизации
+и готовности к публичному запуску этот аудит не объявляет.
