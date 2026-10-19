@@ -3784,3 +3784,19 @@ regression tests, Chromium scenarios, workflow coverage and documentation.
 и браузерной приёмкой. Content self-echo, Resolution и Content writer остаются отдельными
 задачами, полная Web-синхронизация ещё не готова. Следующий ограниченный шаг — аудит
 Content self-echo и необходимой own-wire/receipt authority без включения writer/Resolution.
+
+## C21.2.08A — browser reader prerequisite audit (STOP)
+
+Accepted C21.2.08 audit baseline: `8aa3a38137ebae7b986cb763f91851024605cf91`,
+Cloud `39201101699` SUCCESS (6/6). Backend declaration records per-device Note
+reader capability; the gate requires every registered device to report mode3,
+frame1, codec8 v1, ID0, ordinary-v1 and Resolution-v2. The response is reader
+readiness only and does not authorize a writer. Mode3 is transport selection.
+
+Web validates ordinary-v1 and has its protected apply route. It can decode
+Resolution-v2, but the browser production Content apply adapter is ordinary-v1-only;
+there is no accepted Resolution apply path. Thus it cannot make the full declaration
+truthfully. No browser capability registration/token, writer gate, persistence,
+Content sealing/upload, self-echo or ACK change was made. C21.2.08 remains blocked
+until Resolution apply is implemented and accepted or the backend contract is
+separately revised and accepted. Official progress 84.0%; `ready=false`.

@@ -930,3 +930,23 @@ with current strict validator allowlists and12-store schema; previous family mat
 reviewed; documentation diff/scope and git diff --check PASS. No tests, Chromium,
 typecheck, backend/native build or migration executed. Proposed runtime guarantees
 are acceptance requirements, not measured results. Protected bytecode unchanged.
+
+## C21.2.08A — reader capability audit (STOP)
+
+Baseline `8aa3a38137ebae7b986cb763f91851024605cf91`; C21.2.08 Cloud run
+`39201101699` SUCCESS, 6/6. The backend declaration stores per-device reader
+versions. Its account-wide gate requires mode3 plus frame1/codec8 v1/compression0,
+ordinary-v1 and Resolution-v2 on every registered device. It is reader readiness,
+not writer authorization; mode3 alone grants no writer permission. No separate
+Content writer authorization is consumed by the existing API.
+
+Browser ordinary-v1 decode and protected apply exist. Resolution-v2 canonical
+decode exists, but `BrowserContentNoteApply.prepare` routes only to
+`prepareContentOrdinary`; Resolution apply remains separate and unactivated. Since
+the frozen backend readiness contract requires Resolution-v2, browser support cannot
+truthfully be declared complete. STOP before browser declaration or token creation.
+No dormant gate or production writer was implemented. C21.2.08 sealing, Content
+upload/self-echo and Resolution remain blocked. Next prerequisite: implement and
+accept browser Resolution-v2 protected apply (or separately approve a truthful
+server capability contract); then revisit the dormant gate. `ready=false`, progress
+84.0%; no roadmap renumbering.

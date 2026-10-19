@@ -6157,3 +6157,34 @@ stable local Web → VPS/production.
 запуском облака нужно укрепить инфраструктуру, а после развёртывания проверить
 сервер и приложение на уязвимости. До успешной повторной проверки и документирования
 результатов публичную регистрацию открывать нельзя.
+
+## C21.2.08A — browser Note reader / dormant writer prerequisite audit
+
+C21.2.08 audit remotely accepted: SHA `8aa3a38137ebae7b986cb763f91851024605cf91`;
+Cloud run `39201101699`, SUCCESS, all 6 required jobs. Its functional Content
+sealing remains BLOCKED until prerequisites are accepted. C21.2.08A stopped at a
+truthful reader-capability blocker; this is a docs-only audit, not implementation.
+
+Backend `noteReaderCapabilities` records per-registered-device reader declarations.
+`noteReaderGate` reports account-wide reader readiness: all registered devices must
+advertise mode3, frame1, codec8 v1, compression ID0, ordinary-v1 and Resolution-v2;
+it returns `ready` and `missing_devices`. It does not grant Content writer authority.
+Mode3 is the authoritative transport mode, not write permission. Browser ordinary-v1
+decoding and protected apply exist, and Resolution-v2 has a canonical decoder, but
+the browser production Content apply path accepts ordinary-v1 only. Resolution-v2 is
+not supported through the required browser apply contract (`BrowserContentNoteApply`
+delegates to `prepareContentOrdinary`; Resolution remains a separate unactivated path).
+Therefore Web cannot truthfully advertise the complete backend Note-reader contract.
+No browser declaration, readiness token, dormant writer gate or writer authority was
+created. No Content sealing, upload, self-echo, Resolution activation or ACK change.
+
+### Простыми словами
+
+Сервер проверяет, готовы ли все зарегистрированные устройства аккаунта читать
+обычные заметки и Resolution-версии в режиме 3. Браузер умеет разобрать формат
+Resolution, но пока не умеет безопасно применить его в основном пути заметок.
+Поэтому объявлять браузер полностью готовым нельзя. Подтверждение сервера не даёт
+право отправлять Content. Запечатывание и загрузка остаются выключены; до C21.2.08
+нужно реализовать и проверить browser Resolution apply либо согласовать отдельный
+честный capability contract на сервере. Official progress остаётся 84.0%, C21/C21.2
+IN PROGRESS, ready=false.

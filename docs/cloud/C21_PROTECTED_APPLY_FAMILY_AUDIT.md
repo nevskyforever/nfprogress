@@ -2839,3 +2839,24 @@ regression tests, Chromium scenarios, workflow coverage and documentation.
 и браузерной приёмкой. Content self-echo, Resolution и Content writer остаются отдельными
 задачами, полная Web-синхронизация ещё не готова. Следующий ограниченный шаг — аудит
 Content self-echo и необходимой own-wire/receipt authority без включения writer/Resolution.
+
+## C21.2.08A — browser Note reader contract audit (STOP)
+
+The C21.2.08 audit is remotely accepted at `8aa3a38137ebae7b986cb763f91851024605cf91`
+(Cloud `39201101699`, SUCCESS, 6/6). `PUT /note-reader-capabilities` persists the
+declared versions on the authenticated user's registered device. The GET gate
+counts all that user's registered devices and is ready only when each has mode3,
+Note frame1, codec8 v1, compression0, ordinary reader1 and Resolution reader2.
+This is a reader prerequisite; it does not issue or establish Content writer
+authorization. The account mode endpoint is authoritative for transport mode, but
+mode3 is not a writer grant.
+
+The browser has an ordinary-v1 decoder/apply route and a Resolution-v2 canonical
+decoder. Decoding alone does not satisfy the required reader contract: browser
+`BrowserContentNoteApply` dispatches to ordinary-only preparation, while Resolution
+apply remains a separate, unactivated path. Advertising Resolution2 now would be
+false. Therefore C21.2.08A is STOPPED before any functional registration/token/gate
+runtime. No backend change, sealing, upload, self-echo, Resolution activation or ACK
+advancement. The prerequisite is a reviewed and tested browser Resolution-v2
+protected apply path (or a separately accepted server capability-contract change).
+Official progress remains 84.0%; `ready=false`.
