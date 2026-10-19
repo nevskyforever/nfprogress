@@ -115,6 +115,11 @@ describe('runtime-only authoritative key context', () => {
     })
     await entered.promise
 
+    let invalidated = false
+    const unsubscribe = keys.onInvalidated(() => {
+      invalidated = true
+      expect(lease.isCurrent()).toBe(false)
+    })
     let lockCompleted = false
     const locking = keys.lock().then(() => { lockCompleted = true })
     await Promise.resolve()
@@ -122,6 +127,8 @@ describe('runtime-only authoritative key context', () => {
     expect(lease.isCurrent()).toBe(false)
     expect(keys.leaseForAccount('local-scope')).toBeNull()
     expect(lockCompleted).toBe(false)
+    expect(invalidated).toBe(true) // Abort subscribers run before active crypto drains.
+    unsubscribe()
     await expect(lease.use(async () => 'must-not-run')).rejects.toBeInstanceOf(Error)
 
     release.resolve()

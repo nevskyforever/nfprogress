@@ -1,3 +1,4 @@
+import {verifiedResolutionForLocal,type ResolutionApplyToken} from './resolutionPlanner'
 import type { NoteMutationPlan } from './noteIntents'
 import {validateNoteIntentRecord} from './noteIntentRecords'
 import {validateNoteHistorySet} from './noteHistoryRecords'
@@ -78,6 +79,34 @@ export function scheduleProtectedNoteApply(tx:IDBTransaction,scope:BrowserSyncSc
       writes.forEach(r=>r.onsuccess=()=>{if(!p.current())abort(new BrowserPersistenceError('closed'))});ready()
     }catch(e){abort(e)}}
   },abort)
+}
+
+export interface ProtectedResolutionSourcePlan {readonly protectedResolutionSource:unique symbol}
+interface ResolutionSourceChange {scope:BrowserSyncScope;source:LocalSourceToken;project:LocalProjectRecord;notes:LocalNoteRecord[];original:string;current:()=>boolean}
+const resolutionChanges=new WeakMap<object,ResolutionSourceChange>()
+/** All reads finish before beforeWrites; paired source writes cannot be separated. */
+export function scheduleProtectedResolutionApply(tx:IDBTransaction,scope:BrowserSyncScope,token:ProtectedResolutionSourcePlan,beforeWrites:()=>void,afterWrites:()=>void,abort:(e:unknown)=>void):void {
+ const p=resolutionChanges.get(token)
+ if(!p||!same(p.scope,scope)||!p.current()){abort(new BrowserPersistenceError('stale_source'));return}
+ assertLocalSourceInTransaction(tx,scope,p.source,()=>{
+  let left=p.notes.length
+  for(const note of p.notes){
+   const request=tx.objectStore('localNotes').index('identity').get([scope.accountId,note.note_id])
+   request.onsuccess=()=>{try{
+    if(!p.current())fail('closed')
+    if(note.note_id===p.original){if(!request.result||request.result.project_id!==p.project.project_id)fail('stale_source')}
+    else if(request.result)fail('conflicting_record')
+    if(--left)return
+    beforeWrites()
+    const original=p.notes.find(n=>n.note_id===p.original)!,clone=p.notes.find(n=>n.note_id!==p.original)
+    const requests=[tx.objectStore('localNotes').put(original)]
+    if(clone)requests.push(tx.objectStore('localNotes').add(clone))
+    requests.push(tx.objectStore('localProjects').put(p.project))
+    requests.forEach(r=>r.onsuccess=()=>{if(!p.current())abort(new BrowserPersistenceError('closed'))})
+    afterWrites()
+   }catch(e){abort(e)}}
+  }
+ },abort)
 }
 
 /** Dormant entry point. No UI/HTTP fallback; mutation runtime requires existing normal-user key context. */
@@ -290,6 +319,36 @@ export class BrowserLocalAuthorityRuntime {
       const project:LocalProjectRecord={...p.project,source_revision:revision,envelope:await this.seal(scope,p.project.project_id,'project',opened.project,amk)},note=await this.noteRow(scope,source,revision,amk)
       if(!guard.current())fail('closed');const plan=Object.freeze({}) as ProtectedNoteSourcePlan
       protectedChanges.set(plan,{scope,source:token,project,note,current:guard.current});return{token:plan,source_revision:revision,note}
+    })
+  }
+  async prepareProtectedResolutionApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:ResolutionApplyToken){
+    scope=snapshotBrowserSyncScope(scope)
+    const authority=verifiedResolutionForLocal(verified,this,scope),p=this.token(scope,token),guard=await this.guard(scope)
+    if(p.project.source_revision===Number.MAX_SAFE_INTEGER)fail('source_limit')
+    const check=()=>{if(!guard.current()||!authority.current())fail('closed')}
+    check()
+    return guard.lease.use(async amk=>{
+      const opened=await this.open(scope,p.project,p.notes,amk),revision=p.project.source_revision+1
+      check()
+      const decision=authority.resolution.resolution,original=authority.resolution.result.note.id
+      const outputs=[authority.resolution.result.note,...(decision.strategy==='keep_both'?[decision.retained_note]:[])]
+      if(!opened.notes.some(n=>n.note.id===original))fail('missing_local_source')
+      if(decision.strategy==='keep_both'&&(decision.retained_note.id===original||opened.notes.some(n=>n.note.id===decision.retained_note.id)))fail('conflicting_record')
+      const admit=authority.protocol===3?validateContentLocalNote:validateLocalNote
+      const sources=outputs.map(note=>admit('deleted_at'in note?{state:'tombstone',note,revision:0}:{state:'live',note:{...note,revision:0}},p.project.project_id))
+      for(const n of sources){const i=opened.notes.findIndex(old=>old.note.id===n.note.id);if(i<0)opened.notes.push(n);else opened.notes[i]=n}
+      if(opened.notes.length>MAX_LOCAL_NOTES)fail('source_limit')
+      opened.project.source_revision=revision;opened.project.member_ids=opened.notes.map(n=>n.note.id).sort(order)
+      const project:LocalProjectRecord={...p.project,source_revision:revision,envelope:await this.seal(scope,p.project.project_id,'project',opened.project,amk)}
+      check()
+      const notes:LocalNoteRecord[]=[]
+      for(const n of sources){notes.push(await this.noteRow(scope,n,revision,amk));check()}
+      notes.sort((a,b)=>order(a.note_id,b.note_id))
+      const current=()=>guard.current()&&authority.current()
+      if(!current())fail('closed')
+      const prepared=Object.freeze({}) as ProtectedResolutionSourcePlan
+      resolutionChanges.set(prepared,{scope,source:token,project,notes,original,current})
+      return {token:prepared,project,notes}
     })
   }
   createNote(scope: BrowserSyncScope, token: LocalSourceToken, input: NativeLegacyNote): Promise<number> {

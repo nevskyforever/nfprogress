@@ -1622,3 +1622,118 @@ previous checkpoint history and roadmap numbering remain intact.
 проверка возвращает только временный приватный токен: ни заметки, ни история,
 ни подтверждение серверу не меняются. Следующий шаг .08F должен добавить отдельно
 проверенную атомарную запись результата, истории и обеих заметок при keep_both.
+
+## C21.2.08F — Browser Resolution-v2 atomic protected apply / dormant
+
+**LOCAL COMPLETE / REMOTE CI PENDING — DORMANT APPLY ONLY** (2026-10-19).
+Branch6.0 starting local HEAD/origin `45051917ba37a943e6af6d26c6746025d2c65e2d`,
+clean; exact remote ref independently checked. C21.2.08E **REMOTELY ACCEPTED**:
+SHA `45051917ba37a943e6af6d26c6746025d2c65e2d`, Cloud `39262249088` SUCCESS,
+6/6 required jobs SUCCESS (owner-supplied acceptance; no Actions polling).
+C21.2.08C/D remain REMOTELY ACCEPTED; .08A AUDIT ACCEPTED, functional gate incomplete.
+Official progress84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE;
+C21.2.08 FUNCTIONALLY BLOCKED; .09 NOT STARTED; ready=false. No roadmap renumbering.
+
+The dormant planner's atomicApply() factory is the sole narrow handoff. Private
+WeakMaps bind planner/apply tokens to the exact runtime, scope, source token,
+normal-user auth epoch, verified device, AMK lease and profile. Apply preparation
+repeats genuine planner authentication and rejects inventory drift; no opaque-token
+DTO cast or caller-supplied plaintext/proof authority. The protected local hook
+accepts only this private handoff and its exact bound local runtime. All original
+wire/parent authentication, source encryption, evidence creation and digest work
+finish before the native readwrite transaction. Original encrypted wire is retained
+byte-for-byte; no reframe, recompression or synthetic parent publication.
+
+Both protocol2 Legacy Resolution and protocol3 Content codec8 Resolution support
+choose_version, manual_merge, delete and keep_both. Source uses existing encrypted
+local_format1/record1, local Note revision0, one project source_revision increment,
+unchanged project metadata and complete membership including tombstones. keep_both
+uses the sender's distinct retained ID and timestamps; account-wide allocations,
+other projects, tombstones/history/intents/outbox/receipts/inbox/reservations are
+checked during fresh planning and pinned again by transaction CAS plus the native
+unique identity index. A genuine future child reference does not allocate a clone.
+
+Exact accepted B5 records only: immutable Resolution4, append-only GroupTransition2,
+original Head2 and optional retained Head2, inbox10/ResolutionProof1. One event-bearing
+Resolution, no clone genesis, no group1 lifecycle rewrite or losing-branch deletion.
+Genuine evidence AEAD uses crypto1/AAD1 under the original Note context and exact
+resolution_format/kind/identity/authenticated_payload/parents/group_snapshot/
+head_before/source_before/source_after fields. Original frame, published parent
+witnesses, pre-closure group/head and encrypted source outputs authenticate before
+any write through the accepted future-v10 reader. Acyclic digest order is Resolution
+→ transition → typed heads → proof → inbox. Public metadata contains no Note plaintext.
+Evidence64MiB/record128MiB bounds remain; the existing32MiB/16384-row bounded
+inventory limit is also checked on the predicted committed state before writing,
+so resource-limited results are rejected rather than committed beyond replay bounds.
+Existing local8MiB/4000-Note and smaller title/content admission limits remain.
+
+One strict native transaction covers inbox/cursors/projectBindings/ownerHeads/
+legacyNoteHistory/legacyNoteIntents/localProjects/localNotes/outbox/receipts; the
+existing session scheduler adds identities/accountBindings and writer/profile checks.
+A bounded cursor scan re-reads the entire account inventory, including original
+received wire/sequence, cursor, binding/bootstrap, Metadata/Stage authority, all
+parents/publications, project and complete source, group/frontier/heads, intents,
+outbox/receipts and clone reservations. Every essential byte must equal the private
+snapshot before any write. The protected source hook additionally checks the whole
+project token and original/clone identities. Ordered writes add Resolution/closure,
+update original/add clone head, put original/add clone source, put project, put inbox10.
+Any stale input, constraint, quota error or abort rolls back every store. Only native
+transaction completion returns success. Auth and key invalidation synchronously
+abort pending apply; existing session closure aborts its tracked transaction. Every
+asynchronous IDB callback checks lifetime. Tokens are single-use; no automatic retry.
+
+Exact replay is read-only under fresh auth/key/device/profile: reopen original AEAD,
+evidence, parents, closure, proof and both typed result anchors; compare encrypted
+current outputs and project to the authenticated output witness. Missing half-state,
+conflicting sequence/wire, corruption or source drift rejects without repair. No
+nonce/ciphertext/proof generation, counter increment, clone or write during replay.
+This F replay intentionally covers the exact still-current committed result. General
+historical source advancement, post-Resolution ordinary continuation/new forks and
+contiguous-prefix qualification remain later acceptance work, not claimed here.
+Missing prerequisites retain received inbox/source/history/cursors unchanged with a
+bounded blocker. Old production readers remain strict and fail closed on unsupported
+new leaves; only the isolated authenticated future-v10 reader validates these results.
+
+Validation: 55 focused real-AEAD apply tests PASS, including both transports/all four
+strategies, Stage/plain/ID1 routes, genuine accepted local frozen parent,2/3/64
+parents, future clone-child reference, private token/epoch binding, whole-inventory
+CAS, orphan/wire/publication blockers, corrupted replay/half-records and all ordered
+write boundaries. Final affected suite2039 PASS /67 files (includes55 focused and
+8 key-context cases): Legacy/Content/I2-C3, v10 migration, DAG/planner and prefix/ACK.
+Real disposable Chromium v10 PASS:8 genuine applies,24 native fault rollbacks,
+8 full disk/browser restarts,16 zero-write replays; actual key/logout/profile-close
+invalidation before completion, competing-tab writer_busy and native device identity
+drift reject safely. No fabricated positive authority; push0/new ACK0/page errors0.
+22 controlled device-registration fixture calls belong to external setup/rebind,
+not apply/replay traffic. Typecheck/production build PASS (existing Vite warnings);
+mandatory Cloud spec/browser step, strict workflow YAML, both path filters, historical
+document preservation and git diff --check PASS. Final failures0/skips0; initial
+test-environment/fixture assertions and TypeScript annotations corrected.
+Backend/native suites unnecessary and not run; remote CI not polled.
+Protected .pyc SHA256 unchanged; existing history and VPS Security Hardening &
+Security Audit RELEASE GATE preserved. No GitHub Actions polling or waiting.
+
+IndexedDB10; migration NONE; new stores/indexes0; no wire/backend/native changes.
+No normal BrowserPersistence/editor/scheduler integration. Resolution producer,
+Content sealing/upload/new self-echo, new Note capability, production Content writer
+and Resolution prefix/ACK remain OFF; existing Legacy behavior and cross-family
+prefix/ACK barriers unchanged. No pull/proven-prefix/ACK cursor, receipt, outbox,
+intent or ordinal mutation. Full Web synchronization and full C21.2.08 are not complete.
+
+### Простыми словами
+
+Изолированный механизм умеет применить полученное решение: выбрать версию, взять
+готовое объединение отправителя, удалить заметку или сохранить обе. Перед записью
+он заново проверяет шифротекст, опубликованные версии и текущие данные. Заметки,
+состав проекта, история решения и доказательство записываются одной транзакцией.
+Поэтому keep_both не может оставить только половину результата: при сбое сохраняется
+исходное состояние, при завершении появляются все записи вместе. После прерывания
+клиент проверяет сохранённое решение; точный повтор не создаёт вторую копию заметки,
+новый шифротекст или повторное увеличение счётчика. Повреждённая или неполная история
+останавливает проверку, автоматического ремонта нет.
+
+Этот путь и новые читатели остаются изолированными от обычной синхронизации.
+Старые читатели не начинают молча принимать неизвестные форматы. Отправка Content
+и подтверждение Resolution серверу выключены: ещё нужно отдельно доказать чтение
+исторических результатов после дальнейших изменений и безопасный непрерывный
+подтверждённый префикс. Следующий шаг — C21.2.08G, historical proof / contiguous prefix.

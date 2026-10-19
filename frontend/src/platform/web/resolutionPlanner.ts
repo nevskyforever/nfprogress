@@ -1,15 +1,15 @@
 import type {NormalUserAuthRuntime} from '@/auth/userAuth'
 import type {AuthoritativeAccountBinding} from '@/auth/accountBinding'
-import type {RuntimeKeyContext} from '@/auth/keyContext'
-import {decryptObjectBytes,type AccountMasterKey} from '@/crypto'
-import {decodeBase64Url} from '@/api/base64url'
+import type {AuthoritativeKeyContextLease,RuntimeKeyContext} from '@/auth/keyContext'
+import {decryptObjectBytes,encryptObjectBytes,type AccountMasterKey} from '@/crypto'
+import {decodeBase64Url,encodeBase64Url} from '@/api/base64url'
 import {unframeContentNote,type ContentNoteEvent} from '@/cloud/contentNoteCodec'
 import {decodeNoteSyncResolutionV2,type NoteSyncResolutionV2} from '@/cloud/noteSyncResolutionV2Codec'
 import {canonicalizeSyncTimestamp} from '@/cloud/syncTimestamp'
 import type {NoteSyncPlaintext,NoteSyncRecord,NoteSyncTombstone} from '@/cloud/noteSyncCodec'
 import {BrowserPersistenceError} from './persistence'
 import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
-import {BrowserLocalAuthority,type BrowserLocalAuthorityRuntime,type LocalSourceToken} from './localAuthority'
+import {BrowserLocalAuthority,type BrowserLocalAuthorityRuntime,type LocalSourceToken,scheduleProtectedResolutionApply,type ProtectedResolutionSourcePlan} from './localAuthority'
 import {assertContentNoteRoute,validateContentLocalNote,validateLocalNote,MAX_LOCAL_SOURCE_BYTES,MAX_LOCAL_NOTES,localCanonicalBytes} from './localAuthorityRecords'
 import {snapshotBrowserSyncScope,validateBrowserInboxRecord,validateBrowserStoredUploadPair,validateBrowserSyncCursor,immutableWireIdentity,type BrowserSyncScope,type BrowserSyncTransaction,type BrowserInboxRecord} from './syncDurability'
 import {validateBrowserProjectBinding} from './projectBindings'
@@ -17,7 +17,11 @@ import {validateNoteHistorySet,type BrowserNoteCandidate,type BrowserNoteConflic
 import {validateNoteIntentRecord} from './noteIntentRecords'
 import {validateBrowserV9State} from './indexedDbV9Migration'
 import {inspectResolutionDag} from './resolutionDag'
-import {boundResolutionJson} from './resolutionRecords'
+import {boundResolutionJson,resolutionIdentity,MAX_RESOLUTION_EVIDENCE_BYTES,readFutureInboxRecord,type BrowserResolution4,type BrowserResolutionHead2,type BrowserGroupTransition2,type BrowserResolutionInbox10,type BrowserResolutionProof1} from './resolutionRecords'
+import {authenticateResolutionHistory,resolutionBytesDigest} from './resolutionAuthentication'
+import {canonical} from '@/cloud/projectMetadataCodec'
+import {noteProofDigest} from './legacyNoteApply'
+import type {LocalProjectRecord,LocalNoteRecord} from './localAuthorityRecords'
 import {openHistoryCandidate} from './noteHistory'
 import {openNoteTransport} from './noteTransport'
 import {verifyContentGroup} from './contentNoteConflictProof'
@@ -45,28 +49,12 @@ const stores=['inbox','outbox','receipts','projectBindings','ownerHeads','legacy
 interface Inventory extends BrowserPrefixInventory {projects:unknown[];localNotes:unknown[];intents:unknown[];checkpoints:unknown[]}
 export interface ResolutionPlannerToken {readonly resolutionPlannerToken:unique symbol}
 export interface ResolutionPlanStatus {readonly readOnly:true;readonly commitAuthorized:false;readonly ackAuthorized:false;readonly parentCount:number;readonly strategy:NoteSyncResolutionV2['resolution']['strategy']}
-interface Plan {owner:BrowserResolutionPlannerRuntime;scope:BrowserSyncScope;sequence:number;inventory:Inventory;source:LocalSourceToken;current:()=>boolean;resolution:NoteSyncResolutionV2;group:BrowserNoteConflictGroup;parents:Map<string,NoteSyncPlaintext>;status:ResolutionPlanStatus}
+interface Plan {owner:BrowserResolutionPlannerRuntime;scope:BrowserSyncScope;sequence:number;inventory:Inventory;source:LocalSourceToken;current:()=>boolean;resolution:NoteSyncResolutionV2;group:BrowserNoteConflictGroup;parents:Map<string,NoteSyncPlaintext>;status:ResolutionPlanStatus;lease:AuthoritativeKeyContextLease}
 const plans=new WeakMap<object,Plan>()
 const wireNote=(n:NoteSyncRecord|NoteSyncTombstone|Record<string,unknown>)=>{const v={...n};delete(v as Record<string,unknown>).revision;return v}
 const route=(n:NoteSyncRecord|NoteSyncTombstone)=>[n.project_id,n.stage_id,n.source_type,n.source_map_id,n.source_node_id,n.content_format]
 
-/** Dormant internal entry point. Never composed into BrowserPersistence/editor/scheduler. */
-export class BrowserResolutionPlanner {
- constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthority,private readonly profileCurrent:()=>boolean){}
- bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPlannerRuntime(this.transaction,this.local.bind(auth,bindings,keys),this.profileCurrent,auth,bindings,keys,device)}
-}
-export class BrowserResolutionPlannerRuntime {
- constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthorityRuntime,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice){}
- private async guard(s:BrowserSyncScope){
-  const initial=this.auth.requireContext()
-  if(!this.profileCurrent()||!currentBrowserDevice(this.device,s,this.auth))fail('lifecycle_invalid')
-  const {context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
-  const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
-  if(!lease||context.userId!==s.canonicalUserId||lease.localAccountId!==s.accountId||lease.canonicalUserId!==s.canonicalUserId||lease.authEpoch!==context.authEpoch||!current())fail('lifecycle_invalid')
-  return{lease,current}
- }
- private load(s:BrowserSyncScope,current:()=>boolean):Promise<Inventory>{
-  return this.transaction(s,stores,'readonly',(tx,result,abort)=>{
+function scheduleInventory(tx:IDBTransaction,s:BrowserSyncScope,current:()=>boolean,result:(v:Inventory)=>void,abort:(e:unknown)=>void):void {
    const range=IDBKeyRange.bound([s.accountId],[s.accountId,[]]),arrays:unknown[][]=stores.map(()=>[])
    let completed=0,left=MAX_PLANNER_INVENTORY_BYTES-2*stores.length
    stores.forEach((name,index)=>{
@@ -90,7 +78,25 @@ export class BrowserResolutionPlannerRuntime {
      result({rows,out,receipts,bindings,owners,history,intents,projects,localNotes,checkpoints,cursor:validateBrowserSyncCursor(checkpoints[0],s)})
     }catch(e){abort(e)}}
    })
-  })
+}
+
+/** Dormant internal entry point. Never composed into BrowserPersistence/editor/scheduler. */
+export class BrowserResolutionPlanner {
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthority,private readonly profileCurrent:()=>boolean){}
+ bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPlannerRuntime(this.transaction,this.local.bind(auth,bindings,keys),this.profileCurrent,auth,bindings,keys,device)}
+}
+export class BrowserResolutionPlannerRuntime {
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthorityRuntime,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice){}
+ private async guard(s:BrowserSyncScope){
+  const initial=this.auth.requireContext()
+  if(!this.profileCurrent()||!currentBrowserDevice(this.device,s,this.auth))fail('lifecycle_invalid')
+  const {context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
+  const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
+  if(!lease||context.userId!==s.canonicalUserId||lease.localAccountId!==s.accountId||lease.canonicalUserId!==s.canonicalUserId||lease.authEpoch!==context.authEpoch||!current())fail('lifecycle_invalid')
+  return{lease,current}
+ }
+ private load(s:BrowserSyncScope,current:()=>boolean):Promise<Inventory>{
+  return this.transaction(s,stores,'readonly',(tx,result,abort)=>scheduleInventory(tx,s,current,result,abort))
  }
  private async original(s:BrowserSyncScope,row:BrowserInboxRecord,amk:AccountMasterKey,check:()=>void){
   if(row.state!=='received')fail('invalid_resolution')
@@ -245,14 +251,161 @@ export class BrowserResolutionPlannerRuntime {
     await step(this.local.assertSnapshot(s,snapshot.token))
     if(!same(await step(this.load(s,current)),v))fail('stale_inventory')
     const status=Object.freeze({readOnly:true as const,commitAuthorized:false as const,ackAuthorized:false as const,parentCount:parents.length,strategy:decision.strategy}),token=Object.freeze({}) as ResolutionPlannerToken
-    plans.set(token,{owner:this,scope:s,sequence,inventory:v,source:snapshot.token,current,resolution,group,parents:opened,status})
+    plans.set(token,{owner:this,scope:s,sequence,inventory:v,source:snapshot.token,current,resolution,group,parents:opened,status,lease})
     return{token,status}
    }))
   }catch(e){if(e instanceof ResolutionPlannerError)throw e;if(e instanceof BrowserPersistenceError&&['closed','account_mismatch'].includes(e.code))fail('lifecycle_invalid');fail('invalid_resolution')}
+ }
+ /** Internal dormant handoff; no normal composition or raw plaintext input. */
+ atomicApply():BrowserResolutionApplyRuntime {
+  return new BrowserResolutionApplyRuntime(this,this.transaction,this.local,this.auth,this.keys,s=>this.guard(s), (s,current)=>this.load(s,current))
  }
  /** Bounded diagnostics only. A future apply transaction must independently CAS all witnesses. */
  async inspect(token:ResolutionPlannerToken):Promise<ResolutionPlanStatus>{
   const p=plans.get(token);if(!p||p.owner!==this||!p.current())fail('lifecycle_invalid')
   try{await this.local.assertSnapshot(p.scope,p.source);if(!p.current())fail('lifecycle_invalid');const v=await this.load(p.scope,p.current);if(!p.current())fail('lifecycle_invalid');if(!same(v,p.inventory)){plans.delete(token);fail('stale_inventory')}return p.status}catch(e){plans.delete(token);if(e instanceof ResolutionPlannerError)throw e;fail('stale_inventory')}
+ }
+}
+
+export interface ResolutionApplyToken {readonly resolutionApplyToken:unique symbol}
+interface ApplyPreparation {
+ owner:BrowserResolutionApplyRuntime;plan:Plan;local:BrowserLocalAuthorityRuntime;
+ source?:ProtectedResolutionSourcePlan;row?:BrowserResolutionInbox10;
+ records?:[BrowserResolution4,BrowserGroupTransition2,BrowserResolutionHead2,BrowserResolutionHead2?]
+}
+const applications=new WeakMap<object,ApplyPreparation>()
+/** Only the matching protected local hook can consume a fresh private preparation. */
+export function verifiedResolutionForLocal(token:ResolutionApplyToken,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope){
+ const p=applications.get(token)
+ if(!p||p.local!==local||!same(p.plan.scope,scope)||!p.plan.current())fail('lifecycle_invalid')
+ return {resolution:p.plan.resolution,protocol:p.plan.inventory.rows.map(r=>readFutureInboxRecord(r,scope)).find(r=>r.server_sequence===p.plan.sequence)!.protocol_version,current:p.plan.current}
+}
+const recordDigest=async(value:unknown,field='record_digest')=>{const copy={...value as Record<string,unknown>};delete copy[field];return noteProofDigest(copy)}
+
+/** Dormant protected writer, obtained solely from an authenticated planner runtime. */
+export class BrowserResolutionApplyRuntime {
+ constructor(private readonly planner:BrowserResolutionPlannerRuntime,private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthorityRuntime,private readonly auth:NormalUserAuthRuntime,private readonly keys:RuntimeKeyContext,private readonly guard:(s:BrowserSyncScope)=>Promise<{lease:AuthoritativeKeyContextLease;current:()=>boolean}>,private readonly load:(s:BrowserSyncScope,current:()=>boolean)=>Promise<Inventory>){}
+ async prepare(token:ResolutionPlannerToken):Promise<ResolutionApplyToken>{
+  const original=plans.get(token)
+  if(!original||original.owner!==this.planner||!original.current())fail('lifecycle_invalid')
+  await this.planner.inspect(token)
+  if(!original.current())fail('lifecycle_invalid')
+  // Reopen the original wire and every published parent with the real current
+  // planner. A stale plan is never silently replaced by a new conflict decision.
+  const renewed=await this.planner.prepare(original.scope,original.sequence),p=plans.get(renewed.token)!
+  if(!original.current()||!same(p.inventory,original.inventory))fail('stale_inventory')
+  const apply=Object.freeze({}) as ResolutionApplyToken,prepared:ApplyPreparation={owner:this,plan:p,local:this.local}
+  applications.set(apply,prepared)
+  const check=()=>{if(!p.current()||!original.current())fail('lifecycle_invalid')}
+  const digest=async(value:unknown)=>{const hash=await noteProofDigest(value);check();return hash}
+  try{
+   const source=await this.local.prepareProtectedResolutionApply(p.scope,p.source,apply);check()
+   prepared.source=source.token
+   await p.lease.use(async amk=>{
+    const s=p.scope,v=p.inventory,resolution=p.resolution,h=resolution.header,d=resolution.resolution
+    const row=validateBrowserInboxRecord(v.rows.find((r:any)=>r.server_sequence===p.sequence),s),wire=JSON.parse(row.wire_item)
+    const nonce=decodeBase64Url(wire.object.nonce),ciphertext=decodeBase64Url(wire.object.ciphertext);let frame:Uint8Array|undefined
+    const group=p.group,head=v.history.find((r:any)=>r.record_kind==='head'&&r.project_id===h.project_id&&r.note_id===h.entity_id) as BrowserNoteHead
+    try{
+     frame=await decryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:h.project_id,entityId:h.entity_id,entityType:'note'},{...wire.object,nonce,ciphertext});check()
+     const content=row.protocol_version===3?unframeContentNote(frame):undefined
+     const r:BrowserResolution4={record_version:4,record_kind:'resolution',record_id:h.event_id,account_id:s.accountId,device_id:s.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:group.bootstrap_id,event_id:h.event_id,source_device_id:wire.event.device_id,protocol_version:row.protocol_version,transport_kind:row.protocol_version===2?'legacy_resolution_v2':'content_note_resolution_v2',server_sequence:p.sequence,header:h,wire_item:row.wire_item,wire_digest:await digest({protocol_version:row.protocol_version,item:wire}),payload_digest:await digest(resolution),dependency_digest:await digest({scope:s,bootstrap_id:group.bootstrap_id,project_id:h.project_id,note_id:h.entity_id,event_id:h.event_id,transport:row,dependencies:content?.dependencies??null,owners:v.owners,bindings:v.bindings}),remote_group_id:d.conflict_group_id,remote_generation:d.conflict_generation,local_group_id:group.group_id,local_generation:group.conflict_generation,group_digest:await digest(group),parent_event_ids:d.resolved_event_ids,strategy:d.strategy,result_operation:resolution.result.operation,retained_note_id:d.strategy==='keep_both'?d.retained_note.id:null,evidence_envelope:source.project.envelope,record_digest:''}
+     const parents=[]
+     for(const id of r.parent_event_ids){
+      const c=v.history.find((r:any)=>r.record_kind==='candidate'&&r.event_id===id) as BrowserNoteCandidate,m=group.members.find(m=>m.event_id===id)!,local=m.source==='local_unsealed'
+      const frozen=local?v.history.find((r:any)=>r.record_kind==='local_version'&&r.version_id===m.version_id) as {record_digest:string}:undefined
+      const receipt=local?v.receipts.find((r:any)=>r.event_id===id) as {server_sequence:number}:undefined
+      parents.push({event_id:id,revision:c.header.revision,operation:c.header.operation,history_digest:c.record_digest,inbox_digest:await digest(v.rows.find((r:any)=>r.event_id===id)??null),publication_source:local?'local_accepted':m.source,server_sequence:local?receipt!.server_sequence:m.server_sequence,local_mutation_generation:local?c.mutation_generation:null,frozen_version_digest:frozen?.record_digest??null,snapshot_digest:await digest(p.parents.get(id)!.note)})
+      check()
+     }
+     const before={project:v.projects.find((r:any)=>r.project_id===h.project_id),notes:v.localNotes.filter((n:any)=>n.project_id===h.project_id&&n.note_id===h.entity_id)}
+     const evidence={resolution_format:1,kind:'resolution_apply',identity:resolutionIdentity(r),authenticated_payload:{wire_frame_digest:await resolutionBytesDigest(frame),wrapper_payload_digest:content?await digest(content):null,resolution_payload_digest:r.payload_digest},parents,group_snapshot:group,head_before:head,source_before:before,source_after:{project:source.project,notes:source.notes}}
+     boundResolutionJson(evidence,MAX_RESOLUTION_EVIDENCE_BYTES)
+     const bytes=new TextEncoder().encode(canonical(evidence));let encrypted:Awaited<ReturnType<typeof encryptObjectBytes>>|undefined
+     try{encrypted=await encryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:h.project_id,entityId:h.entity_id,entityType:'note'},bytes);check();r.evidence_envelope={crypto_version:1,aad_version:1,nonce:encodeBase64Url(encrypted.nonce),ciphertext:encodeBase64Url(encrypted.ciphertext)}}finally{bytes.fill(0);encrypted?.nonce.fill(0);encrypted?.ciphertext.fill(0)}
+     r.record_digest=await recordDigest(r);check()
+     const transition:BrowserGroupTransition2={record_version:2,record_kind:'group_transition',record_id:group.group_id,account_id:s.accountId,device_id:s.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:group.bootstrap_id,group_id:group.group_id,from_generation:group.conflict_generation,from_digest:r.group_digest,resolution_event_id:h.event_id,resolution_digest:r.record_digest,resolved_parent_ids:r.parent_event_ids,effective_lifecycle:'resolved',record_digest:''}
+     transition.record_digest=await recordDigest(transition);check()
+     const nextHead:BrowserResolutionHead2={...head,record_version:2,head_revision:head.head_revision+1,linear_head_event_id:h.event_id,tip_event_ids:[h.event_id],node_ref:{kind:'resolution_result',resolution_event_id:h.event_id,result_role:'original',resolution_digest:r.record_digest}}
+     const cloneHead:BrowserResolutionHead2|undefined=r.retained_note_id?{...nextHead,note_id:r.retained_note_id,head_revision:1,node_ref:{kind:'resolution_result',resolution_event_id:h.event_id,result_role:'retained',resolution_digest:r.record_digest}}:undefined
+     const proof:BrowserResolutionProof1={record_version:1,owner_kind:'note_resolution',outcome:'applied',account_id:s.accountId,bootstrap_id:group.bootstrap_id,protocol_version:row.protocol_version,reference:wire.event,server_sequence:p.sequence,header:h,wire_digest:r.wire_digest,payload_digest:r.payload_digest,dependency_digest:r.dependency_digest,resolution_digest:r.record_digest,transition_digest:transition.record_digest,output_digests:{original:await digest(source.notes.find(n=>n.note_id===r.note_id)),retained:r.retained_note_id?await digest(source.notes.find(n=>n.note_id===r.retained_note_id)):null},outcome_digest:''}
+     proof.outcome_digest=await recordDigest(proof,'outcome_digest');check()
+     const inbox:BrowserResolutionInbox10={...row,protocol_version:row.protocol_version,record_version:10,state:'note_resolution_proven',resolution_proof:proof}
+     const records:[BrowserResolution4,BrowserGroupTransition2,BrowserResolutionHead2,BrowserResolutionHead2?]=[r,transition,nextHead,cloneHead]
+     for(const record of records)if(record)boundResolutionJson(record)
+     boundResolutionJson(inbox)
+     const predicted={...v,projects:v.projects.map((p:any)=>p.project_id===h.project_id?source.project:p),history:[...v.history.filter(raw=>!same(raw,head)),...records.filter(Boolean)],rows:v.rows.map(raw=>same(raw,row)?inbox:raw),localNotes:[...v.localNotes.filter((n:any)=>!source.notes.some(a=>a.note_id===n.note_id)),...source.notes]}
+     // A successful commit must remain within the same bounded reopen/replay
+     // inventory budget. Reject before writing rather than strand a large result.
+     let left=MAX_PLANNER_INVENTORY_BYTES-2*stores.length
+     for(const array of [predicted.rows,predicted.out,predicted.receipts,predicted.bindings,predicted.owners,predicted.history,predicted.intents,predicted.projects,predicted.localNotes,predicted.checkpoints]){
+      if(array.length>MAX_PLANNER_ROWS)fail('resource_limit')
+      for(const value of array){try{boundResolutionJson(value,left)}catch{fail('resource_limit')}
+       const encoded=new TextEncoder().encode(JSON.stringify(value));try{left-=encoded.length+1;if(left<0)fail('resource_limit')}finally{encoded.fill(0)}
+      }
+     }
+     // Future v10 authentication is a prerequisite, not an assertion made after
+     // a write has already committed. The old production readers remain strict.
+     await authenticateResolutionHistory(s,predicted,amk,p.current);check()
+     prepared.records=records;prepared.row=inbox
+    }finally{frame?.fill(0);nonce.fill(0);ciphertext.fill(0)}
+   })
+   check();return apply
+  }catch(e){applications.delete(apply);throw e}
+ }
+ async commit(token:ResolutionApplyToken):Promise<{status:'applied'}>{
+  const a=applications.get(token)
+  if(!a||a.owner!==this||!a.source||!a.row||!a.records||!a.plan.current())fail('lifecycle_invalid')
+  applications.delete(token) // Single-use even on abort; retry needs fresh crypto/auth.
+  const p=a.plan,s=p.scope,records=a.records,row=a.row,source=a.source
+  let abortActive:((e:unknown)=>void)|undefined
+  const stop=()=>abortActive?.(new ResolutionPlannerError('lifecycle_invalid'))
+  const unAuth=this.auth.onInvalidated(stop),unKey=this.keys.onInvalidated(stop)
+  try{
+   return await this.transaction(s,stores,'readwrite',(tx,result,abort)=>{
+    abortActive=abort
+    const check=()=>{if(!p.current())fail('lifecycle_invalid')}
+    try{check();scheduleInventory(tx,s,p.current,v=>{
+     try{
+      check();if(!same(v,p.inventory))fail('stale_inventory')
+      scheduleProtectedResolutionApply(tx,s,source,()=>{
+       check();const history=tx.objectStore('legacyNoteHistory')
+       const requests=[history.add(records[0]),history.add(records[1]),history.put(records[2])]
+       if(records[3])requests.push(history.add(records[3]))
+       requests.forEach(r=>r.onsuccess=()=>{try{check()}catch(e){abort(e)}})
+      },()=>{
+       check();const request=tx.objectStore('inbox').put(row)
+       request.onsuccess=()=>{try{check();result({status:'applied'})}catch(e){abort(e)}}
+      },abort)
+     }catch(e){abort(e)}
+    },abort)}catch(e){abort(e)}
+   })
+  }finally{abortActive=undefined;unAuth();unKey()}
+ }
+ /** Exact replay after restart. Never allocates a token, nonce, clone or counter. */
+ async reconcile(input:BrowserSyncScope,sequence:number):Promise<{status:'already_applied'}>{
+  const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s)
+  const check=()=>{if(!current())fail('lifecycle_invalid')}
+  const v=await this.load(s,current);check()
+  const row=readFutureInboxRecord(v.rows.find((r:any)=>r.server_sequence===sequence),s)
+  if(row.state!=='note_resolution_proven')fail('invalid_resolution')
+  await lease.use(async amk=>{
+   const authenticated=await authenticateResolutionHistory(s,v,amk,current);check()
+   const r=authenticated.dag.events.get(row.event_id)
+   if(!r||r.record_kind!=='resolution')fail('invalid_resolution')
+   const nonce=decodeBase64Url(r.evidence_envelope.nonce),ciphertext=decodeBase64Url(r.evidence_envelope.ciphertext);let bytes:Uint8Array|undefined
+   try{
+    bytes=await decryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:r.project_id,entityId:r.note_id,entityType:'note'},{...r.evidence_envelope,nonce,ciphertext});check()
+    const evidence=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)) as {head_before:BrowserNoteHead;source_after:{project:LocalProjectRecord;notes:LocalNoteRecord[]}}
+    const originalHead:BrowserResolutionHead2={...evidence.head_before,record_version:2,head_revision:evidence.head_before.head_revision+1,linear_head_event_id:r.event_id,tip_event_ids:[r.event_id],node_ref:{kind:'resolution_result',resolution_event_id:r.event_id,result_role:'original',resolution_digest:r.record_digest}}
+    const heads=[originalHead,...(r.retained_note_id?[{...originalHead,note_id:r.retained_note_id,head_revision:1,node_ref:{kind:'resolution_result',resolution_event_id:r.event_id,result_role:'retained',resolution_digest:r.record_digest}}]:[])]
+    for(const head of heads)if(!v.history.some(raw=>same(raw,head)))fail('invalid_resolution')
+    // F accepts only the exact still-current output. General historical source
+    // continuation and contiguous-prefix qualification belong to the next slice.
+    if(!same(v.projects.find((p:any)=>p.project_id===r.project_id),evidence.source_after.project)||evidence.source_after.notes.some(n=>!same(v.localNotes.find((x:any)=>x.note_id===n.note_id),n)))fail('stale_inventory')
+   }finally{nonce.fill(0);ciphertext.fill(0);bytes?.fill(0)}
+  })
+  if(!same(await this.load(s,current),v))fail('stale_inventory');check()
+  return{status:'already_applied'}
  }
 }

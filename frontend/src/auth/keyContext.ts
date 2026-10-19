@@ -93,6 +93,12 @@ class RuntimeKeyContextLease implements AuthoritativeKeyContextLease {
 }
 
 export class RuntimeKeyContext {
+  private readonly invalidationListeners = new Set<() => void>()
+  onInvalidated(listener: () => void): () => void {
+    this.invalidationListeners.add(listener)
+    return () => { this.invalidationListeners.delete(listener) }
+  }
+
   private active: ActiveKeyContext | null = null
   private epoch = 0
   private inFlightUses = 0
@@ -116,6 +122,7 @@ export class RuntimeKeyContext {
     this.active?.masterKey.fill(0)
     this.active = null
     this.epoch += 1
+    for (const listener of this.invalidationListeners) listener()
     if (this.inFlightUses === 0) return { epoch: this.epoch, drained: Promise.resolve() }
     if (this.drainPromise === null) {
       this.drainPromise = new Promise(resolve => { this.resolveDrain = resolve })

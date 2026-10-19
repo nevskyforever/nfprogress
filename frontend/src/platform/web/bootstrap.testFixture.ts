@@ -50,7 +50,8 @@ export async function fixture(ids = ['z','a']) {
     if (error) reject(error); else { Object.assign(db,pending); resolve(result as never) }
   })
   const lease = { localAccountId: scope.accountId, canonicalUserId: scope.canonicalUserId, authEpoch: context.authEpoch, isCurrent: () => current && auth.isCurrent(context), use: async <T>(action: (key: AccountMasterKey) => Promise<T>) => { const key = Uint8Array.from(amk) as AccountMasterKey; copies.push(key); try { return await action(key) } finally { key.fill(0) } } }
-  const bindings = { ensureForCurrentUser: async () => ({ context }) }, keys = { leaseForAccount: () => missingKey?null:lease }
+  const invalidations=new Set<()=>void>()
+  const bindings = { ensureForCurrentUser: async () => ({ context }) }, keys = { leaseForAccount: () => missingKey?null:lease, onInvalidated: (listener:()=>void) => { invalidations.add(listener);return ()=>{invalidations.delete(listener)} } }
   const localOwner = new BrowserLocalAuthority(transaction), local = localOwner.bind(auth,bindings as never,keys as never), projects = new BrowserProjectBindings(transaction), sync = new BrowserSyncDurability(transaction)
   const capture = new BrowserInitialNoteCapture(transaction,localOwner,projects).bind(auth,bindings as never,keys as never)
   await local.initializeProject(scope,{ project: project(), notes: ids.map(id => ({ state: 'live', note: note(id) })) })
@@ -63,5 +64,5 @@ export async function fixture(ids = ['z','a']) {
   const writer=new BrowserNoteIntents(transaction,localOwner,()=>!closed).bind(auth,bindings as never,keys as never)
   const mutate = async () => local.updateNote(scope,(await local.readSnapshot(scope,'p')).token,'a',{ title: 'LATER_PRIVATE' },at)
   const accept = async (row: unknown, sequence: number) => sync.commitUploadAcceptance(scope,row as never,{ protocol_version: 2, encrypted_sync_version: 2, current_cursor: sequence, results: [{ event_id: (row as {event_id: string}).event_id, server_sequence: sequence, duplicate: false }] })
-  return { bindings, keys, proven,writer,noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, unavailable: () => {missingKey=true}, lock: () => { current = false }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
+  return { bindings, keys, proven,writer,noteHistory,notes,registry,completion,db,local,localOwner,projects,sync,capture,prepared,registered,mutate,accept,calls,copies,auth, transaction, unavailable: () => {missingKey=true}, lock: () => { current = false;for(const listener of invalidations)listener() }, abort: (value = true) => { abortWrite = value }, close: () => { closed = true } }
 }
