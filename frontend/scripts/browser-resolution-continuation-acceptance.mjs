@@ -3,6 +3,10 @@ import {mkdtemp,rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {chromium} from '@playwright/test'
+import {pathToFileURL} from 'node:url'
+// G reuses this exact genuine F -> transport -> H producer/restart acceptance.
+// The standalone H entry still executes every existing assertion unchanged.
+export async function runResolutionContinuationAcceptance(onHistorical){
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
 assert.equal(new URL(origin).hostname,'127.0.0.1')
 const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents']
@@ -20,7 +24,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
  const bind=()=>page.evaluate(async scope=>{
   globalThis.s=scope;globalThis.session=await c21.openBrowserPersistence(s.canonicalUserId);globalThis.meta=await c21.metadataFixture(session,s)
   const device=await session.device.bind(meta.auth,meta.bindings).registerVerified(s)
-  globalThis.planner=c21.resolutionPlannerFixture(session,meta,device);globalThis.applier=planner.atomicApply();globalThis.continuation=c21.resolutionContinuationFixture(session,meta,device)
+  globalThis.planner=c21.resolutionPlannerFixture(session,meta,device);globalThis.applier=planner.atomicApply();globalThis.continuation=c21.resolutionContinuationFixture(session,meta,device);globalThis.prefix=c21.resolutionPrefixFixture(session,meta,device)
  },scope)
  try{
   await launch()
@@ -197,9 +201,12 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   assert.equal(await page.evaluate(async sequence=>{try{await applier.reconcile(s,sequence);return false}catch{return true}},decisions.sequence),true)
   assert.equal(await page.evaluate(async()=>{try{await session.proven.bind(meta.auth,meta.bindings,meta.keys).prepare(s);return false}catch{return true}}),true)
   assert.deepEqual(await snapshot(),progressed)
+  if(onHistorical)await onHistorical({get page(){return page},snapshot,scope,decisions,descendants,progressed,bind,restart:async()=>{await context.close();await launch();await bind()}})
   // No push/ACK occurred before restart either (registration is external setup).
   assert.equal(network.length,registrations)
  }finally{await context?.close();await rm(directory,{recursive:true,force:true})}
 }
 assert.deepEqual(errors,[])
 console.log(JSON.stringify({result:'PASS',continuations,continuationFaults,historicalReopens,protocols:[2,3],strategies:4,applied,nativeFaultRollbacks:faults,diskRestarts:8,replays:16,replayWrites:0,realParentProducers:true,newOutbox:0,push:0,newACK:0,pageErrors:0,registrationFixtureCalls:registrations}))
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)await runResolutionContinuationAcceptance()

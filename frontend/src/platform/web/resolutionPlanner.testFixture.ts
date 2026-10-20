@@ -14,11 +14,13 @@ import {received as receiveLegacy} from './legacyNoteApply.testFixture'
 import {contentConflictSetup,conflictGroup} from './contentConflict.testFixture'
 import {openHistoryCandidate} from './noteHistory'
 import {encodeBase64Url} from '@/api/base64url'
-export async function plannerFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='choose_version',count=2,local=false,legacy=false,route?:{stage?:boolean;format?:'html'|'plain';compressed?:boolean}){
+import {orderRow} from './stageOrder.testFixture'
+import {BrowserStageOrderApply} from './stageOrderApply'
+export async function plannerFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='choose_version',count=2,local=false,legacy=false,route?:{stage?:boolean;format?:'html'|'plain';compressed?:boolean;order?:boolean;mixed?:boolean;mixedInventory?:boolean}){
  if(count===64)legacy=true
  const history=await resolutionFixture(strategy,count===64?2:count,local,legacy)
  if(route){
-  const real=await contentConflictSetup(route.stage??false,route.format??'html',route.compressed??false);await real.content.apply(scope,real.start+2);history.f=real
+  const real=await contentConflictSetup(route.stage??false,route.format??'html',route.compressed??false,'update',route.mixed??false);await real.content.apply(scope,real.start+2);history.f=real
   const group=conflictGroup(real),parents=real.db.legacyNoteHistory!.filter((r:any)=>r.record_kind==='candidate'&&group.tip_event_ids.includes(r.event_id)) as typeof history.parents;parents.sort((a,b)=>a.event_id.localeCompare(b.event_id));history.parents=parents
   const opened=await Promise.all(parents.map(c=>openHistoryCandidate(scope,c,amk))),n=opened[0]!.note,other=opened[1]!.note,ids=group.tip_event_ids
   Object.assign(history.resolution.header,{parent_event_id:ids[0],additional_parent_event_ids:ids.slice(1)})
@@ -27,7 +29,16 @@ export async function plannerFixture(strategy:NoteSyncResolutionV2['resolution']
   if(decision.strategy==='keep_both'){decision.retained_event_id=parents[1]!.event_id;decision.retained_note={...other,id:'retained-note',created_at:history.resolution.header.updated_at,updated_at:history.resolution.header.updated_at} as never}
   history.resolution.result=decision.strategy==='delete'?{operation:'delete',note:{id:n.id,project_id:n.project_id,stage_id:n.stage_id,source_type:n.source_type,source_map_id:n.source_map_id,source_node_id:n.source_node_id,content_format:n.content_format,deleted_at:history.resolution.header.updated_at}}:{operation:'upsert',note:{...n,...(decision.strategy==='manual_merge'?{content:'PRIVATE_ROUTE_MERGE'}:{})} as never}
   history.content.dependencies={bootstrap_id:real.b.bootstrap_id,metadata_event_id:real.m.event.header.event_id,stage_event_ids:route.stage?[(real as any).a.event.header.event_id]:[]};history.content.event=history.resolution
-  history.row.server_sequence=real.start+3;const wire=JSON.parse(history.row.wire_item);wire.event.server_sequence=history.row.server_sequence
+  if(route.mixedInventory){
+   await receiveLegacy(real,real.start+3);await real.notes.apply(scope,real.start+3)
+  }
+  if(route.order){
+   if(!route.stage)throw Error('order fixture requires Stage')
+   const a=(real as any).a.event
+   await orderRow({...real,stageEvents:[a]} as never,real.start+3+(route.mixedInventory?1:0))
+   await new BrowserStageOrderApply(real.transaction,()=>true).bind(real.auth,real.bindings as never,real.keys as never).apply(scope,real.start+3+(route.mixedInventory?1:0))
+  }
+  history.row.server_sequence=real.start+3+(route.order?1:0)+(route.mixedInventory?1:0);const wire=JSON.parse(history.row.wire_item);wire.event.server_sequence=history.row.server_sequence
   const plain=frameContentNote(history.content),bytes=route.compressed?compressCanonicalFrame(plain):plain,o=await encryptObjectBytes(amk,{userId:scope.canonicalUserId,projectId:'p',entityId:'content-note',entityType:'note'},bytes)
   try{wire.object={crypto_version:1,aad_version:1,nonce:encodeBase64Url(o.nonce),ciphertext:encodeBase64Url(o.ciphertext)};history.row.wire_item=JSON.stringify(wire)}finally{plain.fill(0);bytes.fill(0);o.nonce.fill(0);o.ciphertext.fill(0)}
  }

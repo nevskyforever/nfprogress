@@ -4541,3 +4541,163 @@ production Content writer remain OFF. Existing cross-family barriers remain.
 но ещё не доказывает непрерывность всего серверного потока. После независимой приёмки H следующий шаг — вернуться
 к G, построить отдельный приватный сертификат и проверить каждое событие по порядку
 перед разрешённым локальным продвижением proven_prefix, без автоматического ACK.
+
+## C21.2.08G RESUME — Authenticated historical Resolution proof / contiguous prefix
+
+**LOCAL COMPLETE / REMOTE CI PENDING — ISOLATED LOCAL PREFIX ONLY** (2026-10-20).
+Clean starting branch6.0 HEAD/origin/independently checked remote ref:
+`e0ae21d27455f00de7405755c093e47ed91356c5`.
+
+C21.2.08H **REMOTELY ACCEPTED**: same SHA, Cloud `39373210051` SUCCESS,
+6/6 mandatory jobs (owner supplied). H independently accepts genuine original/retained
+ordinary continuation and historical adapters; this addresses the previous G STOP's
+missing producer/consumer prerequisite. Previous G remains **AUDIT REMOTELY ACCEPTED /
+FUNCTIONALLY BLOCKED — DOCS ONLY**, SHA `e47c74a63871c6488344c63e50b5963dc5cf0833`,
+Cloud `39303222229` SUCCESS,6/6. That historical audit is preserved verbatim and is
+not relabelled an implementation. F remains REMOTELY ACCEPTED at
+`e562203a24c8dcb666539b5ed5d125ad45fdff4a`.
+
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE;
+C21.2.08 FUNCTIONALLY BLOCKED; C21.2.09 NOT STARTED; ready=false.
+This acceptance scope does not close full C21.2.08 or enable production synchronization.
+
+### Private authenticated authority and explicit v10 calculation
+
+New `resolutionPrefix.ts` reuses accepted H's `authenticateContinuationHistory` and
+`verifyContinuationSources` directly; it does not substitute H's public readOnly
+history diagnostics for a grant or reimplement F/H apply. Parent encrypted publications,
+all DAG edges, pre-closure group/generation, original protocol2/3 crypto1/AAD1 wire,
+Resolution4 evidence/source witnesses, exact immutable GroupTransition2, separately
+scoped original/retained anchors and inbox10/ResolutionProof1 authenticate before
+qualification. Later genuine H descendants and today's source-revision chain are a
+separate pass. Historical correctness never requires old source_after to equal the
+newer working Note. F exact-current replay is unchanged and rejects after H advances.
+
+An empty opaque certificate has module-private WeakMap ownership. It pins exact
+normal-user account/device, auth epoch, current AMK lease, verified registration,
+profile lifetime and full bounded ten-store account inventory, including original
+wire, all historical proofs, bindings, Metadata/Stage authority, source, intents,
+outbox/receipts and cursor. No caller DTO/hash/stored inbox10 or persistent capability
+flag can mint it. No plaintext/key is retained in the certificate. Logout, key lock/
+rotation, new auth epoch, profile/device change or stale inventory/dependency rejects.
+Every public calculation freshly reads and compares the complete inventory.
+
+H proves current original/retained outputs. G additionally requires other members of
+those Resolution projects to match an already authenticated ordinary current projection
+or authenticated pending Legacy snapshot. A merely valid encrypted unexplained change
+or an additional member with no accepted source witness cannot borrow Resolution
+source authority; it remains unsupported. This does not change H's accepted boundary.
+
+The isolated calculator explicitly dispatches all future-v10 inbox/history leaves.
+Authenticated H ordinary Legacy/Content outcomes and Resolution sequences receive
+private family grants only after original AEAD/proof/publication validation. Metadata,
+Stage and StageOrder use their existing genuine crypto certificates with forced fresh
+decryption, including already-proven history. Their input is an explicit dependency-
+family view; COMPLETE Resolution/history/source remains authenticated and snapshot-bound.
+No Resolution rows/history are removed to call an old Note/prefix calculator; no future
+variant is cast into a v9 validator. Existing production prefix/ACK dispatch is untouched.
+
+Every position from1 through pull_cursor must have its exact row and its own accepted
+family proof. One missing/unqualified position stops the candidate; corruption inside
+the existing proven interval rejects without resetting/lowering it. A large pull cursor
+cannot bypass the bounded scan or create unbounded gap traversal. keep_both contributes
+ONE Resolution sequence, despite its two separately scoped output anchors. The original
+closed group stays immutable; a new authentic independent fork is preserved separately,
+but its incoming unresolved branch is NOT prefix-qualified. Earlier contiguous events
+may qualify up to that barrier, without selecting a winner.
+
+### Explicit local commit, dormant production boundaries
+
+A DIFFERENT private local-commit token must be prepared from a freshly checked genuine
+certificate/calculation. Read-only results alone cannot authorize a write. The existing
+session exclusive writer/profile lock and native identity/account binding checks apply.
+One strict native readwrite transaction re-scans and exactly CASes all ten account stores,
+including source/dependencies/history and the complete cursor record. Original crypto
+and family certificates remain valid only for that exact inventory and current lease.
+Scheduling uses synchronous IDB callbacks; no WebCrypto or HTTP awaits inside IDB.
+Auth/key invalidation aborts the pending transaction; profile closure aborts tracked IDB
+work. Success follows native completion. Quota/request/abort/stale-CAS/identity/lifecycle
+failure rolls back every byte. Retry permits only the exact already-committed prefix
+delta; fresh preparation at that state returns no_progress.
+
+ONLY proven_prefix advances. ack_cursor, pull_cursor, next_local_ordinal, all original
+source/history/inbox records, outbox, receipts, intents and project membership remain
+unchanged. ack_cursor <= proven_prefix <= pull_cursor remains enforced. Real v10 disk
+reopen with a positive prefix, fresh normal auth/AMK/device, H historical reading and
+cursor access succeeds without migration or repair; old production prefix/ACK still
+rejects the future inventory. Subsequent genuine transport retention/H apply works
+with the locally advanced cursor; a separate explicit G commit may then extend it.
+
+Received/orphan/own Resolution, missing publication/dependency/sequence, unknown variants,
+unqualified Content P2/inbox9, pending I2, fake clone genesis, altered closure/old proof,
+arbitrary source drift, unsupported extra Resolution chains, tombstone upsert resurrection
+and a new unresolved fork remain unqualified or fail closed. Receipt-only publication
+without its incoming sequence is not contiguous evidence: the genuine frozen-parent
+fixture retains its valid historical proof but correctly stops at its missing position.
+H's one-Resolution-per-project, no local outbound edit and no resurrection limits remain.
+
+Production scheduler integration NONE. Resolution ACK/prepareAck/ackOnce activation,
+automatic ACK, new browser Note capability declaration, Content sealing/upload/self-echo,
+Resolution producer and production Content writer remain OFF. G exposes no HTTP or ACK
+methods. Existing generic compression readiness does not grant Note capability.
+IndexedDB10; same12 stores/indexes; migration NONE; original records rewritten0
+(history/source); no wire/backend/native contract or dependency changes.
+
+### Validation and remaining scope
+
+Final focused G68 PASS. Genuine F→transport→H positives cover protocol2/3, all four F
+strategies, original/retained/later descendants, Content ID0/ID1 and Stage/plain routes,
+2/3/64-parent evidence, mixed Legacy/Content/Metadata/Stage/StageOrder producers, closed
+and new independent groups, tombstones, exact qualification and local commit/retry.
+Negative tests cover outer hashes/AEAD, recomputed false closure, duplicate transition,
+missing anchors/publications/descendants, source drift including valid encryption,
+unknown variants, wrong scope/bootstrap, stale auth/key/profile/full inventory, pending
+I2/unqualified P2, sequence gaps and corruption inside prefix, token substitution,
+ordered native-write/commit failures and attempted ACK progression.
+
+Affected baseline regressions2107 PASS /68 files: Legacy applied/self-echo/conflict,
+Content, frozen/I2/C3, F apply/exact replay, H continuation/history, DAG/clone ownership,
+v10 migration and existing prefix/ACK barriers. The combined run also passed66 G tests;
+its new64-parent case hit the default5s timeout under parallel load. It now uses the
+same bounded30s allowance as the existing H64-parent acceptance; the final focused68
+(including that case and an additional source-drift negative) all pass. No assertion,
+existing check or test was skipped/weakened. No repeated broad regression loop.
+
+Final native Chromium G PASS:8 disposable v10 profiles,16 authenticated calculations,
+8 explicit local commits +8 idempotent retries,10 native cursor rollback cases,
+8 additional complete disk restarts after prefix commit,8 dependency CAS rejects,
+1 native identity reject and1 competing-tab writer_busy. Missing-sequence barriers8;
+independent new-fork barriers2; read-only write attempts0. The reused complete F/H
+runner also passed8 F applies,18 H continuations,24 F +18 H native rollback cases,
+8 F +8 H disk restarts and zero-write historical replay. Zero page errors, push0,
+server ACK0;50 registration HTTP fixture calls belong to external setup/rebind,
+not G runtime traffic. No synthetic positive IDB candidate/head/proof insertion.
+Typecheck/production build PASS (only existing documentDocx/chunk-size Vite warnings).
+Initial fixture callback type annotations were corrected; no validator was weakened.
+Strict workflow YAML, mandatory G focused spec/browser step, preserved existing checks
+and push/PR path filters PASS. Changed paths expect Cloud backend tests YES and SQLite
+sync substrate NO. Documentation-history preservation and git diff --check PASS.
+Final unresolved failures0/skips0. Isolated preview stopped and verified generated
+acceptance output removed; disposable browser profiles removed by the runner.
+No backend/native suites, remote CI polling or waiting. Protected .pyc hashes unchanged;
+all historical checkpoint text, roadmap numbering and security release gates preserved.
+
+### Простыми словами
+
+H устранил прежний блокер: теперь есть настоящее защищённое продолжение заметки после
+Resolution, в том числе второй заметки «сохранить обе». G использует эти доказательства,
+чтобы старое решение оставалось проверяемым после новых законных правок. Новый текст
+должен иметь собственную подтверждённую цепочку; одного совпадения хешей или наличия
+шифрования недостаточно.
+
+Проверяется каждое серверное событие по порядку: обычные заметки, метаданные, этапы,
+их порядок и Resolution. «Сохранить обе» считается одним событием. Один пробел или
+неподтверждённый пакет останавливает продвижение; новый нерешённый конфликт не выбирает
+победителя и не открывает старую закрытую группу.
+
+В отдельном явно вызванном пути proven_prefix теперь действительно может продвинуться
+локально. Запись атомарна: при ошибке остаётся прежний курсор, при повторе нет дубликата.
+Это ещё не отправляет подтверждение серверу и не включает обычный планировщик.
+ACK, Content upload и новая Note capability остаются выключены. До честного объявления
+reader capability нужны независимая приёмка G и полный аудит покрытия читателей —
+следующий ограниченный пакет C21.2.08I. Общий прогресс остаётся84.0%, ready=false.

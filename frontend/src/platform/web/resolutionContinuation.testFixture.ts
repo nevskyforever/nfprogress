@@ -9,7 +9,7 @@ import {compressCanonicalFrame} from '@/cloud/frameCompression'
 import {encryptObjectBytes} from '@/crypto'
 import {encodeBase64Url} from '@/api/base64url'
 import type {NoteSyncResolutionV2} from '@/cloud/noteSyncResolutionV2Codec'
-export async function continuationFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='keep_both',legacy=false,route?:{stage?:boolean;format?:'html'|'plain';compressed?:boolean},local=false,count=2){
+export async function continuationFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='keep_both',legacy=false,route?:{stage?:boolean;format?:'html'|'plain';compressed?:boolean;order?:boolean;mixed?:boolean;mixedInventory?:boolean},local=false,count=2){
  if(count===64)legacy=true
  const f=await plannerFixture(strategy,count,local,legacy,route),applier=f.runtime.atomicApply(),p=await f.runtime.prepare(scope,f.sequence)
  await applier.commit(await applier.prepare(p.token))
