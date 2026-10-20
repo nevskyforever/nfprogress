@@ -2494,3 +2494,150 @@ inbox10: старый transport знал только предыдущие за�
 Поэтому ACK для Resolution и объявление полной Note capability остаются выключены,
 ready=false. Следующий шаг — независимо принять J и затем связать безопасные
 reader/recovery пути.89,36% не меняется: новых roadmap-баллов этот срез не добавляет.
+
+## C21.2.08K — V10 reader & recovery orchestration
+
+**LOCAL COMPLETE — BOUNDED ISOLATED SCOPE / REMOTE CI PENDING** (2026-10-20).
+Clean branch6.0 baseline local HEAD/origin and independently checked remote ref:
+`5b306969d36bfa06295bcf23a1259e6a09390e8a`.
+**J REMOTELY ACCEPTED**, same SHA, Cloud `39399543671` SUCCESS, **6/6 required
+jobs SUCCESS** (independent previous-stage result supplied by owner). This records
+J acceptance without polling Actions. Accepted F/H/G/I/J implementations are unchanged;
+I remains negative-only, full reader readiness FUNCTIONALLY BLOCKED. Historical
+J/I records and all earlier limitations below are retained verbatim.
+
+### Explicit entry and accepted routing
+
+`BrowserV10Recovery.bind(auth,bindings,keys,verifiedDevice).run(scope,options)`
+is a manual isolated entry, absent from normal persistence/editor/scheduler.
+Its frozen public surface has only `run`; no tokens, writer, ACK, declaration,
+pull/push or background timer. It consumes already-retained events; existing
+transport retains new pages. Optional `{replay:{since,rawPage}}` uses exact J replay
+before any apply and after completion, with J's current-interval restriction.
+Older arbitrary pages are not made replayable by K.
+
+A pass defaults to8 events, accepts1–32, and scans from the beginning with J's
+strict bounded account/index reader. No caller offset, cached success, durable
+retry flag or synthetic missing position. The accepted inventory budget remains
+16384 rows/store /32 MiB; J retains its historical authentication/material limits.
+A complete strict historical DAG is checked; unknown/dangling future history rejects.
+The first missing server sequence, pending event, unresolved fork or G-unqualified
+applied family remains explicit. A safe G prefix may advance only up to a blocker.
+
+Before any Resolution history exists in the account inventory, K routes received
+Metadata, Stage, StageOrder, Legacy ordinary and canonical Content ordinary to their
+existing protected apply owners. It processes earlier dependencies/parents before
+the received Resolution. Actual F then applies one Resolution, under its frozen
+pre-v10 inventory contract. After v10 exists, ordinary events on the original or
+retained Head2 route through H; G alone authenticates/commits the historical local
+prefix. I runs fresh after G and still returns ready=false/declarationAllowed=false.
+No filtered v9 inventory, manufactured Head1, new proof format or DTO authority.
+
+For each event K authenticates routing, asks the real owner to prepare, compares
+its complete routing inventory before commit, and calls the existing atomic owner.
+The normal authenticated account/device/profile/key lease is pinned for the whole
+pass; revocation cannot be bypassed by obtaining a fresh component context halfway
+through it. The same runtime rejects overlapping passes; native session writer locks
+exclude other tabs, while accepted CAS/transaction checks protect individual events.
+AEAD/async work is outside native transaction callbacks. Original wire is never
+rewritten; actual accepted owners create source/history/apply proof evidence.
+
+**Atomicity is per event, not for the entire pass.** If F/H/G or storage fails,
+that atomic operation rolls back; earlier completed ordinary/apply operations remain
+durable. A new runtime after disk restart starts at the first pending event and
+reauthenticates existing history. No previously applied event must be undone to retry.
+G cursor failure does not erase accepted source/proofs; fresh G verification can
+advance the local prefix later. ack_cursor never changes.
+
+### Dependency retries and precise remaining blockers
+
+Missing binding/publication/parent/prerequisite produces an explicit retryable
+`dependency_unavailable` result. A fresh manual pass can retry after actual accepted
+authority is available (tested using real project import). Event-budget exhaustion
+is explicit and resumable. There is no busy retry loop, network fetch or automatic
+orphan pump. A missing sequence remains a hard boundary; K does not invent/fill it.
+Corruption, AEAD failure, native failure and lifecycle revocation reject, rather
+than becoming a successful or silently skipped retry.
+
+| Boundary | Accepted K scope | Still blocked |
+|---|---|---|
+| I row11 — received/recovery | Ordered bounded manual discovery/apply/retry, first dependency/gap reported | Full production dependency fetching/orphan recovery; no skipping a blocked event |
+| I row17 — restart |8 real v10 profiles, both protocols/all4 strategies, original/retained branches, full disk reopen | Full live multi-device production orchestration and all-device readiness |
+| I row20 — compatibility | IDB10, same12 stores and unchanged indexes/migration | No version/schema-based reader or ACK grant; old-client/migration barriers unchanged |
+| I row21 — replay/dispatch | J replay integrated before/after manual recovery; immutable current interval | Production still uses unchanged old strict readers; no arbitrary old interval replay |
+| Resolution generations | One F apply from a v9-compatible account inventory; H descendants after it | ANY additional Resolution once account history contains v10, including independent notes/projects: frozen F globally consumes old inbox/history |
+| Post-v10 ordinary/families | H descendants on genuine original/retained Head2 | New/unrelated ordinary note routes, received Metadata/Stage/StageOrder after Resolution remain explicitly unsupported here |
+| Forks/author lifecycle | H may durably preserve one new genuine fork, then K stops; G stays bounded | Further Resolution chains, resurrection, own authorship/self-echo and local author-after-Resolution remain unaccepted |
+
+I's production_v10_reader_dispatch_incomplete/transport_v10_page_replay_incomplete
+and other readiness blockers remain conservative production diagnostics. K is not
+production scheduling acceptance or a truthful account-wide Note declaration.
+Resolution ACK, Note capability PUT/gate activation, Content sealing/publication/
+writer/self-echo, own Resolution producer and production scheduler stay OFF.
+ready=false; ack_cursor<=proven_prefix<=pull_cursor; keep_both remains ONE sequence.
+No backend/native/schema/wire/crypto changes, new store/index or migration.
+
+### Validation
+
+Focused K57 PASS, including genuine pending parents before F, four strategies,
+protocol2/3, ID0/ID1, Metadata/Stage/StageOrder dependencies, manual dependency retry,
+bounded resume, original/retained H, gap/fork/additional-generation/own/new-note/
+resurrection blockers, malformed queue/history, AEAD, lifecycle/scope/concurrency,
+F/H atomic failure, G cursor rollback/retry, G-unqualified-family stop and zero HTTP.
+Affected C21/auth-key regressions2318 PASS /72 files (initial52 K cases); final
+focused run adds5 further checks. Accepted old ordinary/conflict/self-echo,
+F/H/G/I/J, migration/version and prefix/ACK regression suites remain PASS.
+
+Native K PASS:8 genuine pending-only disk profiles; both protocols/all4 strategies;
+no initial history or owner proof.16 budget-limited passes,20 full browser/profile
+restarts,4 deterministic F/H owner rollbacks (native abort/session shutdown),
+16 exact replays,8 lifecycle revocations and8 competing-tab rejects. Sources,
+ResolutionProof1, closure/transition, original encrypted wire, membership/DAG remain
+consistent across restart/retry. Only accepted apply/history/local-prefix writes
+occur; unauthorized writes0, Content push0, Resolution ACK0, Note capability PUT0,
+page errors0. Stable replay/blocked resume attempts storage writes0/new nonces0.
+28 controlled device registrations are external setup/rebind, not K traffic.
+Native J regression PASS unchanged:8 profiles,16 replays,32 scans,80 failure cases,
+original proof/wire preservation and page errors0. Frozen physical migration code
+is untouched; migration unit regressions PASS and existing native populated v9→v10/
+rollback/VersionError acceptance remains mandatory CI. That unchanged254-case
+physical persistence suite was not redundantly rerun locally in K (accepted in J).
+
+Typecheck/build PASS, existing Vite dynamic-import/chunk warnings only. Strict
+workflow validation and diff check PASS. K focused spec and awaited native step
+are mandatory Cloud checks; both path filters extended. Prior steps/filters and
+all other jobs, including Android compression packaging, unchanged. Expected
+Cloud: all6 mandatory jobs; SQLite: NO relevant paths. Final failures0/skips0;
+unrelated backend/native suites not run; new CI neither polled nor awaited.
+
+### Status and release gates
+
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; C21.2.08 NOT CLOSED / full
+production reader recovery FUNCTIONALLY BLOCKED; C21.2.09 NOT STARTED.
+Official Web progress **89.36% (84/94×100)** unchanged;84.0% remains historical.
+No points or numbering changes. FULL PUBLIC WEB RELEASE=100%; Android C19/C20
+remain separate POST-WEB workstreams. VPS Security Hardening & Security Audit,
+PUBLIC RELEASE BLOCKED, owner registration/stabilization decisions and mandatory
+owner reminders are preserved. Protected .pyc hashes unchanged.
+
+### Простыми словами
+
+Теперь есть отдельный ручной проход, который берёт уже полученные события в
+правильном порядке: сначала зависимости и обычные заметки, затем решение
+конфликта, последующие правки исходной/сохранённой заметки и проверку локальной
+истории. После перезапуска он продолжает с ожидающих событий по настоящим
+сохранённым доказательствам. Повтор страницы не переписывает её шифротекст.
+
+Если событию не хватает зависимости, проход явно останавливается; его можно
+повторить после появления настоящей зависимости. Если операция прервалась,
+откатывается только её незавершённый атомарный commit — предыдущие принятые
+события сохраняются. Пробелы, неразрешённые конфликты и неподдерживаемые ветки
+не пропускаются. Следующие Resolution, воскрешение удалённого, собственные цепочки
+и полный обмен между устройствами ещё требуют отдельной реализации и приёмки.
+
+Это ещё не автоматическая Web-синхронизация: production scheduler не включён,
+серверные подтверждения Resolution и объявление Note capability запрещены,
+Content upload/sealing выключены, ready=false.89,36% не меняется; C21.2.08 не закрыт.
+После независимой приёмки K следующий узкий шаг — отдельно спроектировать и
+принять v10 ordinary/dependency routing вне H-веток, сохранив блокировки следующих
+Resolution и не включая writer/ACK/capability. Новый номер этапу здесь не назначен.
