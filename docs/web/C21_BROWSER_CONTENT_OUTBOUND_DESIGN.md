@@ -2788,3 +2788,51 @@ Metadata устроена отдельно: её существующий owner 
 но полная маршрутизация L не включена. Сохранён принятый K; ready=false, ACK,
 capability и Content publication выключены. Дальше нужен явный контракт для
 независимых изменений общего source проекта.89,36% и release gates не меняются.
+
+## C21.2.08M — Mixed project source authority / proposed received-only contract
+
+**DESIGN COMPLETE / NOT IMPLEMENTED** (2026-10-20), baseline branch6.0
+`301377f45bc307cf07bf068c7d85789000584eed` (clean HEAD/origin/remote ref).
+L **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION STOP**, Cloud `39458702360`
+SUCCESS, 6/6 required jobs, owner supplied; no CI polling. L implementation is
+not complete. All preceding audit/acceptance records remain unchanged.
+
+Canonical proposal and implementation acceptance matrix:
+[C21.2.08M mixed project source authority contract](C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md).
+F source-after anchors project fields/member_ids/revision, but only original/retained
+Note snapshots. Other initial members require genuine pre-anchor candidate1/2
+applied projections; missing baseline/pending local ownership stays blocked.
+The proposed in-memory fold joins all actual ordinary/H suffix outcomes with their
+projections, covers each project revision exactly once and verifies complete final
+membership/Note rows. Tombstones remain members. Ordinary creates/updates/deletes
+cannot borrow H roles; H output descendants cannot use the ordinary owner.
+
+The later v10-aware owner would revalidate the full account and exact source both
+before and after planning, then atomically commit source/candidate/head/inbox proof
+under the existing exact CAS. No filtered old inventory or manufactured Head1.
+G integration would require independent acceptance of the new semantics, with
+existing cross-family prefix barriers retained; a witness is not an ACK grant.
+
+Migration requirement **NO for the bounded received-only proposal**, with explicit
+baseline admission; not a promise to support missing snapshots or arbitrary local
+writers. No record/version/schema/crypto/wire evolution proposed or performed.
+No Content source writer, I2/C3 transition, sealing, publication, own self-echo,
+resurrection, second Resolution, Note capability or Resolution ACK is activated.
+Same-project and unrelated-project source owners remain distinct; Metadata is the
+L-proven dependency-owner exception, Stage/StageOrder require separate full-v10
+reader/dependency integration. Their owner-head writes consume no source revision.
+
+Next implementation slice: isolated read-only witness verifier and independent
+acceptance first. Positive post-F ordinary histories later require a real accepted
+atomic owner; simulated plans are not applied evidence. M changes documentation
+only; L negatives reused, consistency/history/diff checks PASS, protected files
+unchanged. Cloud all6 EXPECTED via companion docs/cloud change; SQLite NOT EXPECTED;
+Actions not polled. C21/C21.2 IN PROGRESS, C21.2.08 NOT CLOSED, Web89.36% unchanged;
+ready=false and security/public-release/owner gates preserved.
+
+### Простыми словами
+
+Проекту нужна полная цепочка объяснений общего счётчика и состава заметок. План
+использует уже сохранённые зашифрованные доказательства, но не восстанавливает
+утраченные снимки из текущих данных. Это только дизайн; writer и синхронизация
+не включены. Следом проверяется отдельный модуль только для чтения.

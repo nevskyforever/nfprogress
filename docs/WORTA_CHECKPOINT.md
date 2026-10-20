@@ -83,6 +83,68 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08M — Mixed project source authority contract / DESIGN ONLY
+
+**DESIGN COMPLETE / PROPOSED / NOT IMPLEMENTED** (2026-10-20).
+Clean branch `6.0` preflight: HEAD, origin/6.0 and independently checked remote ref
+`301377f45bc307cf07bf068c7d85789000584eed`.
+**L AUDIT REMOTELY ACCEPTED / IMPLEMENTATION STOP** at that SHA:
+Cloud `39458702360` SUCCESS, **6/6 required jobs SUCCESS**, owner-supplied result.
+This accepts the audit, not L implementation. No Actions polling or waiting.
+Historical L's LOCAL/REMOTE-PENDING entry below remains a historical record.
+
+The proposed exact contract and planned acceptance matrix are in
+[C21.2.08M mixed project source authority contract](web/C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md).
+It is a design requiring independent review, not a newly granted apply authority.
+
+F's authenticated source-after project supplies the root revision, canonical project
+fields and complete member_ids; its Note snapshots contain ONLY original/retained
+outputs. Every other initial member therefore needs a genuine reconstructible
+pre-anchor applied candidate projection. Missing projection, digest-only backfill,
+local-only source or pending writer ownership is an explicit admission barrier.
+
+Proposed suffix witness: authenticate the COMPLETE mixed account history, join every
+real ordinary/H applied outcome to its encrypted projection, then require exactly
+one transition for each revision R0+1 through current_revision. Fold complete Note
+state and membership; creates add one genuine absent ID, updates replace only the
+target, deletes retain tombstone membership. Compare all final Note rows exactly,
+project fields to F and membership to the derived set. H retains original/retained
+ownership; F's one-Resolution boundary and cross-family prefix barriers remain.
+No synthetic Head1, filtered v9 inventory, unrelated proof reuse or AEAD-only grant.
+
+**Migration requirement: NO for this bounded received-only proposal.** Existing F
+evidence, candidate1/2 projections, genuine Legacy/Content applied proofs and source1
+records can represent the eligible witness. It is derived in memory, not persisted.
+This does NOT recover missing historical snapshots or authorize local/project-field
+writes. Such scope requires separate evidence/versioning design and STOP beforehand.
+Same-project ordinary routing needs this witness; unrelated existing projects retain
+their own source/causal authority. Metadata remains the L-proven separate owner
+exception; Stage/StageOrder need full-v10 reader integration and exact dependencies.
+
+No runtime, schema, migration, capability, new authority token or test infrastructure
+changed. F/H/G/K and L STOP remain intact. Documentation consistency/history/link/
+workflow-path checks and git diff --check PASS; protected .pyc hashes unchanged.
+Existing L negative evidence reused; no unnecessary test/build rerun. Expected CI:
+Cloud all six mandatory jobs (including Frontend admin and Android compression
+packaging) via docs/cloud/**; SQLite NOT EXPECTED. Remote CI not polled.
+
+Official Web **89.36% (84/94×100)** unchanged. C21/C21.2 IN PROGRESS;
+C21.1.06 NOT LOCAL COMPLETE; C21.2.08 NOT CLOSED / FUNCTIONALLY BLOCKED.
+No points or numbering changes. VPS Security Hardening & Security Audit,
+PUBLIC RELEASE BLOCKED, owner reminders and all registration/release gates preserved.
+Scheduler, Resolution ACK, Note declaration and Content writer/sealing/upload OFF;
+ready=false. Next bounded slice: isolated read-only witness verifier, followed by
+independent acceptance BEFORE any v10-aware owner or K routing activation.
+
+### Простыми словами
+
+Описано, как связать каждое изменение общего счётчика проекта с реальным применением
+заметки и проверить весь итоговый состав проекта. Существующих форматов достаточно
+для ограниченного варианта, где сохранены исходные доказательства всех заметок.
+Утраченные снимки нельзя заменить сегодняшними данными. Код не менялся, L остаётся
+остановленным, синхронизация не включена. Дальше — отдельная проверка только для
+чтения и её независимая приёмка; ready=false, прогресс 89,36%.
+
 ## C21.2.08L — V10 ordinary & dependency routing: SOURCE AUTHORITY STOP
 
 **AUDIT COMPLETE / IMPLEMENTATION STOP / FUNCTIONALLY BLOCKED** (2026-10-20).

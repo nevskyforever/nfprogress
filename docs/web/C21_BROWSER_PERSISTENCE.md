@@ -5296,3 +5296,54 @@ Metadata устроена отдельно: её существующий owner 
 но полная маршрутизация L не включена. Сохранён принятый K; ready=false, ACK,
 capability и Content publication выключены. Дальше нужен явный контракт для
 независимых изменений общего source проекта.89,36% и release gates не меняются.
+
+## C21.2.08M — Mixed source witness representation / DESIGN ONLY
+
+**DESIGN COMPLETE / PROPOSED / NOT IMPLEMENTED** (2026-10-20).
+Clean branch6.0 HEAD/origin/remote ref `301377f45bc307cf07bf068c7d85789000584eed`.
+L **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION STOP**: Cloud `39458702360`
+SUCCESS, 6/6 required jobs, owner-supplied result; no Actions polling. This updates
+audit acceptance only, preserving historical records and L implementation STOP.
+
+Authoritative proposed contract and planned matrix:
+[C21.2.08M mixed project source authority contract](C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md).
+**Migration requirement: NO for the bounded received-only contract.** The witness
+is derived, never stored. IDB10, all twelve stores/indexes, version dispatch,
+migration, old-client barrier and existing record formats remain frozen.
+
+| Required source evidence | Existing representation / necessary qualification |
+| --- | --- |
+| Project root | Authenticated Resolution4 before/after project1 envelope: fields, member_ids and revision; F Note snapshots cover only original/retained outputs |
+| Other root members | Actual peer candidate1/2 applied projection and inbox proof on the unique pre-F path; no current-source or digest-only reconstruction |
+| Suffix transitions | All real ordinary/H applied projections + exact corresponding wire/proofs/dependencies; contiguous unique source revisions, correct causal/server ordering |
+| Final state | Canonical project fields equal F; membership derived; complete exact LocalNoteRecord1 map, including tombstones; actual project/Note ciphertext pinned by CAS |
+| Atomicity/reopen | Existing source + history + head + inbox proof transaction; recompute from immutable records after reopen; no recovery cache or repair marker |
+
+A missing initial projection, unproven member, local-only/project-field mutation or
+unsupported writer is an explicit eligibility barrier. A migration cannot recreate
+missing historical evidence. Expanding to such states would need a separate
+authenticated baseline/transition design with real owner production and versioning
+review; STOP before adding/backfilling records. No speculative version assigned.
+Source-only writes remain blocked as in L; this proposal creates no new authority
+token. Accepted F/H/G/K behavior and source CAS are unchanged in M.
+
+Same-project fold counters never mix with another project's counters; full-account
+authentication and global gaps/forks remain barriers. Metadata and Stage/StageOrder
+owner-head transitions consume no source revision. Metadata's existing owner is
+L-proven; routing and Stage full-v10 reader integration remain future separate work.
+Next: isolated read-only verifier, then independent acceptance before source-owner
+or K routing integration. Planned positives must use genuine accepted apply owners.
+
+Docs consistency/history/relative links/workflow-path/diff checks PASS; L negative
+evidence reused, no tests/build/migration run or new infrastructure. Protected .pyc
+hashes unchanged. Cloud all6 EXPECTED via companion docs/cloud update; SQLite NOT
+EXPECTED; Actions not polled. Web89.36%, C21/C21.2 IN PROGRESS, C21.2.08 NOT CLOSED;
+ready=false, scheduler/Resolution ACK/Note PUT/Content writer-sealing-upload OFF.
+Security/public-release/owner gates unchanged.
+
+### Простыми словами
+
+Для ограниченного варианта новая версия базы не нужна: исходные снимки, применения
+и их порядок можно проверить по уже сохранённым записям. Если доказательства
+старой заметки отсутствуют, проект не получает допуск. Данные и код не менялись;
+переход к новым маршрутам потребует отдельной реализации и приёмки.

@@ -4331,3 +4331,58 @@ Metadata устроена отдельно: её существующий owner 
 но полная маршрутизация L не включена. Сохранён принятый K; ready=false, ACK,
 capability и Content publication выключены. Дальше нужен явный контракт для
 независимых изменений общего source проекта.89,36% и release gates не меняются.
+
+## C21.2.08M — Mixed project source authority / design audit
+
+**DESIGN COMPLETE / PROPOSED / NOT IMPLEMENTED** (2026-10-20).
+Baseline branch6.0 `301377f45bc307cf07bf068c7d85789000584eed`, clean HEAD/origin
+and independently verified remote ref. L **AUDIT REMOTELY ACCEPTED / IMPLEMENTATION
+STOP**, Cloud `39458702360` SUCCESS, **6/6 required jobs**, owner supplied.
+This records remote acceptance of the audit, never L implementation completion.
+No Actions polling/waiting. Prior status entries remain historical text.
+
+Full proposed authority, precise baseline admission and planned acceptance matrix:
+[C21.2.08M mixed project source authority contract](../web/C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md).
+The design joins a genuine F project/member/revision root with real candidate1/2
+applied projections for all other initial members, then every ordinary/H source
+transition after F. Missing snapshots are barriers, not repair opportunities.
+Unique contiguous local project revisions plus genuine causal/server order and
+complete exact final Note/membership equality are all mandatory; AEAD alone fails.
+
+| Family / owner | Proposed boundary; no activation in M |
+| --- | --- |
+| Independent ordinary in R project | New reviewed complete mixed witness + existing causal/format/dependency owner checks + exact source CAS |
+| Ordinary in unrelated already-bound project | Own accepted source/causal rules, full-account v10 auth; cannot borrow the R project's proof/counter |
+| F / H | F one-Resolution boundary unchanged; H exclusively owns original/retained descendants and accepted conflict preservation |
+| G | Requires independently accepted mixed current-source verification before existing contiguous family qualification; no new ACK authority |
+| Metadata | L proves unchanged exact-reference owner after R; only ownerHeads/inbox mutate, zero source revisions; K route remains unimplemented |
+| Stage / StageOrder | Owner-head-only transactions; explicit full-v10 dispatch and exact Metadata/Stage-head dependencies needed; zero source revisions |
+| Unsupported families/writers | Explicit barriers: missing roots, own authorship, I2/C3/local source writes, resurrection, new forks/generations, project-field mutation |
+
+**Migration requirement: NO for the bounded received-only proposal.** Existing
+IDB10 shapes suffice for eligible immutable evidence; no new records/versions,
+schema, stores, indexes or authority tokens. Missing historical snapshots cannot
+be recreated by migration. Broader writers/baselines require separate accepted
+design/versioning and STOP before implementation. L's global old-format parser
+and source-writer boundary is not solved merely by this representability finding.
+
+Reuse existing L negative evidence (22 focused tests; 8 native profiles/24 disk
+restarts; Metadata exception + rollback), not new M test infrastructure. M validates
+documentation consistency, original history preservation, links, source contracts,
+workflow path expectations, protected hashes and git diff --check; no runtime test
+or build rerun. Next bounded slice: isolated read-only witness verifier; subsequent
+positive mixed histories require genuine accepted atomic owners, not manufactured
+proofs. Full F/H/G/K integration and K routing need later independent acceptance.
+
+Cloud all six mandatory jobs EXPECTED (docs/cloud/**), including Frontend admin and
+Android compression packaging; SQLite NOT EXPECTED. These are expectations only.
+Web89.36%, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, C21.2.08 NOT CLOSED;
+ready=false; scheduler/Resolution ACK/Note declaration/Content writer-sealing-upload
+OFF. VPS security, PUBLIC RELEASE BLOCKED, owner reminders and release gates intact.
+
+### Простыми словами
+
+Каждое изменение проекта должно иметь своё настоящее доказательство и своё место
+в общей последовательности. Проверка Metadata не заменяет проверку заметок, а
+доказательство одной ветки не даёт права менять другую. Сейчас записан только
+предлагаемый контракт; L остановлен, новые маршруты не включены.
