@@ -83,6 +83,142 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08J — V10 transport replay / received scan
+
+**LOCAL COMPLETE / REMOTE CI PENDING** (2026-10-20). Starting local HEAD,
+origin/6.0 and independently checked remote ref:
+`51b97fb0533454922c7bdfc48f59e9b6257b8dec`; worktree initially clean.
+**C21.2.08I REMOTELY ACCEPTED — NEGATIVE-ONLY READINESS PREFLIGHT** at that SHA,
+Cloud `39389926790` SUCCESS, **6/6 required jobs SUCCESS** (owner supplied).
+Its full reader-readiness audit remains FUNCTIONALLY BLOCKED. F/H/G retain their
+independent remote acceptances; a successful I diagnostic is not Note capability.
+
+### Reproduced failure and bounded transport contract
+
+Before implementation, genuine encrypted retention → actual F apply/inbox10 →
+actual H original/retained continuation → G historical verification/local prefix
+reproduced both old failures: `commitInboundPage` and `listReceived` reject with
+`corrupt_record` at `validateBrowserInboxRecord` on genuine inbox10. Reproduced
+again in native Chromium. No positive fixture inserts an applied inbox10.
+
+`BrowserV10Transport.bind(...).replayInboundPage(...)` and `.listReceived(...)`
+are **explicit isolated read-only entry points**, absent from normal persistence
+composition. Existing transport still retains new pages. Old sync durability,
+ordinary apply, ACK and readiness code is unchanged; J does not schedule F/H/G.
+`readFutureInboxRecord` strictly validates inbox10/ResolutionProof1 and delegates
+versions1–9 to their existing validators. Unknown versions/states reject.
+
+The authenticated account/device/key/profile guard reuses the real session's
+exclusive writer and strict native transaction/identity checks. The bounded F
+inventory (16384 rows/store,32 MiB total) is structurally checked; inbox events and
+sequences must be unique and <=pull_cursor. Existing receipt/outbox joins remain
+strict. When Resolution history/inbox10 exists, the accepted historical
+`authenticateResolutionHistory` rechecks original AEAD, parent evidence, closure
+and proof digests **outside IDB**, with16 MiB opened candidate-material budget.
+This catches well-shaped forged proof digests and missing inbox10 as well as
+structural corruption; it creates no proof, G certificate or source authority.
+A final full inventory comparison pins that verification in a native readonly
+transaction. Lifecycle changes/request failures/abort/external drift fail closed.
+No HTTP, encryption or asynchronous crypto work occurs in IDB callbacks.
+
+Replay requires **pull_cursor=page.next_cursor AND pull_cursor>since**; empty or
+arbitrary older intervals reject. Actual interval count, per-sequence lookup and
+unique event-index ownership must match the exact page. Account/current device,
+event/sequence/protocol and all original encrypted descriptors, nonce and
+ciphertext are compared. Applied state/version may differ from received1; wire
+and evidence cannot. Result: new_events0, replayed_events=page count, unchanged
+committed_cursor/has_more response semantics. No cursor put, proof replacement,
+AEAD regeneration, nonce allocation or evidence repair on success or failure.
+
+Received discovery uses the actual account primary-key cursor, strictly above
+`afterServerSequence`, with limit1–200. Every encountered row is strictly read
+before skip; primaryKey/key/sequence and event-index ownership are checked.
+Only received1 rows are returned; proven inbox10 cannot hide later pending rows.
+The bounded authenticated inventory is rechecked on each call (not an unbounded
+stream); an oversized account explicitly fails resource_limit rather than returning
+a truncated success. Unresolved ordinary/orphan/Resolution ciphertext remains
+received and discoverable, not applied or prefix-qualified. No automatic retry
+pump or recovery orchestration exists here.
+
+### Superseding delta to I's historical coverage matrix
+
+I's original23 rows and recorded limitations remain unchanged below/in history.
+This new table records J's separately tested scope, not a production readiness grant.
+
+| I row / boundary | J result | Remaining boundary |
+|---|---|---|
+| 11 Received/orphan recovery | Isolated bounded v1–10 received scan PASS; genuine pending Resolution/orphan survives discovery | Dependency retry/order/orphan recovery orchestration NOT ACCEPTED; received is not applied |
+| 17 Reopen/replay |8 actual v10 disk profiles; fresh auth/key/device; both protocols/all4 strategies; exact original page replay PASS after F/H/G and full restart | Full live multi-device production recovery NOT PROVEN |
+| 20 Migration | IDB10 unchanged; same12 stores/indexes; no migration, conversion or rewritten records | Database version is not capability/ACK authority; existing v9 migration/old-client barriers preserved |
+| 21 Exact transport replay | Explicit J current-interval replay and future-v10 scan PASS; immutable wire/proofs preserved | Normal production dispatch still old/strict; arbitrary old-page replay unsupported; K wiring/recovery remains blocked |
+
+I's static `transport_v10_page_replay_incomplete` diagnostic remains conservative
+for **production composition**, alongside production_v10_reader_dispatch_incomplete.
+It is not removed merely because a dormant J entry point now passes acceptance.
+G remains the sole explicit historical local-prefix authority. Keep_both counts
+one server sequence; unresolved forks/received/gaps remain barriers.
+`ack_cursor<=proven_prefix<=pull_cursor` is unchanged; transport changes none.
+
+### Validation
+
+Final focused J62 PASS. Affected mandatory C21/auth-key regressions2263 PASS /71
+files (including the initial59 J cases); the final focused pass also checks3 added
+pending-Resolution/resource-bound cases and the actual inventory CAS failure.
+Legacy apply/self-echo, Content ordinary/conflicts, Metadata/Stage/StageOrder,
+F/H/G/I, retained history, migration and old prefix/ACK barriers PASS.
+Native J:8 real disk profiles,8 F applies,12 H continuations,8 G local-prefix
+commits,8 full disk restarts,16 exact replays,32 scans,80 request/abort/key/logout/
+profile failures across BOTH operations,8 competing-tab rejects; durable identity
+and malformed/forged/missing proof/unknown state/version failures reject without
+repair. Whole12-store snapshots preserve encrypted source, original wire,
+ResolutionProof1, transition, membership and DAG. Writes0/new nonces0/Content push0/
+Resolution ACK0/Note PUT0/page errors0.64 controlled fixture registrations are
+external setup/rebind, not transport HTTP.
+Existing native F/H/G/I acceptance PASS:8 F,18 H,8 fresh G commits and8 negative I
+inspections;24 F+18 H+10 G rollback cases,8 I lifecycle revocations and old ACK
+barriers retained. No positive readiness tokens or new HTTP activation.
+Existing native persistence/migration acceptance PASS:254 scenarios, including15
+physical migration cases, populated v9→v10 preservation/rollback/reopen and old
+client VersionError; page errors0. Its controlled generic compression/Legacy ACK
+fixtures are pre-existing behavior, not new Note/Resolution activation.
+Typecheck/build PASS (existing Vite dynamic-import/chunk warnings only). Mandatory
+J spec/Chromium CI step and both path filters added; prior filters/tests and Android
+compression packaging job preserved. git diff --check PASS; final failures0/skips0.
+Unrelated backend/native suites not run; backend/native/schema/crypto/wire unchanged.
+Protected .pyc hashes retained. Remote Actions not polled or awaited.
+
+### Status and remaining gates
+
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; C21.2.08 NOT CLOSED /
+full reader recovery FUNCTIONALLY BLOCKED; C21.2.09 NOT STARTED. Resolution ACK,
+Note capability/gate activation, Content sealing/upload/self-echo/producer,
+own Resolution writer and production F/H/G scheduler remain OFF; ready=false.
+Official Web progress **89.36%=84/94×100** unchanged; historical84.0% retained.
+No points/stage renumbering; FULL PUBLIC WEB RELEASE=100%, Android C19/C20 separate
+POST-WEB workstreams. VPS Security Hardening & Security Audit, PUBLIC RELEASE
+BLOCKED, owner registration/stabilization decisions and owner reminders preserved.
+Next proposed bounded slice: **C21.2.08K — V10 reader/recovery orchestration**, only
+after independent acceptance of J; remaining resurrection/further Resolution/
+local-author/own-self-echo/multi-device/server-gate prerequisites remain unaccepted.
+
+### Простыми словами
+
+Раньше повтор уже принятой страницы и поиск новых событий останавливались на
+inbox10: старый transport знал только предыдущие записи. Теперь отдельный путь
+строго узнаёт настоящее решение конфликта, повторно проверяет его историческое
+доказательство и сопоставляет исходные зашифрованные события. После перезапуска
+он повторяет ту же страницу, не переписывая заметки, историю, доказательства,
+курсоры или nonce. Обычные и сжатые Content-данные проверены в заданных пределах.
+
+Поиск проходит через применённые записи и возвращает ожидающие события, включая
+ещё не применённое Resolution. «Получено» не означает «применено»: отсутствующие
+зависимости и неразрешённые конфликты по-прежнему блокируют продвижение.
+Полный production-процесс восстановления, следующие решения/воскрешение удалённого,
+собственные цепочки и полноценный обмен между устройствами ещё не приняты.
+Поэтому ACK для Resolution и объявление полной Note capability остаются выключены,
+ready=false. Следующий шаг — независимо принять J и затем связать безопасные
+reader/recovery пути.89,36% не меняется: новых roadmap-баллов этот срез не добавляет.
+
 ## C21.2.08I — Browser Resolution reader readiness / Note capability prerequisite
 
 **AUDIT COMPLETE / FUNCTIONALLY BLOCKED.** Negative-only dormant preflight:

@@ -1,0 +1,115 @@
+import type {NormalUserAuthRuntime} from '@/auth/userAuth'
+import type {AuthoritativeAccountBinding} from '@/auth/accountBinding'
+import type {RuntimeKeyContext} from '@/auth/keyContext'
+import {BrowserPersistenceError} from './persistence'
+import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
+import {snapshotBrowserSyncScope,validateBrowserInboundPage,validateBrowserStoredUploadPair,immutableWireIdentity as identity,type BrowserSyncScope,type BrowserSyncTransaction,type BrowserReceivedInboxRecord} from './syncDurability'
+import {readFutureInboxRecord,resolutionSame as same} from './resolutionRecords'
+import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
+import {authenticateResolutionHistory} from './resolutionAuthentication'
+import {MAX_CONTINUATION_MATERIAL_BYTES} from './resolutionHistorical'
+
+export interface V10PageReplayResult {committed_cursor:number;new_events:0;replayed_events:number;has_more:boolean}
+
+function fail(code:'closed'|'corrupt_record'|'stale_source'|'stale_cursor'|'conflicting_record'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
+const safe=(n:number)=>Number.isSafeInteger(n)&&n>=0
+
+/** Explicit J transport reader, absent from normal persistence composition.
+ * New pages still use the existing transport. This surface ONLY replays the
+ * current committed interval or discovers received ciphertext; it never writes,
+ * applies, produces certificates, declares capabilities or sends HTTP. */
+export class BrowserV10Transport {
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean){}
+ bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserV10TransportRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device)}
+}
+export class BrowserV10TransportRuntime {
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice){}
+
+ private async inspect<T>(s:BrowserSyncScope,schedule:(tx:IDBTransaction,v:ResolutionInventorySnapshot,current:()=>boolean,result:(v:T)=>void,abort:(e:unknown)=>void)=>void):Promise<T>{
+  const initial=this.auth.requireContext(),{context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
+  const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
+  if(!lease||lease.authEpoch!==context.authEpoch||lease.localAccountId!==s.accountId||lease.canonicalUserId!==s.canonicalUserId||context.userId!==s.canonicalUserId||!current())fail('closed')
+  let activeAbort:((e:unknown)=>void)|undefined
+  const stop=()=>activeAbort?.(new BrowserPersistenceError('closed')),unAuth=this.auth.onInvalidated(stop),unKey=this.keys.onInvalidated(stop)
+  const transaction:BrowserSyncTransaction=(scope,stores,mode,callback)=>this.transaction(scope,stores,mode,(tx,result,abort)=>{
+   activeAbort=abort;if(!current()){abort(new BrowserPersistenceError('closed'));return}callback(tx,result,abort)
+  })
+  try{
+   // Accepted F inventory limits: 16384 rows/store, 32 MiB total. A large
+   // account fails closed rather than silently truncating history or the scan.
+   const v=await transaction<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))
+   activeAbort=undefined
+   const rows=v.rows.map(raw=>readFutureInboxRecord(raw,s)),events=new Set<string>(),sequences=new Set<number>()
+   for(const row of rows){if(events.has(row.event_id)||sequences.has(row.server_sequence)||row.server_sequence>v.cursor.pull_cursor)fail();events.add(row.event_id);sequences.add(row.server_sequence)}
+   for(const receipt of v.receipts){const r=receipt as {event_id:string};validateBrowserStoredUploadPair(v.out.find(raw=>(raw as {event_id:string}).event_id===r.event_id),receipt,s)}
+   // Structural inbox10 alone never authenticates its proof. Reuse the accepted
+   // historical reader outside IDB, including original AEAD, closure and proof
+   // digests. This returns NO G certificate, current-source or prefix grant.
+   if(rows.some(row=>row.record_version===10)||v.history.some(raw=>(raw as {record_kind:string}).record_kind==='resolution'))await lease.use(amk=>authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES))
+   if(!current())fail('closed')
+   const output=await transaction<T>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,now=>{
+    try{if(!current())fail('closed');if(!same(now,v))fail('stale_source');schedule(tx,v,current,result,abort)}catch(e){abort(e)}
+   },abort))
+   if(!current())fail('closed')
+   return output
+  }finally{activeAbort=undefined;unAuth();unKey()}
+ }
+
+ /** No arbitrary older-page replay after later pull advancement. No cursor put,
+  * even on success: native readonly completion is the transport barrier. */
+ async replayInboundPage(input:BrowserSyncScope,since:number,rawPage:string):Promise<V10PageReplayResult>{
+  const s=snapshotBrowserSyncScope(input);if(!safe(since))fail()
+  const page=validateBrowserInboundPage(rawPage,since,s)
+  return this.inspect(s,(tx,v,current,result,abort)=>{
+   if(v.cursor.pull_cursor!==page.next_cursor||v.cursor.pull_cursor<=since||!page.items.length)fail('stale_cursor')
+   const store=tx.objectStore('inbox'),count=store.count(IDBKeyRange.bound([s.accountId,since],[s.accountId,page.next_cursor],true,false))
+   count.onsuccess=()=>{try{
+    if(!current())fail('closed');if(count.result!==page.items.length)fail('conflicting_record')
+    const next=(index:number)=>{
+     if(index===page.items.length){result({committed_cursor:page.next_cursor,new_events:0,replayed_events:page.items.length,has_more:page.has_more});return}
+     const item=page.items[index]!,sequence=item.event.server_sequence!,event=item.event.event_id
+     const bySequence=store.get([s.accountId,sequence]),byEvent=store.index('event').get([s.accountId,event]),out=tx.objectStore('outbox').get([s.accountId,event]),receipt=tx.objectStore('receipts').get([s.accountId,event])
+     let done=0
+     const finish=()=>{if(++done!==4)return;try{
+      if(!current())fail('closed')
+      const row=readFutureInboxRecord(bySequence.result,s),indexed=readFutureInboxRecord(byEvent.result,s)
+      if(row.server_sequence!==sequence||row.event_id!==event||!same(row,indexed)||row.protocol_version!==page.protocol_version||identity(JSON.parse(row.wire_item))!==identity(item))fail('conflicting_record')
+      if(out.result!==undefined){
+       const outbound=validateBrowserStoredUploadPair(out.result,receipt.result,s),{device_id,server_sequence:_sequence,...descriptor}=item.event
+       // Same immutable own-echo join as the old transport; accepted receipts
+       // remain required when the stored outbound state requires one.
+       if(outbound.protocol_version!==page.protocol_version||device_id!==outbound.device_id||identity(JSON.parse(outbound.raw_body).items[0])!==identity({event:descriptor,object:item.object})||receipt.result!==undefined&&receipt.result.server_sequence!==sequence)fail('conflicting_record')
+      }else if(receipt.result!==undefined)fail()
+      next(index+1)
+     }catch(e){abort(e)}}
+     bySequence.onsuccess=finish;byEvent.onsuccess=finish;out.onsuccess=finish;receipt.onsuccess=finish
+    }
+    next(0)
+   }catch(e){abort(e)}}
+  })
+ }
+
+ async listReceived(input:BrowserSyncScope,limit=200,afterServerSequence=0):Promise<BrowserReceivedInboxRecord[]>{
+  const s=snapshotBrowserSyncScope(input)
+  if(!Number.isSafeInteger(limit)||limit<1||limit>200||!safe(afterServerSequence))fail()
+  return this.inspect(s,(tx,v,current,result,abort)=>{
+   if(afterServerSequence===Number.MAX_SAFE_INTEGER){result([]);return}
+   const store=tx.objectStore('inbox'),request=store.openCursor(IDBKeyRange.bound([s.accountId,afterServerSequence],[s.accountId,Number.MAX_SAFE_INTEGER],true,false)),records:BrowserReceivedInboxRecord[]=[]
+   let previous=afterServerSequence
+   request.onsuccess=()=>{try{
+    if(!current())fail('closed')
+    const cursor=request.result;if(!cursor){result(records);return}
+    const row=readFutureInboxRecord(cursor.value,s)
+    if(row.server_sequence<=previous||row.server_sequence>v.cursor.pull_cursor||!same(cursor.key,[s.accountId,row.server_sequence])||!same(cursor.primaryKey,cursor.key))fail()
+    previous=row.server_sequence
+    const indexed=store.index('event').get([s.accountId,row.event_id])
+    indexed.onsuccess=()=>{try{
+     if(!current())fail('closed')
+     if(!same(readFutureInboxRecord(indexed.result,s),row))fail('conflicting_record')
+     if(row.state==='received')records.push(row)
+     if(records.length===limit)result(records);else cursor.continue()
+    }catch(e){abort(e)}}
+   }catch(e){abort(e)}}
+  })
+ }
+}
