@@ -1,5 +1,6 @@
 import {BrowserResolutionContinuation} from '../src/platform/web/resolutionContinuation'
 import {BrowserResolutionPrefix} from '../src/platform/web/resolutionPrefix'
+import {BrowserNoteReaderReadiness} from '../src/platform/web/noteReaderReadiness'
 import {BrowserResolutionPlanner} from '../src/platform/web/resolutionPlanner'
 import {encodeNoteSyncResolutionV2} from '../src/cloud/noteSyncResolutionV2Codec'
 import type {VerifiedBrowserDevice} from '../src/platform/web/deviceRegistration'
@@ -61,6 +62,10 @@ function resolutionPrefixFixture(session: Awaited<ReturnType<typeof persistence.
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
  return new BrowserResolutionPrefix((...args)=>internal.syncTransaction(...args),()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
+function noteReaderReadinessFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
+ const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
+ return new BrowserNoteReaderReadiness((...args)=>internal.syncTransaction(...args),()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
+}
 // Identity-only fixture deliberately provisions no crypto reader/writer capabilities.
 async function deviceFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, user: string) {
   const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-device-access', refresh_token: 'fixture-device-refresh', access_expires_in: 60 }), refresh: async () => { throw Error('fixture_no_refresh') }, logout: async () => {}, me: async () => ({ id: user, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: '2026-10-14T00:00:00Z' }) })
@@ -71,4 +76,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

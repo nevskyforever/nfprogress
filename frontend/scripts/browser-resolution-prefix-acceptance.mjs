@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import {runResolutionContinuationAcceptance} from './browser-resolution-continuation-acceptance.mjs'
+import {pathToFileURL} from 'node:url'
+export async function runResolutionPrefixAcceptance(onVerified){
 let cases=0,calculations=0,commits=0,rollbacks=0,restarts=0,casRejects=0,gaps=0,forkBarriers=0,readOnlyWrites=0,competingTabs=0,identityRejects=0
 await runResolutionContinuationAcceptance(async c=>{
  const {scope,decisions,progressed,descendants}=c
@@ -85,5 +87,8 @@ await runResolutionContinuationAcceptance(async c=>{
  assert.equal(fresh.history.resolutions,1);assert.equal(fresh.history.closedGroups,1);assert.equal(fresh.oldAckBlocked,true)
  assert.equal(fresh.cursor.proven_prefix,target);assert.equal(fresh.cursor.ack_cursor,0);assert.equal(fresh.cursor.pull_cursor,before.cursors[0].pull_cursor)
  assert.deepEqual(await c.snapshot(),expected);calculations++;cases++
+ if(onVerified)await onVerified(c)
 })
 console.log(JSON.stringify({result:'PASS',G:'historical-prefix',cases,calculations,commits,idempotentRetries:commits,nativeRollbacks:rollbacks,fullDiskRestarts:restarts,staleInventoryRejects:casRejects,nativeIdentityRejects:identityRejects,competingTabs,missingSequenceBarriers:gaps,independentForkBarriers:forkBarriers,readOnlyWrites,push:0,serverACK:0,pageErrors:0}))
+}
+if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)await runResolutionPrefixAcceptance()

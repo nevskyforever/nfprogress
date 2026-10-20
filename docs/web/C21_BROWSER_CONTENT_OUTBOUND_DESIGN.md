@@ -2193,3 +2193,168 @@ Resolution, в том числе второй заметки «сохранит�
 ACK, Content upload и новая Note capability остаются выключены. До честного объявления
 reader capability нужны независимая приёмка G и полный аудит покрытия читателей —
 следующий ограниченный пакет C21.2.08I. Общий прогресс остаётся84.0%, ready=false.
+
+## C21.2.08I — Browser Resolution reader readiness / Note capability prerequisite
+
+Канонический scope и полная воспроизводимая таблица весов: [WORTA_CHECKPOINT](../WORTA_CHECKPOINT.md).
+
+**AUDIT COMPLETE / FUNCTIONALLY BLOCKED.** Negative-only dormant preflight:
+**LOCAL COMPLETE / REMOTE CI PENDING** (2026-10-20). Clean baseline local HEAD,
+origin/6.0 and independently checked remote ref:
+`4903b14aafa656ba63a262eb86afa0be40e03203`.
+G RESUME **REMOTELY ACCEPTED**, same SHA, Cloud `39379976740` SUCCESS,6/6 mandatory
+jobs (owner supplied). H REMOTELY ACCEPTED: `e0ae21d27455f00de7405755c093e47ed91356c5`,
+Cloud `39373210051` SUCCESS,6/6. F REMOTELY ACCEPTED:
+`e562203a24c8dcb666539b5ed5d125ad45fdff4a`, Cloud `39284081252` SUCCESS,6/6.
+Previous G STOP is preserved as historical audit-only acceptance, NOT implementation.
+
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; C21.2.08 FUNCTIONALLY BLOCKED /
+NOT CLOSED; C21.2.09 NOT STARTED; ready=false. Historical pre-scope-change84,0%
+is preserved. Current Web normalization84/94×100=89,361702…% (89,36%) follows the
+owner-authorized scope section; no audit points or new stage closures.
+
+### Frozen server contract and truthful declaration decision
+
+Authoritative read-only inspection: `backend/app/cloud/schemas.py`
+ContentNoteReaderCapabilities/ContentNoteCapabilityGate;
+`services.py` content_note_reader_ready/content_note_gate/declare_content_note_reader,
+push_encrypted and pull_encrypted; `sync_v3_router.py` Note PUT/GET; frontend
+`encryptedSyncV3.ts` noteReaderCapabilities/noteReaderGate.
+
+| Exact boundary | Actual contract |
+|---|---|
+| Declaration schema | Registered UUID device_id; extra fields forbidden; strict integer versions. reader_transport_version2/3, frame_version0/1, codec8_version0/1, ordinary_reader_version0/1, resolution_reader_version0/2; strict boolean compression_zero. Zero/false can withdraw support. |
+| PUT /api/v3/sync/encrypted/note-reader-capabilities | Authenticated registered device; stores those protocol fields under account lock. PUT itself does NOT verify mode3, actual reader implementation, all-device readiness or independent writer permission. No request issued in I. |
+| Per-device readiness | reader_transport_version=3 AND note_frame_version=1 AND note_codec_version=1 AND note_compression_zero=true AND note_ordinary_reader_version=1 AND note_resolution_reader_version=2. codec8 is the schema/API's codec8_version field, not a separately supplied codec_id. |
+| Account GET gate | Checks ALL registered devices returned by the user-device query. missing_devices counts devices failing the predicate. ready=bool(devices) AND missing_devices=0 AND authoritative writer mode3. Empty device set can have missing_devices0 yet ready=false. |
+| Server push/pull | Opaque note/event push requires account Note gate. V3 pull requires this device's Note reader readiness once account Note/event history exists. Compatible legacy transport handling is separate. Server cannot inspect E2EE payload to prove a client's apply/replay completeness. |
+| Generic compression | compression_id1/its own gate and sticky retained-history read barrier are separate. BROWSER_CANONICAL_READERS IDs1–13 and ID0/ID1 decoding do not grant Note ordinary1/Resolution2 authority. |
+| Future project-policy gate | Independent complete reader acceptance, current registered identity/auth/profile/lease, authoritative mode3, ready=true and missing_devices0 remain required before any separately authorized positive activation. Existing PUT capability is not authorization to call it early. ID1 sealing and writer authority remain separate. |
+
+**Decision: cannot truthfully declare complete Note support now.** Frozen Note
+capabilities have no peer-only, one-Resolution-per-project, no-resurrection or
+isolated-only variant. Successful F/H/G evidence is sufficient for its accepted
+bounded operations, not the complete ordinary1/Resolution2 lifecycle claim.
+
+### Independently testable reader coverage matrix
+
+SUPPORTED means accepted ONLY within the stated boundary; BLOCKED is an explicit
+safe barrier; NOT PROVEN means absent end-to-end acceptance. Decode is separate
+from apply, historical proof, prefix and ACK. F/H/G below are explicit dormant
+entry points, never normal persistence/scheduler composition.
+
+| Path / status | Accepted decoder / transport | Authenticated durable proof | Protected apply | Historical verification | Disk restart replay | Prefix qualification | ACK eligibility | Production composition | Exact blocker / next dependency |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 Legacy ordinary-v1 — SUPPORTED bounded | openNoteTransport/NoteSync1; protocol2 and compatible raw Legacy on3 | candidate1 + inbox3/4; real receipt for own echo | Legacy project HTML/stage-null | H adapters preserve original publication | F/H/G real profiles; ordinary regressions | Old runtime before future rows; G authenticated map | Existing bounded old-family gates only | session.notes exists; no full autosync claim | Future-v10 mixed inventory rejects in old set readers; integrate v10 consumers |
+| 2 Content ordinary-v1 — SUPPORTED bounded | codec8 v1 wrapper/event1, ID0/ID1, protocol3 | candidate2/inbox7/8 + Metadata/Stage certificate | Accepted project/Stage HTML/plain, metadata empty | H authenticates old applied/conflict proofs | H/G native; route-specific unit coverage | Old ordinary path or isolated G | Existing ordinary bounded ACK on old inventory | session.contentNotes delegates prepareContentOrdinary | Not Resolution dispatch or complete reader orchestration |
+| 3 Legacy Resolution-v2 — SUPPORTED dormant | frozen Resolution2 raw wire on protocol2 | F Resolution4/Head2/GroupTransition2/inbox10 | F atomic apply | H/G original AEAD + all published parents | F/H/G native protocol2 | G private certificate/local prefix | BLOCKED for Resolution | F absent from normal session | Reader composition/replay package, then lifecycle completion |
+| 4 Content Resolution-v2 — SUPPORTED dormant | codec8 version1 wrapper with event.version2 on3; ID0/ID1 | Same F records + actual dependencies | F atomic apply | H/G evidence and current dependencies | F/H/G native protocol3 | G private certificate/local prefix | BLOCKED | No session Resolution dispatcher | Decoder availability is insufficient; integrate exact future consumer |
+| 5 Four strategies — SUPPORTED bounded | choose_version/manual_merge/delete/keep_both frozen decode | F decision/source witnesses and closure | All four accepted within F source bounds | All four F/H/G | Both protocols ×four strategies in native runner | Exactly one original server event | BLOCKED for Resolution | Dormant F only | Not extra author chains or unbounded source admission |
+| 6 Original Head2 child — SUPPORTED dormant | H genuine ordinary peer from original R anchor | candidate1/2 + existing ordinary outcome | H atomic apply | H authenticates ancestry/current source | H/G native | G qualified ordinary sequence | No Resolution-inclusive ACK | H absent from session | Route-aware production continuation dispatcher |
+| 7 Retained keep_both child — SUPPORTED dormant | H uses distinct retained Note scope; no fake genesis | Same R event, retained anchor, actual child outcome | H atomic apply | All original R parents and retained ownership | H/G native | R counts ONCE; child has own sequence | BLOCKED for combined history | H absent from session | Retained-anchor consumer integration; preserve source ownership |
+| 8 Historical Resolution — SUPPORTED bounded | Original crypto1/AAD1 wire and encrypted evidence | Exact original R4/proof/closure/publications | Not itself a mutation grant | Accepted H/G; no current-source equality shortcut | Fresh auth/AMK/native restart | G only after separate source/dependency checks | Not ACK token | Dormant historical reader | Keep F exact-current reconcile unchanged |
+| 9 Later ordinary generations — SUPPORTED bounded | H real ordinary descendants on same scoped DAG | Every child publication/projection/outcome | H accepted peer chain | Complete source_revision chain; no unexplained drift | Native grandchild/replay after restart | G sequential qualification | No combined Resolution ACK | Dormant H | Multiple applied Resolutions remain outside accepted chain |
+| 10 New independent conflict — SUPPORTED preservation / BLOCKED advancement | H authenticated sibling | New group1 + candidate/proof; original closure immutable | Preserves branch; no automatic winner | H verifies new open group separately | H/G native, two genuine new-fork barriers | G stops at new unresolved incoming sequence | No ACK through barrier | Dormant H | Later accepted conflict-resolution chain required |
+| 11 Received/orphan recovery — BLOCKED orchestration | Wire can be retained; F/H reject missing authority | Received is NOT applied/proven | Explicit retry only when prerequisites genuinely exist | Missing publication/dependency rejects | Safe retained barriers covered | Missing event/proof blocks | BLOCKED | No accepted complete v10 orphan pump | Integrate ordering, dependency retry and bounded received scanning without skipping gaps |
+| 12 Tombstone continuation/resurrection — SUPPORTED delete / BLOCKED upsert | H accepts delete→delete; raw/frozen decoder can parse upsert | Delete outcomes genuine; resurrection stays received | No implicit resurrection | H rejects fabricated descendant/source chain | Delete continuation native; resurrection negative unit | Upsert remains barrier | BLOCKED through unsupported upsert | Dormant H only | Specify and independently accept source/head resurrection lifecycle |
+| 13 Additional Resolution chains — BLOCKED | Decoder/C historical recursion alone is not F/H current authority | No accepted additional apply/author chain | Accepted F/H source boundary: one Resolution/project | G refuses unsupported further chain | NOT PROVEN positive | BLOCKED | BLOCKED | No production path | Accept further Resolution consumers, source witnesses, reopen and retry first |
+| 14 Existing local Legacy author — SUPPORTED before Resolution | Ordinary Legacy sealing/decode | Actual intent/candidate1/outbox/receipt/own inbox proof | Existing bounded Legacy writer | Accepted mixed/frozen Legacy evidence survives H/G | Existing self-echo regressions and F/H frozen history | Receipt alone cannot fill a missing inbound sequence | Existing accepted bounded Legacy path | Existing noteIntents; no R-owned edits | Do not extend writer ownership to Head2 by declaring a reader |
+| 15 Own ordinary Content — SUPPORTED read-only formats / BLOCKED authority | C3/I2/R2/P2 authenticate formats; not a new producer | Own inbox9 stays unqualified | New Content sealing/receipt/self-echo OFF | Existing accepted crypto readers only | Format/migration coverage, not genuine browser outbound acceptance | G skips C3/P2; pending I2 rejects | BLOCKED | New Content writer absent | Genuine accepted durable author/receipt/self-echo lifecycle before authority claim |
+| 16 Own Resolution — BLOCKED | Canonical parser does not establish authorship | No accepted author/publication/self-echo chain | F/H reject own source | No invented own authority | NOT PROVEN positive | BLOCKED | BLOCKED | No Resolution producer | Accept genuine own history/reader proof without fabricating a producer |
+| 17 Multi-device reopen/replay — SUPPORTED same-profile / NOT PROVEN full | Fresh auth/AMK/device proof on real disk | F/H/G actual encrypted source/history | Same stored device replay verified | Fresh verification, no cached positive flags | Accepted same-device disk/browser restart | G preserves exact local prefix | No all-device Resolution ACK acceptance | Controlled peer wire fixtures, not complete live multi-device Web orchestration | Genuine multi-device production reader/recovery acceptance plus fresh server gate |
+| 18 Contiguous prefix/ACK — SUPPORTED isolated prefix / BLOCKED Resolution ACK | Explicit v10 G leaves; no v9 casts | Private G cert, exact complete inventory | Explicit cursor-only local commit | AEAD before cert; corruption inside prefix fails | Positive prefix survives native restart | Every sequence; gaps fail; never lower/reset | G has NO prepareAck/ackOnce; old ACK rejects future history | session.proven still old dispatch | Integrate separately accepted reader aggregation; ACK activation remains separate |
+| 19 Metadata/Stage/StageOrder — SUPPORTED bounded prerequisites | Canonical codecs1–3, ID0/ID1 | Existing genuine family certs, fresh crypto | Existing accepted subsets | H/G complete future inventory pinned | Mixed unit producers; existing native/runtime regressions | Each family qualifies only under own proof | Existing old-family bounded paths; no blanket G ACK | Existing family classes, G dependency-only adapter | Do not filter Resolution to run an old Note calculator or treat missing proof as applied |
+| 20 V9→V10 compatibility — SUPPORTED compatibility only | Existing accepted leaves unchanged | Structural migration is not AEAD/readiness proof | No migration apply or conversion | Unlock reauth remains mandatory | Existing real populated migration, rollback/blocked/old-client checks | No capability grant from version10 | No ACK grant from version10 | Active database10, same12 stores | Explicit old v9 opener fails VersionError; migration alone cannot establish full reader support |
+| 21 Exact transport page replay — BLOCKED on inbox10 | commitInboundPage/listReceived still use validateBrowserInboxRecord | Does not reinterpret inbox10 as ordinary | New nonoverlapping pages may retain; old interval replay rejects future leaf | H/G history replay is a DIFFERENT accepted surface | Transport interval future replay NOT PROVEN positive | G cannot repair/skip the transport boundary | BLOCKED for complete orchestration | Current syncDurability unchanged | Add version-aware interval replay and received scan with original-wire/identity checks |
+| 22 Raw Legacy Resolution on V3 — NOT PROVEN / dispatch gap | V3 wire descriptor permits note/resolution; F protocol3 path expects codec8 frame | No accepted raw-on3 R4 producer/consumer mapping | Not accepted by current F branch | No positive claim made | NOT PROVEN | Not a licensed G variant | BLOCKED | No fallback added | Explicitly audit compatible transport mapping and genuine raw-on3 consumer/replay; never cast to Content |
+| 23 Local outbound after Resolution — BLOCKED | Old Legacy/I2 source/history validators reject Head2/future sets | No accepted local author child can be invented | Fail before source/outbox changes | Existing published history remains valid | Negative mutation tests | No own new sequence qualifies | BLOCKED for new author path | Writer ownership deliberately unchanged | Separate author-chain/source-CAS acceptance; reader declaration does not unlock editing |
+
+### Small safe implementation and remaining dependency
+
+`noteReaderReadiness.ts` adds an isolated **negative-only read-only inspector**.
+It delegates real registered device/auth/account/AMK/profile and bounded native
+inventory verification to accepted G, then freshly checks its certificate/calculation.
+G runtime/tokens stay in a lexical closure; the returned frozen object has ONLY
+inspect(scope). It exposes at most11 stable blocker codes and bounded numeric prefix
+metadata, no plaintext/key/private proof/source/wire/IDs. It does not accept caller
+mode/ready flags, generic compression tokens or hand-built proof DTOs. No positive
+capability token, persisted readiness flag or write/commit/HTTP method exists.
+
+A valid F/H/G inventory produces ready=false, declarationAllowed=false,
+writerAuthorized=false and serverGate=not_checked. This is an honest diagnosis of
+known incomplete coverage, not an implementation of the missing readers. Unknown,
+corrupt, wrong-scope or revoked local evidence rejects with the existing bounded
+persistence errors. A profile without accepted Resolution evidence is outside this
+narrow inspector and is rejected by G; this is not a general empty-profile readiness
+or all-device checker. Static gaps do not become supported merely because this
+particular account has not yet received such an event.
+
+The next engineering dependency before Content sealing is **complete browser v10
+reader consumption/recovery**, beginning with version-aware transport interval replay,
+received scanning and route-aware normal apply/replay dispatch over genuine F/H/G
+history. Then independently accept the required unsupported lifecycle semantics
+(resurrection, further Resolution/current-source chains, genuine own reader/author
+and self-echo evidence) and full multi-device recovery. No new stage number assigned.
+Only after full reader coverage and independent acceptance may a separately authorized
+Note declaration/gate package establish current mode3/registered-device/account-wide
+ready=true+missing_devices0. Writer authorization, ID1 sealing and Content publication
+remain later separate gates. No backend/native/schema/crypto-contract change proposed.
+
+### Validation
+
+Focused inspector29 PASS. Affected mandatory C21 regression set2204 PASS /70 files,
+including genuine F/H/G protocol2/3/four-strategy history and source, original/retained
+anchors, canonical ID0/ID1, closed/new conflicts, source/sequence/publication/unknown/
+self-echo barriers, lifecycle invalidation, v10 migration/old-client rejection and
+existing prefix/ACK. Inspector-specific tests assert exact blocker/rejection matrix,
+readonly transactions, zero Note PUT/GET/fetch/ACK and no token/write surface.
+
+Native Chromium PASS via reusable unweakened F→transport→H→G runner:8 real v10 disk
+profiles, both protocols/all four strategies, original/retained changes, immutable
+closure/current source/family prefix evidence, positive local G commits and fresh
+key/profile reopen. I:8 authenticated negative diagnoses,8 key/logout/profile/epoch
+revocations rejected, write attempts0, positive tokens0, Note capability PUT0/GET0,
+Content push0/Resolution ACK0/page errors0. Shared regressions retain8 F applies,
+18 H continuations,24 F +18 H +10 G native rollback cases;8 F +8 H +8 G full disk
+restarts;8 G dependency CAS/gap barriers, identity and competing-tab checks. External
+setup/rebind uses66 controlled local registration fixtures, not inspector network.
+No synthetic positive IDB history or invented self-echo author chain.
+
+Typecheck and production build PASS (only existing documentDocx dynamic-import and
+chunk-size Vite warnings). Strict workflow YAML, mandatory inspector spec and awaited
+Chromium step, preserved prior tests/jobs/path filters PASS. Android compression
+packaging job unchanged. Actual changed paths: Cloud backend tests YES, SQLite sync
+substrate NO. Additional existing native persistence acceptance PASS:254 scenarios,
+including15 physical v9→v10 migration profiles, atomic rollback, full reopen and old-
+client rejection; page errors0. Its134 controlled HTTP fixtures include11 generic
+compression-capability and17 pre-existing Legacy ACK calls; these are NOT I Note
+capability declarations or Resolution ACK activation. Inspector-specific traffic
+remains zero. git diff --check PASS; final failures0/skips0. Only isolated test data
+used. Temporary preview/output and disposable profiles cleaned after validation.
+Backend inspection read-only; unrelated backend/native suites not run. No real server
+capability or mode mutation, no CI polling/waiting. Protected .pyc hashes retained;
+old documentation/acceptance history, stage numbering and security release gate preserved.
+
+### Простыми словами
+
+Браузер уже умеет проверять и применять обычные входящие заметки в принятых пределах.
+Отдельные F/H/G пути умеют применить решение конфликта, сохранить обе заметки, принять
+следующие правки и доказать историю с локальным непрерывным префиксом после перезапуска.
+Но обычный reader-процесс ещё не объединён для всей v10 истории: остаются восстановление
+зависимостей/повтор страниц, воскрешение удалённого, следующие Resolution и собственные
+цепочки/self-echo. Поэтому честно объявить серверу полную Note reader readiness пока
+нельзя. Новый preflight только подтверждает имеющиеся локальные доказательства и
+показывает блокеры; он ничего не объявляет серверу и ничего не записывает.
+
+Умение прочитать формат и разрешение создавать/отправлять изменения — разные права.
+Ни поддержка ID1, ни успешный G prefix не включают Content sealing/upload. Следующий
+главный шаг — закончить v10 reader/recovery orchestration и недостающие жизненные
+циклы, независимо принять их и только затем вернуться к Note capability prerequisite.
+C21.2.08 остаётся незакрытым, C21.2.09 не начат, ready=false.
+
+По решению владельца100% основной roadmap теперь означает полный публичный Web-релиз
+со всей обязательной синхронизацией, развёртыванием, аудитом безопасности, стабилизацией
+и разрешением владельца. Android вынесен после Web и не задерживает этот рубеж.
+Старые84,0% сохранены как история; по существующим весам текущая Web-шкала имеет
+знаменатель94, поэтому тот же зачёт84 даёт89,36%. Это пересчёт scope, не новые баллы
+за аудит и не утверждение готовности публичного релиза.
