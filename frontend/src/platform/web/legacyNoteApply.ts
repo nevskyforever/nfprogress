@@ -57,6 +57,10 @@ function requireOwnReceipt(scope:BrowserSyncScope,inventory:Inventory,row:Browse
 export function verifiedLegacyNoteForLocal(token:VerifiedLegacyNotePlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):NoteSyncPlaintext {
   const p=plans.get(token);if(!p||p.local!==local||!same(p.scope,scope)||!p.current()||!p.plaintext||p.proof.outcome!=='applied')fail('stale_source');return p.plaintext
 }
+/** Lifecycle only after the transient plaintext has been discarded. No new grant. */
+export function currentLegacyNoteForLocal(token:VerifiedLegacyNotePlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):boolean {
+ const p=plans.get(token);return !!p&&p.local===local&&same(p.scope,scope)&&p.current()
+}
 /** Private plan route for protected local admission; never inferred from an arbitrary DTO. */
 export function verifiedNoteRouteForLocal(token:VerifiedNoteCausalPlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):'legacy'|'content_note_v1'{
  verifiedLegacyNoteForLocal(token,local,scope);return plans.get(token)!.proof.owner_kind==='legacy_note'?'legacy':'content_note_v1'

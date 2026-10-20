@@ -1,8 +1,10 @@
+import {verifiedContinuationForLocal,type ResolutionContinuationToken} from './resolutionContinuation'
+import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {verifiedResolutionForLocal,type ResolutionApplyToken} from './resolutionPlanner'
 import type { NoteMutationPlan } from './noteIntents'
 import {validateNoteIntentRecord} from './noteIntentRecords'
 import {validateNoteHistorySet} from './noteHistoryRecords'
-import { verifiedLegacyNoteForLocal, verifiedNoteRouteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
+import { currentLegacyNoteForLocal, verifiedLegacyNoteForLocal, verifiedNoteRouteForLocal, type VerifiedLegacyNotePlan } from './legacyNoteApply'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { AuthoritativeKeyContextLease, RuntimeKeyContext } from '@/auth/keyContext'
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
@@ -305,20 +307,30 @@ export class BrowserLocalAuthorityRuntime {
     })
   }
   async prepareProtectedNoteApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:VerifiedLegacyNotePlan):Promise<{token:ProtectedNoteSourcePlan;source_revision:number;note:LocalNoteRecord}> {
-    scope=snapshotBrowserSyncScope(scope);const incoming=verifiedLegacyNoteForLocal(verified,this,scope),p=this.token(scope,token),guard=await this.guard(scope)
+    return this.preparePeerSource(scope,token,verifiedLegacyNoteForLocal(verified,this,scope),verifiedNoteRouteForLocal(verified,this,scope)==='content_note_v1',()=>currentLegacyNoteForLocal(verified,this,scope))
+  }
+  /** Narrow dormant handoff; cannot be called with a caller-provided plaintext DTO. */
+  async prepareProtectedContinuationApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:ResolutionContinuationToken){
+    const authority=verifiedContinuationForLocal(verified,this,scope)
+    return this.preparePeerSource(scope,token,authority.plaintext,authority.content,authority.current)
+  }
+  private async preparePeerSource(scope:BrowserSyncScope,token:LocalSourceToken,incoming:NoteSyncPlaintext,content:boolean,authorityCurrent:()=>boolean=()=>true){
+    scope=snapshotBrowserSyncScope(scope);const p=this.token(scope,token),guard=await this.guard(scope)
+    const check=()=>{if(!guard.current()||!authorityCurrent())fail('closed')}
+    check()
     if(p.project.source_revision===Number.MAX_SAFE_INTEGER)fail('source_limit')
     return guard.lease.use(async amk=>{
       const opened=await this.open(scope,p.project,p.notes,amk),revision=p.project.source_revision+1
       // Native peer payload has local mutation revision0; sync revision stays in Note proof.
-      const admit=verifiedNoteRouteForLocal(verified,this,scope)==='content_note_v1'?validateContentLocalNote:validateLocalNote
+      const admit=content?validateContentLocalNote:validateLocalNote
       const source=admit(incoming.mutation==='delete'?{state:'tombstone',note:incoming.note,revision:0}:{state:'live',note:{...incoming.note,revision:0}},p.project.project_id)
       const old=opened.notes.findIndex(n=>n.note.id===source.note.id)
       if(old<0)opened.notes.push(source);else opened.notes[old]=source
       if(opened.notes.length>MAX_LOCAL_NOTES)fail('source_limit')
       opened.project.source_revision=revision;opened.project.member_ids=opened.notes.map(n=>n.note.id).sort(order)
       const project:LocalProjectRecord={...p.project,source_revision:revision,envelope:await this.seal(scope,p.project.project_id,'project',opened.project,amk)},note=await this.noteRow(scope,source,revision,amk)
-      if(!guard.current())fail('closed');const plan=Object.freeze({}) as ProtectedNoteSourcePlan
-      protectedChanges.set(plan,{scope,source:token,project,note,current:guard.current});return{token:plan,source_revision:revision,note}
+      check();const plan=Object.freeze({}) as ProtectedNoteSourcePlan
+      protectedChanges.set(plan,{scope,source:token,project,note,current:()=>guard.current()&&authorityCurrent()});return{token:plan,source_revision:revision,note,project}
     })
   }
   async prepareProtectedResolutionApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:ResolutionApplyToken){

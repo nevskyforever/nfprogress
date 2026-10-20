@@ -45,8 +45,10 @@ export class ResolutionPlannerError extends Error {
 }
 function fail(code:ResolutionPlannerCode):never{throw new ResolutionPlannerError(code)}
 const same=(a:unknown,b:unknown)=>immutableWireIdentity(a)===immutableWireIdentity(b)
-const stores=['inbox','outbox','receipts','projectBindings','ownerHeads','legacyNoteHistory','legacyNoteIntents','localProjects','localNotes','cursors']
-interface Inventory extends BrowserPrefixInventory {projects:unknown[];localNotes:unknown[];intents:unknown[];checkpoints:unknown[]}
+export const resolutionInventoryStores=['inbox','outbox','receipts','projectBindings','ownerHeads','legacyNoteHistory','legacyNoteIntents','localProjects','localNotes','cursors']
+export interface ResolutionInventorySnapshot extends BrowserPrefixInventory {projects:unknown[];localNotes:unknown[];intents:unknown[];checkpoints:unknown[]}
+const stores=resolutionInventoryStores
+type Inventory=ResolutionInventorySnapshot
 export interface ResolutionPlannerToken {readonly resolutionPlannerToken:unique symbol}
 export interface ResolutionPlanStatus {readonly readOnly:true;readonly commitAuthorized:false;readonly ackAuthorized:false;readonly parentCount:number;readonly strategy:NoteSyncResolutionV2['resolution']['strategy']}
 interface Plan {owner:BrowserResolutionPlannerRuntime;scope:BrowserSyncScope;sequence:number;inventory:Inventory;source:LocalSourceToken;current:()=>boolean;resolution:NoteSyncResolutionV2;group:BrowserNoteConflictGroup;parents:Map<string,NoteSyncPlaintext>;status:ResolutionPlanStatus;lease:AuthoritativeKeyContextLease}
@@ -54,7 +56,7 @@ const plans=new WeakMap<object,Plan>()
 const wireNote=(n:NoteSyncRecord|NoteSyncTombstone|Record<string,unknown>)=>{const v={...n};delete(v as Record<string,unknown>).revision;return v}
 const route=(n:NoteSyncRecord|NoteSyncTombstone)=>[n.project_id,n.stage_id,n.source_type,n.source_map_id,n.source_node_id,n.content_format]
 
-function scheduleInventory(tx:IDBTransaction,s:BrowserSyncScope,current:()=>boolean,result:(v:Inventory)=>void,abort:(e:unknown)=>void):void {
+export function scheduleResolutionInventory(tx:IDBTransaction,s:BrowserSyncScope,current:()=>boolean,result:(v:Inventory)=>void,abort:(e:unknown)=>void):void {
    const range=IDBKeyRange.bound([s.accountId],[s.accountId,[]]),arrays:unknown[][]=stores.map(()=>[])
    let completed=0,left=MAX_PLANNER_INVENTORY_BYTES-2*stores.length
    stores.forEach((name,index)=>{
@@ -96,7 +98,7 @@ export class BrowserResolutionPlannerRuntime {
   return{lease,current}
  }
  private load(s:BrowserSyncScope,current:()=>boolean):Promise<Inventory>{
-  return this.transaction(s,stores,'readonly',(tx,result,abort)=>scheduleInventory(tx,s,current,result,abort))
+  return this.transaction(s,stores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))
  }
  private async original(s:BrowserSyncScope,row:BrowserInboxRecord,amk:AccountMasterKey,check:()=>void){
   if(row.state!=='received')fail('invalid_resolution')
@@ -365,7 +367,7 @@ export class BrowserResolutionApplyRuntime {
    return await this.transaction(s,stores,'readwrite',(tx,result,abort)=>{
     abortActive=abort
     const check=()=>{if(!p.current())fail('lifecycle_invalid')}
-    try{check();scheduleInventory(tx,s,p.current,v=>{
+    try{check();scheduleResolutionInventory(tx,s,p.current,v=>{
      try{
       check();if(!same(v,p.inventory))fail('stale_inventory')
       scheduleProtectedResolutionApply(tx,s,source,()=>{

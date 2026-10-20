@@ -92,7 +92,7 @@ async function dependencies(s:BrowserSyncScope,r:BrowserResolution4,content:Cont
 }
 
 /** Read-only authentication; no durable plans, writes, registration or prefix certificates. */
-export async function authenticateResolutionHistory(scope:BrowserSyncScope,input:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean){
+export async function authenticateResolutionHistory(scope:BrowserSyncScope,input:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean,materialLimit=Number.POSITIVE_INFINITY){
   const s=snapshotBrowserSyncScope(scope);check(current)
   // Snapshot caller material before the first asynchronous operation.
   const v=structuredClone(input),dag=inspectResolutionDag(s,v.history),rows=v.rows.map(r=>readFutureInboxRecord(r,s)),seq=new Set<number>(),ids=new Set<string>()
@@ -100,7 +100,13 @@ export async function authenticateResolutionHistory(scope:BrowserSyncScope,input
   const receiptIds=new Set<string>(),receiptSeq=new Map<number,string>()
   for(const receipt of v.receipts){const r=receipt as {event_id:string;server_sequence:number};if(receiptIds.has(r.event_id)||receiptSeq.has(r.server_sequence))bad();receiptIds.add(r.event_id);receiptSeq.set(r.server_sequence,r.event_id);const row=rows.find(row=>row.server_sequence===r.server_sequence);if(row&&row.event_id!==r.event_id)bad()}
   const parsed=new Map<string,Awaited<ReturnType<typeof openHistoryCandidate>>>()
-  for(const c of dag.events.values())if(c.record_kind==='candidate'){parsed.set(c.event_id,await openHistoryCandidate(s,c,amk));check(current)}
+  let materialBytes=0
+  for(const c of dag.events.values())if(c.record_kind==='candidate'){
+    const value=await openHistoryCandidate(s,c,amk);check(current)
+    boundResolutionJson(value,materialLimit-materialBytes)
+    const encoded=new TextEncoder().encode(JSON.stringify(value));try{materialBytes+=encoded.length;if(materialBytes>materialLimit)bad()}finally{encoded.fill(0)}
+    parsed.set(c.event_id,value)
+  }
   const verified=new Map<string,NoteSyncResolutionV2>(),visiting=new Set<string>(),closures=new Set<string>()
   const authenticate=async(r:BrowserResolution4):Promise<NoteSyncResolutionV2>=>{
     const cached=verified.get(r.event_id);if(cached)return cached

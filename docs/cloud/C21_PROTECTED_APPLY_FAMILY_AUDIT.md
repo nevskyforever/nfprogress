@@ -3408,3 +3408,171 @@ behavior and all current cross-family prefix/ACK barriers remain unchanged.
 историческая интеграция читателей, затем положительная проверка G. Возврат к .08A и
 Content sealing возможен только после приёмки этих доказательств; полной Web-синхронизации
 и готовности к публичному запуску этот аудит не объявляет.
+
+## C21.2.08H — Dormant v10 ordinary peer continuation / historical readers
+
+**LOCAL COMPLETE / REMOTE CI PENDING — CONTINUATION PREREQUISITE ONLY** (2026-10-20).
+Starting clean branch6.0 local/origin/remote ref:
+`e47c74a63871c6488344c63e50b5963dc5cf0833`.
+C21.2.08G **AUDIT REMOTELY ACCEPTED / FUNCTIONALLY BLOCKED — DOCS ONLY**:
+same SHA, Cloud `39303222229` SUCCESS,6/6 jobs (owner supplied). This accepts G's
+STOP audit, NOT a historical prefix implementation. C21.2.08F remains REMOTELY
+ACCEPTED: `e562203a24c8dcb666539b5ed5d125ad45fdff4a`, Cloud `39284081252`,6/6 SUCCESS.
+Official84.0%; C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE;
+C21.2.08 FUNCTIONALLY BLOCKED; C21.2.09 NOT STARTED; ready=false.
+
+### Isolated continuation and historical authority
+
+`resolutionContinuation.ts` adds an explicitly bound dormant runtime. It requires
+real normal-user auth, binding, AMK lease, verified device and active profile; no
+normal BrowserPersistence/editor/scheduler composition. Its empty single-use token
+lives in a module-private WeakMap, belongs to the exact runtime/scope and cannot be
+substituted by a plaintext DTO, source row, proof flag or another runtime's token.
+The small protected local hook accepts only that matching private handoff. The
+shared peer-source implementation retains Legacy plan lifetime checks after its
+transient plaintext is discarded; it does not widen Legacy/I2 writer ownership.
+
+First ordinary successors resolve the genuine authenticated Resolution4 event as
+the parent, using the original or retained role selected by the exact Note ID.
+Both keep_both outputs share ONE Resolution event; the retained scope is distinct.
+Later ordinary children follow real candidate ancestry back to that same typed
+anchor. Require exact project/bootstrap/route/revision, earlier published parent
+sequence and current Head2. Missing anchors, borrowed scopes, false genesis and
+changed working source fail closed. No second Resolution event or new clone ID.
+
+Actual received protocol2 Legacy ordinary and protocol3 Content ordinary-v1 wire
+is decrypted with crypto1/AAD1. Legacy retains project-HTML/stage-null admission;
+Content retains accepted project HTML/plain, Stage/null, empty-metadata and genuine
+ID0/ID1 decoding with fresh Metadata/Stage coverage. Original ciphertext and sender
+fields remain unchanged. The source is encrypted local_format1/record1, mutation
+revision0; one project source_revision increment, exact previous project metadata
+and membership. No local ordinal, outbox or receipt allocation.
+
+`resolutionHistorical.ts` introduces isolated future-v10 family adapters. Strict
+existing leaf dispatch accepts candidate1/2/3, head1/group1/local_version1 and the
+Resolution4/Head2/transition/inbox10 variants. Unknown variants reject. Original
+Resolution AEAD/evidence/publications and immutable pre-closure witnesses are
+reopened through the accepted C reader; ordinary candidates/projections and retained
+Legacy/Content applied/conflict proofs are authenticated separately against their
+real publications and complete DAG. Own Legacy publication joins actual accepted
+outbox/receipt; C3/I2/R2/P2 authentication delegates to existing crypto readers and
+never creates outbound or self-echo authority. No old candidate is rewritten.
+
+Historical applied proofs do not require their candidate to remain today's mutable
+head. Current source validation is a DISTINCT pass: authenticate canonical encrypted
+project/member IDs and Notes, require each current typed head to reach its own
+original/retained anchor, match its exact working projection and verify the contiguous
+project source-revision chain from the authenticated F output. Gaps, duplicate source
+revisions, arbitrary project/Note drift and changed publication history reject.
+This accepts genuine later H protected peer changes without accepting arbitrary
+source drift. F's exact-current-result reconcile API remains unchanged and rejects
+after source advancement; H's historical acceptance/replay is a separate surface.
+
+Metadata/Stage crypto uses an explicit dependency-only family view, as the existing
+Resolution reader does. The FULL future Note DAG, every retained Note publication
+and complete source remain independently checked and transaction-CAS-bound; no
+Resolution/history rows are filtered away to manufacture ordinary ancestry or a
+prefix certificate. Existing v9 set validators, old migrations and production
+prefix/ACK dispatch remain strict and unchanged.
+
+### Conflict, tombstone and bounded scope
+
+A peer sibling of a genuine post-Resolution ordinary child creates a NEW group1
+with its own UUID, published working branch and authenticated incoming member. A
+matching new open group may grow by exact generation CAS. The old group1 bytes and
+its GroupTransition2 stay unchanged; its effective resolved lifecycle derives only
+from the authenticated closure. No branch is silently selected or old group reopened.
+Further ordinary advancement through an unresolved fork remains a barrier. Late
+siblings of the already closed pre-Resolution group remain received/unapplied.
+
+Delete successors, including a sequential delete after a Resolution tombstone, are
+supported. **Upsert resurrection from a tombstone is explicitly unsupported** and
+returns unsupported_local_source while retaining the actual received ciphertext.
+No implicit resurrection is claimed. Local outbound editing, Legacy/I2 ownership
+expansion, own new author chains and resolving a later fork with another Resolution
+remain separate dependencies. The current-source chain is bounded to the accepted
+F producer's one-Resolution-per-project inventory; additional applied Resolution
+chains require their own accepted producer/consumer work. These limits do not block
+the tested original/retained ordinary peer prerequisite and do not declare full Web
+reader completion. Open peer groups are bounded at64 members; unsupported cases stop.
+
+The existing16384-row/store and32MiB inventory bounds are retained and checked on
+predicted committed state. H additionally bounds aggregate opened ordinary plaintext
+at16MiB, including the initial C authentication pass, so compressed input cannot
+bypass the inventory memory budget. The C reader's optional material budget is
+supplied by H; its existing default behavior is preserved. Existing local8MiB/
+4000-Note and smaller title/content bounds remain. Limit failures retain received
+input; no truncated or stranded successful apply is reported.
+
+### Atomic commit and replay
+
+All wire/source/evidence crypto completes before writing. One strict native IDB
+transaction includes the same10 account stores; the session scheduler adds identity/
+account binding and exclusive-writer checks. Its bounded cursor scan exactly CASes
+wire/event/sequence, cursor, bindings/bootstrap, owner dependencies, full history/
+heads/groups, project/source, intents/outbox/receipts before protected source writes.
+Source and global identity are rechecked in the same transaction. Append the immutable
+ordinary candidate, update Head2 with candidate reference, add/update only the new
+open group when preserving a conflict, and replace only the matching received row
+with existing inbox3/4/7/8 proof. No new record versions, stores or indexes.
+
+A clean child commits source/project/history/head/inbox together; conflict preservation
+keeps source/project unchanged and commits its candidate/group/head/proof together.
+Auth/key invalidation aborts pending commit synchronously, profile closure aborts the
+tracked native transaction, and IDB callbacks check lifetime. Request/quota/constraint/
+CAS/abort failures preserve every source/history/inbox byte. Success follows native
+transaction completion. Read-only historical replay after full restart authenticates
+the Resolution and successors under fresh auth/keys, verifies today's source against
+its genuine later protected history, and creates no nonce/proof/source/counter writes.
+
+Validation: 68 focused continuation tests PASS: genuine F→commitInboundPage→H source/history
+producer chains, both transports, all four F strategies, original/retained upsert and
+delete,3/64-parent ancestry, Stage/plain/ID1, accepted frozen Legacy publication,
+independent peer conflicts, historical replay, exact CAS/lifecycle/crypto/source/
+anchor/old-proof/unknown-format/size negatives and every ordered atomic write boundary.
+The broad affected run passed2104 tests/68 files (including65 H cases at that point);
+the final focused68 include the three additional ancestry/earlier-proof checks.
+Legacy apply/self-echo/conflict, Content, I2/C3, F apply/exact replay, v10 migration,
+DAG/planner and production prefix/ACK regressions PASS.
+Disposable Chromium v10 PASS:8 actual F Resolution applies,18 genuine H continuations
+(including2 independently preserved forks), original and retained source verified
+against received plaintext,18 native H fault rollbacks plus24 F rollback regressions.
+8 F disk restarts plus8 MORE disk restarts after H advancement;18 historical ordinary
+replays and16 pre-continuation F replays; readwrite/write attempts during replay0.
+Current canonical source/member IDs and revision0 verified, historical R4/closure/
+inbox10 preserved, F exact-current replay intentionally rejects after advancement,
+and production prefix remains blocked. HTTP push0/new ACK0/page errors0;36 controlled
+registration calls are external setup/rebind, not continuation network activity.
+Typecheck/production build PASS (existing Vite warnings); initial never-return type
+narrowing annotations corrected without weakening validators. Mandatory H spec and
+awaited browser step, strict workflow YAML, both path filters, document history and
+git diff --check PASS. Final failures0/skips0. No backend/native suites required;
+no remote CI polling or waiting.
+Protected .pyc hashes unchanged; complete historical documents, stage numbering and
+VPS security release gate preserved. No Actions polling/waiting.
+
+IndexedDB10; migration NONE; stores/indexes unchanged. No G prefix certificate or
+local/automatic proven_prefix advancement. Resolution ACK/prepareAck integration,
+Content sealing/upload/self-echo, new Note capability, Resolution producer and
+production Content writer remain OFF. Existing cross-family barriers remain.
+
+### Простыми словами
+
+После решения конфликта браузер теперь может отдельным проверенным путём применить
+следующую обычную правку от другого устройства. Для original и второй заметки keep_both
+проверяется своя роль, хотя исходное событие Resolution одно. Последующие версии
+сохраняют настоящую цепочку родителей. Старый конфликт остаётся закрытым; новый
+допустимый конфликт получает отдельную группу и не выбирает победителя автоматически.
+
+Старое решение и старые опубликованные версии остаются доказуемыми после новых
+защищённых применений. Сегодняшний текст сверяется уже с последней принятой версией,
+а не принудительно со старым результатом Resolution. Все связанные записи меняются
+одной транзакцией: при ошибке целиком остаётся прежнее состояние. Повтор после
+перезапуска только проверяет историю и не создаёт дубликаты.
+
+Обычная production-синхронизация этот путь ещё не запускает. Локальная исходящая
+правка после Resolution и воскрешение удалённой заметки остаются заблокированы.
+Префикс и ACK этапа G не включены: H даёт настоящее доказанное peer-продолжение,
+но ещё не доказывает непрерывность всего серверного потока. После независимой приёмки H следующий шаг — вернуться
+к G, построить отдельный приватный сертификат и проверить каждое событие по порядку
+перед разрешённым локальным продвижением proven_prefix, без автоматического ACK.
