@@ -387,3 +387,116 @@ registration/policy/license/stabilization gates and all historical records remai
 аудита L. M описывает предлагаемый контракт; маршруты и синхронизация не включены,
 ready=false, прогресс 89,36%. Следующий шаг — отдельный проверяющий модуль только
 для чтения и его независимая приёмка.
+
+## C21.2.08N — Bounded read-only verifier implementation
+
+**LOCAL COMPLETE — ISOLATED READ-ONLY / REMOTE CI PENDING** (2026-10-20).
+Starting clean branch6.0 local/origin/remote ref:
+`bc7eddc4095ba6c321298e76a7e54711bf5e74c2`.
+M **REMOTELY ACCEPTED**, Cloud `39470290591`, required six-job SUCCESS accepted
+from the owner's «тесты прошли» follow-up to the pending independent acceptance
+question. No Actions API query/poll/wait. Earlier gate-blocked preflights changed
+nothing. The original M proposal above is retained verbatim as design history.
+
+### Implemented surface and derivation
+
+`frontend/src/platform/web/mixedSourceWitness.ts` is imported only by its spec and
+the isolated acceptance harness. `BrowserMixedSourceWitness(...).bind(...).inspect`
+has no source owner, apply/commit/replay/ACK method, public authorization token or
+persisted witness. Normal persistence/editor/startup and F/H/G/K do not import it.
+Public results contain frozen counts and literal readOnly=true, commitAuthorized=false,
+ackAuthorized=false, ready=false. Errors expose sanitized blocker codes, not Note
+content, IDs or key material. A result is not authority for any later operation.
+
+Every inspection authenticates the full bounded account inventory through accepted
+historical F/H crypto and exact version dispatch. Metadata/Stage/StageOrder receive
+only their existing family dependency view AFTER full future Note/history validation;
+their history is freshly authenticated. Inbox gaps, identity collisions, wrong
+publication/proof joins, scope and resource violations fail closed. All encrypted
+current project/Note rows are opened and validated; only the single F project gets
+the derived project witness. Other projects never borrow its root or counter.
+
+Supported pending Note/Metadata/Stage/StageOrder frames are also freshly AEAD/
+canonically decoded and bound to their actual reference. They remain received,
+consume no source revision and obtain no apply/dependency grant from that read.
+Corrupt pending wire rejects; another received Resolution or unsupported pending
+family is an explicit barrier. A genuine encrypted Map is tested as canonically
+readable yet unsupported here: reader support is not protected-apply permission.
+
+The baseline uses F's exact original/retained output snapshots and reconstructs
+other members from their unique real pre-F peer applied paths/projections. No
+current-source snapshot, old Head1 reinterpretation or digest-only substitute.
+Active local intent/C3 ownership in the witnessed project is unsupported. A missing
+root remains missing; there is no backfill, rewrite or migration.
+
+All genuine applied suffix candidates join their existing owner proofs/projections;
+source revisions are unique/contiguous and sequence order strictly increases.
+Independent Note create/update/delete, unchanged other members, tombstone retention
+and H role-specific descendant/head/causal/no-resurrection checks are separate from
+this project fold. The complete expected final Note map must equal current encrypted
+records exactly. Project fields/membership/revision must equal the derived canonical
+state; the actual project envelope and whole account snapshot are pinned by a fresh
+final read. No looser retry after failed H checks or relaxed source predicate is
+installed in any accepted owner. Open conflicts remain explicit barriers.
+
+### Evidence, limits and non-claims
+
+Focused N51 PASS; affected C21/auth-key run2401 PASS /75 files. Genuine pre-F ordinary
+create/update/delete outcomes, F and original/retained H descendants are all made
+by unchanged actual owners. Test scheduling now reproduces native localNotes compound
+key order rather than insertion/locale order; real disk acceptance uses native IDB.
+The full bounded run includes50 N cases; final focused N51 additionally proves that
+invalid authenticated current-source JSON cannot escape as a parser error containing
+plaintext. Known sanitized owner/blocker errors remain explicit; unknown decoder
+errors become corrupt_record. This adds no new persisted/error record format.
+
+The digest-only negative removes an encrypted historical projection and recomputes
+only the unkeyed candidate checksum; original Legacy applied proof and wire are
+untouched. Existing historical read still succeeds while N rejects missing_baseline.
+It is NOT a manufactured positive source witness. L's valid-AEAD source drift,
+canonical project-field drift, exact Note re-encryption mismatch, proof/identity/
+membership corruption and full-inventory races reject without writes. A genuine
+local-only member before F is rejected, as by existing G. A genuine H-preserved
+fork blocks N. Genuine out-of-server-order H cross-role applies remain readable by
+H and are rejected ONLY as admission to the stricter mixed cohort, without repair.
+
+Native mode `browser-v10-ordinary-boundary-acceptance.mjs --mixed-source-witness`
+reuses ALL L native assertions and adds real pre-F ordinary live/tombstone baselines.
+8 disk profiles cover both protocols/all4 strategies and Content ID0/ID1;24 full
+disk restarts;48 inspections under write/nonce traps;8 races caused by REAL H apply
+between N's reads;8 lifecycle revocations;8 competing tabs;16 source-drift refusals
+before/after restart. N writes0, nonce allocation0, HTTP0, page errors0. Existing
+Metadata owner16 applies/16 rollbacks and all L ordinary/Stage/source refusals PASS.
+
+**No positive independent ordinary-after-F applied history is claimed.** L still
+blocks its accepted producer. N implements the read-only suffix rules, but neither
+fixtures nor database puts synthesize a positive ordinary apply proof to test new
+post-F routing. That end-to-end acceptance belongs to the separately authorized
+real owner integration slice. No preview/result is relabeled as an applied event.
+
+Typecheck/build PASS (existing Vite import/chunk warnings); mandatory workflow/path
+and diff checks PASS. No skipped/failing cases in final checks. Unrelated backend/
+native suites and unchanged heavy physical migration runner not repeated; unit
+migration/format regressions PASS. Existing L default native command/mandatory
+steps retained; new awaited N mode and N spec added to Cloud. Cloud all6 EXPECTED,
+including Frontend admin and Android compression packaging; SQLite NOT EXPECTED.
+No Actions polling. Protected .pyc hashes unchanged; schema/migration/IDB10 untouched.
+An earlier local run overlapped crypto tests/build/browser work and hit8 test timeouts.
+The final complete run limits local concurrency to maxWorkers4; assertions and
+existing timeout limits are unchanged. This is a local command option, not a CI
+skip, workflow timeout change or suppression of a failed assertion.
+
+Next requires independent N acceptance, then a separate dormant v10-aware ordinary
+owner handoff and independently reviewed source prerequisites before generating
+real post-F ordinary outcomes and integrating H/G/K. None of that is enabled by N.
+L IMPLEMENTATION STOP, C21/C21.2 IN PROGRESS, C21.2.08 NOT CLOSED, Web89.36%,
+ready=false; scheduler/Resolution ACK/Note declaration/Content writer-sealing-upload
+OFF. All security/public-release/owner gates and prior records preserved.
+
+### Простыми словами
+
+Добавлена проверка только для чтения: она сверяет источник проекта с настоящей
+историей, не создаёт proofs и не меняет данные. Полученные, но ещё не применённые
+события проверяются как зашифрованные данные; это не делает их применёнными.
+Отсутствующие исходные снимки и неподдержанные случаи остаются барьерами.
+Независимые правки после F потребуют реального owner и следующей отдельной приёмки.

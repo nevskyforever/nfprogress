@@ -19,7 +19,7 @@ import type {BrowserSyncTransaction} from './syncDurability'
 
 /** All positive applied evidence is produced by K calling real accepted readers.
  * The sender prepares genuine AEAD before the receiver applies anything. */
-export async function recoveryFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='keep_both',protocol:2|3=3,compressed=false,mixed=false,otherProject=false){
+export async function recoveryFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='keep_both',protocol:2|3=3,compressed=false,mixed=false,otherProject=false,baseline=false){
  const f=await metadataSetup(),m=await metadataRow(f,1),metadata=JSON.parse(m.row.wire_item)
  if(otherProject){
   // Pre-Resolution canonical authority, never an invented post-v10 source.
@@ -47,6 +47,12 @@ export async function recoveryFixture(strategy:NoteSyncResolutionV2['resolution'
  const ordinary=async(id='content-note',parent:string|null=null,revision=1,deleted=false,version:2|3=protocol)=>{
   const h={event_id:crypto.randomUUID(),project_id:'p',entity_id:id,entity_type:'note' as const,operation:deleted?'delete' as const:'upsert' as const,revision,updated_at:at,deleted_at:deleted?at:null},n=fresh(id)
   return append(createNoteSyncPlaintext(h,parent,deleted?{id,project_id:'p',stage_id:stageId,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',deleted_at:at}:n).plaintext,id,version)
+ }
+ // N baselines are genuine received applies BEFORE F, produced by K's real
+ // ordinary owners. No applied row/proof/source is inserted by this fixture.
+ if(baseline){
+  const live=await ordinary('baseline-live');await ordinary('baseline-live',live.event_id,2)
+  const tombstone=await ordinary('baseline-deleted');await ordinary('baseline-deleted',tombstone.event_id,2,true)
  }
  const root=await ordinary(),a=await ordinary('content-note',root.event_id,2),b=await ordinary('content-note',root.event_id,2)
  const parents=[a,b].sort((a,b)=>a.event_id.localeCompare(b.event_id)),ids=parents.map(p=>p.event_id),chosen=parents[0]!,other=parents[1]!

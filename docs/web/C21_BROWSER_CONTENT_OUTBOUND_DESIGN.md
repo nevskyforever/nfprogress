@@ -2836,3 +2836,45 @@ ready=false and security/public-release/owner gates preserved.
 использует уже сохранённые зашифрованные доказательства, но не восстанавливает
 утраченные снимки из текущих данных. Это только дизайн; writer и синхронизация
 не включены. Следом проверяется отдельный модуль только для чтения.
+
+## C21.2.08N — Isolated read-only source witness / no owner integration
+
+**LOCAL COMPLETE — BOUNDED READ-ONLY / REMOTE CI PENDING** (2026-10-20).
+Clean baseline branch6.0 HEAD/origin/remote `bc7eddc4095ba6c321298e76a7e54711bf5e74c2`.
+M REMOTELY ACCEPTED, Cloud `39470290591`, required six-job success accepted from
+owner's «тесты прошли» follow-up; no Actions query/poll/wait. Prior records preserved.
+Implementation and limits: [M contract / N implementation](C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md#c21208n--bounded-read-only-verifier-implementation).
+
+`mixedSourceWitness.ts` exposes only an explicitly constructed internal inspect
+diagnostic. Full account historical crypto/version/identity validation precedes
+F-boundary baseline reconstruction and the exact project revision/member/Note fold.
+Pending supported frames are freshly authenticated but remain received; corrupt,
+unsupported-family or next-Resolution input is an explicit barrier, not apply authority.
+Normal persistence, source writers, ordinary owners and F/H/G/K are unchanged.
+Counts carry no authority: readOnly=true, commitAuthorized=false, ackAuthorized=false,
+ready=false. No persisted record/cache/token, migration, source write or repair.
+
+Real K ordinary applies before F provide independent live/deleted member baselines;
+real F/H provide output/descendant projections. Missing/digest-only/local-only
+baselines, tampering, unexplained counter changes and forks reject. H output roles
+remain H-owned. Out-of-order genuine H history stays readable by H but outside
+M's mixed admission cohort. No independent ordinary-after-F positive apply claim:
+the L producer STOP remains, and fixtures do not invent its proof.
+
+N51 / affected2401 tests across75 files PASS. Native8 profiles/24 restarts/48 read-only
+checks,8 real H source races,8 revocations,8 competing tabs and16 persisted source
+negatives PASS; writes/nonces/HTTP0, page errors0. All L native assertions retained,
+including Metadata16 applies/16 rollbacks. Typecheck/build/workflow/diff checks PASS;
+protected .pyc unchanged. Cloud all6 EXPECTED, SQLite NOT EXPECTED; CI not polled.
+
+Next AFTER independent N acceptance: separate v10-aware ordinary owner/source
+handoff, genuine post-F outcomes and reviewed H/G/K integration. No Content writer,
+sealing/upload, own authorship, scheduler, Resolution ACK or Note declaration.
+Web89.36%, C21/C21.2 IN PROGRESS, C21.2.08 NOT CLOSED; ready=false. All VPS security,
+PUBLIC RELEASE BLOCKED, owner reminders and release gates unchanged.
+
+### Простыми словами
+
+Проверка умеет объяснить сохранённый источник, но не даёт права менять его или
+отправлять данные. Новые независимые применения после Resolution потребуют
+настоящего owner и отдельной приёмки; сейчас включена только изолированная проверка.

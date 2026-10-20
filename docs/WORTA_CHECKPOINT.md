@@ -83,6 +83,85 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08N — Read-only mixed source witness verifier
+
+**LOCAL COMPLETE — BOUNDED ISOLATED READ-ONLY / REMOTE CI PENDING** (2026-10-20).
+Clean branch6.0 starting HEAD/origin/independent remote ref:
+`bc7eddc4095ba6c321298e76a7e54711bf5e74c2`.
+**M REMOTELY ACCEPTED**, Cloud `39470290591` SUCCESS, six required jobs accepted
+from the owner's follow-up confirmation «тесты прошли» in the context of the pending
+M acceptance question. No Actions query/poll/wait was used. The earlier N preflight
+stops made no changes; implementation started only after this confirmation.
+M's original proposed-design entry below is retained as historical text.
+
+`mixedSourceWitness.ts` adds an explicitly constructed internal diagnostic with
+ONLY `inspect(scope)`. It is not composed into BrowserPersistence, application
+startup, editor, ordinary owners or F/H/G/K. It returns frozen counts and literal
+readOnly=true / commitAuthorized=false / ackAuthorized=false / ready=false; no
+source rows, plaintext, key, certificate, public commit capability or persisted cache.
+
+It loads the complete bounded ten-store account inventory, authenticates original
+F evidence and all accepted ordinary/H historical publications/proofs, forces fresh
+Metadata/Stage/StageOrder family crypto, and validates all current encrypted source
+records. Pending supported Note/Metadata/Stage/StageOrder wire is freshly AEAD/
+canonically read but remains received; corrupt wire, an unsupported pending family
+or another Resolution is an explicit barrier, not an applied proof. For the single
+accepted F project it reconstructs EVERY initial member:
+F output snapshots for original/retained, actual pre-F peer applied projections
+for all other members. Digest-only, absent baseline and unsupported local ownership
+remain barriers. Other projects are authenticated/decoded, not granted a borrowed
+F source witness or new ordinary-route authority.
+
+The private fold consumes each applied source revision exactly once; checks causal
+and server order, H output roles/heads/no-resurrection, independent creates/updates/
+tombstone membership, exact final Note rows and canonical project state. Full
+account re-read rejects any source/head/dependency/cursor drift. No read-only result
+is accepted by another owner. Existing H/G/K checks and L STOP remain unchanged.
+Genuine H cross-role out-of-order history remains valid to H but is explicitly
+outside M's ordered mixed cohort; a genuine H-preserved fork remains a barrier.
+
+Validation: N51 PASS; affected C21/auth-key regressions **2401 PASS /75 files**,
+including unchanged F/H/G/I/J/K, L22, migration/format, ordinary/conflict and ACK
+barriers. The full run includes50 N cases; final focused N51 adds the authenticated
+invalid-JSON diagnostic sanitization check. Positive baselines are produced by
+actual K ordinary applies BEFORE F;
+F/H outcomes also come from real owners. NO fabricated positive applied inbox/proof.
+No positive independent ordinary-after-F history is claimed: accepted producers
+remain blocked by L. The suffix fold is not an ordinary owner integration acceptance.
+
+Native N + retained L assertions PASS:8 disk profiles, protocols2/3, all4 F strategies,
+Content ID0/ID1,24 full Chromium restarts,48 read-only inspections,8 genuine H-apply
+races rejected as stale_source,8 lifecycle revocations,8 competing tabs,16 persisted
+source-drift rejections. N writes0/nonces0/network0, page errors0. Existing Metadata
+owner applies16/atomic rollbacks16, ordinary refusals32, Stage/StageOrder refusals16
+and H/G/K source refusals24 remain tested.40 device registrations are fixture setup/
+rebind traffic, not N traffic. Typecheck/build PASS (existing Vite warnings only).
+An overloaded concurrent local run hit8 timeouts; the final run uses maxWorkers4,
+without increasing test timeouts, changing assertions or skipping tests.
+Workflow/path/diff checks PASS; protected .pyc hashes unchanged. No unrelated backend/
+native or heavy physical migration rerun. Mandatory Cloud N spec/native step added;
+all prior jobs/steps remain. Cloud all6 EXPECTED; SQLite NOT EXPECTED. CI not polled.
+
+IDB10/12 stores/indexes/record formats/migration/crypto/wire unchanged. No source
+write, repair, scheduler, Resolution ACK, Note capability, Content writer/sealing/
+upload or own authorship activation. Official Web **89.36% (84/94×100)** unchanged;
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; C21.2.08 NOT CLOSED /
+FUNCTIONALLY BLOCKED. VPS security audit, PUBLIC RELEASE BLOCKED, owner reminders
+and all registration/release gates preserved; no new points/numbering.
+
+Next after independent N acceptance: separately review a dormant v10-aware ordinary
+owner/source handoff and mixed-source prerequisites, generate real ordinary-after-F
+outcomes, then separately accept H/G/K integration. N diagnostics are not its grant.
+
+### Простыми словами
+
+Добавлена отдельная проверка только для чтения: она объясняет каждый шаг счётчика
+и сверяет весь состав проекта с настоящими сохранёнными доказательствами. Проверены
+живые и удалённые заметки, исходная/сохранённая ветки, перезапуск и изменение
+источника во время проверки. Она ничего не меняет и не разрешает синхронизацию.
+Настоящие независимые правки после F ещё должен производить отдельно принятый
+owner; поддельные proofs для такого теста не создавались. ready=false,89,36%.
+
 ## C21.2.08M — Mixed project source authority contract / DESIGN ONLY
 
 **DESIGN COMPLETE / PROPOSED / NOT IMPLEMENTED** (2026-10-20).

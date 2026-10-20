@@ -12,13 +12,26 @@ import {encodeBase64Url} from '@/api/base64url'
 import {openHistoryCandidate} from './noteHistory'
 import type {BrowserSyncTransaction} from './syncDurability'
 
-// Give only J's scheduling driver native range/key semantics. The historical
+// Give the scheduling driver native range/key semantics. The historical
 // fixtures and their deliberately small request scheduler remain unchanged.
 export function keyedTransaction(base:BrowserSyncTransaction):BrowserSyncTransaction {
  vi.stubGlobal('IDBKeyRange',{bound:(lower:unknown[],upper:unknown[],lowerOpen=false,upperOpen=false)=>({lower,upper,lowerOpen,upperOpen})})
  return (s,stores,mode,schedule)=>base(s,stores,mode,(tx,result,abort)=>{
   const proxy=new Proxy(tx,{get:(target,key)=>key==='objectStore'?(name:string)=>{
    const store=target.objectStore(name)
+   // IndexedDB compound keys use code-unit order, not locale/insertion order.
+   if(name==='localNotes')return new Proxy(store,{get:(target,key)=>{
+    if(key==='openCursor')return(range:any)=>{
+     const request=target.getAll(range);let handler:((this:IDBRequest,event:Event)=>unknown)|null=null
+     const emit=()=>{
+      const rows=[...request.result as any[]].sort((a,b)=>a.project_id<b.project_id?-1:a.project_id>b.project_id?1:a.note_id<b.note_id?-1:a.note_id>b.note_id?1:0);let position=0
+      const next=()=>{const value=rows[position];Object.defineProperty(request,'result',{configurable:true,value:value?{value,continue:()=>{position++;const tick=target.get([s.accountId,rows[0].project_id,rows[0].note_id]);tick.onsuccess=next}}:null});handler?.call(request,{} as Event)}
+      next()
+     }
+     Object.defineProperty(request,'onsuccess',{get:()=>emit,set:value=>{handler=value}});return request
+    }
+    const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value
+   }})
    if(name!=='inbox')return store
    return new Proxy(store,{get:(target,key)=>{
     if(key==='openCursor'||key==='count')return(range:any)=>{

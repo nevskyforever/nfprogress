@@ -6,13 +6,29 @@ import {chromium} from '@playwright/test'
 // L STOP audit: all positive evidence comes from unchanged K/F/H/G owners;
 // so replay never expands the accepted current-interval cursor contract.
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
+const witnessMode=process.argv.includes('--mixed-source-witness')
 assert.equal(new URL(origin).hostname,'127.0.0.1')
 const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents']
 const errors=[],network=[];let context,page,scope,decisions,registrations=0,profiles=0,restarts=0,metadataOwners=0,metadataRollbacks=0,ordinaryRejects=0,structuralRejects=0,sourceRejects=0
 const snapshot=()=>page.evaluate(async names=>Object.fromEntries(await Promise.all(names.map(async n=>[n,await nativeRows(n)]))),names)
+const sessionClose=()=>page.evaluate(()=>session.close())
+let witnessReads=0,witnessRaces=0,witnessRevocations=0,witnessTabs=0,witnessRejects=0
+const checkWitness=async()=>{
+ const before=await snapshot(),traffic=network.length
+ const result=await page.evaluate(async()=>{
+  const tx=IDBDatabase.prototype.transaction,random=crypto.getRandomValues;let writes=0,nonces=0
+  IDBDatabase.prototype.transaction=function(stores,mode,...args){if(mode==='readwrite'){writes++;throw Error('WITNESS_WRITE')}return tx.call(this,stores,mode,...args)}
+  crypto.getRandomValues=()=>{nonces++;throw Error('WITNESS_NONCE')}
+  try{return{value:await witness.inspect(s),writes,nonces,keys:Object.keys(witness)}}finally{IDBDatabase.prototype.transaction=tx;crypto.getRandomValues=random}
+ })
+ assert.deepEqual(result.keys,['inspect']);assert.equal(result.writes,0);assert.equal(result.nonces,0)
+ assert.equal(result.value.readOnly,true);assert.equal(result.value.ready,false);assert.equal(result.value.commitAuthorized,false);assert.equal(result.value.ackAuthorized,false)
+ assert.equal(result.value.ordinaryTransitions,0);assert.ok(result.value.baselineNotes>=3)
+ assert.equal(network.length,traffic);assert.deepEqual(await snapshot(),before);witnessReads++
+}
 for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merge','delete','keep_both']){
  console.log(`L boundary native ${protocol}/${strategy}`)
- const testCase={protocol,strategy},directory=await mkdtemp(join(tmpdir(),'c21-v10-ordinary-boundary-'))
+ const testCase={protocol,strategy,witnessMode},directory=await mkdtemp(join(tmpdir(),'c21-v10-ordinary-boundary-'))
  const launch=async()=>{
   context=await chromium.launchPersistentContext(directory,{headless:true})
   context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)))
@@ -24,13 +40,14 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   globalThis.s=scope;globalThis.session=await c21.openBrowserPersistence(s.canonicalUserId);globalThis.meta=await c21.metadataFixture(session,s)
   const device=await session.device.bind(meta.auth,meta.bindings).registerVerified(s)
   globalThis.recovery=c21.v10RecoveryFixture(session,meta,device);globalThis.transport=c21.v10TransportFixture(session,meta,device);globalThis.readiness=c21.noteReaderReadinessFixture(session,meta,device);globalThis.planner=c21.resolutionPlannerFixture(session,meta,device);globalThis.applier=planner.atomicApply();globalThis.continuation=c21.resolutionContinuationFixture(session,meta,device);globalThis.prefix=c21.resolutionPrefixFixture(session,meta,device)
+  globalThis.verifiedDevice=device;globalThis.witness=c21.mixedSourceWitnessFixture(session,meta,device)
  },scope)
  try{
   await launch()
   scope=await page.evaluate(async()=>{const user=crypto.randomUUID(),p=await c21.openBrowserPersistence(user),i=await p.read(user);await p.close();return{canonicalUserId:user,accountId:i.local_account_id,deviceId:i.device_id}})
   await bind()
   decisions=await page.evaluate(async testCase=>{
-  const {protocol,strategy}=testCase
+  const {protocol,strategy,witnessMode}=testCase
   const stamp='2026-10-19T00:00:00.000000Z',project='planner-project',peer='44444444-4444-4444-8444-444444444444',local=session.localSource.bind(meta.auth,meta.bindings,meta.keys)
   await local.initializeProject(s,{project:{id:project,name:'DISPOSABLE_PLANNER_PROJECT',goal:null,infinite:true,unit:'symbols',status:'active',created_at:null,updated_at:null,payload:{}},notes:[]})
   // Genuine other-project authority must exist BEFORE any v10 history.
@@ -51,6 +68,15 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   await session.sync.commitInboundPage(s,0,JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[{event:reference,object}],next_cursor:sequence,has_more:false}))
   const dependencies={bootstrap_id:binding.bootstrap_id,metadata_event_id:mh.event_id,stage_event_ids:[]},parents={}
   const fresh=(id,body)=>({id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',title:'DISPOSABLE_PLANNER_NOTE',content:body,checklist:[],color:'default',pinned:false,archived:false,sort_order:0,tags:[],created_at:stamp,updated_at:stamp,metadata:{}})
+  if(witnessMode)for(const id of ['baseline-live','baseline-deleted']){
+   let parent=null
+   for(let revision=1;revision<=2;revision++){
+    const deleted=id==='baseline-deleted'&&revision===2,h={event_id:crypto.randomUUID(),project_id:project,entity_id:id,entity_type:'note',operation:deleted?'delete':'upsert',revision,updated_at:stamp,deleted_at:deleted?stamp:null}
+    const n=deleted?{id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',deleted_at:stamp}:fresh(id,'AUTHENTIC_PRE_F_BASELINE'.repeat(30))
+    const plain=c21.createNoteSyncPlaintext(h,parent,n).plaintext,frame=protocol===2?c21.encodeNoteSyncPlaintext(plain):c21.readerFrame({id:8,version:1,event:{version:1,account_id:s.canonicalUserId,device_id:peer,dependencies,event:plain}},revision===2)
+    await receive(protocol,h,frame,id);parent=h.event_id
+   }
+  }
   {
    const id=`note-${protocol}`,values=[];let root
    for(let i=0;i<3;i++){
@@ -85,7 +111,40 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   const seed=await page.evaluate(d=>recovery.run(s,{maxEvents:32,replay:{since:d.since,rawPage:d.rawPage}}),decisions)
   assert.equal(seed.blocker,null);assert.equal(seed.ready,false)
   const positive=await snapshot();assert.equal(positive.inbox.find(r=>r.event_id===decisions.event_id).record_version,10)
+  if(witnessMode)await checkWitness()
   await context.close();await launch();await bind();restarts++;assert.deepEqual(await snapshot(),positive)
+  if(witnessMode){
+   await checkWitness()
+   // A REAL accepted H apply races the read-only verifier's final re-read.
+   // All resulting wire/source/history/proof comes from unchanged H, not puts.
+   assert.equal(await page.evaluate(async protocol=>{
+    const racing=c21.mixedSourceWitnessFixture(session,meta,verifiedDevice,async()=>{
+     const project='planner-project',id=`note-${protocol}`,head=(await nativeRows('legacyNoteHistory')).find(r=>r.record_kind==='head'&&r.note_id===id),parent=(await nativeRows('inbox')).find(r=>r.event_id===head.linear_head_event_id),old=JSON.parse(parent.wire_item).event,stamp='2026-10-20T00:00:00.000000Z'
+     const local=session.localSource.bind(meta.auth,meta.bindings,meta.keys);let source
+     await local.withDecryptedSnapshot(s,(await local.readSnapshot(s,project)).token,async opened=>{source=structuredClone(opened.notes.find(n=>n.note.id===id))})
+     const {revision:_local,...note}=source.note
+     if(source.state==='tombstone')note.deleted_at=stamp;else note.updated_at=stamp
+     const h={event_id:crypto.randomUUID(),project_id:project,entity_id:id,entity_type:'note',operation:source.state==='tombstone'?'delete':'upsert',revision:old.revision+1,updated_at:stamp,deleted_at:source.state==='tombstone'?note.deleted_at:null}
+     const plain=c21.createNoteSyncPlaintext(h,head.linear_head_event_id,note).plaintext,b=(await nativeRows('projectBindings')).find(b=>b.project_id===project),mh=(await nativeRows('ownerHeads')).find(h=>h.owner_kind==='project_metadata'&&h.owner_id===project)
+     const frame=protocol===2?c21.encodeNoteSyncPlaintext(plain):c21.readerFrame({id:8,version:1,event:{version:1,account_id:s.canonicalUserId,device_id:old.device_id,dependencies:{bootstrap_id:b.bootstrap_id,metadata_event_id:mh.tip_event_ids[0],stage_event_ids:[]},event:plain}},true),cursor=(await nativeRows('cursors'))[0]
+     const object=await meta.keys.leaseForAccount(s.accountId).use(async amk=>{const o=await c21.encryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:project,entityId:id,entityType:'note'},frame);try{return{crypto_version:1,aad_version:1,nonce:c21.encodeBase64Url(o.nonce),ciphertext:c21.encodeBase64Url(o.ciphertext)}}finally{o.nonce.fill(0);o.ciphertext.fill(0)}})
+     const event={...h,device_id:old.device_id,server_sequence:cursor.pull_cursor+1,operation:protocol===2?h.operation:'event',deleted_at:protocol===2?h.deleted_at:null}
+     try{await session.sync.commitInboundPage(s,cursor.pull_cursor,JSON.stringify({protocol_version:protocol,encrypted_sync_version:protocol,items:[{event,object}],next_cursor:event.server_sequence,has_more:false}))}finally{frame.fill(0)}
+     if(await continuation.apply(s,event.server_sequence)!=='applied')throw Error('H_RACE_NOT_APPLIED')
+    })
+    try{await racing.inspect(s);return false}catch(e){return e.code==='stale_source'}
+   },protocol),true);witnessRaces++
+   await checkWitness()
+   const stable=await snapshot(),competing=await context.newPage();await competing.goto(`${origin}/scripts/browser-persistence-harness.html`)
+   assert.equal(await competing.evaluate(async s=>{try{await c21.openBrowserPersistence(s.canonicalUserId);return false}catch(e){return e.code==='writer_busy'}},scope),true);await competing.close();witnessTabs++
+   assert.equal(await page.evaluate(async strategy=>{
+    const revoked=c21.mixedSourceWitnessFixture(session,meta,verifiedDevice,async()=>{
+     if(strategy==='choose_version')await meta.keys.lock();else if(strategy==='manual_merge')await meta.auth.logout();else if(strategy==='delete')await session.close();else await meta.auth.login('fixture','fixture')
+    })
+    try{await revoked.inspect(s);return false}catch{return true}
+   },strategy),true);witnessRevocations++;assert.deepEqual(await snapshot(),stable)
+   await sessionClose();await bind();await checkWitness()
+  }
   const traffic=network.length
   const audit=await page.evaluate(async protocol=>{
    const stamp='2026-10-20T00:00:00.000000Z',peer='44444444-4444-4444-8444-444444444444',project='planner-project',local=session.localSource.bind(meta.auth,meta.bindings,meta.keys)
@@ -157,8 +216,10 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   },protocol)
   assert.deepEqual(audit.results,Array(6).fill('corrupt_record'));assert.equal(audit.prefix,audit.firstPending-1)
   assert.equal(network.length,traffic);metadataOwners+=audit.metadata;metadataRollbacks+=audit.metadata;ordinaryRejects+=4;structuralRejects+=2
+  if(witnessMode)await checkWitness()
   const intact=await snapshot();await context.close();await launch();await bind();restarts++;assert.deepEqual(await snapshot(),intact)
   assert.equal(await page.evaluate(async()=>{const r=await recovery.run(s,{maxEvents:32});await continuation.history(s);return r.blocker.kind}),'unsupported_route');assert.deepEqual(await snapshot(),intact)
+  if(witnessMode)await checkWitness()
   // NEGATIVE ONLY: valid encrypted revision drift, never a positive applied
   // ordinary specimen or source authority. Original R/F/H evidence is untouched.
   assert.equal(await page.evaluate(async()=>{
@@ -180,11 +241,14 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
    return rejected
   }),3)
   const drift=await snapshot();assert.deepEqual(drift.legacyNoteHistory,intact.legacyNoteHistory);assert.deepEqual(drift.inbox,intact.inbox);assert.deepEqual(drift.localNotes,intact.localNotes);sourceRejects+=3
+  if(witnessMode){assert.equal(await page.evaluate(async()=>{try{await witness.inspect(s);return false}catch(e){return e.code==='source_mismatch'}}),true);witnessRejects++;assert.deepEqual(await snapshot(),drift)}
   await context.close();await launch();await bind();restarts++;assert.deepEqual(await snapshot(),drift)
   assert.equal(await page.evaluate(async()=>{try{await prefix.prepare(s);return false}catch{return true}}),true);assert.deepEqual(await snapshot(),drift)
+  if(witnessMode){assert.equal(await page.evaluate(async()=>{try{await witness.inspect(s);return false}catch(e){return e.code==='source_mismatch'}}),true);witnessRejects++;assert.deepEqual(await snapshot(),drift)}
   profiles++
  }finally{await context?.close();await rm(directory,{recursive:true,force:true})}
 }
 assert.deepEqual(errors,[])
 assert.equal(network.filter(n=>n.includes('note-reader-capabilities')||n.includes('/ack')||n.includes('/push')).length,0)
 console.log(JSON.stringify({result:'PASS',L:'STOP_SOURCE_AUTHORITY_AUDIT',profiles,restarts,metadataOwners,metadataRollbacks,ordinaryRejects,structuralRejects,sourceRejects,registrations,pageErrors:0,newProductionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
+if(witnessMode)console.log(JSON.stringify({result:'PASS',N:'READ_ONLY_MIXED_SOURCE_WITNESS',witnessReads,witnessRaces,witnessRevocations,witnessTabs,witnessRejects,ordinaryPostFPositiveClaims:0,witnessWrites:0,witnessNonces:0,ready:false}))

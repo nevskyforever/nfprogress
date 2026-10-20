@@ -4386,3 +4386,52 @@ OFF. VPS security, PUBLIC RELEASE BLOCKED, owner reminders and release gates int
 в общей последовательности. Проверка Metadata не заменяет проверку заметок, а
 доказательство одной ветки не даёт права менять другую. Сейчас записан только
 предлагаемый контракт; L остановлен, новые маршруты не включены.
+
+## C21.2.08N — Read-only mixed source witness audit
+
+**LOCAL COMPLETE — BOUNDED ISOLATED READ-ONLY / REMOTE CI PENDING** (2026-10-20).
+Clean branch6.0 baseline HEAD/origin/remote `bc7eddc4095ba6c321298e76a7e54711bf5e74c2`.
+M REMOTELY ACCEPTED: Cloud `39470290591`, required six-job success accepted from
+owner's «тесты прошли» follow-up to the pending acceptance question. Actions not
+queried/polled/waited. L remains AUDIT ACCEPTED / IMPLEMENTATION STOP; history intact.
+[M contract / N implementation](../web/C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md#c21208n--bounded-read-only-verifier-implementation)
+contains the exact private fold and evidence/acceptance boundary.
+
+| Boundary | N behavior |
+| --- | --- |
+| Complete account / original F | Exact bounded v10 dispatch, original AEAD/proof/publication/closure/dependency crypto; no filtered old Note inventory |
+| Pending frames | Fresh supported AEAD/canonical read only; remain received; corrupt/unsupported family/next Resolution is a barrier, not a proof |
+| F initial members | Exact F output records; other members require unique real pre-F peer applied projections; digest-only/local-only sources reject |
+| Current R project | Every applied ordinary/H source revision consumed once; strict causal/server order, derived membership/tombstones and exact final Note records |
+| H ownership / forks | Original/retained roles and head/causal/no-resurrection checks preserved; genuine open H fork remains a barrier; ordered mixed admission does not rewrite valid old H history |
+| Unrelated project / dependency families | Current encrypted source validated, no borrowed R authority; Metadata/Stage/StageOrder retain their own crypto and zero source revisions |
+| Concurrent change / revocation | Full fresh inventory comparison; stale or invalid lifecycle rejects; read-only diagnostic cannot authorize any commit |
+| Production integration | NONE: no source mutation/repair, migration, H/G/K/ordinary apply integration, new token or persisted witness |
+
+N51 and affected2401 tests across75 files PASS, including unchanged F/H/G/I/J/K,
+L22, migration/format, ordinary/conflict and prefix/ACK regressions. Genuine pre-F
+ordinary and F/H owners create all positive outcomes. No positive independent
+ordinary-after-F apply claimed or fabricated; its producer is still L-blocked.
+Negative digest-only candidate preserves the original applied proof/wire and is
+never a positive witness. Existing L valid-AEAD negatives still reject without repair.
+
+Native8 disk profiles cover both protocols/all4 strategies/Content ID0/ID1,24 full
+restarts,48 inspect calls,8 actual H source races,8 revocations,8 competing tabs,
+16 source refusals before/after reopen. N writes/nonces/HTTP0, page errors0. All
+existing L native assertions remain, including Metadata16 applies/16 atomic rollbacks,
+32 ordinary and16 Stage/StageOrder refusals. Typecheck/build/workflow/diff checks
+PASS; protected .pyc unchanged. No unrelated backend/native or physical migration
+rerun. Cloud all six mandatory jobs EXPECTED (Frontend admin, Android compression
+packaging included); SQLite NOT EXPECTED. No Actions polling/waiting.
+
+After independent N acceptance, the next separately bounded owner/source handoff
+must generate real ordinary-after-F histories before H/G/K integration acceptance.
+Web89.36%, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, C21.2.08 NOT CLOSED;
+ready=false, scheduler/Resolution ACK/Note declaration/Content writer-sealing-upload
+OFF. VPS security, PUBLIC RELEASE BLOCKED, owner reminders and release gates intact.
+
+### Простыми словами
+
+Теперь есть отдельная проверка источника без записи данных. Она использует реальные
+сохранённые доказательства и отказывает при пропусках, подменах и смене контекста.
+Она не заменяет владельца применения и не включает облачную синхронизацию.

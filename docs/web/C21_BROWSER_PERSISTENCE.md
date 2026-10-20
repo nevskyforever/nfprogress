@@ -5347,3 +5347,47 @@ Security/public-release/owner gates unchanged.
 и их порядок можно проверить по уже сохранённым записям. Если доказательства
 старой заметки отсутствуют, проект не получает допуск. Данные и код не менялись;
 переход к новым маршрутам потребует отдельной реализации и приёмки.
+
+## C21.2.08N — Read-only mixed source witness / frozen IDB10
+
+**LOCAL COMPLETE — BOUNDED ISOLATED READ-ONLY / REMOTE CI PENDING** (2026-10-20).
+Clean baseline branch6.0 HEAD/origin/remote `bc7eddc4095ba6c321298e76a7e54711bf5e74c2`.
+M REMOTELY ACCEPTED, Cloud `39470290591`, required six-job success accepted from
+owner's «тесты прошли» follow-up; no Actions query/poll/wait. Historical text retained.
+[M contract / N implementation](C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md#c21208n--bounded-read-only-verifier-implementation)
+records the exact representation, baseline admission and validation limits.
+
+N adds only `mixedSourceWitness.ts`'s explicitly constructed internal inspect method.
+Full bounded ten-store inventory is authenticated and re-read; all current encrypted
+source rows are opened. The single F project's witness uses F output snapshots and
+real pre-F applied projections for other members, then every genuine source revision
+and exact final Note/member state. Tombstones remain members. Missing/digest-only
+baseline, local ownership, unexplained drift or open conflict fails closed. Other
+projects never borrow F authority. No v10 leaves are filtered into old Note readers.
+Supported pending wire is freshly AEAD/canonically read without promotion to applied;
+corrupt input, unknown pending families and next Resolution remain explicit barriers.
+
+No stores/indexes/records/versions/crypto/wire/source writes changed. IDB10 migration
+and old-client barriers remain frozen. No witness persistence or repair; inspect
+returns only frozen counts and false commit/ACK/ready flags, not a source token.
+F/H/G/K, ordinary apply and production composition do not consume it.
+
+N51 / affected2401 tests in75 files PASS; genuine K/F/H positives and existing L
+negatives retained. Native8 profiles/24 disk restarts/48 inspections,8 genuine H
+source races,8 lifecycle revocations,8 competing tabs and16 source-drift refusals
+PASS; N writes/nonces/network0, page errors0. L Metadata owner applies16/rollbacks16
+and ordinary/Stage rejections remain. No positive independent ordinary-after-F
+history fabricated or claimed. Typecheck/build/workflow/diff PASS; protected .pyc
+unchanged. Heavy unchanged physical migration runner not rerun; unit migration/
+format regressions PASS. Cloud all6 EXPECTED; SQLite NOT EXPECTED; no CI polling.
+
+Next only after independent N acceptance: separate genuine ordinary source-owner
+handoff and reviewed integrations. Web89.36%, C21/C21.2 IN PROGRESS, C21.2.08 NOT CLOSED;
+ready=false, L implementation STOP, scheduler/Resolution ACK/Note PUT/Content writer-
+sealing-upload OFF. All VPS security/public-release/registration/owner gates preserved.
+
+### Простыми словами
+
+База не меняется. Проверка читает зашифрованные записи и сверяет их с сохранённой
+историей, повторяя это после перезапуска. Отсутствующие доказательства она не чинит
+и разрешения на синхронизацию не выдаёт.
