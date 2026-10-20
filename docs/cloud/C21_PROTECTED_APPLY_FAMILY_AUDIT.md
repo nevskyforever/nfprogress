@@ -4184,3 +4184,150 @@ Content upload/sealing выключены, ready=false.89,36% не меняет�
 После независимой приёмки K следующий узкий шаг — отдельно спроектировать и
 принять v10 ordinary/dependency routing вне H-веток, сохранив блокировки следующих
 Resolution и не включая writer/ACK/capability. Новый номер этапу здесь не назначен.
+
+## C21.2.08L — V10 ordinary & dependency routing: SOURCE AUTHORITY STOP
+
+**AUDIT COMPLETE / IMPLEMENTATION STOP / FUNCTIONALLY BLOCKED** (2026-10-20).
+Bounded blocker tests verified locally; **REMOTE CI PENDING**. No new L ordinary,
+Stage/StageOrder or Metadata recovery route is implemented or activated.
+Clean branch6.0 preflight HEAD/origin and independently checked remote ref:
+`1fb532010c65431fa545714041096b2edf4eb5e0`.
+**K REMOTELY ACCEPTED**, same SHA, Cloud `39451657875` SUCCESS, **6/6 required jobs
+SUCCESS**, independent previous-stage result supplied by owner. Actions were not
+polled. Historical K/F/H/G/I/J records and their accepted scopes remain unchanged.
+
+### Exact STOP condition — two distinct contracts, not just dispatch
+
+The owner's L restriction says: **"If safe independent routing requires an
+unaccepted authority model or contract migration, STOP and document the exact
+blocker."** The current-source acceptance contract below triggers that condition.
+This audit does NOT claim a database/wire migration is necessary; it proves that
+merely routing to the existing owners cannot safely satisfy full L.
+
+1. **Global old-format inventory boundary.** `legacyNoteApply.ts` load/commit maps
+   the WHOLE account inbox through `validateBrowserInboxRecord` and history through
+   `validateNoteHistorySet`; accepted inbox10/Resolution4/Head2 do not pass those old
+   readers. `contentNoteApply.ts` delegates to that same owner. Stage and StageOrder
+   prepare similarly validate the entire inbox before dependency/source preparation.
+   `localAuthority.ts` source-only write also globally validates old Note history,
+   even when initializing an unrelated project. Genuine received independent
+   Legacy/Content events on either the Resolution project or another project are
+   therefore rejected with corrupt_record. No reduced/filtered inventory, synthetic
+   Head1, record downgrade or substitute proof was passed to those owners.
+2. **Independent project-source authority boundary.** `resolutionHistorical.ts`
+   `verifyContinuationSources` pins a Resolution project's canonical project fields
+   AND member_ids to the authenticated F source-after snapshot. Its source_revision
+   accounting admits only projection revisions from original/retained H descendants:
+   current_revision = Resolution_source_after_revision + H_projection_count, with
+   a contiguous unique revision sequence. `resolutionPrefix.ts` G calls this exact
+   verifier before it can mint any prefix certificate.
+
+The accepted ordinary source owner (`localAuthority.ts:preparePeerSource`) increments
+project.source_revision for EVERY applied ordinary Note and rebuilds member_ids.
+A new independent Note in the same project necessarily changes that frozen member
+set. An update to an existing independent Note still consumes a project revision
+which is NOT an H descendant. Simply widening inbox/history dispatch would therefore
+let an ordinary commit produce a current source the accepted H/G contract rejects.
+Dropping member equality, ignoring revision increments, borrowing a Head2/Resolution
+proof for another Note, or bypassing G would weaken authority. A generalized
+whole-project witness for independent ordinary publications/membership changes must
+first be explicitly designed and independently accepted. It is NOT silently inferred
+from an old-format proof or from successful AEAD decryption.
+
+Other projects do not intrinsically violate the Resolution project's member set;
+they still hit the shared old inventory/source-writer boundary. This is recorded
+separately, not asserted to be a fundamental impossibility. H continues to own
+original/retained descendants. F's one-Resolution boundary is unchanged.
+
+### Metadata is an important exception
+
+The existing `BrowserImportedMetadataApply` owner reads exact retained references,
+authenticates its real Metadata chain and atomically updates only owner head/inbox.
+It does NOT globally cast all account Note history to v9 or rewrite canonical
+localProjects/localNotes. Direct first-pending-event probes after genuine F/H/G
+successfully apply Metadata updates and another pre-existing project's Metadata
+genesis; full H current-source verification and G qualification remain valid.
+Original Resolution proofs/wire/source are unchanged. Metadata is therefore NOT
+incorrectly labeled as the same global parser blocker as ordinary/Stage owners.
+
+K still explicitly blocks this post-v10 route, and L does not enable it after the
+STOP. A Metadata-only recovery slice could be separately bounded/accepted without
+claiming ordinary source authority or silently enabling Stage/StageOrder.
+
+### Reproduction and safety evidence
+
+All positive Resolution, ordinary and continuation evidence is produced by real
+unchanged K/F/H/G owners from genuine encrypted received events. All account
+inbox/history rows are retained during authentication and refusals. Another project's
+canonical source/binding is established through actual owners BEFORE v10; no new
+post-v10 project/source authority is invented to make a test pass.
+
+The STOP probes first prove old source writes reject without mutation. Explicitly
+NEGATIVE fixtures then alter membership or only source_revision using valid AEAD
+under a disposable fixture key. They fabricate NO applied inbox, candidate, apply
+proof, capability or positive source authority. Real local decrypt succeeds and
+original historical evidence remains authenticated, while H current-source checks,
+G and K refuse the unqualified current state. The revision-only case preserves all
+project fields, membership, Notes, original wire and historical proofs: valid
+ciphertext alone cannot authorize the missing project-level transition.
+
+Focused L22 PASS: both protocols/all4 strategies, independent Legacy and Content
+ID0/ID1 on same/other projects, old source initialization refusal, full-account
+Stage/StageOrder rejection, exact replay, Metadata exception and source witness
+negatives. Affected C21/auth-key regressions2344 PASS /73 files (initial21 L cases);
+final focused run adds the unrelated-project source-writer check. Existing F/H/G/I/J/K,
+ordinary/conflict/self-echo, source CAS, migration/version and ACK barriers PASS.
+
+Native L audit PASS:8 genuine F/H/G disk profiles, protocols2/3/all4 strategies,
+24 full disk restarts,16 existing Metadata owner applies,16 native Metadata atomic
+rollbacks,32 independent ordinary-owner refusals,16 Stage/StageOrder refusals and
+24 current-source H/G/K refusals. Every new pending wire is AEAD/canonical-read
+checked before reproducing owner refusal. Source drift is a negative-only probe;
+original history/proofs/inbox survive unchanged and G still refuses after restart.
+Page errors0; new production routes0; Content push0/Resolution ACK0/Note PUT0.
+32 controlled device registrations are external fixture setup/rebind, not L traffic.
+
+Unchanged native K regression PASS:8 profiles,16 bounded passes,20 full disk
+restarts,4 real F/H atomic rollback cases,16 exact replays,8 lifecycle revocations,
+8 competing-tab rejects, zero unauthorized writes/ACK/publication/page errors.
+Typecheck/build PASS (existing Vite warnings only). Strict workflow/diff checks PASS.
+L blocker spec and awaited native audit added to mandatory Cloud checks and both
+path filters; existing tests/jobs, including Android compression packaging, preserved.
+No skips/xfail/continue-on-error; final failures0/skips0. The unchanged heavy physical
+migration suite is retained in CI rather than redundantly rerun locally; migration
+unit regressions PASS. Unrelated backend/native suites not run. No Actions polling.
+
+### Status and next bounded work
+
+**L routing NOT IMPLEMENTED; no full L LOCAL COMPLETE claim.** K's accepted bounded
+manual entry remains unchanged. Production scheduler, new Resolution generations,
+resurrection, own authorship/self-echo, Note capability/gate activation, Resolution
+ACK and Content writer/sealing/upload remain OFF. ready=false. IDB10/same12 stores/
+indexes/migration/crypto/wire/backend/native unchanged. No production source edited.
+
+C21/C21.2 IN PROGRESS; C21.1.06 NOT LOCAL COMPLETE; C21.2.08 NOT CLOSED /
+FUNCTIONALLY BLOCKED; C21.2.09 NOT STARTED. Official Web progress **89.36% (84/94)**
+unchanged;84.0% historical. No points or numbering changes. FULL PUBLIC WEB RELEASE
+=100%; Android C19/C20 remain POST-WEB workstreams. VPS Security Hardening & Security
+Audit, PUBLIC RELEASE BLOCKED, owner reminders/registration/stabilization gates and
+protected .pyc hashes are preserved.
+
+Recommended next slice: explicitly design/accept the mixed project current-source
+witness and full v10-aware source-owner boundary before independent ordinary routing.
+A separate Metadata-only bounded route is technically narrower; it must not be
+presented as full L or as permission to relax H/G source constraints.
+
+### Простыми словами
+
+Здесь найден обязательный STOP. Проблема не только в том, что старые readers не
+узнают inbox10. После решения конфликта текущая проверка источника учитывает лишь
+исходную и сохранённую ветки. Правка другой заметки меняет общий счётчик проекта,
+а создание заметки меняет его состав. Такие изменения пока не покрыты принятым
+контрактом H/G. Просто пропустить их через старый owner означало бы потерять
+подтверждённую связь между проектом и его историей.
+
+Metadata устроена отдельно: её существующий owner проверен и может безопасно
+обновить свой head, не меняя источник заметок. Это полезная подтверждённая граница,
+но полная маршрутизация L не включена. Сохранён принятый K; ready=false, ACK,
+capability и Content publication выключены. Дальше нужен явный контракт для
+независимых изменений общего source проекта.89,36% и release gates не меняются.

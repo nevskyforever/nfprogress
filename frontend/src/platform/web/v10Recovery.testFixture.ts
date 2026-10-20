@@ -2,7 +2,7 @@ import {vi} from 'vitest'
 import {metadataSetup,metadataRow} from './metadataPrefix.testFixture'
 import {stageRow} from './stageApply.testFixture'
 import {orderRow} from './stageOrder.testFixture'
-import {scope,amk,at,note} from './bootstrap.testFixture'
+import {scope,amk,at,note,project} from './bootstrap.testFixture'
 import {keyedTransaction} from './v10Transport.testFixture'
 import {BrowserDeviceRegistration} from './deviceRegistration'
 import {BrowserV10Recovery} from './v10Recovery'
@@ -19,8 +19,13 @@ import type {BrowserSyncTransaction} from './syncDurability'
 
 /** All positive applied evidence is produced by K calling real accepted readers.
  * The sender prepares genuine AEAD before the receiver applies anything. */
-export async function recoveryFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='keep_both',protocol:2|3=3,compressed=false,mixed=false){
+export async function recoveryFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='keep_both',protocol:2|3=3,compressed=false,mixed=false,otherProject=false){
  const f=await metadataSetup(),m=await metadataRow(f,1),metadata=JSON.parse(m.row.wire_item)
+ if(otherProject){
+  // Pre-Resolution canonical authority, never an invented post-v10 source.
+  await f.local.initializeProject(scope,{project:project('q'),notes:[]})
+  await f.projects.importRemote(scope,{project_id:'q',bootstrap_id:crypto.randomUUID(),remote_state:'active',remote_high_water:0})
+ }
  // Retain the genuine metadata through transport rather than injecting apply evidence.
  f.db.inbox=[];(f.db.cursors[0] as any).pull_cursor=0
  await f.sync.commitInboundPage(scope,0,JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[metadata],next_cursor:1,has_more:true}))
