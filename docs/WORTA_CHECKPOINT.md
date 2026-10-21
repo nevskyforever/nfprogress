@@ -83,6 +83,76 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.12 — historical Metadata tombstone / Content dependency contract
+
+**DESIGN ONLY / LOCAL AUDIT COMPLETE — NO FUNCTIONAL ACCEPTANCE.** Clean preflight:
+branch `6.0`, HEAD and `origin/6.0` both
+`65cd497542f51b7b6263e34ed2da77b4c1d895d5`. C21.2.11 stays **IMPLEMENTATION STOP**,
+not functionally complete. Its Cloud run `39672625896` was last independently
+reported running; no independent all-six-success confirmation was supplied in
+this task, so no REMOTELY ACCEPTED claim. Actions not queried, polled or awaited.
+Contract: `docs/web/C21_HISTORICAL_METADATA_DEPENDENCY_CONTRACT.md`.
+
+Audit confirms the .11 root cause: retained Content F and candidate authentication
+reuse active CURRENT Metadata-tip checks. A genuine later owner tombstone therefore
+invalidates full-account authentication although the prior encrypted wire, owner
+proofs and Note source remain intact. The design separates historical dependency
+authenticity, exact current-source authority, and private authorization for new
+apply; no one result can stand in for another.
+
+Proposed bounded rule for genuine already persisted outcomes: authenticate complete
+coverless imported Metadata chain and original Content/proof joins; prove server
+sequence `M < E < D`, exact nondeleted referenced ancestor, nondeleted chain tip at
+E, and a later genuine terminal delete. Retain every original proof, projection,
+reference and tombstone. Already received but unapplied Content never becomes an
+applied outcome merely because E precedes D. After current Metadata deletion,
+first apply remains blocked; before deletion is applied, K must process earlier
+eligible pending events first. A genuine old same-chain reference is not inherently
+stale; a deleted/foreign/missing/unproven reference or changed prepared snapshot is.
+
+Existing IDB10 evidence suffices for a bounded READ-ONLY sequence/ancestry resolver;
+no migration, new durable witness, wire or crypto change is justified. Server
+publication order does not establish client creation/local apply time, and a
+dependency_digest does not reconstruct the original complete owner snapshot.
+Those stronger timing/commit-snapshot claims are unprovable from current records:
+STOP any scope requiring them, never infer them from timestamps or diagnostics.
+Reverse/unproven dependency sequence, Content published at/after delete, Metadata
+reactivation/resolution/local/own histories and missing evidence remain unresolved
+cohorts retained behind explicit barriers, not rewritten or silently downgraded.
+
+Stage/StageOrder retain their own original histories and coverage requirements.
+Forced Stage history can also fail after Metadata deletion; existing replay/fresh
+flags are not a historical tombstone contract. Stage-scoped Content, historical
+StageOrder membership coverage and structural deletion stay deferred until separate
+proof review. Full-account authentication, F/H role/source ordering, mixed witness,
+Q own-family contiguous prefix, K earliest-pending barriers and ten-store atomic
+owner pre/post CAS remain required. A Metadata tombstone does not mutate local
+project/Note source, membership or source_revision and grants no future writer.
+
+Proposed **C21.2.13 — isolated read-only historical Metadata dependency verifier**:
+project-scoped terminal-delete cohort only; original real peer Metadata/Content
+wire and retained outcomes; no public token, persisted witness, owner/H/O/G/K
+integration or new apply authorization. Subsequent numeric historical-reader and
+atomic Metadata routing slices require independent review/acceptance; none is
+implemented here. Existing .11 negative tests remain valid current-runtime evidence.
+
+Validation: actual source/.11 counterexamples and dependency/proof contracts
+cross-checked; document references, exact two-document scope, preserved historical
+checkpoint bytes, protected .pyc and git diff --check verified. No runtime, tests,
+fixtures, workflow, schema or migration edits; no heavyweight suites rerun.
+Cloud and SQLite NOT EXPECTED: neither actual push/pull-request path filter covers
+these `docs/web` and checkpoint paths. Commit/push; do not poll/wait for Actions.
+Web **89.36%**, ready=false, C21/C21.2 IN PROGRESS, C21.2.08 **NOT CLOSED**;
+VPS security audit, PUBLIC RELEASE BLOCKED, closed registration, owner reminders
+and every release/security gate preserved.
+
+### Простыми словами
+
+После удаления сведений проекта старые доказанные изменения заметок должны оставаться
+проверяемыми, но новые изменения не получают право применяться к удалённой Metadata.
+Документ задаёт ограниченные правила этой проверки и честно отмечает, чего имеющиеся
+данные доказать не могут. Код не изменён; маршрутизация и Web-синхронизация не включены.
+
 ## C21.2.11 — post-F Metadata atomic routing / implementation STOP
 
 **IMPLEMENTATION STOP / HISTORICAL DEPENDENCY CONTRACT BLOCKER.** Preflight branch

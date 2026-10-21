@@ -1,0 +1,261 @@
+# C21.2.12 — Historical Metadata tombstone and Content dependencies
+
+**DESIGN ONLY / PROPOSED CONTRACT — no runtime authorization or routing.**
+Baseline `65cd497542f51b7b6263e34ed2da77b4c1d895d5`, branch `6.0`.
+C21.2.11 remains **IMPLEMENTATION STOP**, not functionally complete. Cloud run
+`39672625896` has no independently supplied all-six-success confirmation in this
+task. It is not recorded as remotely accepted; Actions are not queried or awaited.
+
+## Audited cause and evidence
+
+Paths below resolve against the actual baseline source, not future pseudocode.
+
+| Source | Existing contract / evidence |
+|---|---|
+| [resolutionAuthentication.ts](../../frontend/src/platform/web/resolutionAuthentication.ts), `dependencies` | Retained Content F checks its original Metadata reference and the CURRENT qualified nondelete tip. The Resolution identity, including dependency digest, is bound into its existing AEAD evidence; original owner snapshots are not stored by that digest. |
+| [resolutionHistorical.ts](../../frontend/src/platform/web/resolutionHistorical.ts), `authenticateContinuationHistory` | Reopens retained candidates and calls fresh `prepareNotePrerequisite` for peer Content candidates, including already applied outcomes. |
+| [noteTransportPrerequisite.ts](../../frontend/src/platform/web/noteTransportPrerequisite.ts), `prepareNotePrerequisite` | Opens original Content, joins bootstrap/Metadata and Stage proofs, requires a current nondelete Metadata tip, and mints a private live certificate. The dependency digest includes the then-current owners/bindings; it is not their recoverable snapshot. |
+| [metadataPrefixProof.ts](../../frontend/src/platform/web/metadataPrefixProof.ts) | Reproduces each Metadata proof from retained wire, descriptor digest and AEAD; qualifies a peer clean create/update/delete chain with increasing server sequence, revision and generation. Delete is itself qualifying Metadata evidence. |
+| [importedMetadataApply.ts](../../frontend/src/platform/web/importedMetadataApply.ts), `transition` / commit | Real imported owner enforces exact reference, bootstrap, parent/tip, revision, generation and atomic head/inbox writes. It does not modify Note source. It does not itself impose a general terminal-delete/no-reactivation rule. |
+| [contentNoteProof.ts](../../frontend/src/platform/web/contentNoteProof.ts), [noteHistory.ts](../../frontend/src/platform/web/noteHistory.ts), [resolutionRecords.ts](../../frontend/src/platform/web/resolutionRecords.ts) | Existing candidate/transport/outcome, original wire, projection and Resolution evidence joins must remain; a matching digest or `applied` flag alone is insufficient. |
+| [resolutionPrefix.ts](../../frontend/src/platform/web/resolutionPrefix.ts), [v10MixedRecovery.ts](../../frontend/src/platform/web/v10MixedRecovery.ts) | Full v10 historical/source verification precedes family qualification or routing. Q local-prefix certificates and diagnostics never grant owner/ACK/readiness authority. |
+| [postFMetadataBoundary.spec.ts](../../frontend/src/platform/web/postFMetadataBoundary.spec.ts) | Genuine F/H/O followed by a real Metadata ID1 update remains valid; a real owner tombstone makes Q/K reject. A wholly Legacy control still qualifies deletion. No positive applied proofs are manufactured. |
+
+The .11 counterexamples distinguish a valid Metadata outcome from the ability to
+authenticate the complete account after that outcome. Full-account CAS cannot
+fix the reuse of a live-operation prerequisite as a historical reader check.
+
+## Three separate decisions
+
+1. **Historical authentication:** reproduce a durable accepted outcome from its
+   own original wire, exact persisted proofs and dependency history. It may remain
+   valid after a later Metadata tombstone. It never changes source or creates an
+   applied outcome for a received event.
+2. **Current-source authority:** independently verify the complete F/H or mixed
+   source witness, exact Note projections, membership, source revisions and causal
+   DAG. Historical dependency success alone cannot establish this authority.
+3. **New apply authorization:** the real accepted owner must check current active
+   dependencies, lifecycle and full pre/post source/owner evidence, then commit
+   under its private authorization and exact transaction CAS. A historical result
+   cannot be consumed as that authorization.
+
+This separation is a proposed semantic contract. Runtime live checks stay intact
+until independently reviewed implementation; no generic `historical=true` switch
+may turn a live owner certificate into a less restrictive commit token.
+
+## Bounded historical rule
+
+Let `q(E)` be the genuine retained server sequence of a Content event, `M` its
+exact `metadata_event_id`, and `D` a later Metadata delete in the same project and
+bootstrap. Sequence comes from the existing exact inbox key/descriptor/proof and
+retained transport joins. It orders server publication, not client creation or
+local application time, and is not a newly introduced server signature.
+
+For a **previously persisted accepted outcome** to pass the proposed historical
+Metadata check after deletion, require all of the following:
+
+- Original Content AEAD/frame/codec, inner/outer event identity, account, project,
+  bootstrap, device, operation, revision, timestamp binding and existing immutable
+  outcome joins authenticate normally. Codec8 ordinary and Content Resolution
+  remain distinct. Reopen every relevant Metadata AEAD and reproduce exact
+  Metadata proofs; hashes or owner-head shape alone do not qualify.
+- Metadata has one complete retained peer coverless chain from genuine create:
+  initial revision/generation1, no parents; each subsequent parent is the previous
+  tip, revision is parent+1, generation is strictly greater (not necessarily +1),
+  and server sequence strictly increases. Every proof joins its own applied inbox
+  row and original wire. The current head must describe exactly that chain.
+- `q(M) < q(E) < q(D)`. `M` is nondelete and lies on that same chain. The last
+  Metadata ancestor published before `q(E)` is also nondelete and descends from
+  `M` (or is `M`). Thus the exact reference can be older than that historical tip;
+  it cannot belong to a foreign branch/bootstrap or jump over a prior deletion.
+- Enumerate every retained same-project Metadata descriptor through `q(E)`.
+  Received/unqualified events, missing ancestors, an ignored competing branch or
+  an earlier unproven delete prevent claiming a complete active interval. Do not
+  select just the clean owner-head subset and discard that contrary evidence.
+  Later pending rows stay visible as their own full-account/prefix barriers;
+  their existence does not erase an otherwise proved earlier outcome.
+- `D` is a genuine coverless delete with the exact retained parent, revision,
+  generation, descriptor and tombstone. This first bounded cohort has a terminal
+  delete: later reactivation, a second distinct delete, new genesis or Metadata
+  resolution is deferred. Exact replay of the same `D` is allowed. This terminal
+  rule is a design fence, not a claim that today's owner already enforces it.
+- The original owner-specific Content/F proof, parents, conflict closure or
+  preservation, source outcome and projection remain authentic. An accepted
+  conflict-only candidate stays conflict-only with NULL projection; historical
+  Metadata coverage cannot manufacture an applied Note or close a fork.
+- The complete bounded account inventory is retained and authenticated. Missing
+  sequences/proofs, duplicates, unknown generations, broken source history and
+  foreign/local unsupported material remain explicit barriers. Computing a
+  historical chain fold is not permission to filter the account into v9 data.
+
+This proves **sequence-bounded historical admissibility**, not the exact active
+owner snapshot or wall-clock time at the original local commit. The immutable
+dependency digest stays unchanged and is checked in its existing proof/AEAD joins;
+do not pretend hashing today's owners reproduces it or guess a past snapshot from
+it. A design that requires proving the original full commit-time owner inventory
+or local apply-before-delete timing has insufficient evidence and must STOP.
+
+## Metadata deletion and live operations
+
+A Metadata owner delete is structurally valid only through its real imported,
+captured, active binding, original encrypted payload, exact references, clean
+current parent/tip, revision/generation and no incompatible local Metadata outbox
+or own-event shortcut. A non-null cover dependency remains unsupported. Metadata
+tombstone, remote bootstrap state and canonical local project deletion are
+different facts: do not alter binding, `localProjects`, Notes, membership or
+`source_revision` to simulate project deletion.
+
+A future mixed router may commit `D` only if its complete pre-state and predicted
+post-state satisfy the separately accepted historical and source rules, with the
+same full-ten-store atomic owner guard required by the [.10 contract](C21_POST_F_STRUCTURAL_ROUTING_CONTRACT.md).
+A valid individual delete is not sufficient when other account evidence prevents
+that post-state from being proved. Pending events and unresolved barriers remain
+visible, not converted or removed to let the delete through.
+
+For a **new first apply**, current Metadata must still be authenticated, active,
+single-tipped, nondelete and compatible with the exact dependency, binding and
+owner snapshot. The proposed bounded future path must also establish `q(M) < q(E)`
+and its nondeleted historical interval; today's live checks alone do not prove
+that cross-family fence. Old covered ancestors can remain legitimate under the accepted
+live contract; an old reference is not inherently stale. A changed prepared
+snapshot/tip, foreign or missing ancestor, delete, never-proven event, unresolved
+fork or unsupported lifecycle is stale/ineligible. After a current tombstone,
+no older reference can authorize a new Content create/update/delete or Content
+Resolution, even if its server sequence precedes `D`. Retained bytes may be
+decoded for diagnosis without granting first apply.
+
+Do not use Legacy transport as a bypass for the project's deleted Metadata.
+Pure Legacy historical outcomes retain their actual contracts and acquire no
+invented Content dependencies; any future routing permission for new Legacy
+source changes in a tombstoned project must be separately specified and stays
+blocked in this slice. Local authorship/own echo and new Resolution generations
+remain unsupported regardless of Metadata status.
+
+## Decision matrix
+
+“Historical valid” below means the Metadata component passes the above proposed
+rule, conditional on all other original family/source checks. It is not a current
+runtime result and never alone qualifies an inbox sequence or grants new apply.
+
+| Case | Historical / retained evidence | New first apply / routing |
+|---|---|---|
+| Genuine applied Content `M < E < D`, current terminal tombstone | Historical valid after full proof reproduction; keep actual projection/outcome | No duplicate source write; exact replay validates existing outcome only |
+| Content received with `E < D`, still received when `D` is already applied | Authenticated ciphertext/reference may be readable; no accepted outcome to grandfather | Block first apply under current delete; keep received barrier. No timestamp or claimed earlier receipt promotes it |
+| Earlier `E` received and later `D` only received, current Metadata still active | Evaluate earliest `E` through normal live owner; missing dependencies remain barriers | Apply eligible `E` before `D`, reload, then consider `D`; never skip earlier `E` to apply delete |
+| Claimed created-after-delete Content referring to old `M`, or `E >= D` | Creation time is unproven; an applied out-of-order outcome is retained but outside the historical cohort | Block under delete. Already applied evidence at/after `D` does not earn historical qualification merely from its digest |
+| Genuine Metadata update then delete | Retain all versions, references, revisions/generations and exact tombstone; older same-chain reference may still cover earlier Content | Delete requires full account post-state/CAS; update-after-delete/reactivation is deferred |
+| Content F before `D` and its earlier accepted parents | Preserve Resolution AEAD, group closure, parent publications, Head2 and original/retained roles; historical Metadata rule applies to each actual Content dependency | No new F generation or permission to author/apply a new Resolution |
+| Legacy F with earlier Content O/H outcomes | Legacy F keeps Legacy semantics; each retained Content O/H outcome independently proves `M < E < D` | O/H fresh source changes still need live prerequisites; no Head1/Head2 substitution |
+| Existing resolved or unresolved Note forks | Reproduce genuine closure/preservation; NULL projections stay NULL; unsupported groups remain barriers | No new conflict resolution. G/Q cannot cross an unresolved incoming fork |
+| Deleted Metadata with pending Stage/StageOrder | Keep ciphertext, dependency references and all prior heads/history; no cascade or synthetic tombstones | Block first apply; Stage/StageOrder routes and their delete operations stay OFF |
+| Missing/corrupt Metadata wire, proof, ancestor, sequence or bootstrap | Cannot establish historical admissibility; preserve data and fail closed | No owner, prefix, ACK or repair grant |
+| Restart / exact replay after valid `D` | Reopen original evidence and reconstruct the same historical result without writes; existing outcome stays immutable | New transaction/session must prepare again; no persisted historical permit or automatic retry |
+
+## Timing, evidence sufficiency and unresolved cases
+
+Existing IDB10 evidence is sufficient to implement a **bounded read-only**
+resolver for the clean `M < E < D` cohort: original Content/Metadata ciphertext,
+explicit dependency IDs, immutable references/server sequences, complete Metadata
+history and genuine persisted outcomes are available. No store, migration,
+crypto/wire field or new durable witness is justified for that resolver. This is
+an evidence audit, not implementation or functional acceptance.
+
+The following are explicitly unresolved/deferred; preserve their existing bytes
+and stop qualification without inventing a permissive default:
+
+- Metadata dependency published after Content (`q(M) >= q(E)`), missing intervals,
+  or already applied Content published after a delete. Current live checks do not
+  establish the proposed strict cross-family sequence fence. Existing proofs do
+  not make every such history admissible; do not silently reinterpret it.
+- Whether a received event was created or locally applied before deletion in
+  wall-clock time; sequence, Note `source_revision`, timestamps and an applied flag
+  do not establish that fact. Support needing this fact requires a separately
+  reviewed evidence contract; no migration or proof is fabricated here.
+- A Metadata reactivation/resolution, multiple branches/generations, local/own
+  Metadata history, cold missing history, unsupported cover material or source
+  authorship. Current head alone cannot prove a prior active interval.
+- Stage-scoped Content/F and already retained Stage/StageOrder after deletion,
+  until their own complete historical dependency coverage is reviewed below.
+
+Compatibility must be explicit. This narrow rule does not change H's accepted
+F/H-only cross-role source commit ordering, nor impose server order on unrelated
+Note source revisions. Metadata sequence ancestry is a separate proposed fence.
+If a genuine formerly accepted history is outside it, retain and report that
+cohort as unresolved; never rewrite old proofs, downgrade to v9, silently fall
+back after failure, or claim universal backward compatibility.
+
+## Stage, StageOrder, full account and transaction consequences
+
+[stageApply.ts](../../frontend/src/platform/web/stageApply.ts) already distinguishes
+an `active` Metadata check, but forced Stage history verification passes active
+requirements again. [stageOrderApply.ts](../../frontend/src/platform/web/stageOrderApply.ts)
+uses `fresh`/`replayHistory` and cursor position to choose dependency checks. Those
+booleans are not an accepted historical tombstone proof. Do not force them false
+or move `proven_prefix` to bypass verification.
+
+An eventual historical Stage reader must authenticate its own exact Metadata
+ancestor/active interval at the Stage event sequence, complete Stage history/tips
+and tombstones. Historical StageOrder additionally needs each original Stage
+reference and causal reachability/exact membership coverage at its own event,
+not today's head set alone. Review whether its existing retained evidence proves
+that set; mark unresolved when it cannot. Stage/StageOrder deletion and missing
+child-manifest semantics remain unsupported. Until separate acceptance, Stage
+dependencies can still block full-account qualification; a project-scoped
+Metadata/Content success is not whole-account success in such an inventory.
+
+Future F/H/O integration must separate retained-history readers from current
+apply prerequisites at every call site. Q may use the historical component to
+authenticate genuine existing outcomes, then still verify complete source and
+each family's own qualification. It advances only the contiguous fully proven
+prefix. Received, fork-only, unsupported or incomplete sequences remain barriers;
+the cursor itself is not an exemption from historical validation. No ACK follows.
+The delete sequence may qualify only from its own genuine Metadata proof, after
+every preceding sequence qualifies; it contributes no Note-source authority.
+
+K must always authenticate all ten stores, select from evidence, and process the
+earliest pending event. Invalid later material may block the entire pass; it
+cannot be hidden. A later well-formed but live-ineligible received event remains
+received, not historical applied evidence. Applying Metadata must use the real
+owner's private plan and exact complete pre/post CAS in one transaction. Earlier
+committed genuine events survive a later pass failure; no pass-wide repair occurs.
+Concurrent tabs/source/dependency/cursor changes require fresh preparation;
+auth/key/profile/device revocation aborts; rollback retains the original state.
+After restart or a prefix-commit abort, reauthenticate actual durable outcomes
+before a fresh local prefix commit. No diagnostic becomes write permission.
+
+## Proposed acceptance and numerical implementation sequence
+
+Use genuine F/H/O and Metadata owners, original encrypted events, both F protocols,
+all four strategies and ID0/ID1 where applicable. Keep .11 counterexamples as
+current-runtime negative evidence until explicitly reviewed historical integration;
+do not simply flip them to success or weaken their source/immutability assertions.
+
+| Future evidence | Required assertion |
+|---|---|
+| Real accepted project-scoped Content/F then update and terminal delete | Read-only resolver proves exact `M < E < D`; accepted tombstone, original wire/outcomes and source remain byte-identical; no commit certificate |
+| Legacy F plus genuine earlier Content O/original/retained H | Each Content dependency independently qualifies; Legacy semantics and role/Head2 ownership unchanged |
+| Genuine pending Content on either side of delete; false client timestamps | No first apply after current delete; earlier pending event is never skipped; creation-time claims confer nothing |
+| Missing/forged/digest-only Metadata proof, foreign bootstrap, duplicate sequence, dependency at/after `E`, delete before `E` | Explicit barrier, no manufactured historical grant, no deletion of retained evidence |
+| Real forks, unknown generations, local/own outbox, Stage/StageOrder/cover dependencies | Existing barriers remain; historical success never creates a source projection, child manifest or capability |
+| Exact replay, disk reopen, competing tabs, stale pre-state, revocation and write/prefix abort | Fresh authentication/CAS and real native rollback; no duplicated source revision, repair, ACK or readiness |
+
+Proposed **C21.2.13 — isolated read-only historical Metadata dependency verifier**:
+clean received-peer coverless chain and project-scoped retained Content/F wire,
+sequence-bounded terminal-delete cohort only. Authenticate the actual Metadata
+chain and Content dependency binding; report only that component's result, not
+full Resolution/source acceptance. No owner/H/O/G/K integration, public token,
+persisted witness, migration or runtime live-check changes. Missing evidence or
+an unprovable lifecycle must STOP. Independent contract review precedes coding.
+
+After independent acceptance, propose separate numeric slices for historical
+F/Content reader integration with unchanged fresh live checks and full source
+guards, then the ten-store Metadata owner adapter and K routing. Stage/StageOrder
+historical contracts must be reviewed independently before claiming their coverage.
+No slice is silently implemented or renumbered by this document.
+
+C21/C21.2 remain IN PROGRESS; C21.2.08 NOT CLOSED; Web89.36%, ready=false.
+Complete family readers, own/local authority, further Resolution lifecycle,
+orphan/cold recovery, Content sealing/upload/receipt/self echo, account/server
+declaration and ACK gates, production composition and multi-device acceptance
+remain prerequisites. VPS hardening/security audit, owner stabilization, closed
+registration and PUBLIC RELEASE BLOCKED remain mandatory; this contract opens none.
