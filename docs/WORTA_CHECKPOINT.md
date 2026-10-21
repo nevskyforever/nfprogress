@@ -83,6 +83,106 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08O — Remaining isolated timeout root cause / bounded F-H setup
+
+**LOCAL REPAIR VERIFIED / REMOTE CI PENDING / O NOT REMOTELY ACCEPTED**
+(2026-10-21). Required baseline `11094d725f49fb602d40dfcd23b6350a616753fa`.
+The clean local checkout was still at `660c8663511a650271cef11229b47bd6385dc8a9`;
+fetched origin/6.0 was exactly the required baseline. Fast-forwarded without
+reset/clean/stash/discard, then verified clean HEAD == origin/6.0 == baseline.
+All previous O repair/implementation, N and older records below remain verbatim.
+
+### Failed CI evidence and measured cause
+
+- Cloud `39568449946`: FAILURE,5/6 required jobs SUCCESS; Frontend admin's
+  combined persistence suite had19 O per-test timeouts,2415/2434 passing.
+  The first repair isolated the unchanged46-case O suite with maxWorkers1.
+- Cloud `39574581652`, SHA `11094d725f49fb602d40dfcd23b6350a616753fa`:
+  FAILURE,5/6 required jobs SUCCESS. Read this completed run/jobs and exact
+  Frontend log once as explicitly requested, not a polling loop. The isolated
+  O step still had45 PASS/1 TIMEOUT: protocol3/ID0/keep_both,5024ms at5000ms.
+  Other protocol3 ID0 matrix cases took4129–4457ms; ID1 keep_both4280ms.
+  Native O acceptance passed:8 profiles/32 restarts/64 real applies, replay,
+  rollback, races, revocation, competing tabs; page errors/unauthorized HTTP0.
+
+The residual issue is not explained solely by concurrent Vitest suites: it occurs
+with maxWorkers1. The matrix case puts real accepted F/H prerequisite generation,
+five genuine O transitions, full pre/post witnesses, immutable replay and H/G/K
+fail-closed assertions into ONE test-body5000ms budget. keep_both adds a retained
+Note/H descendant; ID0 has larger uncompressed retained wire. Repeated complete
+history work grows with these genuine records. No failing source/security assertion
+or HTTP/native durability failure was reported. GitHub provides wall durations here,
+not CPU-utilization telemetry: host contention alone is NOT asserted as proven.
+
+Temporary real-function timing instrumentation kept all original assertions and
+used the exact CI Node20.19.0 (official checksum-verified Darwin arm64 binary;
+GitHub used Linux x64). Original local case2028ms: genuine F/H setup856ms;
+31 authenticateContinuationHistory calls1261ms inclusive,13 mixed validations,
+2903 real decryptions135ms and48 encryptions9ms. These nested inclusive timings
+must not be summed as exclusive costs. Repeated historical authentication dominates
+elapsed work; the AEAD primitives alone are not the long phase. No production
+optimization/caching or skipped crypto was introduced for a test-only repair.
+
+### Exact fix and retained coverage
+
+Only `v10OrdinaryApply.spec.ts` and this checkpoint change. The12 protocol/ID/F
+matrix cases now construct the same fresh genuine F/H prerequisite in a scoped
+beforeEach with an EXPLICIT5000ms limit. The O body retains its unchanged default
+5000ms limit and the entire five-operation flow, every original assertion, full
+witness/counter/tombstone/immutable-evidence checks, replay and old H/G/K rejection.
+This separates independently bounded prerequisite setup from the owner under test;
+it does NOT make the original combined work faster. There is no longer a single
+combined5000ms deadline: setup and O each independently fail at5000ms. No shared seed cache, fabricated
+applied record, changed fixture semantics or dependency on another test's state.
+
+All46 original scenarios remain46 cases; other34 cases are byte-for-byte unchanged.
+Static comparison confirms the five-operation/assertion block and every expect
+expression are preserved. Shared fixture and all production F/H/G/K/N/O, source
+CAS/proofs/E2EE/durability, schema/wire/migration files are unchanged. No existing test/global timeout increased; no
+retry, skip, xfail, continue-on-error or workflow behavior changes.
+
+### Bounded validation and acceptance limits
+
+- Node20.19.0 normal profile after: setup858ms, O body1216ms; same31 historical
+  authentications/13 mixed validations/2903 decryptions/48 encryptions. Total work
+  remains approximately2074ms versus2028ms before; this is phase separation.
+- Controlled CPU-scheduling reproduction: only the task-owned test process group
+  runs20ms then pauses40ms, max120s per command, no other process touched. This is
+  a deliberately constrained local stress test, not an identical GitHub runner.
+  Original case reproduced the unchanged5000ms timeout at5020ms.
+- Exactly3 fixed repetitions at the SAME CPU schedule all PASS, no retries on
+  failure: setup3706/3515/3465ms; O body4928/4821/4873ms. Every original assertion
+  completed with identical crypto/authentication counts. Aggregate durations include
+  setup and can exceed5000ms; EACH actual timed phase remains below5000ms.
+- Complete mandatory isolated O suite on Node20.19.0/maxWorkers1:46/46 PASS,
+  0 failed/skipped/todo,46.93s test-file time. Slowest case, including setup,
+  was1883ms (the previously failing protocol3/ID0/keep_both).
+- Relevant N/L regressions on Node20.19.0/maxWorkers2:73/73 PASS,0 failed/skipped.
+- Typecheck/build PASS; existing Vite documentDocx import/chunk warnings only.
+  Mandatory isolated O command/maxWorkers1, all six jobs and path coverage unchanged;
+  Cloud EXPECTED, SQLite NOT EXPECTED. Diff/history/protected-hash checks PASS.
+  Temporary instrumentation removed. No backend/native heavy suite repeated;
+  Chromium NOT RERUN because production/shared fixture behavior is unchanged.
+
+No scheduler, H/G/K integration, Content writer/sealing/upload, Note capability or
+Resolution ACK activation; ready=false. Official Web89.36%, C21/C21.2 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE, C21.2.08 NOT CLOSED. VPS hardening/security audit,
+PUBLIC RELEASE BLOCKED, owner reminders and all security/public-release gates
+preserved. O remains NOT REMOTELY ACCEPTED until independent all-six-green CI.
+Commit/push this bounded test repair; do not poll/wait for the resulting Actions.
+Remaining functional blockers are the existing reviewed H/G/K mixed-source handoff
+and subsequent routing work, not claimed fixed by this timing correction.
+
+### Простыми словами
+
+Тест одновременно строил настоящую историю до Resolution и проверял пять новых
+изменений с повторным чтением и защитными отказами. На более медленном runner эта
+сумма немного превышала5 секунд. Подготовка теперь отдельно ограничена теми же
+5 секундами; проверки применения остались полностью прежними и тоже имеют5 секунд.
+Ни одна проверка шифрования или доказательств не убрана. Локальные проверки прошли,
+но O ещё не принят удалённо: нужен независимый зелёный CI. Синхронизация и ready
+не включены, прогресс89,36% и ограничения публичного запуска сохранены.
+
 ## C21.2.08O — CI timeout repair (mandatory isolated suite)
 
 **REPAIR COMMITTED / REMOTE CI PENDING / O NOT YET REMOTELY ACCEPTED**

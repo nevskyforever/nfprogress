@@ -1,12 +1,17 @@
 // @vitest-environment node
-import {afterEach,it,expect,vi} from 'vitest'
+import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest'
 import {BrowserLocalAuthorityRuntime} from './localAuthority'
 import {ordinaryV10Fixture} from './v10OrdinaryApply.testFixture'
 import {scope,amk} from './bootstrap.testFixture'
 import type {BrowserSyncTransaction} from './syncDurability'
 afterEach(()=>vi.restoreAllMocks())
-for(const protocol of [2,3] as const)for(const compressed of protocol===2?[false]:[false,true])for(const strategy of ['choose_version','manual_merge','delete','keep_both'] as const)it(`genuine create/update/delete and baseline update protocol${protocol}/ID${compressed?1:0}/${strategy}`,async()=>{
- const f=await ordinaryV10Fixture(strategy,protocol,compressed),before=f.before(),initial=await f.witness.inspect(scope),source=(f.f.db.localProjects![0] as any).source_revision
+for(const protocol of [2,3] as const)for(const compressed of protocol===2?[false]:[false,true])for(const strategy of ['choose_version','manual_merge','delete','keep_both'] as const)describe(`genuine create/update/delete and baseline update protocol${protocol}/ID${compressed?1:0}/${strategy}`,()=>{
+ let f:Awaited<ReturnType<typeof ordinaryV10Fixture>>
+ // Build the genuine accepted F/H prerequisite separately from O's five applies.
+ // Both phases retain a 5000 ms bound; no caching, synthetic outcomes or retries.
+ beforeEach(async()=>{f=await ordinaryV10Fixture(strategy,protocol,compressed)},5000)
+ it('applies five source transitions, preserves evidence and replays without writes',async()=>{
+ const before=f.before(),initial=await f.witness.inspect(scope),source=(f.f.db.localProjects![0] as any).source_revision
  const created=await f.receive();expect(await f.owner.apply(scope,created.sequence)).toBe('applied')
  const updated=await f.receive('independent',created.event_id,2);expect(await f.owner.apply(scope,updated.sequence)).toBe('applied')
  const baseline=f.f.db.legacyNoteHistory!.find((r:any)=>r.record_kind==='candidate'&&r.note_id==='baseline-live'&&r.header.revision===2) as any
@@ -24,6 +29,7 @@ for(const protocol of [2,3] as const)for(const compressed of protocol===2?[false
  expect(f.before()).toEqual(stable);expect(f.f.calls.slice(calls).every(c=>c.mode==='readonly')).toBe(true)
  await expect(f.h.history(scope)).rejects.toThrow();await expect(f.g.prepare(scope)).rejects.toThrow();await expect(f.runtime.run(scope)).rejects.toThrow()
  expect(f.before()).toEqual(stable)
+ })
 })
 for(const compressed of [false,true])it(`Content plain stage dependency actual apply ID${compressed?1:0}`,async()=>{
  const f=await ordinaryV10Fixture('keep_both',3,compressed,true),r=await f.receive('stage-plain',null,1,false,{format:'plain'})
