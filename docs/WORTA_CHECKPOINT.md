@@ -194,6 +194,44 @@ SQLite NOT EXPECTED. Commit/push; do not poll/wait for the resulting Actions.
 собственное эхо и объявление готовности выключены. Следующий предлагаемый этап .10 —
 отдельный аудит безопасной маршрутизации Metadata/Stage/StageOrder после Resolution.
 
+### C21.2.09 — independent remote acceptance
+
+**C21.2.09 REMOTELY ACCEPTED** for published SHA
+`3fa230a6c18eca7bd545d9368e9f8f2fcb1f6c1e`. Cloud run `39664022870` completed
+SUCCESS with all six mandatory jobs SUCCESS: PostgreSQL cloud/legacy,
+PostgreSQL content-action, PostgreSQL complete-project, PostgreSQL foundation,
+Frontend admin, and Android compression packaging. This accepts only the dormant
+manual mixed-source recovery scope recorded above; it does not close C21.2.08 or
+activate production synchronization.
+
+## C21.2.10 — post-F structural routing contract audit
+
+**AUDIT ONLY / LOCAL COMPLETE.** Baseline `3fa230a6c18eca7bd545d9368e9f8f2fcb1f6c1e`,
+branch `6.0`, clean HEAD and `origin/6.0` matched. See
+`docs/web/C21_POST_F_STRUCTURAL_ROUTING_CONTRACT.md` for the audited route matrix,
+owner boundaries, exact handoff requirements and proposed next stage.
+
+Existing IDB10 records suffice; no migration, schema, wire, crypto or new persisted
+proof format is required by this audit. Existing Metadata/Stage/StageOrder owners
+retain their accepted ownerHeads and inbox-proof semantics, but their family-scoped
+commit transactions do not compare the complete ten-store v10 inventory. Mixed K
+currently stops at post-F structural events. A private adapter with an in-transaction
+full-account CAS is required before any such route can be implemented. No production
+or test code changed. Structural progress remains separate from Note source revision,
+ACK authority and readiness. Metadata deletion is representable as a coverless
+tombstone; Stage and StageOrder deletion and the documented missing/conflicting
+dependency cases remain blocked.
+
+Web **89.36%**, C21/C21.2 IN PROGRESS, C21.2.08 **NOT CLOSED**, `ready=false`.
+VPS Security Hardening & Security Audit, PUBLIC RELEASE BLOCKED, closed public
+registration and all owner reminders/security gates remain in force. C21.2.11 is
+proposed only: private full-v10 Metadata adapter and ordering gate, with Stage and
+StageOrder deferred to later numeric slices. No functional acceptance is claimed.
+Only `docs/WORTA_CHECKPOINT.md` and the new audit document are in scope. Cloud runs
+are NOT EXPECTED: its push/pull-request path filters include `docs/cloud/**`, but
+not `docs/web/**` or `docs/WORTA_CHECKPOINT.md`. SQLite is also NOT EXPECTED by its
+path filters. Do not poll or wait for Actions.
+
 
 ## C21.2.08Q — G mixed-source prefix integration
 
