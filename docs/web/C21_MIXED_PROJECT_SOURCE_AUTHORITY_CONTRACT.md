@@ -619,3 +619,132 @@ SQLite NOT EXPECTED; O remote CI pending, no polling/waiting.
 события проверены на настоящей браузерной базе. Обычная синхронизация новый модуль
 пока не вызывает; для H/G/K потребуется отдельная согласованная приёмка. Готовность
 и публичный доступ не включены, прогресс89,36% без новых начислений.
+
+
+## C21.2.08P — H-only mixed source integration / explicit historical compatibility
+
+**LOCAL COMPLETE — DORMANT H ONLY / REMOTE CI PENDING** (2026-10-21).
+Clean branch6.0 HEAD/origin/remote `a20a676312b164bf952366672d2ab903d1ffb200`.
+O **REMOTELY ACCEPTED**, same SHA, Cloud `39581100692` SUCCESS, all6 mandatory
+jobs SUCCESS, independently accepted as explicitly supplied by owner. Actions not
+queried/polled/waited. Prior O/N/M/L contracts and acceptance records stay verbatim.
+
+### Evidence-selected source contract
+
+`resolutionContinuation.ts` retains its private H plan/source authorization and
+all existing role/causal/Head2/dependency/no-resurrection/atomic CAS checks. After
+complete original-wire/history crypto, its private source selector examines
+independent Note candidates in the Resolution project. A server sequence above
+F, or an authenticated projected source revision above F, selects mixed admission.
+This includes unsupported ordinary conflicts/ownership; they cannot select a looser
+historical route. It is not inferred from a mutable counter or claimed diagnostic.
+
+Before selecting, require every retained account sequence AFTER F through pull_cursor
+exactly once. Deleting O's candidate/head/inbox evidence and restoring actual old
+encrypted source is still a post-F gap, not a new historical-only authority. This
+check preserves the old pre-F admission boundary; it does not reclassify old source
+projections or create missing events. Full mixed admission additionally retains the
+N/M complete account sequence, current source and dependency validations.
+
+| Authenticated evidence | H source prerequisite | Permitted behavior |
+| --- | --- | --- |
+| No independent post-F outcome | Existing verifyContinuationSources, unchanged, plus post-F continuity | Accepted F/H-only reads/apply/replay/preservation, including genuine historical cross-role source order outside M's mixed cohort |
+| Genuine independent post-F O outcome, no open groups | Complete mixed fold plus unchanged H role/causal checks | Original/retained H apply after full pre/post verification; independent Notes stay O-owned |
+| Mixed history with authenticated H-only open fork(s) | Exact mixed source fold AND full H group/member/tip/outcome crypto and role-rooted ancestry | Read/replay and conflict-only preservation; NULL projection, unchanged source_revision/source/prefix |
+| Mixed open group while requesting a source-changing H apply | Explicit barrier | Reject even when targeting another H role; never mint an applied projection across a fork |
+| Independent/unowned open conflict, missing baseline, invalid proof/source, unsupported generation/ownership | Reject | No retry through historical verifier, filtering, repair, source guess or qualification |
+
+Source mode is bound across complete pre- and predicted post-inventory. Every apply
+also re-reads all ten stores before commit and pins them in the atomic transaction.
+No failure handler downgrades a mixed error to legacy checks. Authenticating the
+complete inventory still precedes any Metadata/Stage dependency-only view.
+
+### Preserving H conflicts without granting source/prefix authority
+
+`mixedSourceValidation.ts` keeps N/O's strict `validateMixedSourceInventory` entry.
+It always rejects unresolved forks. P adds a separate internal
+`validateMixedContinuationInventory` entry for H. It uses the SAME full baseline,
+revision/membership/final Note fold and authentication, then admits only an open
+group whose Note is an original/retained F output, whose common parent reaches that
+exact Resolution in that role, and whose members/outcomes/head/tips have already
+passed genuine H historical authentication. Local-unsealed/independent ownership
+is not admitted. It returns counts only, never an authorization/certificate.
+
+All conflict members retain the accepted null-projection/inbox-conflict proof
+contract. The current source must still equal the real last applied projection;
+Head2 revisions count preserved candidates, source revisions count applies only.
+H prepare determines its actual action separately: an open group permits only
+accepted conflict preservation; any source-changing mixed apply is blocked. H's
+private WeakMap plan, authentic plaintext and original local runtime/scope/lifecycle
+remain the only source handoff. N diagnostics and raw DTOs cannot be substituted.
+Existing H reconcile's already_applied result means immutable replay recognition;
+it does NOT relabel a conflict row/projection or authorize prefix/ACK/capability.
+
+The same source route must validate the predicted outcome. New source ciphertext,
+changed Note, immutable candidate, Head2 and genuine inbox proof are atomic under
+existing exact inventory/project/whole Note set/identity/dependency CAS. Preserved
+conflicts use exact source CAS without source writes. Revocation/request abort/
+stale source/crash leave no partial records; restart reconstructs from real bytes.
+No new persisted format/token/witness, schema, migration, crypto or wire contract.
+This is the explicitly authorized H integration of M/O and existing H preservation;
+no separate authority model or source-writer migration was necessary.
+
+### Compatibility and remaining owners
+
+The historical-only path is chosen BEFORE verification, not after N/mixed failure.
+Real retained/original H commits made out of server order remain readable with the
+accepted old H source predicate. Strict N/O still reject that cohort for mixed
+mutation. Legacy open forks, including retained-role apply alongside an original
+fork where old H permits it, keep their old behavior. There is no historical rewrite,
+new Head1 stand-in or forced conversion to M's stricter ordered source witness.
+
+O ordinary semantics, formats and source CAS are unchanged. Accepted O unit/native
+H-history assertions now expect P's new read-only H success; all G/K rejection,
+original O applies and immutable/protected/source assertions remain. N/O continue
+to reject open forks. Existing G source validation has NOT changed: it requires
+F membership and enumerates H-only source transitions, so genuine O changes still
+block it. K still requires G before dispatch and cannot inherit H's new admission.
+No G mixed-prefix qualification, K routing, Resolution ACK or Note declaration.
+
+### Evidence and validation
+
+P47 and O46 PASS, both isolated maxWorkers1 with fresh genuine setup bounded5000ms.
+Affected F/H/G/I/J/K/N/L470 tests across10 files PASS; final failed/skipped0.
+Both protocols (Legacy2; Content3 ID0/ID1), four F strategies, actual interleaved
+F/H/O owners, original/retained branches, membership/tombstones, Stage/StageOrder
+and Content plain prerequisites are covered. Every positive apply/proof comes
+from an actual owner. No fabricated applied inbox records or synthetic Head1.
+Real valid-AEAD counter/member drift, erased O evidence plus old-ciphertext rollback,
+missing proof/sequence, corrupt predicted source, resurrection and grant/lifecycle/
+CAS/rollback failures reject without a fallback or partial write. Two protocols
+exercise genuine historical out-of-order H compatibility; old H conflict and
+all N/L negatives remain. No increased timeout, retry, skip or assertion weakening.
+
+Native O/P superset PASS:8 disk profiles,56 full restarts;64 existing O acceptance
+applies plus24 new O interleaves;50 genuine H applies,16 preserved siblings,
+32 H replays,8 H native rollbacks,16 H races,8 H revocations,8 H competing tabs,
+106 H barriers. Includes close/reopen before/after commit and persisted open forks.
+Original wire/F evidence/proofs/untouched tombstones preserved. N write/nonce traps
+PASS on new mixed H history; no fork source/cursor/prefix writes, page errors0,
+unauthorized HTTP0.80 device PUTs are setup/rebind, not H network behavior.
+Typecheck/build PASS with existing Vite warnings; workflow/path/history/diff checks
+and protected .pyc hashes PASS. O's5000ms setup/body repair and mandatory isolated
+step are retained; P gets an isolated mandatory step. The native O step becomes an
+awaited O+P superset to avoid duplicate heavy profiles. No unrelated backend/native
+suite or unchanged physical migration rerun. Cloud all6 EXPECTED including Frontend
+admin and Android compression packaging; SQLite NOT EXPECTED. P CI pending, not polled.
+
+C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE, C21.2.08 NOT CLOSED,
+Web89.36%, ready=false. Additional Resolution chains, resurrection, local/own writers,
+unrelated-project routing and full production recovery remain blocked. Scheduler,
+Content writer/sealing/upload, Note capability and Resolution ACK remain OFF.
+All VPS/security/public-release/owner gates preserved. Next requires independent P
+acceptance, then a separately reviewed G mixed-prefix slice with explicit fork
+barriers; K remains later, not activated transitively through H.
+
+### Простыми словами
+
+H теперь продолжает ветви Resolution после настоящих независимых изменений заметок.
+Он проверяет всю цепочку и сохраняет прежние допустимые истории. Конкурирующий
+вариант хранится как конфликт и не подменяет текущую заметку. Это не даёт подтверждения
+серверу: G/K ещё заблокированы, автоматическая синхронизация и ready не включены.

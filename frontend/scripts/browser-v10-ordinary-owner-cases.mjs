@@ -1,12 +1,13 @@
+import {runMixedContinuationCase} from './browser-mixed-continuation-cases.mjs'
 import assert from 'node:assert/strict'
-/** O only. All positive history/proofs/source are actual dormant-owner commits. */
-export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,compete,protocol,strategy}){
+/** O acceptance core; optional P extends the same real-owner disk profiles. */
+export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,compete,protocol,strategy,continuationMode=false}){
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg)
  let applied=0,replays=0,rollbacks=0,races=0,revocations=0,barriers=0,restarts=0
  const send=options=>evaluate(async options=>{
   const id=options.id,project='planner-project',stamp='2026-10-21T00:00:00.000000Z',peer='44444444-4444-4444-8444-444444444444',protocol=options.protocol??3,deleted=options.deleted??false
-  const rows=await nativeRows('legacyNoteHistory'),head=rows.find(r=>r.record_kind==='head'&&r.project_id===project&&r.note_id===id),parent=options.create?null:head?.linear_head_event_id??null,prior=parent&&(await nativeRows('inbox')).find(r=>r.event_id===parent)
-  const revision=parent?JSON.parse(prior.wire_item).event.revision+1:1,header={event_id:crypto.randomUUID(),project_id:project,entity_id:id,entity_type:'note',operation:deleted?'delete':'upsert',revision,updated_at:stamp,deleted_at:deleted?stamp:null}
+  const rows=await nativeRows('legacyNoteHistory'),head=rows.find(r=>r.record_kind==='head'&&r.project_id===project&&r.note_id===id),parent=Object.hasOwn(options,'parent')?options.parent:options.create?null:head?.linear_head_event_id??null,prior=parent&&(await nativeRows('inbox')).find(r=>r.event_id===parent)
+  const revision=options.revision??(parent?JSON.parse(prior.wire_item).event.revision+1:1),header={event_id:crypto.randomUUID(),project_id:project,entity_id:id,entity_type:'note',operation:deleted?'delete':'upsert',revision,updated_at:stamp,deleted_at:deleted?stamp:null}
   let note={id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:options.plain?'plain':'html',title:'DISPOSABLE_O_NOTE',content:'ACTUAL_ORDINARY_AFTER_F'.repeat(40),checklist:[],color:'default',pinned:false,archived:false,sort_order:0,tags:[],created_at:stamp,updated_at:stamp,metadata:{}}
   if(parent){
    const local=session.localSource.bind(meta.auth,meta.bindings,meta.keys)
@@ -22,7 +23,7 @@ export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,comp
   const object=await meta.keys.leaseForAccount(s.accountId).use(async amk=>{const o=await c21.encryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:project,entityId:id,entityType:'note'},frame);try{return{crypto_version:1,aad_version:1,nonce:c21.encodeBase64Url(o.nonce),ciphertext:c21.encodeBase64Url(o.ciphertext)}}finally{o.nonce.fill(0);o.ciphertext.fill(0)}})
   const rawPage=JSON.stringify({protocol_version:protocol,encrypted_sync_version:protocol,items:[{event,object}],next_cursor:sequence,has_more:false})
   try{await session.sync.commitInboundPage(s,cursor.pull_cursor,rawPage)}finally{frame.fill(0)}
-  return{sequence,event_id:event.event_id,since:cursor.pull_cursor,rawPage}
+  return{sequence,event_id:event.event_id,since:cursor.pull_cursor,rawPage,parent_event_id:parent,revision}
  },options)
  const apply=async event=>{assert.equal(await evaluate(seq=>ordinaryOwner.apply(s,seq),event.sequence),'applied');applied++}
  const rejected=async(fn,arg)=>{assert.equal(await evaluate(async({source,arg})=>{try{await(0,eval)(source)(arg);return false}catch{return true}},{source:fn.toString(),arg}),true);barriers++}
@@ -77,8 +78,9 @@ export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,comp
  assert.equal(await evaluate(seq=>ordinaryOwner.apply(s,seq),first.sequence),'already_applied');replays++
  assert.equal(await evaluate(async e=>(await transport.replayInboundPage(s,e.since,e.rawPage)).new_events,lifecycle),0);replays++
  assert.deepEqual(await snapshot(),stable)
- // Old H/G/K source authority remains closed on a genuine O mixed outcome.
- for(const action of [()=>continuation.history(s),()=>prefix.prepare(s),()=>recovery.run(s)])await rejected(action)
+ // P admits H-only mixed history; G/K authority remains closed.
+ assert.equal(await evaluate(async()=>(await continuation.history(s)).readOnly),true)
+ for(const action of [()=>prefix.prepare(s),()=>recovery.run(s)])await rejected(action)
  assert.deepEqual(await snapshot(),stable)
  await compete()
  // F/H encrypted evidence is immutable; old retained tombstones are not removed.
@@ -88,6 +90,7 @@ export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,comp
  for(const name of ['outbox','receipts','legacyNoteIntents','ownerHeads','projectBindings'])assert.deepEqual(stable[name],initial[name])
  const original=stable.legacyNoteHistory.filter(r=>r.record_kind==='resolution')
  assert.equal(original.length,1);assert.equal(stable.localNotes.find(n=>n.note_id==='baseline-deleted').deleted,true)
+ const h=continuationMode?await runMixedContinuationCase({getPage,snapshot,restart,rebind,compete,send,protocol,strategy}):null
  const own=await send({id:`note-${protocol}`,protocol,deleted:strategy==='delete'}),boundary=await snapshot()
  await rejected(seq=>ordinaryOwner.apply(s,seq),own.sequence);assert.deepEqual(await snapshot(),boundary)
  // Corruption negative only, never a manufactured positive proof.
@@ -95,8 +98,8 @@ export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,comp
   const db=await new Promise((resolve,reject)=>{const r=indexedDB.open(c21.WEB_DATABASE_NAME);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})
   try{await new Promise((resolve,reject)=>{const tx=db.transaction('localNotes','readwrite'),store=tx.objectStore('localNotes'),r=store.get([s.accountId,'planner-project','o-content-id1']);r.onsuccess=()=>{const n=r.result;n.envelope.ciphertext='AA';store.put(n)};tx.oncomplete=resolve;tx.onabort=()=>reject(tx.error)})}finally{db.close()}
  })
- const corrupt=await snapshot();await rejected(()=>witness.inspect(s));await rejected(seq=>ordinaryOwner.reconcile(s,seq),first.sequence)
+ const corrupt=await snapshot();if(continuationMode)await rejected(()=>continuation.history(s));await rejected(()=>witness.inspect(s));await rejected(seq=>ordinaryOwner.reconcile(s,seq),first.sequence)
  assert.deepEqual(await snapshot(),corrupt);await restart();restarts++;assert.deepEqual(await snapshot(),corrupt)
  await rejected(seq=>ordinaryOwner.reconcile(s,seq),first.sequence)
- return{applied,replays,rollbacks,races,revocations,barriers,restarts,tabs:1}
+ return{applied,replays,rollbacks,races,revocations,barriers,restarts:restarts+(h?.hRestarts??0),tabs:1,h}
 }

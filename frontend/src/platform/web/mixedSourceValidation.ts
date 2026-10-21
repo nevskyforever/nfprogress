@@ -27,7 +27,16 @@ const route=(n:Record<string,unknown>)=>[n.id,n.project_id,n.stage_id,n.source_t
 
 /** Internal pure validation over original complete inventory. Counts are NEVER
  * source authority; each owner must authenticate its own pre/post state and CAS. */
-export async function validateMixedSourceInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+export function validateMixedSourceInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ return validateInventory(s,v,amk,current,false)
+}
+/** H-only source verification for historical reads/preservation. An authenticated
+ * H fork may be retained with NO projection/revision. Never used by N/O/G/K;
+ * H must still block source-changing apply while an unresolved group exists. */
+export function validateMixedContinuationInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ return validateInventory(s,v,amk,current,true)
+}
+async function validateInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,preserveHConflicts:boolean){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
  const h=await authenticateContinuationHistory(s,v,amk,current);check()
  if(!h.resolutions.size)stop('no_resolution')
@@ -190,6 +199,22 @@ export async function validateMixedSourceInventory(s:BrowserSyncScope,v:Resoluti
    }
   }
  }
- if(h.groups.some(g=>g.effective==='open'))stop('unresolved_fork')
+ for(const {group,effective} of h.groups)if(effective==='open'){
+  if(!preserveHConflicts)stop('unresolved_fork')
+  const root=[...h.resolutions.values()].find(r=>r.record.project_id===group.project_id&&r.record.bootstrap_id===group.bootstrap_id)
+  if(!root||![root.record.note_id,root.record.retained_note_id].includes(group.note_id)||group.members.some(m=>m.source==='local_unsealed'))stop('unresolved_fork')
+  // Only H's role-bound post-Resolution fork is eligible for preservation.
+  // Full historical authentication already joins every member/outcome/tip; the
+  // exact applied-source fold above excludes every conflict-only projection.
+  let id:string|null=group.common_parent_event_id
+  const seen=new Set<string>()
+  while(id&&!seen.has(id)){
+   seen.add(id);const node=h.dag.events.get(id)
+   if(node?.record_kind==='resolution'){if(node.event_id!==root.record.event_id)stop('unresolved_fork');break}
+   if(!node||node.project_id!==group.project_id||node.note_id!==group.note_id||node.bootstrap_id!==group.bootstrap_id)stop('unresolved_fork')
+   id=node.header.parent_event_id
+  }
+  if(!id||h.dag.events.get(id)?.record_kind!=='resolution')stop('unresolved_fork')
+ }
  check();return{projects:h.resolutions.size,baselineNotes,hTransitions,ordinaryTransitions,pendingEvents:h.rows.filter(r=>r.state==='received').length}
 }

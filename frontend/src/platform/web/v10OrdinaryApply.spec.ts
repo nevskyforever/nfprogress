@@ -27,7 +27,7 @@ for(const protocol of [2,3] as const)for(const compressed of protocol===2?[false
  expect(await f.create().apply(scope,created.sequence)).toBe('already_applied') // Superseded proof preserved.
  expect(await f.j.replayInboundPage(scope,repeated.since,repeated.rawPage)).toMatchObject({new_events:0,replayed_events:1})
  expect(f.before()).toEqual(stable);expect(f.f.calls.slice(calls).every(c=>c.mode==='readonly')).toBe(true)
- await expect(f.h.history(scope)).rejects.toThrow();await expect(f.g.prepare(scope)).rejects.toThrow();await expect(f.runtime.run(scope)).rejects.toThrow()
+ expect(await f.h.history(scope)).toMatchObject({readOnly:true,resolutions:1});await expect(f.g.prepare(scope)).rejects.toThrow();await expect(f.runtime.run(scope)).rejects.toThrow()
  expect(f.before()).toEqual(stable)
  })
 })

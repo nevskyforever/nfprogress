@@ -5439,3 +5439,55 @@ SQLite NOT EXPECTED. Remote CI pending, not polled/waited.
 настоящей атомарной записью и переживают перезапуск. Проверка только для чтения
 прав на запись не выдаёт. Автоматическая синхронизация, отправка Content и ACK
 ещё не включены: H/G/K нужно согласовать отдельным этапом, прогресс89,36% сохранён.
+
+
+## C21.2.08P — H mixed-source continuation / G-K still blocked
+
+**LOCAL COMPLETE — DORMANT H ONLY / REMOTE CI PENDING** (2026-10-21).
+Clean branch6.0 HEAD/origin/remote `a20a676312b164bf952366672d2ab903d1ffb200`.
+O REMOTELY ACCEPTED: same SHA, Cloud `39581100692` SUCCESS, all6 mandatory jobs
+SUCCESS, independently accepted as explicitly supplied by owner. No Actions polling.
+Historical records and previous O CI repairs remain verbatim.
+
+[P source routing, preservation and acceptance contract](C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md#c21208p--h-only-mixed-source-integration--explicit-historical-compatibility)
+defines the H-only integration. Complete authenticated independent post-F evidence
+selects mixed verification before source checking; F/H-only histories keep their
+existing historical source contract. No mixed-error fallback. Retained post-F gaps
+reject, including erased O evidence plus actual old-source ciphertext rollback.
+Mixed H checks complete pre/post inventory, original F evidence, all source revisions,
+membership/tombstones/Note projections and unchanged role/Head2/causal/dependency rules,
+then uses the existing private source handoff, exact CAS and atomic transaction.
+
+A narrow H-only shared-fold entry admits genuine H-role open groups solely for
+read/replay/preservation: null conflict projection, no source revision, no source/
+cursor/prefix writes. Any open group blocks a mixed source-changing H apply. N/O's
+strict entry still rejects unresolved forks. No counts or diagnostic becomes a grant.
+Legacy genuine out-of-order F/H and old open-conflict behavior remain compatible;
+N/O still reject those histories for stricter mixed admission where appropriate.
+G uses unchanged H-only source checks, and K still requires G; both remain blocked
+on real mixed O/H histories. No scheduler, ACK, capability or publication activation.
+
+P47 + O46 + affected F/H/G/I/J/K/N/L470 tests PASS. Native O/P8 profiles/56 full
+restarts;64 retained O acceptance applies +24 O interleaves,50 H applies,
+16 preserved siblings,32 H replays,8 H rollback/16 H races/8 revocations/8 tabs/
+106 H barriers PASS. Positive records are made by real F/H/O; no fabricated proofs.
+N write/nonce traps and immutable evidence/tombstone checks PASS; page errors and
+unauthorized HTTP0. Typecheck/build/workflow/path/history/diff checks PASS; protected
+.pyc unchanged. O setup/body5000ms limits retained; new P suite isolated maxWorkers1.
+Existing native O step runs the O+P superset. No unrelated heavy suite repeated.
+Cloud all6 EXPECTED including Frontend admin and Android compression packaging;
+SQLite NOT EXPECTED. P CI pending, not polled/waited.
+
+IDB10/schema/migration/wire/crypto frozen; Content writer/sealing/upload, Note
+capability, Resolution ACK, local/own authorship and production scheduler OFF.
+ready=false; Web89.36%, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE,
+C21.2.08 NOT CLOSED. All security/public-release/registration/owner gates retained.
+Next after independent P acceptance: separately reviewed G mixed-prefix qualification
+with explicit fork barriers; K routing stays a later bounded slice.
+
+### Простыми словами
+
+После независимых изменений H теперь может продолжать исходную и сохранённую ветви
+Resolution. Новый конфликт остаётся конфликтом и не меняет текущую заметку. Старые
+допустимые истории сохраняются. G/K и подтверждения серверу ещё не включены;
+готовность false, прогресс89,36% и ограничения публичного запуска без изменений.

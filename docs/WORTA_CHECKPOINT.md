@@ -83,6 +83,97 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08P — H mixed-source continuation integration
+
+**LOCAL COMPLETE — DORMANT H ONLY / REMOTE CI PENDING** (2026-10-21).
+Clean branch6.0 HEAD/origin/independently read remote ref all
+`a20a676312b164bf952366672d2ab903d1ffb200` before edits.
+**O REMOTELY ACCEPTED**: same SHA, Cloud `39581100692` SUCCESS, all6 mandatory
+jobs SUCCESS, independently accepted as explicitly supplied by the owner in P.
+No Actions query/poll/wait. Prior O failure/repair/pending records remain verbatim
+historical entries; this acceptance supersedes their pending status without erasure.
+
+Dormant H now selects its source verifier from the COMPLETE authenticated history:
+real independent post-F candidates/outcomes (also an unexplained post-F projection)
+select mixed admission; F/H-only history selects its existing historical contract.
+No catch-and-retry through the old verifier after a mixed failure. Complete retained
+post-F sequence continuity is checked before selection, preventing erased O evidence
+plus genuine old-source rollback from disguising a gap as historical-only state.
+Pre-F historical admission stays unchanged. The pre/post route must agree.
+
+Mixed H verifies exact full account inventory/source, genuine F evidence, every
+baseline/applied projection, contiguous source revisions, membership/tombstones and
+current encrypted Note records. It retains H-only original/retained reachability,
+Head2 revisions, exact causal parents/routes/dependencies and no-resurrection checks.
+Earliest received account event cannot be skipped. Full predicted state and a fresh
+complete inventory are checked before the unchanged private H source handoff and
+atomic source/candidate/head/inbox commit with exact CAS and lifecycle revocation.
+No read-only counts become authorization; no new token or persisted witness.
+
+The shared fold has a narrow H-only preservation entry. An authenticated H-owned
+open group rooted in the original/retained Resolution role can be read/replayed or
+extended with conflict-only siblings. Each sibling retains its genuine conflict
+proof, NULL projection, no source revision and unchanged source/cursors/prefix.
+ANY open group blocks a mixed source-changing H apply. Ordinary/open-unowned groups
+remain unsupported. N/O still use the strict entry and reject every unresolved
+fork. H's existing already_applied replay result recognizes immutable evidence;
+it never converts conflict inbox state into an applied projection or G authority.
+
+Compatibility is evidence-based, not an error fallback: accepted F/H-only histories
+still use unchanged historical source checks, including real out-of-server-order
+original/retained applies and legacy open-conflict behavior. Such histories can
+remain H-readable while N/O reject admission to the stricter mixed cohort. Existing
+legacy retained-role apply beside an open original-role fork remains tested.
+G keeps its old source predicate; K still requires G before dispatch, so both remain
+fail-closed on genuine O/H mixed histories. No G qualification or K route activated.
+
+Validation: P47 PASS (fresh genuine setup separately bounded at5000ms), O46 PASS
+with accepted setup/body limits unchanged; affected F/H/G/I/J/K/N/L470 PASS across
+10 files. Both protocols (Legacy2, Content3 ID0/ID1), all4 F strategies, interleaved
+O/H, original/retained roles, retained tombstones, Stage/StageOrder prerequisites,
+Content plain O, immutable replay and full-account ownership/CAS are covered.
+Negative real histories include erased mixed evidence/old ciphertext rollback,
+valid-AEAD counter/member drift, missing proofs/gaps, corrupted predicted project/
+projection, resurrection, stale competing H plans, key/auth/profile revocation and
+mid-transaction abort. All positives use actual F/H/O; no fabricated applied proofs
+or synthetic Head1 authority. Final tests failed/skipped0; initial test-only optional
+array type annotations fixed before final typecheck. No timeout increase/retry/skip.
+
+Native combined O/P PASS:8 disposable disk profiles,56 full Chromium restarts,
+64 retained O acceptance applies plus24 additional O interleaves,50 real mixed H
+applies,16 conflict-preserved siblings,32 H replays,8 H rollbacks,16 H races,
+8 H revocations,8 H competing tabs,106 H barrier assertions. Includes real disk
+reopen before/after commit and persisted open conflicts; original encrypted wire/
+F evidence/proofs/tombstones preserved. N read-only write/nonce traps PASS after
+mixed H outcomes; source/prefix/cursors unchanged by fork preservation.
+Page errors/unauthorized HTTP0;80 device PUTs are disposable setup/rebind traffic.
+Old O replay/rollback/race/revocation assertions retained; H-history expectation is
+intentionally updated to accepted P behavior while G/K rejection stays mandatory.
+Typecheck/build PASS (existing Vite warnings), strict workflow/path/history/diff and
+protected-hash checks PASS. New P suite is isolated maxWorkers1; existing O step
+and5000ms limits remain. Existing native O step now awaits the O+P superset rather
+than duplicating the heavy profiles. Unrelated backend/native suites not repeated.
+
+IDB10/schema/migration/wire/crypto frozen. Production composition/scheduler,
+Content writer/sealing/upload, Note capability, Resolution ACK and own authorship
+remain OFF; ready=false. Web **89.36%**, C21/C21.2 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE, **C21.2.08 NOT CLOSED**. VPS hardening/security audit,
+PUBLIC RELEASE BLOCKED, owner reminders and all public-registration/release gates
+preserved. Cloud all6 EXPECTED, including Frontend admin and Android compression
+packaging; SQLite NOT EXPECTED. P remote CI pending, not polled/waited.
+Next: independent P acceptance, then separately reviewed G mixed-source prefix
+qualification with explicit fork barriers; K routing remains a later bounded slice.
+
+### Простыми словами
+
+После независимых изменений заметок браузер теперь может продолжить исходную или
+сохранённую ветвь Resolution через отдельный H-модуль. Проверяется вся история и
+каждый шаг общего счётчика; прежние допустимые истории не переписываются. Новый
+конфликт сохраняется отдельно, без подмены текущей заметки и без подтверждения
+серверу. N/O по-прежнему отказывают при открытом конфликте. G/K ещё не подключены,
+автоматическая синхронизация и ready не включены. Прогресс89,36%, публичный запуск
+заблокирован до приёмки всех release gates.
+
 ## C21.2.08O — Remaining isolated timeout root cause / bounded F-H setup
 
 **LOCAL REPAIR VERIFIED / REMOTE CI PENDING / O NOT REMOTELY ACCEPTED**

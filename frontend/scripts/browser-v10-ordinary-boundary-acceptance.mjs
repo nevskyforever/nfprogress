@@ -7,7 +7,9 @@ import {chromium} from '@playwright/test'
 // L STOP audit: all positive evidence comes from unchanged K/F/H/G owners;
 // so replay never expands the accepted current-interval cursor contract.
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
-const ordinaryMode=process.argv.includes('--ordinary-owner')
+const continuationMode=process.argv.includes('--mixed-continuation')
+const ordinaryMode=process.argv.includes('--ordinary-owner')||continuationMode
+const hTotals={hApplied:0,hPreserved:0,hReplays:0,hRollback:0,hRaces:0,hRevoked:0,hBarriers:0,hRestarts:0,hTabs:0,oInterleaved:0}
 const witnessMode=process.argv.includes('--mixed-source-witness')||ordinaryMode
 const ordinaryTotals={applied:0,replays:0,rollbacks:0,races:0,revocations:0,barriers:0,restarts:0,tabs:0}
 assert.equal(new URL(origin).hostname,'127.0.0.1')
@@ -118,12 +120,13 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   if(witnessMode)await checkWitness()
   await context.close();await launch();await bind();restarts++;assert.deepEqual(await snapshot(),positive)
   if(ordinaryMode){
-   const results=await runOrdinaryOwnerCase({getPage:()=>page,snapshot,protocol,strategy,
+   const results=await runOrdinaryOwnerCase({getPage:()=>page,snapshot,protocol,strategy,continuationMode,
     restart:async()=>{await context.close();await launch();await bind()},
     rebind:async()=>{await sessionClose();await bind()},
     compete:async()=>{const other=await context.newPage();await other.goto(`${origin}/scripts/browser-persistence-harness.html`);assert.equal(await other.evaluate(async s=>{try{await c21.openBrowserPersistence(s.canonicalUserId);return false}catch(e){return e.code==='writer_busy'}},scope),true);await other.close()}
    })
    for(const key of Object.keys(ordinaryTotals))ordinaryTotals[key]+=results[key]
+   if(results.h)for(const key of Object.keys(hTotals))hTotals[key]+=results.h[key]
    restarts+=results.restarts;profiles++;continue
   }
   if(witnessMode){
@@ -268,3 +271,5 @@ if(witnessMode&&!ordinaryMode)console.log(JSON.stringify({result:'PASS',N:'READ_
 
 if(ordinaryMode)assert.equal(network.filter(n=>!/^PUT:\/api\/v1\/sync\/devices\/[^/]+$/.test(n)).length,0)
 if(ordinaryMode)console.log(JSON.stringify({result:'PASS',O:'DORMANT_V10_ORDINARY_OWNER',...ordinaryTotals,profiles,restarts,registrations,pageErrors:0,unauthorizedHttp:0,productionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
+
+if(continuationMode)console.log(JSON.stringify({result:'PASS',P:'H_MIXED_SOURCE_CONTINUATION',...hTotals,profiles,pageErrors:0,unauthorizedHttp:0,GIntegration:0,KRouting:0,ResolutionAck:0,ready:false}))
