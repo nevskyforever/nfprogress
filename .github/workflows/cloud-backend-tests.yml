@@ -20,6 +20,7 @@ on:
       - 'frontend/scripts/browser-mixed-continuation-cases.mjs'
       - 'frontend/scripts/browser-mixed-prefix-cases.mjs'
       - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
+      - 'frontend/scripts/browser-historical-metadata-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -119,6 +120,7 @@ on:
       - 'frontend/scripts/browser-mixed-continuation-cases.mjs'
       - 'frontend/scripts/browser-mixed-prefix-cases.mjs'
       - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
+      - 'frontend/scripts/browser-historical-metadata-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -324,10 +326,41 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      - name: Run isolated C21.2.09 recovery and C21.2.11 Metadata boundary tests
+      - name: Run isolated C21 recovery and historical Metadata contract tests
         if: matrix.shard == 'complete-project'
         working-directory: frontend
-        run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts src/platform/web/historicalMetadataDependency.spec.ts --maxWorkers=1
+
+      - name: Install pinned Chromium for historical Metadata acceptance
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Build historical Metadata acceptance harness
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: npx vite build --config scripts/vite.persistence-acceptance.config.ts
+
+      - name: Start historical Metadata acceptance preview
+        if: matrix.shard == 'complete-project'
+        shell: bash
+        working-directory: frontend
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 --port 5174 --strictPort --outDir .c21-persistence-dist > "$RUNNER_TEMP/c21-historical-metadata-preview.log" 2>&1 &
+          for attempt in {1..60}; do
+            if curl --fail --silent http://127.0.0.1:5174/scripts/browser-persistence-harness.html >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/c21-historical-metadata-preview.log"
+          exit 1
+
+      - name: Verify read-only historical Metadata dependency and disk reopen
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --historical-metadata
 
       - name: Prepare complete-project headless bridge before bounded IPC calls
         if: matrix.shard == 'complete-project'

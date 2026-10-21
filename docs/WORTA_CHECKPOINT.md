@@ -83,6 +83,90 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.13 — read-only historical Metadata dependency verifier
+
+**LOCAL COMPLETE / REMOTE CI PENDING — READ-ONLY COMPONENT ONLY.** Baseline clean
+branch `6.0`, HEAD and `origin/6.0` both
+`b084b590e4a5a3fe7c5465b161b8b0da57d232a8`. **C21.2.12 DESIGN COMPLETE**, docs-only,
+Cloud/SQLite not expected for those paths. C21.2.11 remains **IMPLEMENTATION STOP**
+regardless of CI success: last supplied Cloud39672625896 status5/6 SUCCESS and
+Frontend running, with no new owner-supplied all-six confirmation. No Actions
+query/poll/wait, and no remote acceptance claim for .11 or this new slice.
+
+New isolated `historicalMetadataDependency.ts` binding exposes only frozen inspect.
+It loads/rechecks the actual complete bounded ten-store inventory, real identity/
+auth/key/profile/device context, full structural v10 DAG, canonical source envelopes
+and existing outcome joins. Original peer candidate wire/projection and F evidence
+AEAD, payload, group/parent/transition/output proof joins are authenticated privately;
+every Metadata chain's AEAD and exact inbox/head proof is reproduced. Exact imported
+scope, chain parents/tip, revisions, generations, sequence and terminal deletion,
+including contrary retained Metadata events, precede `M < E < D` evaluation.
+Limits retain16384rows/store,32MiB inventory,16MiB retained material/individual JSON.
+
+Positive result is only a retained Content outcome's Metadata dependency component.
+fullHistoryAuthenticated/sourceAuthorized/firstApplyAllowed/commitAuthorized/
+ackAuthorized/ready remain false; no public commit token or persisted witness.
+Legacy F reports not_content, not invented Content dependence. Pending Content on
+either side of deletion reports not_applied. Rejected cohorts include late/missing
+Metadata, collisions, corrupt/digest-only proofs, foreign scope, unsupported local/
+own material, more than one F, open groups, reactivation/repeated delete, unknown
+families/generations and ANY Stage/StageOrder rows/heads. Complete account material
+is not filtered to manufacture positive evidence. Reasons are static/sanitized;
+local apply time and historical complete owner snapshots are never inferred.
+
+Verifier schedules only readonly transactions and uses no random nonce or HTTP.
+Exact final full-inventory comparison rejects a real intervening owner change with
+stale_source; lifecycle revocation rejects. Diagnostic values cannot authorize
+O/H/Q commits. No existing F/H/O/G/Q/K/live prerequisite implementation, structural
+owner, schema, wire, encryption or migration was changed. No Metadata route,
+Stage/StageOrder, scheduler, Content writer/sealing/upload, own echo, Resolution
+generation, ACK, Note capability or registration activation. The original .11 Q/K
+failure after real Metadata deletion is unchanged and explicitly rechecked.
+
+Final unit verification:51 new tests PASS, unchanged .11 STOP13 PASS; existing
+F apply/H historical/G prefix/K mixed/L negative284 PASS across5 files. Total348
+PASS/7files, final failed/skipped0. Genuine owners create both F protocols/all4
+strategies, Content ID0/ID1, independent O and original/retained H, Metadata update
+and delete. Negative fixtures use actual late Metadata, pending Content, preserved
+H fork, Stage cohort, repeated delete/reactivation and real owner race, plus
+deliberate tampering as negative evidence only. Individual5000ms limits retained;
+no retries or weakened/skipped assertions.
+
+Native Chromium PASS:8 disposable persistent profiles,8 full process reopens,
+8 competing-tab exclusions,8 key revocations and8 genuine external Metadata-owner
+races. Per inspection phase22 positive Content targets plus4 Legacy F controls;
+diagnostics repeat exactly after reopen and replay. During normal inspect,
+readwrite/getRandomValues/fetch traps prove verifierWrites0/nonces0/HTTP0 and all12
+stores remain byte-identical. Race actors perform their own known fixture commits;
+verifier remains readonly and stale. Page errors/unauthorized HTTP0; no J replay
+expansion or full-reader/readiness acceptance is implied. Typecheck/build PASS
+with existing Vite warnings; harness/native syntax/workflow/reference/history/
+scope/protected SHA-256 and git diff --check PASS. Disposable profiles/bundle cleaned.
+
+CI partition preserves all6 mandatory jobs and accepted Frontend40-minute budget.
+The already recorded accepted .09 complete-project job used18m45.28s of40; new
+isolated unit and native .13 mode run once there after existing npm ci, with
+conditional pinned Chromium/harness/preview setup. All old unit/native commands
+remain; no Frontend workload addition, raised timeout, retries or dropped coverage.
+Cloud all6 EXPECTED by actual frontend/workflow paths; SQLite NOT EXPECTED. Remote
+CI remains pending and must be independently accepted; no polling/wait after push.
+
+Contract/evidence details: `docs/web/C21_HISTORICAL_METADATA_DEPENDENCY_CONTRACT.md`,
+C21.2.13 appendix. Proposed next **C21.2.14 — read-only historical Content/F
+dependency integration**, only after independent .13 acceptance. Review private
+semantic sharing while preserving original payload/proof/causal/source checks and
+fresh live prerequisites; never use public diagnostics as owner authority. No .14
+integration now, no Metadata routing or .11 closure. Web **89.36%**, ready=false,
+C21/C21.2 IN PROGRESS, C21.2.08 **NOT CLOSED**, protected .pyc/history/closed
+registration/VPS Security Audit/PUBLIC RELEASE BLOCKED/owner reminders preserved.
+
+### Простыми словами
+
+Браузер отдельно проверяет, что у уже сохранённого Content-события была настоящая
+историческая Metadata-зависимость до её последующего удаления. Проверка работает
+после перезапуска и ничего не записывает. Она не разрешает новые изменения и пока
+не подключена к основным readers или синхронизации. Старый STOP остаётся в силе.
+
 ## C21.2.12 — historical Metadata tombstone / Content dependency contract
 
 **DESIGN ONLY / LOCAL AUDIT COMPLETE — NO FUNCTIONAL ACCEPTANCE.** Clean preflight:

@@ -259,3 +259,110 @@ orphan/cold recovery, Content sealing/upload/receipt/self echo, account/server
 declaration and ACK gates, production composition and multi-device acceptance
 remain prerequisites. VPS hardening/security audit, owner stabilization, closed
 registration and PUBLIC RELEASE BLOCKED remain mandatory; this contract opens none.
+
+## C21.2.13 — isolated component verifier / local implementation
+
+Baseline `b084b590e4a5a3fe7c5465b161b8b0da57d232a8`. C21.2.12 is DESIGN COMPLETE,
+docs-only; its paths did not call for Cloud/SQLite. C21.2.11 stays IMPLEMENTATION
+STOP. The last supplied .11 status is 5/6 Cloud jobs SUCCESS and Frontend running;
+there is no new independent all-six confirmation, and Actions were not queried.
+
+[historicalMetadataDependency.ts](../../frontend/src/platform/web/historicalMetadataDependency.ts)
+adds a frozen inspect-only binding, imported by the focused tests and isolated
+acceptance harness. Normal persistence, F/H/O/G/Q/K, current-tip prerequisites,
+writers and startup do not import or call it. No plan/certificate is stored, no
+writer hook is added, and no schema/wire/crypto/proof format changes.
+
+### Implemented evidence and conservative limits
+
+The reader loads the complete original ten-store v10 inventory with the accepted
+16384 rows/store and 32 MiB aggregate limits. It checks scope, sequence continuity,
+event collisions, known full DAG formats, one F root, publication/outcome joins,
+canonical current source envelopes and member identities. Candidate AEAD and
+projection verification use the accepted pure reader; existing immutable Content
+outcome/transport and Legacy proof helpers reproduce their actual persisted joins.
+Its module-private F evidence reader opens the original wire and Resolution AEAD
+evidence, checks identity/payload/frame/group/parent/transition/output proof joins
+and historical source snapshots. This is not a replacement for accepted full
+F/H historical/current-source admission or a new Resolution apply owner.
+
+Every Metadata head's original records are independently reopened; proofs are
+reproduced from actual wire, not minted from a matching digest. Exact peer imported
+lineage, create/update/delete chain, parent/tip, revision+1, increasing generation
+and sequence are checked. All same-project Metadata rows must belong to that
+authenticated chain; contrary received/unqualified events cannot be hidden. The
+root project must have a terminal delete and each retained Content outcome must
+prove its exact nondelete dependency and `M < E < D`. Decrypted retained candidate
+material and individual historical JSON are additionally bounded at 16 MiB;
+ordinary canonical decoder/frame limits remain intact. Buffers are cleared; JavaScript
+plaintext/string erasure is not claimed.
+
+The scope is deliberately conservative: one peer F project and project-scoped
+Content, import_remote/captured/active lineage, no local intents/outbox/receipts,
+own authorship, further Resolution generations or open groups. Any Stage/StageOrder
+rows/heads, including unrelated account structural material, reject this bounded
+inspection. All Metadata owners are checked; reactivation/repeated delete or an
+unproven head elsewhere cannot be filtered out for a positive result. Unsupported
+families, missing/corrupt proof or interval, foreign scope, failed AEAD and unknown
+formats fail closed with fixed sanitized reasons. This is a narrower cohort than
+all accepted F/H/G histories; it changes none of their existing behavior.
+
+The result explicitly reports `fullHistoryAuthenticated:false`,
+`sourceAuthorized:false`, `firstApplyAllowed:false`, `commitAuthorized:false`,
+`ackAuthorized:false`, `ready:false`. Only `historicalMetadataAdmissible` describes
+the authenticated dependency component for a genuinely retained Content outcome.
+Legacy F has `not_content` rather than an invented Content dependency. A received
+Content target, whether before or after the tombstone sequence, has `not_applied`;
+it never becomes an applied outcome. Sequence does not prove client creation or
+local commit time, nor reproduce a former complete owner snapshot.
+
+Before returning either result, the reader rechecks the complete native snapshot
+and real auth/key/profile/device context. Concurrent owner/source/cursor changes
+throw stale_source; revocation rejects. A diagnostic cannot be reused as an O/H/Q
+commit token. The only transactions scheduled by the verifier are readonly; no
+nonce, HTTP, durable witness, inbox/source/head/cursor mutation is performed.
+
+### Genuine validation and CI partition
+
+The focused suite uses actual accepted F/H/O and Metadata owners: both F protocols,
+four strategies, Content F ID0/ID1, independent Content ID1 and original/retained H
+ID0/ID1. Positive dependency components coexist with unchanged .11 Q/K rejection.
+Negative evidence includes pending Content on either side of deletion, genuine
+late Metadata accepted by the live owner, actual unresolved H fork, Stage cohort,
+real repeated delete/reactivation, contrary received Metadata, corruption,
+collisions, missing/digest-only evidence, foreign scope, lifecycle revocation and
+a real Metadata owner racing the final reload. Final counts are in the checkpoint.
+
+The new `--historical-metadata` acceptance mode reuses the existing genuine native
+F seed in eight disposable profiles. It is separate from unchanged L/N/O/P/Q/K
+acceptance commands. Original O/H outcomes, Metadata update and delete are created
+by the actual owners, then inspection is repeated with readwrite transactions,
+getRandomValues and fetch trapped. Across disk reopen, all twelve stores remain
+byte-identical and diagnostics replay exactly. Four Legacy F checks report no
+Content dependency; 22 positive Content target checks per phase cover O/H/F roles.
+Eight competing tabs are excluded; eight key revocations reject; eight actual
+external Metadata-owner races invalidate the final snapshot. Those known fixture
+actor writes are separate from the verifier's zero writes. Page errors and
+unauthorized HTTP are zero. No J transport replay support after deletion is claimed.
+
+Capacity review uses the already recorded accepted .09 complete-project job
+(18m45.28s of 40 minutes); the pending .11 run is not polled. New isolated tests
+and the separate native mode run once in that existing mandatory job, after npm
+installation, with conditional pinned Chromium/harness/preview setup. All old
+test commands and six mandatory jobs remain, Frontend admin gains no workload and
+keeps 40 minutes. Existing per-test 5000ms limits, no retries/skips remain. Remote
+CI is pending; local measurements do not guarantee future runner duration.
+
+### C21.2.14 proposal and remaining boundary
+
+Only after independent .13 acceptance, propose **C21.2.14 — read-only historical
+Content/F dependency integration**. Review private sharing of the authenticated
+dependency semantics, while every original payload/proof/source/causal check stays
+independent. Do not consume inspect diagnostics as authority or relax fresh live
+owner prerequisites. This proposal does not authorize applying Metadata, integrating
+K dispatch, Stage/StageOrder, or changing ACK/readiness. Unsupported cohorts must
+retain evidence and explicit barriers. No .14 implementation is included.
+
+C21.2.13 is LOCAL COMPLETE / REMOTE CI PENDING for this read-only component only;
+.11 stays IMPLEMENTATION STOP and .08 NOT CLOSED. Web89.36%, ready=false,
+closed registration and every VPS/security/public-release gate remain unchanged.
