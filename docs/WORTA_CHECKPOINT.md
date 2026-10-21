@@ -83,6 +83,45 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08P — Frontend CI job time budget repair
+
+**P LOCAL COMPLETE / CI CANCELLED / REMOTE ACCEPTANCE PENDING** (2026-10-21).
+Preflight baseline, branch `6.0`, clean worktree and origin were all
+`2e76b45185039d8bcdb532e94ab40b515a866b11`.
+Cloud run `39619067220` used that SHA and ended CANCELLED: five mandatory jobs
+SUCCESS; Frontend admin CANCELLED. Run timestamps are 14:41:36Z–15:08:38Z.
+Frontend admin began at 14:41:41Z; its cancellation log is 15:06:55Z, 25m14s
+after job start. The job had `timeout-minutes: 25`. The prior isolated O/P tests,
+native Chromium H/O acceptance, and C21 persistence contract suite all completed
+successfully; persistence reported 73 files / 2,388 tests PASS at 15:06:41Z.
+The next frontend regression shard began then and was cancelled 14 seconds later
+with `The operation was canceled.` No test failure was reported before cutoff.
+This timing and sequence confirm that the 25-minute job budget caused the
+cancellation; this was not a code assertion failure.
+
+Smallest correction: increase only Frontend admin job-level timeout from25 to40
+minutes. All individual test timeouts (including5000ms), test commands and covered
+files, six mandatory job names, Chromium acceptance, assertions, and failure
+handling remain unchanged. No production code changes. Workflow syntax/coverage,
+checkpoint history, diff and protected-file checks PASS locally.
+
+P remains **LOCAL COMPLETE / CI CANCELLED / REMOTE ACCEPTANCE PENDING** until a
+future independent all-six-green Cloud result. Expected Cloud all six jobs SUCCESS;
+SQLite NOT EXPECTED. No Actions polling/waiting.
+Official Web **89.36%**, `ready=false`, C21/C21.2 IN PROGRESS,
+C21.1.06 NOT LOCAL COMPLETE, **C21.2.08 NOT CLOSED**. VPS security audit,
+PUBLIC RELEASE BLOCKED and all security/public-release gates remain unchanged.
+
+### Простыми словами
+
+Проверки кода не сообщили об ошибке: все тесты и браузерные проверки, начатые до
+отмены, прошли. Общий лимит задания закончился, когда GitHub выполнял следующий
+набор регрессионных тестов. Для этого задания увеличен только общий запас времени
+с 25 до 40 минут; сами проверки и их строгие лимиты сохранены. Удалённое
+подтверждение P появится только после успешного завершения всех шести обязательных
+проверок Cloud.
+
+
 ## C21.2.08P — H mixed-source continuation integration
 
 **LOCAL COMPLETE — DORMANT H ONLY / REMOTE CI PENDING** (2026-10-21).
