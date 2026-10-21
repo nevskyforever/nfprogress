@@ -19,6 +19,7 @@ on:
       - 'frontend/scripts/browser-v10-ordinary-owner-cases.mjs'
       - 'frontend/scripts/browser-mixed-continuation-cases.mjs'
       - 'frontend/scripts/browser-mixed-prefix-cases.mjs'
+      - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -117,6 +118,7 @@ on:
       - 'frontend/scripts/browser-v10-ordinary-owner-cases.mjs'
       - 'frontend/scripts/browser-mixed-continuation-cases.mjs'
       - 'frontend/scripts/browser-mixed-prefix-cases.mjs'
+      - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -322,6 +324,11 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      - name: Run isolated C21.2.09 mixed recovery contract tests
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts --maxWorkers=1
+
       - name: Prepare complete-project headless bridge before bounded IPC calls
         if: matrix.shard == 'complete-project'
         run: cargo test --manifest-path frontend/src-tauri/Cargo.toml --no-run
@@ -519,7 +526,7 @@ jobs:
         run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --mixed-source-witness
       - name: Run dormant C21 ordinary owner and mixed H disk acceptance
         working-directory: frontend
-        run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --ordinary-owner --mixed-continuation --mixed-prefix
+        run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --ordinary-owner --mixed-continuation --mixed-prefix --mixed-recovery
       - name: Run isolated C21 v10 ordinary owner contract tests
         working-directory: frontend
         run: npm test -- --run src/platform/web/v10OrdinaryApply.spec.ts --maxWorkers=1

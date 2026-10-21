@@ -23,6 +23,7 @@ import {BrowserStageApply} from './stageApply'
 import {BrowserStageOrderApply} from './stageOrderApply'
 import {openBrowserCanonicalObject} from './canonicalReaders'
 import {openNoteTransport} from './noteTransport'
+import {bindMixedV10Recovery} from './v10MixedRecovery'
 
 type Route='metadata'|'stage'|'stage_order'|'legacy'|'content'|'resolution'|'continuation'
 export interface RecoveryBlocker {
@@ -48,6 +49,8 @@ function gap(v:ResolutionInventorySnapshot,s:BrowserSyncScope):number|null {
  * ACK or declaration surface. Each mutation belongs to an accepted atomic owner. */
 export class BrowserV10Recovery {
  constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthority,private readonly profileCurrent:()=>boolean){}
+ /** Separate dormant manual slice; the historical bind below is unchanged. */
+ bindMixedSources(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return bindMixedV10Recovery(this.transaction,this.local,this.profileCurrent,auth,bindings,keys,device)}
  bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){
   const tx=this.transaction,current=this.profileCurrent,local=this.local
   const transport=new BrowserV10Transport(tx,current).bind(auth,bindings,keys,device)

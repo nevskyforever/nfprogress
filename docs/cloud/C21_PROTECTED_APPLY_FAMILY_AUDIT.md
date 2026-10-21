@@ -4558,3 +4558,33 @@ existing O/P/G/N/L regressions retained, native profiles reused. Q REMOTE CI PEN
 P independently accepted Cloud39630599514 six SUCCESS. No ACK/Note declaration/
 Content writer/upload or new schema/wire/crypto/migration; ready=false, Web89.36%,
 C21.2.08 NOT CLOSED; VPS/security/public-release gates preserved.
+
+
+## C21.2.09 — V10 mixed-source recovery routing
+
+Q is independently REMOTELY ACCEPTED at71effc2cd4cdadc336a14b63d0079da1d7db1b98,
+Cloud39651959872 SUCCESS,6/6 mandatory jobs. The owner explicitly assigns current
+.09 to the separate dormant manual K mixed routing task, superseding the historical
+§17 PLANNING identifier for upload/acceptance. Earlier tables and records remain
+verbatim history; their producer/upload/receipt/self-echo prerequisites are still
+unimplemented mandatory work, not cancelled or claimed complete. No R/S/T suffixes
+or new roadmap weights. Proposed next numeric .10: post-F structural route audit.
+
+The explicit K bindMixedSources run-only closure uses real J/O/H/Q, full account
+history/source, authenticated F project/output ownership, exact pre/post owner
+contracts/CAS and complete reload after each event. Default K body/binding remains
+unchanged and rejects mixed histories. O owns same-project independent peer Note
+changes; H exclusively owns original/retained descendants and NULL-projection fork
+preservation. G stops at unqualified incoming sequences. Post-F structural and
+unrelated-project routes, new generations, resurrection, local/own writers/self-echo
+are explicit barriers. No source/wire/proof fabrication, filtered v9 fallback,
+public tokens, ACK or readiness: the unchanged negative-only I is not substituted;
+new K returns readiness NULL and ready/declarationAllowed/ackAuthorized=false.
+
+See [C21.2.09 routing contract](../web/C21_V10_MIXED_RECOVERY_ROUTING.md) and the .09
+checkpoint for exact route/prerequisite matrix, genuine tests and restart/CAS/
+rollback/replay evidence, .08 unresolved gates and CI partition. New isolated K tests run mandatorily in the existing complete-project shard with
+its existing Node20.19/npm dependencies; Frontend retains all old suites and one
+extended native O/P/Q/.09 acceptance. All6 names and40-minute budgets unchanged.
+.09 REMOTE CI PENDING; .08 NOT CLOSED. IDB10/schema/migration/crypto/wire unchanged;
+Web89.36%, ready=false; VPS/security/public-registration/release gates retained.

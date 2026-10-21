@@ -1,7 +1,7 @@
 import {runMixedContinuationCase} from './browser-mixed-continuation-cases.mjs'
 import assert from 'node:assert/strict'
 /** O acceptance core; optional P extends the same real-owner disk profiles. */
-export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,compete,protocol,strategy,continuationMode=false,prefixMode=false}){
+export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,compete,protocol,strategy,continuationMode=false,prefixMode=false,recoveryMode=false}){
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg)
  let applied=0,replays=0,rollbacks=0,races=0,revocations=0,barriers=0,restarts=0
  const send=options=>evaluate(async options=>{
@@ -90,7 +90,7 @@ export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,comp
  for(const name of ['outbox','receipts','legacyNoteIntents','ownerHeads','projectBindings'])assert.deepEqual(stable[name],initial[name])
  const original=stable.legacyNoteHistory.filter(r=>r.record_kind==='resolution')
  assert.equal(original.length,1);assert.equal(stable.localNotes.find(n=>n.note_id==='baseline-deleted').deleted,true)
- const h=continuationMode?await runMixedContinuationCase({getPage,snapshot,restart,rebind,compete,send,protocol,strategy,prefixMode}):null
+ const h=continuationMode?await runMixedContinuationCase({getPage,snapshot,restart,rebind,compete,send,protocol,strategy,prefixMode,recoveryMode}):null
  const own=await send({id:`note-${protocol}`,protocol,deleted:strategy==='delete'}),boundary=await snapshot()
  await rejected(seq=>ordinaryOwner.apply(s,seq),own.sequence);assert.deepEqual(await snapshot(),boundary)
  // Corruption negative only, never a manufactured positive proof.
@@ -100,7 +100,8 @@ export async function runOrdinaryOwnerCase({getPage,snapshot,restart,rebind,comp
  })
  const corrupt=await snapshot();if(continuationMode)await rejected(()=>continuation.history(s));await rejected(()=>witness.inspect(s));await rejected(seq=>ordinaryOwner.reconcile(s,seq),first.sequence)
  if(prefixMode)await rejected(()=>c21.mixedResolutionPrefixFixture(session,meta,verifiedDevice).prepare(s))
+ if(recoveryMode)await rejected(()=>mixedRecovery.run(s))
  assert.deepEqual(await snapshot(),corrupt);await restart();restarts++;assert.deepEqual(await snapshot(),corrupt)
  await rejected(seq=>ordinaryOwner.reconcile(s,seq),first.sequence)
- return{applied,replays,rollbacks,races,revocations,barriers,restarts:restarts+(h?.hRestarts??0)+(h?.q?.qRestarts??0),tabs:1,h}
+ return{applied,replays,rollbacks,races,revocations,barriers,restarts:restarts+(h?.hRestarts??0)+(h?.q?.qRestarts??0)+(h?.k?.kRestarts??0),tabs:1,h}
 }

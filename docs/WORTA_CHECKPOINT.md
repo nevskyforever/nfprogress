@@ -83,6 +83,118 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.09 — V10 mixed-source recovery routing
+
+**LOCAL COMPLETE / REMOTE CI PENDING — DORMANT MANUAL K ONLY**
+(2026-10-21). Clean branch `6.0`, HEAD/origin baseline
+`71effc2cd4cdadc336a14b63d0079da1d7db1b98`.
+**Q REMOTELY ACCEPTED**: that SHA, Cloud `39651959872` SUCCESS, all6 mandatory jobs
+SUCCESS, independently corroborated by one read of the completed jobs. Earlier
+Q pending statements below remain historical; no Actions polling/waiting.
+
+Numbering preflight found the historical .05 design's §17 proposed .09 upload and
+acceptance label, explicitly marked Planning identifiers only, alongside its
+"authoritative lifecycle contract" statement. The owner expressly resolved this:
+**the new task replaces the planning assignment of .09**. Current .09 is this
+separate bounded K routing slice; no R/S/T suffix or roadmap weight. The old table
+and all .08 history remain verbatim. Its unimplemented upload/receipt/self-echo/
+activation prerequisites remain required future work, not cancelled or completed.
+
+`BrowserV10Recovery.bindMixedSources` creates a private frozen run-only closure;
+the default bind body stays unchanged. Accepted J/H/O/Q handles and plans never
+escape. The new path requires exactly one genuine accepted F. It starts every scan
+at zero, checks gaps and earliest pending keys against the complete loaded account,
+authenticates full history/root and Q source/family inventory, and determines owner
+by authenticated F project/output identity. H exclusively owns original/retained
+Notes; same-project independent Notes use O. Real owner prepare/pre/post checks and
+exact K snapshot comparison precede the owner's unchanged atomic per-event CAS.
+Every successful event forces a complete reload before another route/budget check.
+
+Supported: genuine peer independent Legacy2 / Content3 ID0/ID1 create/update/delete
+in O's import_remote/captured cohort, including accepted Content Stage/plain routes;
+H original/retained descendants and accepted conflict-only preservation; Q local
+contiguous prefix, exact J current-interval replay, bounded passes and manual retry.
+F/H-only historical ordering outside the stricter O cohort remains supported by
+accepted H/Q checks. New mode does not apply F or activate another generation.
+
+Deferred earliest-event barriers: post-F Metadata/Stage/StageOrder; unrelated
+project ordinary writers; additional Resolution; resurrection; own authorship/
+self-echo; local source writers and unavailable baseline/dependency cohorts. A
+complete witness failure never falls back to old G/K. Unsupported later pending
+material can block full mixed admission BEFORE the earliest pending apply; the
+result exposes that source-cohort barrier and no prefix certificate. Crypto,
+unaccepted source/revision/causal state, stale CAS and revocation reject rather
+than becoming retry-success. A valid historical F/H ordering outside O's strict
+revision_order cohort is preserved, not repaired or promoted into O authority. Missing account sequences block the complete mixed pass.
+H conflict incoming sequences have NULL projections and consume no source revision;
+G caps at that sequence, later pending events remain untouched across restart.
+
+A native prefix abort may leave genuinely committed owner evidence with an older
+local prefix. Fresh manual invocation verifies it and commits the prefix without
+duplicating the event. No pass-wide rollback or invented recovery proof is used.
+Readiness stays NULL in the new result: existing I uses historical default G and
+is unchanged; a Q diagnostic is never substituted for its readiness contract.
+ready/declarationAllowed/ackAuthorized=false; no network ACK or capability.
+
+Final validation: isolated .09 K71 PASS (66.08s locally), O46 PASS, P47 PASS,
+Q71 PASS; original F/H/G/K/N/L/J/I412 regressions PASS across8 files. Total647 tests
+across12 files; final failed/skipped0. Meaningful fixture/event/prefix phases retain
+5000ms hooks/body limits, no retries or removed security assertions. Initial new
+fixture assertion incorrectly expected the pending row to remain immutable after
+its real apply; fixed to preserve all prior rows and original new-event wire while
+checking its actual proof/state transition. One unreachable TypeScript outcome
+comparison was removed before final typecheck; no accepted owner was weakened.
+
+Native O/P/Q/.09 PASS in199.46s locally:8 real disk profiles,80 full Chromium
+restarts. New K58 genuine owner applies plus8 H-owned fork preservations through
+manual K;16 additional .09 restarts,8 bounded manual resumes,8 actual source-event
+abort/rollback cases,8 prefix-abort recoveries after genuine O evidence survived
+restart,8 auth/key/profile/epoch revocations,8 competing tabs,16 exact J replays.
+All original O/P/Q evidence/negative assertions remain:50 direct H applies,
+16 total preserved siblings,16 Q fork barriers before/after reopen and8 Q local
+prefix advances. Page errors/unauthorized HTTP0;120 device PUTs are disposable
+setup/rebind only. Default K stays blocked; production scheduler/ACK/capability/
+publication0. Typecheck/build PASS with existing Vite warnings; native syntax,
+strict workflow/job/coverage/path checks, exact document history, protected SHA-256
+and git diff --check PASS. Task-created native bundle and disposable profiles
+cleaned; backend/Rust/Android heavy suites not repeated locally.
+CI partition: accepted Q Frontend measured30m43s, spare9m17s of40; the same
+run's existing complete-project shard took9m18s. New isolated .09 tests run once in
+that already mandatory shard after its existing npm ci, with the SAME Node20.19.0
+and maxWorkers1. Frontend keeps all prior suites and adds native .09 checks to the
+same8 O/P/Q profiles in one awaited superset. No job renamed/added, timeout raised,
+old suite moved/dropped, hidden retry/skip or relaxed assertion; Frontend stays40.
+
+See `docs/web/C21_V10_MIXED_RECOVERY_ROUTING.md` for the route/prerequisite matrix.
+C21.2.08 remains **NOT CLOSED / FUNCTIONALLY BLOCKED**: dormant bounded F/H/O/G/K is
+not full reader readiness, Content sealing or full multi-device production recovery.
+Post-F structural/unrelated routes, complete orphan/cold replay, resurrection,
+further Resolution chains, local/own author + genuine C3/R2/P2 and own Resolution,
+full multi-device lifecycle and the server Note gate remain independently unaccepted.
+Content writer/sealer/raw upload/receipt/self-echo prerequisites from the historical
+plan remain OFF; no readiness declaration or production scheduler is authorized.
+Suggested next **C21.2.10 — post-F structural routing contract audit** (proposal for
+owner review, no new weights); preserve original future outbound work as history.
+
+Web **89.36%**, ready=false, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE.
+IDB10/schema/migration/wire/crypto unchanged; protected .pyc and history preserved.
+VPS Security Hardening & Security Audit, PUBLIC RELEASE BLOCKED, closed public
+registration, owner reminders and every security/release gate retained. .09 remains
+REMOTE CI PENDING until independent all-six-green acceptance. Cloud all6 EXPECTED;
+SQLite NOT EXPECTED. Commit/push; do not poll/wait for the resulting Actions.
+
+### Простыми словами
+
+Отдельный ручной K-путь теперь разбирает очередь смешанных изменений заметок:
+обычные независимые заметки применяет O, ветви Resolution — H. После каждого события
+проверяется вся история, а G отмечает только непрерывный доказанный участок локально.
+На конфликте, пропуске или неподдерживаемом событии обработка останавливается.
+После перезапуска можно продолжить ручной запуск без подмены доказательств.
+Это ещё не автоматическая Web-синхронизация: отправка, подтверждения серверу,
+собственное эхо и объявление готовности выключены. Следующий предлагаемый этап .10 —
+отдельный аудит безопасной маршрутизации Metadata/Stage/StageOrder после Resolution.
+
+
 ## C21.2.08Q — G mixed-source prefix integration
 
 **LOCAL COMPLETE / REMOTE CI PENDING — DORMANT G ONLY**
