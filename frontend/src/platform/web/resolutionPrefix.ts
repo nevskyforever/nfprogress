@@ -7,6 +7,7 @@ import {snapshotBrowserSyncScope,validateBrowserSyncCursor,type BrowserSyncScope
 import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {readFutureInboxRecord} from './resolutionRecords'
 import {authenticateContinuationHistory,verifyContinuationSources,sameResolutionValue as same} from './resolutionHistorical'
+import {validateMixedPrefixInventory,MixedSourceWitnessError} from './mixedSourceValidation'
 import {prepareMetadataPrefix,verifiedMetadataSequences,type VerifiedMetadataPrefix} from './metadataPrefixProof'
 import {prepareStagePrefix,stageSequences,type VerifiedStagePrefix} from './stageApply'
 import {prepareStageOrderPrefix,stageOrderSequences,type VerifiedStageOrderPrefix} from './stageOrderApply'
@@ -70,9 +71,11 @@ function calculate(p:Certificate):ResolutionPrefixResult {
 export class BrowserResolutionPrefix {
  constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean){}
  bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPrefixRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device)}
+ /** Explicit isolated Q entry. K keeps bind() and cannot inherit this admission. */
+ bindMixedSources(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPrefixRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device,true)}
 }
 export class BrowserResolutionPrefixRuntime {
- constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice){}
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice,private readonly mixedSources=false){}
  private async guard(s:BrowserSyncScope){
   const initial=this.auth.requireContext(),{context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
   const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
@@ -84,10 +87,20 @@ export class BrowserResolutionPrefixRuntime {
  async prepare(input:BrowserSyncScope):Promise<VerifiedResolutionPrefix>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   const p=await lease.use(async amk=>{
-   // Reuse accepted H crypto/closure/DAG/current-source chains verbatim. Its
+   // Reuse accepted H crypto/closure/DAG authentication. Its
    // public readOnly diagnostics are deliberately NOT accepted as a capability.
    const h=await authenticateContinuationHistory(s,v,amk,current)
-   await verifyContinuationSources(s,v,h,amk,current)
+   // Select from authenticated evidence, never by catching a verification error.
+   // F/H-only histories keep their accepted ordering and missing-sequence rules.
+   const mixed=this.mixedSources&&[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
+    c.record_kind==='candidate'&&c.project_id===root.record.project_id&&![root.record.note_id,root.record.retained_note_id].includes(c.note_id)&&
+    ((h.rows.find(r=>r.event_id===c.event_id)?.server_sequence??0)>root.record.server_sequence||(c.projection?.source_revision??0)>root.project.source_revision)))
+   if(mixed){
+    try{await validateMixedPrefixInventory(s,v,amk,current)}catch(e){
+     if(e instanceof BrowserPersistenceError||e instanceof MixedSourceWitnessError)throw e
+     fail() // No plaintext decoder errors and no historical fallback.
+    }
+   }else await verifyContinuationSources(s,v,h,amk,current)
    if(!h.resolutions.size)fail('unsupported_local_source')
    if(v.intents.some(i=>(i as {record_version:number}).record_version===2))fail('unsupported_local_source')
    // H proves the current original/retained chains. G also pins other members

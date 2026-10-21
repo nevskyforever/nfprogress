@@ -748,3 +748,98 @@ H теперь продолжает ветви Resolution после насто�
 Он проверяет всю цепочку и сохраняет прежние допустимые истории. Конкурирующий
 вариант хранится как конфликт и не подменяет текущую заметку. Это не даёт подтверждения
 серверу: G/K ещё заблокированы, автоматическая синхронизация и ready не включены.
+
+
+## C21.2.08Q — Explicit G mixed source admission and local prefix
+
+(2026-10-21; LOCAL COMPLETE / REMOTE CI PENDING.) P is now REMOTELY
+ACCEPTED at `ef637dce3f523f00b84421258f3c4e02f82cdc48`, Cloud `39630599514`, six jobs
+SUCCESS. Prior N/O/P design, local records and implementation non-claims above
+are preserved as history; only the independently implemented G opt-in is added.
+
+### Ownership and selection
+
+`BrowserResolutionPrefix.bindMixedSources` constructs a separate dormant G runtime.
+The existing `bind` is retained for K and historical callers, with its old source
+admission. Expanding the default would implicitly enable K's H dispatch and local
+prefix writes, because K consumes G before routing; Q therefore does not do that.
+No K code or production composition imports/selects the opt-in. Tokens remain
+bound to the particular G instance in the module-private WeakMaps.
+
+Q starts with `authenticateContinuationHistory` on the complete bounded account
+inventory. For each real F root, an independent candidate in its project selects
+mixed admission if its genuine row is after F or its projection source revision is
+after F. This includes unsupported ownership/forks rather than hiding them. No
+independent post-F evidence means the unchanged historical G contract. Neither a
+catch nor a second attempt through historical validation exists after a mixed
+error. Accepted F/H-only cross-role apply ordering and missing-sequence calculation
+are preserved; they are not forced into M's stricter mixed cohort.
+
+`validateMixedPrefixInventory` is a G-specific pure entry to the exact existing
+N/O/P inventory fold. It authenticates all original encrypted events/evidence,
+F baseline membership and reconstructible peer projections, exact ordered O/H
+source transitions, H role/Head2/causal/no-resurrection semantics, full final
+membership/tombstones and encrypted project/Note source. Every sequence must be
+retained and all unsupported authors/generations/dependencies fail closed. A
+mixed inventory gap rejects admission with `missing_sequence`; no prefix capability
+is minted from an incomplete source witness. There is no new authority contract,
+record, migration or persisted witness. N/O strict entry points and P are unchanged.
+
+### Qualification and fork barrier
+
+The fold's narrow authenticated H-conflict preservation is also available to the
+G source check. Such a sibling contributes no source projection/revision. This
+only authenticates retained source: it never supplies a family grant. Q retains
+G's separate per-row family pass and exact immutable proof/dependency checks.
+Only that pass fills the module-private Legacy/Content/Resolution grants, together
+with real Metadata/Stage/StageOrder certificates. Content codec/version rules,
+closed pre-F fork evidence and one-sequence keep_both accounting remain intact.
+An unresolved incoming sibling is omitted from qualification and becomes its exact
+`unproven_family` sequence. The real prior applied working branch can qualify;
+no later sequence can leap over the sibling. H replay never changes the conflict
+state, NULL projection, source, or qualification. Unsupported independent/local
+forks block the mixed witness instead of borrowing this H-only exception.
+
+A freshly checked full inventory pins the certificate; calculate/prepareCommit
+revalidate it and the existing native cursor-only atomic commit enforces full CAS,
+idempotency, rollback and auth/key/profile/device lifecycle. Caller diagnostics,
+read-only witness counts, other runtime tokens and old ACK APIs cannot authorize
+this commit. `readOnly:true`/`ackAuthorized:false` results never mean readiness.
+
+### Evidence, workload and remaining boundary
+
+All positive fixtures use real F/H/O commits. Focused cases include all four F
+strategies, Legacy2 and Content3 ID0/ID1, real create/update/delete, retained and
+baseline tombstones, Stage/StageOrder dependencies, interleaves, forks, gaps,
+forged/missing proofs, valid-AEAD unexplained source changes, competing O changes,
+revocation and cursor rollback. Historical cross-role ordering remains a separate
+positive cohort. Native checks extend existing eight O/P profiles, with cursor
+abort, source race, private plan loss on full restart, lifecycle revocation,
+competing-tab writer exclusion, competing G runtimes, local advancement, replay,
+open-fork barriers after reopen and no unauthorized HTTP. Final Q71, O46, P47 and
+F/H/G/K/N/L321 regressions PASS (485 total, failed/skipped0). Native8 profiles /
+64 full restarts PASS:8 Q advances/races/rollbacks/revocations/tabs/replays each,
+16 persisted fork barriers;50 genuine H applies,16 preserved siblings. Q unit
+55.82s (longest body1.301s), combined native99.28s locally; source qualification
+and cursor/replay tests are separate meaningful cases under unchanged5000ms limits.
+Native/page/HTTP errors0;96 registration PUTs are fixture setup/rebind only.
+Typecheck/build, strict workflow/coverage/path/history/diff and protected hashes
+PASS. Full details remain in the Q checkpoint.
+
+Frontend admin remains40 minutes; one read of accepted P logs measured26m18s.
+No existing suite/step/job is removed or relaxed. Q isolated tests use maxWorkers1
+and normal5000ms limits; native O/P/Q is one awaited superset. No new heavyweight
+parallel job or unbounded timeout. Q remains REMOTE CI PENDING until independent
+acceptance. K remains default-G fail-closed; routing O/H/other families, retries and
+its local-prefix policy require a separately reviewed slice. No scheduler, ACK,
+Note declaration, Content producer/upload, own author or new Resolution. IDB10,
+crypto/wire/schema/migrations unchanged; ready=false; Web89.36%, C21.2.08 NOT CLOSED.
+Security/public-release gates remain mandatory.
+
+### Простыми словами
+
+G сверяет всю смешанную историю и отмечает только непрерывный участок с настоящими
+доказательствами применения. Конфликтная ветвь остаётся препятствием. Проверка
+записывает только локальную границу и ничего не подтверждает серверу. K пока
+пользуется прежним входом G, поэтому автоматическая маршрутизация смешанной истории
+этим изменением не включается.

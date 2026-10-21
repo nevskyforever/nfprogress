@@ -5491,3 +5491,24 @@ with explicit fork barriers; K routing stays a later bounded slice.
 Resolution. Новый конфликт остаётся конфликтом и не меняет текущую заметку. Старые
 допустимые истории сохраняются. G/K и подтверждения серверу ещё не включены;
 готовность false, прогресс89,36% и ограничения публичного запуска без изменений.
+
+
+## C21.2.08Q — Dormant opt-in G mixed prefix
+
+Q adds `BrowserResolutionPrefix.bindMixedSources` with evidence-selected complete
+mixed source admission; normal bind/K remain fail-closed. One genuine F, all N/O/P
+baseline and ordered source/membership/tombstone checks precede unchanged G family
+proofs and full-inventory CAS. Valid H forks remain retained NULL-projection
+source evidence, with their incoming sequence unqualified. Missing mixed inventory,
+unproven dependencies, source drift and unsupported generations cannot mint a
+certificate. Accepted F/H-only historical ordering/gap behavior remains intact;
+no fallback follows a mixed error. Only the existing atomic local proven_prefix
+write is available; ACK/capability/readiness never follows from diagnostics.
+
+Real F/H/O unit and native O/P disk-profile evidence, exact validation totals and
+P independent acceptance are recorded in the Q checkpoint and mixed-source
+contract. Existing native acceptance is extended as one awaited O/P/Q superset;
+Frontend admin stays40 minutes and per-test5000ms limits unchanged. IDB10/schema/
+migration/wire/crypto fixed; no public sync composition or K route changes.
+Q REMOTE CI PENDING; Web89.36%, ready=false, C21.2.08 NOT CLOSED. All VPS/security/
+public-release gates retained.

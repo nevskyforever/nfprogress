@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import {runMixedPrefixCase,checkMixedPrefixBarrier} from './browser-mixed-prefix-cases.mjs'
 /** P extends the O disk profiles with real interleaved H/O source outcomes. */
-export async function runMixedContinuationCase({getPage,snapshot,restart,rebind,compete,send,protocol,strategy}){
+export async function runMixedContinuationCase({getPage,snapshot,restart,rebind,compete,send,protocol,strategy,prefixMode=false}){
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg),id=`note-${protocol}`,deleted=strategy==='delete'
  const totals={hApplied:0,hPreserved:0,hReplays:0,hRollback:0,hRaces:0,hRevoked:0,hBarriers:0,hRestarts:0,hTabs:0,oInterleaved:0}
  const reject=async(fn,arg)=>{assert.equal(await evaluate(async({code,arg})=>{try{await(0,eval)(code)(arg);return false}catch{return true}},{code:fn.toString(),arg}),true);totals.hBarriers++}
@@ -61,6 +62,7 @@ export async function runMixedContinuationCase({getPage,snapshot,restart,rebind,
  for(const old of frozen.legacyNoteHistory.filter(r=>r.record_kind!=='head'))assert.deepEqual(positive.legacyNoteHistory.find(r=>r.project_id===old.project_id&&r.note_id===old.note_id&&r.record_kind===old.record_kind&&r.record_id===old.record_id),old)
  assert.deepEqual(positive.localNotes.find(n=>n.note_id==='baseline-deleted'),frozen.localNotes.find(n=>n.note_id==='baseline-deleted'))
  for(const name of ['outbox','receipts','ownerHeads','projectBindings','legacyNoteIntents'])assert.deepEqual(positive[name],frozen[name])
+ const q=prefixMode?await runMixedPrefixCase({getPage,snapshot,restart,rebind,send,strategy}):null
  // Fork siblings join the last applied parent's role, with NO source mutation.
  for(let n=0;n<2;n++){
   const sibling=await send({id,protocol:n?3:2,compressed:true,deleted,parent:revocable.parent_event_id,revision:revocable.revision})
@@ -73,12 +75,14 @@ export async function runMixedContinuationCase({getPage,snapshot,restart,rebind,
  const open=await snapshot();assert.equal(await evaluate(async()=>(await continuation.history(s)).readOnly),true)
  await reject(()=>witness.inspect(s));await reject(seq=>ordinaryOwner.reconcile(s,seq),ordinary.sequence)
  await reject(()=>prefix.prepare(s));await reject(()=>recovery.run(s));assert.deepEqual(await snapshot(),open)
+ if(q)q.qForkBarriers=await checkMixedPrefixBarrier({getPage,snapshot})
  await restart();totals.hRestarts++;assert.deepEqual(await snapshot(),open)
  assert.equal(await evaluate(async()=>(await continuation.history(s)).readOnly),true)
  await reject(()=>witness.inspect(s));await reject(()=>prefix.prepare(s))
+ if(q)q.qForkBarriers+=await checkMixedPrefixBarrier({getPage,snapshot})
  if(strategy==='keep_both'){
   const retained=await send({id:`clone-${protocol}`,protocol:3,deleted:true}),pending=await snapshot()
   await reject(seq=>continuation.apply(s,seq),retained.sequence);assert.deepEqual(await snapshot(),pending)
  }
- return totals
+ return{...totals,q}
 }

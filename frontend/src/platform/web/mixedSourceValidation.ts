@@ -36,6 +36,11 @@ export function validateMixedSourceInventory(s:BrowserSyncScope,v:ResolutionInve
 export function validateMixedContinuationInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
  return validateInventory(s,v,amk,current,true)
 }
+/** G-only source admission, not a family/prefix/ACK grant. Authenticated H forks
+ * retain null projections; G must leave their incoming sequences unqualified. */
+export function validateMixedPrefixInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ return validateInventory(s,v,amk,current,true)
+}
 async function validateInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,preserveHConflicts:boolean){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
  const h=await authenticateContinuationHistory(s,v,amk,current);check()

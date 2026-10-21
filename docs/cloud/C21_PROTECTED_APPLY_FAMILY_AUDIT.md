@@ -4535,3 +4535,26 @@ with explicit fork barriers; K routing stays a later bounded slice.
 Resolution. Новый конфликт остаётся конфликтом и не меняет текущую заметку. Старые
 допустимые истории сохраняются. G/K и подтверждения серверу ещё не включены;
 готовность false, прогресс89,36% и ограничения публичного запуска без изменений.
+
+
+## C21.2.08Q — G mixed source qualification audit
+
+Dormant opt-in G (`bindMixedSources`) selects full-v10 mixed admission from actual
+authenticated independent post-F evidence, without historical fallback on failure.
+The existing N/O/P source fold verifies genuine F baselines, all ordered O/H
+transitions, H original/retained roles, exact membership/tombstones and current
+source. It returns no authorization. G still creates its own per-row family grants
+from immutable applied evidence and real Metadata/Stage/StageOrder certificates;
+no filtered account inventory, synthetic Head1 or unrelated proof is accepted.
+H-owned open conflicts may be authenticated for source preservation, but their
+incoming branches stay unqualified with NULL projection/revision. Mixed gaps or
+unsupported forks/dependencies/generations reject the witness. Prior F/H-only
+ordering/gap behavior and old private certificate/CAS/lifecycle/atomic cursor-only
+commit remain. K uses old bind and stays fail-closed; no routing/public activation.
+
+G positive evidence is generated through actual F/H/O owners. Unit/native results,
+40-minute CI budget comparison and acceptance status are in the Q checkpoint;
+existing O/P/G/N/L regressions retained, native profiles reused. Q REMOTE CI PENDING;
+P independently accepted Cloud39630599514 six SUCCESS. No ACK/Note declaration/
+Content writer/upload or new schema/wire/crypto/migration; ready=false, Web89.36%,
+C21.2.08 NOT CLOSED; VPS/security/public-release gates preserved.

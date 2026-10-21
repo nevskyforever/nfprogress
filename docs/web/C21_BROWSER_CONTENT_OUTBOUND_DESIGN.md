@@ -2978,3 +2978,17 @@ with explicit fork barriers; K routing stays a later bounded slice.
 Resolution. Новый конфликт остаётся конфликтом и не меняет текущую заметку. Старые
 допустимые истории сохраняются. G/K и подтверждения серверу ещё не включены;
 готовность false, прогресс89,36% и ограничения публичного запуска без изменений.
+
+
+## C21.2.08Q — Local G prefix is not outbound authority
+
+The explicit dormant G mixed entry validates genuine received F/H/O source history
+and each event's own applied evidence before a local contiguous prefix. Retained
+H fork siblings with NULL projections remain exact incoming-sequence barriers.
+Read-only mixed witness counts and private G tokens cannot authorize old ACK,
+Content publication/sealing, Note capability or readiness. Default G/K admission
+is unchanged; K integration needs a separate reviewed slice. No producer, network
+ACK, own author, resurrection, new generation, schema/wire/crypto/migration change.
+See the Q checkpoint and mixed-source contract for accepted P evidence, tests and
+source-selection/atomic-CAS details. Q REMOTE CI PENDING, ready=false, Web89.36%,
+C21.2.08 NOT CLOSED; security/public-release gates retained.

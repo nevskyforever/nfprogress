@@ -83,6 +83,95 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08Q — G mixed-source prefix integration
+
+**LOCAL COMPLETE / REMOTE CI PENDING — DORMANT G ONLY**
+(2026-10-21). Preflight clean branch `6.0`, local HEAD/origin both
+`ef637dce3f523f00b84421258f3c4e02f82cdc48`.
+**P REMOTELY ACCEPTED**: that SHA, Cloud `39630599514` SUCCESS, all six mandatory
+jobs SUCCESS. Owner-supplied acceptance independently corroborated by one read of
+that completed run's jobs/logs. This supersedes the P cancellation/pending entries
+below without rewriting them. No polling/waiting for new Actions.
+
+G has an explicit dormant `bindMixedSources` entry. Ordinary `bind` is unchanged
+in admission, so K's existing private G handle continues to fail closed on mixed
+histories; K dispatch/composition is untouched. Q selects the source contract from
+COMPLETE authenticated history: independent post-F candidate/outcome or unexplained
+post-F projection in an F project requires the exact mixed witness. F/H-only
+histories keep the old historical source contract, including accepted cross-role
+source ordering outside the ordered mixed cohort and historical gap calculation.
+There is no catch/fallback from a failed mixed check to historical admission.
+
+The G-only pure mixed admission reuses the accepted N/O/P full-v10 fold, validating
+one genuine F, original/retained H roles, reconstructible per-member F baselines,
+all genuine O/H applied projections, strict source-revision/causal order, complete
+membership including tombstones, and exact encrypted current source. Counts are
+not a certificate, persisted witness, source/commit/ACK authority or readiness.
+G independently authenticates every row/proof and mints only its own private,
+owner-bound certificate after fresh full-inventory equality. All existing actual
+Legacy/Content/Resolution/Metadata/Stage/StageOrder family predicates remain.
+Keep_both remains one Resolution sequence; no synthetic Head1 or v9 inventory.
+
+An authenticated H-owned open fork may pass source admission with NULL incoming
+projections and no consumed revision, exactly as P preserves it. G qualifies only
+its genuine preceding applied evidence, stops at the incoming conflict sequence,
+and cannot convert replay/reconcile into a positive family grant. Unsupported
+ordinary/local forks, new Resolution generations, absent baselines/proofs,
+unexplained source drift or dependencies fail closed. A missing sequence in the
+mixed cohort blocks the complete source witness; it cannot yield a partial
+certificate. Existing F/H-only gap/prefix behavior is retained. Corruption inside
+an already claimed prefix never resets or repairs it.
+
+Private certificate/commit ownership, auth/key/profile lifecycle, whole-inventory
+CAS and native atomic cursor-only commit are unchanged. Exact idempotent prefix
+replay changes no evidence/source; no network ACK/declaration/publication follows.
+
+Final validation: Q71 PASS, O46 PASS, P47 PASS; all original F/H/G/K and N/L
+regressions321 PASS across6 files, total485 tests. Final failed/skipped0. Q55.82s
+locally, longest body1.301s; fresh genuine setup and bodies each bounded at5000ms.
+Source derivation/qualification and cursor/idempotency scenarios are separately
+meaningful tests; real H-fork fixture setup is separately bounded, with every
+original assertion retained. No production optimization or verification reduction.
+Initial test-only CAS mutation/TypeScript annotations corrected before final checks.
+
+Native combined O/P/Q PASS in99.28s locally:8 real disk profiles,64 full Chromium
+restarts;50 actual H applies and16 preserved siblings,64 common O applies plus24 P
+and8 Q genuine O interleaves. Q verifies8 local prefix advances,8 real-source races,
+8 cursor-only native abort/rollbacks,8 lifecycle revocations,8 additional full
+restarts,8 competing-tab writer exclusions,8 immutable replays,16 fork barriers
+before/after disk reopen. Competing genuine G runtimes retain exact idempotency.
+N read-only guarantees and original O/P negative assertions PASS. Page errors and
+unauthorized HTTP0;96 device PUTs are disposable setup/rebind only. Resolution ACK,
+Note capability PUT, Content push, K mixed routing0. Typecheck/build PASS (existing
+Vite warnings), native script syntax, strict duplicate-key workflow/coverage/path
+checks, exact historical-doc preservation, protected SHA-256 and diff checks PASS.
+Task-created disposable browser profiles and acceptance bundle cleaned; no backend/
+Rust/Android unrelated heavy suite repeated.
+Frontend admin stays40 minutes. Completed accepted P used26m18s (13m42s spare).
+Q adds an isolated maxWorkers1 suite and incremental checks on the same8 O/P disk
+profiles; mandatory coverage and job names retained, no duplicate native suite.
+Individual5000ms limits unchanged; no skips, retries or relaxed assertions.
+
+Web **89.36%**, `ready=false`, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE,
+**C21.2.08 NOT CLOSED**. Frozen IDB10/schema/migration/wire/crypto and protected
+.pyc preserved. Scheduler, Content writer/sealing/upload, Note capability,
+Resolution ACK, own authorship, resurrection and new generations stay OFF.
+VPS/security audit, PUBLIC RELEASE BLOCKED, owner reminders and all release gates
+remain mandatory. Cloud all6 EXPECTED; SQLite NOT EXPECTED. Q remote CI PENDING.
+Next: independently accept Q, then review K mixed routing and its owner/ordering/
+retry barriers separately; Q opt-in certificates are not a K activation.
+
+### Простыми словами
+
+Отдельный G-модуль теперь может проверить смешанную историю изменений обычных
+заметок и ветвей Resolution и записать локальную непрерывную границу проверки.
+Каждое событие требует собственного настоящего доказательства применения. На
+новой конфликтной ветви граница останавливается; конфликт и исходные зашифрованные
+записи сохраняются. Это локальная проверка: подтверждения серверу и автоматическая
+синхронизация ещё не включены. Следующий шаг — независимая приёмка Q, затем отдельная
+интеграция этой проверки в K с проверкой маршрутизации и восстановления.
+
+
 ## C21.2.08P — Frontend CI job time budget repair
 
 **P LOCAL COMPLETE / CI CANCELLED / REMOTE ACCEPTANCE PENDING** (2026-10-21).
