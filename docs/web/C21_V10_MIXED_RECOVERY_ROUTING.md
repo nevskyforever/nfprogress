@@ -4,6 +4,19 @@ Baseline `71effc2cd4cdadc336a14b63d0079da1d7db1b98`, branch6.0. Q independently 
 Cloud39651959872 SUCCESS, all6 required jobs. This bounded slice does not close .08.
 Local validation/status/totals are recorded in the .09 checkpoint; remote CI pending.
 
+## Later C21.2.11 contract-boundary audit
+
+C21.2.09 is independently accepted (Cloud39664022870 SUCCESS, all6 jobs). Its
+runtime remains unchanged. The attempted post-F Metadata slice stopped BEFORE
+production edits: a genuine Metadata tombstone invalidates retained Content
+authentication because accepted F/candidate dependency checks require a current
+nondeleted Metadata tip. A genuine compressed update is a positive control;
+Legacy-only deletion remains readable, but the required mixed cohorts do not.
+See [the exact C21.2.11 blocker](C21_POST_F_STRUCTURAL_ROUTING_CONTRACT.md#c21211--implementation-stop-historical-metadata-tombstone-semantics).
+Metadata/Stage/StageOrder remain explicit barriers. No fallback or partial
+create/update route was activated. Proposed next numeric .12 is a DESIGN-ONLY
+historical Metadata tombstone/dependency contract audit, not synchronization.
+
 ## Numbering and unchanged lifecycle requirements
 
 The historical Content Outbound Design §17 uses Planning identifiers only, including

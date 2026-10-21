@@ -324,10 +324,10 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      - name: Run isolated C21.2.09 mixed recovery contract tests
+      - name: Run isolated C21.2.09 recovery and C21.2.11 Metadata boundary tests
         if: matrix.shard == 'complete-project'
         working-directory: frontend
-        run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts --maxWorkers=1
 
       - name: Prepare complete-project headless bridge before bounded IPC calls
         if: matrix.shard == 'complete-project'

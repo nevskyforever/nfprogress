@@ -83,6 +83,83 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.11 — post-F Metadata atomic routing / implementation STOP
+
+**IMPLEMENTATION STOP / HISTORICAL DEPENDENCY CONTRACT BLOCKER.** Preflight branch
+`6.0`, clean HEAD and `origin/6.0` both
+`25df7f98beb6ede03d4bc082c0a949a9777d83f3`; no interrupted-run changes.
+**C21.2.10 DOCS-ONLY AUDIT COMPLETE**: exactly two documentation files, no Cloud
+or SQLite workflow triggered by their paths; no functional acceptance. C21.2.09
+remains REMOTELY ACCEPTED (Cloud39664022870 SUCCESS, all6 mandatory jobs). Historical
+pending statements below remain unchanged and are superseded only within their
+accepted scope. Numbering stays numeric; no lettered slice or roadmap points.
+
+Mandatory STOP applies BEFORE production implementation: a genuine coverless
+Metadata tombstone changes the current head to delete, while accepted historical
+Content dependency authentication requires that CURRENT head to remain nondelete.
+`resolutionAuthentication.dependencies` rejects Content F with corrupt_record;
+`resolutionHistorical.authenticateContinuationHistory` reuses
+`noteTransportPrerequisite.prepareNotePrerequisite` for retained Content candidates,
+which rejects the delete tip with stale_authority. Q/K therefore cannot authenticate
+the predicted post-state even when Metadata ownerHead/inbox proof and all Note-source
+records are individually genuine. Full-ten-store CAS cannot resolve this semantic
+conflict. A wholly Legacy F/H/O control still qualifies deletion: the blocker is
+retained Content dependence, not a missing Metadata proof or corrupted Note source.
+
+No adapter, private handoff or Metadata route was implemented. Default/mixed K,
+F/H/O/Q/N, schema10, original wire/AEAD and existing owner commits remain unchanged.
+No create/update-only substitute, filtered history, old-head projection, bypassed
+proof or current-tip relaxation. Metadata/Stage/StageOrder remain structural
+barriers. Existing strict transaction infrastructure can span/read all ten stores;
+no migration/new proof format is evidenced necessary by this blocker. A separately
+reviewed historical dependency/lifecycle contract is needed before retrying the
+combined required scope. Details and source references:
+`docs/web/C21_POST_F_STRUCTURAL_ROUTING_CONTRACT.md`, C21.2.11 STOP section.
+
+Genuine unit negative evidence: 13 tests PASS (12 protocol/strategy/compression
+cases plus wholly Legacy control), with actual F/H/O and Metadata owner results.
+Every negative case first qualifies a real ID1 Metadata update through Q; K then
+blocks the received delete unchanged. A direct owner delete in disposable data
+creates its real proof/tombstone, leaves source/history unchanged, and Q/K reject
+without repair. The small delete frame is ID0, not padded into fake ID1 coverage.
+Focused unchanged Metadata/L/K regressions172 PASS/4files: total185 tests/5files,
+final failed/skipped0. Typecheck/build PASS with existing Vite dynamic-import/size
+warnings; workflow/history/reference/scope checks and git diff --check PASS.
+No positive .11 functional acceptance is claimed.
+
+Native STOP reproduction PASS:8 disposable disk profiles (F protocols2/3 × all4
+strategies),8 full Chromium restarts,16 real Metadata write-boundary aborts with
+complete rollback,8 competing-tab exclusions and exact owner replay. ID1 update
+controls qualify; the valid tombstone makes Q/K reject before/after reopen while
+source, history and original wire stay identical. Page errors/unauthorized HTTP0;
+16 device PUTs are setup/rebind only. Temporary bundle/profiles cleaned. No Content
+upload, Resolution ACK, Note capability, positive readiness or scheduler writes.
+
+CI budget review read only the completed accepted .09 complete-project log once:
+18m45.28s within its40-minute budget, approximately21m15s spare. The new13-test
+negative suite joins the existing mandatory complete-project .09 command with
+maxWorkers1; no old coverage removed or duplicated, no additional Frontend work,
+no job renamed, test timeout increased, retry, skip or continue-on-error. Cloud
+all6 EXPECTED by actual source/workflow filters; SQLite NOT EXPECTED. Do not poll
+or wait for the resulting Actions. Web89.36%, C21/C21.2 IN PROGRESS, C21.2.08
+**NOT CLOSED**, ready=false. Protected .pyc, historical checkpoint, VPS security,
+PUBLIC RELEASE BLOCKED, closed registration and owner reminders remain intact.
+
+Proposed **C21.2.12 — historical Metadata tombstone / Content dependency contract
+audit (DESIGN ONLY)**: distinguish genuine accepted historical evidence from
+active prerequisites for new writes; retain ancestry/sequence/deletion/lifecycle,
+Stage/StageOrder, prefix, replay and source checks. No runtime changes without a
+separate accepted contract. Full reader/producer/receipt/self-echo/multidevice and
+security/public-release prerequisites remain unaccepted; C21 is not closed.
+
+### Простыми словами
+
+Удаление сведений проекта можно корректно сохранить, но текущая проверка старых
+Content-событий требует активный Metadata tip. После настоящего удаления она
+отвергает всю историю, хотя заметки и доказательства сохранились. Это подтвердилось
+на диске после перезапуска. Поэтому новый маршрут остановлен до согласования
+правил исторических зависимостей; рабочие проверки не ослаблены.
+
 ## C21.2.09 — V10 mixed-source recovery routing
 
 **LOCAL COMPLETE / REMOTE CI PENDING — DORMANT MANUAL K ONLY**

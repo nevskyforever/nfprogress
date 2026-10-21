@@ -184,3 +184,94 @@ receipt, self echo, server declaration/ACK gates, own authorship and the VPS
 security/public-release gates remain separate prerequisites. Keep `ready=false`,
 do not activate synchronization or public registration, and preserve Web progress
 89.36% until its separately defined acceptance criteria are met.
+
+## C21.2.11 — implementation STOP: historical Metadata tombstone semantics
+
+The C21.2.10 commit `25df7f98beb6ede03d4bc082c0a949a9777d83f3` is **DOCS-ONLY
+AUDIT COMPLETE**, not functional acceptance. Its two documentation paths did not
+trigger Cloud/SQLite workflows. The preceding matrix records possible routes;
+the following genuine counterexample blocks the proposed combined create/update/
+delete implementation before any production change.
+
+**Exact blocker:** accepted historical Content authentication requires a CURRENT
+nondeleted Metadata tip, even when the Content event names a genuine nondeleted
+Metadata ancestor. A valid Metadata delete changes only the Metadata head and
+inbox proof, but makes the complete F/H/O account history fail authentication:
+
+- `resolutionAuthentication.ts`, private `dependencies`: a Content F requires
+  the referenced Metadata proof AND the current tip to be qualified and nondelete;
+  a delete tip calls `bad()` (`corrupt_record`).
+- `resolutionHistorical.ts`, `authenticateContinuationHistory`: every retained
+  peer Content candidate calls `prepareNotePrerequisite`, including already
+  applied candidates, before source/prefix verification.
+- `noteTransportPrerequisite.ts`, `prepareNotePrerequisite`: requires a qualified
+  nondelete dependency AND a qualified current nondelete Metadata tip; a delete
+  tip rejects with `stale_authority`.
+- Q invokes that full historical authentication before its source/family
+  certificate; mixed K also authenticates history before routing. O/H rely on
+  the same historical and dependency checks. Neither a full-account CAS nor
+  immutable Metadata proof can repair this semantic incompatibility.
+
+The counterexample is specifically a retained Content dependency, not a claim
+that every Metadata tombstone is corrupt. A wholly Legacy F/H/O control still
+qualifies its genuine Metadata deletion through Q. A Legacy F followed by a
+genuine applied Content O event already exhibits the blocker; Content F exhibits
+it directly. Both are required mixed-reader cohorts in the requested scope.
+Applying only create/update, filtering old Content, replaying a pre-delete
+inventory, changing a tombstone back to an active tip, or ignoring a failed Q
+verification would substitute a weaker or different scope and is not enabled.
+
+### Genuine evidence and unchanged boundaries
+
+`postFMetadataBoundary.spec.ts` creates genuine accepted F/H baselines, then uses
+the actual O owner for an independent Content ID1 event. The actual imported
+Metadata owner applies a compressed coverless update (positive Q control), then
+in a disposable counterexample applies a valid coverless delete. All four F
+strategies and Legacy/Content F roots are covered, with Content F ID0/ID1. The
+small deletion fixture remains ID0; no padding or fabricated proof forces ID1.
+The wholly Legacy control distinguishes historical Content dependency failure
+from Metadata owner/proof-format failure.
+
+Before the counterexample, the unchanged manual K refuses the received structural
+event with `post_F_structural_route` and leaves the full database identical. The
+direct Metadata owner is used only to construct negative evidence in disposable
+tests; it is not new routing or production authorization. The resulting tombstone
+is genuinely applied and replayable, source/Note history is unchanged, and Q/K
+reject the complete resulting account. Failed verification does not repair or
+rewrite any retained record.
+
+A bounded native Chromium probe reuses the unchanged acceptance harness and real
+F/H/O setup: 8 disk profiles (both F protocols × four strategies), 8 full process
+reopens, 16 transaction abort/rollback checks (each Metadata write boundary),
+8 competing-tab writer exclusions, and exact Metadata replay. Each real ID1
+update qualified through Q before deletion. Every valid Metadata tombstone caused
+the same Q/K rejection after disk reopen while original wire, Note source and
+history remained identical. Page errors and unauthorized HTTP were zero; the
+16 device PUTs were disposable setup/rebind only. The temporary probe and build
+bundle are local audit artifacts, not added product/test-fixture infrastructure.
+
+### Storage decision and next numeric slice
+
+The ten-store compare is feasible: `runBrowserTransaction` opens a strict native
+transaction over the supplied store list; `syncTransaction` adds identity/account
+binding checks; `scheduleResolutionInventory` reads all ten existing recovery
+stores. No schema, migration, wire, crypto or proof-format deficiency is evidenced
+by this blocker, and none is changed. The Metadata owner itself remains reusable;
+the issue is the accepted full-history lifecycle contract after a tombstone.
+
+**STOP under C21.2.11's mandatory invariants condition.** No adapter, handoff,
+Metadata route or activation was implemented. Do not mark C21.2.11 functionally
+complete or remotely accepted because its negative evidence passes.
+
+Proposed **C21.2.12 — historical Metadata tombstone / Content dependency contract
+audit (DESIGN ONLY)**. Define independently authenticated historical dependencies
+for already accepted Content F/candidates separately from active prerequisites for
+new applies. Specify deletion timing, ancestor/sequence coverage, fresh versus
+replay checks, imported lineage, Stage/StageOrder consequences, new pending events,
+forks, restart, prefix and current-source behavior without weakening any owner.
+Determine whether existing immutable evidence suffices before proposing runtime
+changes. Do not silently implement that contract or renumber prior stages.
+
+Stage/StageOrder and Metadata routing stay blocked in mixed K. All prior F/H/O/Q/K
+behavior and negative tests, Note-source authority, historical evidence, IDB10,
+ready=false, C21.2.08 NOT CLOSED, Web89.36% and security/public-release gates remain.
