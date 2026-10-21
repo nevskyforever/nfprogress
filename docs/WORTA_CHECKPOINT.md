@@ -83,6 +83,45 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08O — CI timeout repair (mandatory isolated suite)
+
+**REPAIR COMMITTED / REMOTE CI PENDING / O NOT YET REMOTELY ACCEPTED**
+(2026-10-21). Baseline `6.0`:
+`660c8663511a650271cef11229b47bd6385dc8a9`.
+Cloud run `39568449946`: **FAILURE**, five of six required jobs passed.
+Frontend admin failed at `Run C21 persistence contract tests`:
+`v10OrdinaryApply.spec.ts` reported 19 per-test timeouts at the unchanged
+5000 ms limit; the combined step reported 2415 passing of 2434 tests.
+All earlier real-browser acceptance steps, including O, passed.
+No failed source assertion was reported. Parallel Vitest resource contention
+is a plausible cause, not a conclusively proven root cause.
+
+Workflow-only fix: remove the exact 46-test O spec from the large
+parallel persistence step; add a separate mandatory `Frontend admin`
+step running
+`npm test -- --run src/platform/web/v10OrdinaryApply.spec.ts --maxWorkers=1`.
+All other persistence tests remain. No timeout increase, assertion changes,
+xfail, skip, retry, continue-on-error or skipped mandatory checks.
+If the isolated step times out, investigate performance rather than
+loosening limits. Production runtime and all frozen contracts unchanged.
+
+Only Cloud workflow configuration and this new checkpoint entry changed.
+The previous O, N, M, L and older history below remain verbatim intact.
+C21.2.08 NOT CLOSED, `ready=false`, Content writer/sealing/upload,
+Resolution ACK, Note capability and production scheduler remain OFF.
+O stays **REMOTE CI FAILED / REPAIR PENDING ACCEPTANCE** until independent
+all-six-green verification. Expected Cloud all six jobs; SQLite NOT EXPECTED.
+No CI polling/waiting as part of this correction.
+Official Web progress **89.36%** unchanged; VPS hardening/security audit,
+PUBLIC RELEASE BLOCKED and all owner release gates remain mandatory.
+
+### Простыми словами
+
+19 тестов превысили лимит 5 секунд в общем большом запуске.
+Теперь эти 46 тестов запускаются отдельно и последовательно, без
+увеличения лимитов или изменения кода приложения. Решение считается
+принятым только после успешного GitHub Actions.
+
 ## C21.2.08O — V10-aware ordinary owner & private source handoff
 
 **LOCAL COMPLETE — BOUNDED DORMANT OWNER / REMOTE CI PENDING** (2026-10-21).
