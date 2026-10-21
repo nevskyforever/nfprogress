@@ -500,3 +500,122 @@ OFF. All security/public-release/owner gates and prior records preserved.
 события проверяются как зашифрованные данные; это не делает их применёнными.
 Отсутствующие исходные снимки и неподдержанные случаи остаются барьерами.
 Независимые правки после F потребуют реального owner и следующей отдельной приёмки.
+
+
+## C21.2.08O — Dormant ordinary owner implementation / no H-G-K integration
+
+**LOCAL COMPLETE — BOUNDED ISOLATED OWNER / REMOTE CI PENDING** (2026-10-21).
+Clean branch6.0 HEAD/origin/remote `11d18a19e4cae18df60f918f852281b563654f12`.
+N **REMOTELY ACCEPTED**, SHA `11d18a19e4cae18df60f918f852281b563654f12`,
+Cloud `39479808344` SUCCESS, all six required jobs SUCCESS, independently accepted
+as explicitly supplied by the owner in O. No Actions query/poll/wait. M's original
+proposed contract and all historical N/L records above are preserved verbatim.
+
+### Exact admitted cohort and authority boundary
+
+`BrowserV10OrdinaryApply` is explicitly constructed only in tests/the isolated
+harness. It is absent from normal persistence composition, editor, H/G/K dispatch
+and schedulers. Scope is the one F project, received peer ordinary Notes, active
+import_remote/captured binding. It supports new independent Notes and genuine
+pre-F reconstructed independent members. Legacy protocol2 retains stage-null/html
+admission; Content protocol3 retains v1/html-or-plain/project-or-stage admission and
+actual Metadata/Stage dependency prerequisites, ID0/ID1. No new own/local admission.
+
+The original F Note and optional retained Note are rejected by O regardless of
+incoming protocol or payload: H keeps their role-aware Head2/Resolution ancestry.
+Unrelated-project ordinary routing is intentionally outside O; full account crypto
+and source decoding still include those projects. The first received account event
+of any family must be processed first. Gaps, forks, orphan parents, missing
+baselines/dependencies and new Resolution generations never get skipped or repaired.
+Existing conflicting/local histories reject, not silently resolved by this owner.
+
+The N fold has moved unchanged into internal pure `mixedSourceValidation.ts`.
+`BrowserMixedSourceWitness.inspect` remains a frozen counts-only diagnostic with
+false commit/ACK/ready flags, no writer/owner/plan/cache. O never calls inspect or
+consumes its result. Instead O authenticates its own complete bounded pre-inventory,
+checks root, binding, peer identity, exact source, ordinary Head1/parent/revision/
+route/no-resurrection, and then validates the entire predicted post-inventory using
+the same pure derivation. This internal pure function returns counts, never a grant.
+The complete account is not downgraded or filtered into an old Note owner.
+Metadata/Stage receive only their existing dependency view after full v10 validation.
+
+A private WeakMap plan is bound to O runtime + local runtime + exact scope + live
+registered device/auth/key/profile epochs. Only its one-use handoff may call
+`prepareProtectedV10OrdinaryApply`, which reuses the existing private peer source
+preparation. Neither a plaintext DTO nor N counts nor foreign/replayed plans pass
+the handoff. No authority token is persisted, exposed as a diagnostic or fabricated.
+
+### Real post-state and atomic source handoff
+
+- Every actual commit increments the project source revision once and changes one
+  Note. Create adds exactly one member; delete keeps a tombstone/member; unrelated
+  Notes and original F/H encrypted evidence stay byte-for-byte unchanged.
+- Legacy uses genuine candidate1/proof1/inbox3; Content uses genuine candidate2,
+  existing transport/dependency certificate+commit hook and inbox7. Ordinary Head1
+  stays Head1 for independent Notes; no substitute for H's Head2 is created.
+- Newly encrypted project and Note plus candidate/head/proof are validated as one
+  complete predicted state BEFORE any write. This includes all original AEAD,
+  genuine applied projection joins, exact F baseline and contiguous revision fold.
+- All ten account inventory stores, exact source/project/whole Note set, cursors,
+  dependency owners and global identity-index state are pinned in the short final
+  readwrite transaction. Source/candidate/head/inbox proof are atomic. No async
+  crypto/network work occurs inside IDB. Drift invalidates the plan; it is consumed
+  on a commit attempt and cannot be reused. Fresh manual prepare is required.
+- Lifecycle listeners abort active transactions. Every scheduled write checks
+  currentness. Crash before commit leaves only the original received ciphertext;
+  crash after commit preserves the entire real outcome for fresh read-only replay.
+- Reconcile authenticates full mixed history/current source and real applied joins;
+  it preserves superseded original proofs without nonce allocation/source mutation.
+  Exact J replay also reads the genuine outcomes under its unchanged cursor contract.
+
+No new persisted fields, stores, indexes, record versions, schema, wire, crypto or
+migration. **Migration requirement: NO for O's bounded received-only cohort.**
+
+### Acceptance and remaining blockers
+
+O46 focused and N51 PASS; affected1198 regressions/23 files PASS, including old
+F/H/G/I/J/K/L ordinary/dependency/migration barriers. Every positive post-F projection
+and inbox proof is generated by actual O prepare/commit after real F/H; there are
+no fabricated positive applied rows. Tests cover both protocols × four F strategies,
+Content ID0/ID1, independent create/update/delete, pre-F live/deleted members, stage/
+plain, concurrent Notes/owners, exact source revisions and replay. Predicted-state
+corruption, N-as-authority, forged device/caller grants, missing dependency/parent,
+resurrection, F/H role/unrelated-project requests, stale full-inventory CAS, rollback,
+revocation and unauthorized HTTP all reject without partial writes.
+
+Native O PASS:8 disk profiles,32 full process restarts,64 actual applications,
+16 read-only replays,8 injected native transaction aborts,16 genuine races,
+8 lifecycle revocations,8 competing tabs,96 barrier assertions, page errors0.
+Original F/H/baseline ciphertext, immutable candidates/evidence and inbox proofs,
+unchanged source Notes, outbox/receipts/dependency owners/intents/bindings preserved.
+Native N/L PASS:8 profiles/24 restarts,48 read-only inspections under write/nonce
+traps,8 H races,8 revocations,8 tabs,16 source refusals; all old L assertions remain,
+including Metadata16 genuine applies/16 rollbacks and ordinary32/structural16 rejects.
+N diagnostic writes/nonces0. No unauthorized HTTP, Content push, ACK or Note PUT.
+Typecheck/build/workflow/path/diff/history checks PASS; protected .pyc unchanged.
+Existing Vite warnings remain. No unrelated backend/native heavy suite repeated.
+A native delete-strategy boundary probe initially tried to encode a live payload
+from a tombstone; only that sender-negative fixture was corrected to send delete.
+Final native acceptance passes all strategies; production resurrection stays blocked.
+
+Old H/G/K are deliberately untouched and tested to reject a genuine mixed O source.
+This is NOT H/G source handoff, G prefix proof, ACK eligibility, K integration or
+full multi-device recovery acceptance. A subsequent reviewed slice must integrate
+mixed source validation into H/G without turning diagnostic counts into grants,
+then separately review K routing. Additional Resolution chains, resurrection,
+local/own authorship, unrelated-project routing and unsupported families remain
+explicit blockers. L's old-route implementation STOP is not renamed as complete.
+Production scheduler/public writer/Content sealing-upload/Note capability/Resolution
+ACK OFF; ready=false. Web89.36%, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE,
+C21.2.08 NOT CLOSED; security/public-release/owner gates preserved. Cloud all six
+mandatory jobs EXPECTED (Frontend admin + Android compression packaging included),
+SQLite NOT EXPECTED; O remote CI pending, no polling/waiting.
+
+### Простыми словами
+
+После решения конфликта отдельный модуль может безопасно сохранить независимые
+заметки и доказать, почему изменился состав проекта и его общий счётчик. Он не
+подменяет проверку только для чтения разрешением на запись. Перезапуск и повтор
+события проверены на настоящей браузерной базе. Обычная синхронизация новый модуль
+пока не вызывает; для H/G/K потребуется отдельная согласованная приёмка. Готовность
+и публичный доступ не включены, прогресс89,36% без новых начислений.

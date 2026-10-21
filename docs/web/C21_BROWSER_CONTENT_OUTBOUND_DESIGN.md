@@ -2878,3 +2878,51 @@ PUBLIC RELEASE BLOCKED, owner reminders and release gates unchanged.
 Проверка умеет объяснить сохранённый источник, но не даёт права менять его или
 отправлять данные. Новые независимые применения после Resolution потребуют
 настоящего owner и отдельной приёмки; сейчас включена только изолированная проверка.
+
+
+## C21.2.08O — Dormant v10 ordinary owner / private source handoff
+
+**LOCAL COMPLETE — BOUNDED ISOLATED OWNER / REMOTE CI PENDING** (2026-10-21).
+Clean branch6.0 HEAD/origin/remote `11d18a19e4cae18df60f918f852281b563654f12`.
+N REMOTELY ACCEPTED: same SHA, Cloud `39479808344` SUCCESS, all6 mandatory jobs
+SUCCESS, independently accepted as explicitly supplied by owner. No Actions polling.
+Historical records are unchanged; L old-route IMPLEMENTATION STOP stays recorded.
+
+[O contract and acceptance](C21_MIXED_PROJECT_SOURCE_AUTHORITY_CONTRACT.md#c21208o--dormant-ordinary-owner-implementation--no-h-g-k-integration)
+defines the exact bounded cohort: genuine received-only independent ordinary Notes
+in the single F project, import_remote/captured. O validates full account pre/post
+history, actual F evidence and all source revisions/members/Notes; it uses a private
+one-use owner/local/scope/lifecycle handoff and existing atomic source + candidate +
+Head1 + inbox proof formats with full ten-store/source/identity/dependency CAS.
+N's unchanged pure derivation is shared internally; inspect remains read-only,
+counts-only, commitAuthorized=false, ackAuthorized=false, ready=false, never a grant.
+
+Real O commits now produce the first independent ordinary-after-F applied outcomes;
+none is fabricated. Creates/linear updates/tombstones work; F/H original/retained
+roles, unrelated-project routing, forks, missing baseline/dependency/parent, own/local
+source, resurrection and new Resolution generations remain explicit barriers.
+The earliest pending account sequence cannot be skipped. Pending or failed plans
+persist no witness; rollback/revocation/stale CAS produce no partial outcome.
+
+O46 and N51 focused PASS; affected1198 regressions/23 files PASS. Native O8 profiles/
+32 restarts/64 actual applies/16 replays/8 rollback/16 races/8 revocations/8 tabs/
+96 barriers PASS; native N/L8 profiles/24 restarts/48 read-only inspections retain
+all L negative assertions. No unauthorized writes/HTTP; page errors0. Typecheck/
+build/workflow/path/diff/history checks PASS, protected .pyc unchanged. Existing Vite
+warnings only. No unrelated heavy backend/native suite repeated.
+
+H/G/K remain unintegrated and reject real O mixed histories under unchanged source
+checks. Next: independent O acceptance, then separately reviewed H/G mixed source
+handoff before K routing. IDB10/schema/migration/wire/crypto unchanged. Production
+scheduler/public writer/Content sealing-upload/Resolution ACK/Note declaration OFF;
+ready=false. Web89.36%, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE,
+C21.2.08 NOT CLOSED. All VPS security/public-release/registration/owner gates retained.
+Cloud all6 EXPECTED including Frontend admin and Android compression packaging;
+SQLite NOT EXPECTED. Remote CI pending, not polled/waited.
+
+### Простыми словами
+
+В отдельном маршруте независимые заметки после Resolution теперь применяются
+настоящей атомарной записью и переживают перезапуск. Проверка только для чтения
+прав на запись не выдаёт. Автоматическая синхронизация, отправка Content и ACK
+ещё не включены: H/G/K нужно согласовать отдельным этапом, прогресс89,36% сохранён.

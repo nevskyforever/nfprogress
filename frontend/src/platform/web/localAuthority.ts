@@ -1,3 +1,4 @@
+import {verifiedV10OrdinaryForLocal,type V10OrdinaryToken} from './v10OrdinaryApply'
 import {verifiedContinuationForLocal,type ResolutionContinuationToken} from './resolutionContinuation'
 import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {verifiedResolutionForLocal,type ResolutionApplyToken} from './resolutionPlanner'
@@ -312,6 +313,11 @@ export class BrowserLocalAuthorityRuntime {
   /** Narrow dormant handoff; cannot be called with a caller-provided plaintext DTO. */
   async prepareProtectedContinuationApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:ResolutionContinuationToken){
     const authority=verifiedContinuationForLocal(verified,this,scope)
+    return this.preparePeerSource(scope,token,authority.plaintext,authority.content,authority.current)
+  }
+  /** O private owner handoff. N diagnostics and caller plaintext cannot authorize it. */
+  async prepareProtectedV10OrdinaryApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:V10OrdinaryToken){
+    const authority=verifiedV10OrdinaryForLocal(verified,this,scope)
     return this.preparePeerSource(scope,token,authority.plaintext,authority.content,authority.current)
   }
   private async preparePeerSource(scope:BrowserSyncScope,token:LocalSourceToken,incoming:NoteSyncPlaintext,content:boolean,authorityCurrent:()=>boolean=()=>true){

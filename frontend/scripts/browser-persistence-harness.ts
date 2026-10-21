@@ -1,3 +1,4 @@
+import {BrowserV10OrdinaryApply} from '../src/platform/web/v10OrdinaryApply'
 import {BrowserV10Recovery} from '../src/platform/web/v10Recovery'
 import {BrowserMixedSourceWitness} from '../src/platform/web/mixedSourceWitness'
 import {BrowserV10Transport} from '../src/platform/web/v10Transport'
@@ -77,6 +78,10 @@ function v10RecoveryFixture(session: Awaited<ReturnType<typeof persistence.openB
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
  return new BrowserV10Recovery((...args)=>internal.syncTransaction(...args),session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
+function v10OrdinaryOwnerFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
+ const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
+ return new BrowserV10OrdinaryApply((...args)=>internal.syncTransaction(...args),session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
+}
 function mixedSourceWitnessFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, beforeSecondRead?:()=>Promise<void>) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean};let reads=0
  const transaction:BrowserSyncTransaction=async(...args)=>{
@@ -96,4 +101,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, mixedSourceWitnessFixture, v10RecoveryFixture, v10TransportFixture, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, v10OrdinaryOwnerFixture, mixedSourceWitnessFixture, v10RecoveryFixture, v10TransportFixture, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

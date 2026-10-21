@@ -83,6 +83,88 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.08O — V10-aware ordinary owner & private source handoff
+
+**LOCAL COMPLETE — BOUNDED DORMANT OWNER / REMOTE CI PENDING** (2026-10-21).
+Clean branch `6.0`: starting HEAD, origin/6.0 and independently read remote branch
+all `11d18a19e4cae18df60f918f852281b563654f12`; no pre-existing changes.
+**N REMOTELY ACCEPTED**: SHA `11d18a19e4cae18df60f918f852281b563654f12`,
+Cloud `39479808344`, SUCCESS, all six required jobs SUCCESS, independently accepted
+as explicitly supplied by the owner in O. No Actions query/poll/wait. Earlier N/M/L
+entries below remain verbatim historical records; L's old-route IMPLEMENTATION STOP
+is not relabeled as implementation complete.
+
+`v10OrdinaryApply.ts` adds an explicitly constructed, dormant received-only peer
+owner for independent Notes in the single accepted F project, active
+import_remote/captured binding. It admits genuine creates, linear updates and
+retained tombstones through accepted Legacy/Content semantics and existing record
+formats. Original/retained F roles remain exclusively H-owned. Other projects are
+fully authenticated, but O does not give them the F project's source authority.
+The earliest received event of ANY family must be handled first; missing parents,
+dependencies, forks, unknown generations, unsupported local ownership and source
+drift remain explicit barriers. No silent skip or automatic retry.
+
+The unchanged N derivation is shared as internal pure `mixedSourceValidation.ts`;
+its counts are never authority. O authenticates its own complete pre-inventory and
+predicted post-inventory, with genuine encrypted F evidence, reconstructible prior
+applied projections, project membership, every exact source revision and causal
+chain. A private one-use WeakMap handoff, bound to the real owner/local runtime,
+account/scope and live auth/key/device/profile, is required by local authority.
+N.inspect, a caller DTO, foreign runtime and reused token cannot authorize it.
+No authority is persisted or reconstructed from a diagnostic result.
+
+Preparation is read-only; newly sealed source exists only in memory until commit.
+The short transaction re-reads and CAS-pins all ten account inventory stores and
+the exact project/whole Note set, checks global Note identity, then atomically
+writes actual project + changed Note + immutable candidate + Head1 + applied inbox
+proof. Content also uses its existing dependency-CAS/transport commit hook. No
+crypto/network await inside IDB. Crash/abort/revocation/stale source leaves no
+partial outcome; manual fresh retry authenticates everything again. Exact replay
+reads genuine preserved evidence, without re-encryption or revision allocation.
+
+Validation: focused O46 and N51 PASS; affected regressions1198 PASS /23 files
+(F/H/G/I/J/K/L, ordinary/dependency/history and IDB10 format/migration barriers).
+O positives use real F/H and actual O prepare/commit; no fabricated applied proof.
+Both protocols, all4 F strategies, Content ID0/ID1, stage/plain dependency admission,
+independent create/update/delete, pre-F members and tombstone retention PASS.
+Predicted-state tampering, forged grants/device proof, complete CAS races, rollback,
+key/auth/profile revocation and no unauthorized writes/HTTP are checked.
+Native O:8 disposable disk profiles,32 full Chromium restarts,64 actual applies,
+16 replays,8 transaction rollbacks,16 stale races,8 revocations,8 competing tabs,
+96 barrier assertions, page errors0; all original ciphertext/evidence/proofs and
+untouched Notes preserved. N inspect remains read-only with writes/nonces0.
+Native N/L regressions:8 profiles/24 restarts,48 read-only calls,8 actual H races,
+8 revocations,8 competing tabs,16 source refusals; L Metadata16 applies/16 rollbacks,
+ordinary32 and Stage/StageOrder16 refusals preserved. Final typecheck/build,
+workflow/path/history consistency and diff checks PASS. Existing Vite warnings only;
+protected .pyc hashes unchanged. No unrelated backend/native suite repeated.
+
+**H/G/K are NOT integrated**: after a genuine O outcome their old source predicates
+still fail closed on mixed histories. No new H continuation, G prefix/ACK grant or
+K route is implied. Same-project mixed source integration needs separate review;
+unrelated-project routing, additional Resolution generations, local/own authorship,
+resurrection and full multi-device production recovery remain blocked.
+IDB10, schema, migrations, wire and crypto unchanged. Production scheduler/public
+writer/Content sealing-upload/Note capability/Resolution ACK remain OFF; ready=false.
+Official Web **89.36%**, C21/C21.2 IN PROGRESS, C21.1.06 NOT LOCAL COMPLETE,
+C21.2.08 **NOT CLOSED**. VPS hardening/security audit, PUBLIC RELEASE BLOCKED,
+owner reminders and all public-registration/release gates preserved.
+Cloud all six mandatory jobs EXPECTED, including Frontend admin and Android
+compression packaging; SQLite NOT EXPECTED. O remote CI is PENDING, NOT POLLED.
+Next bounded slice: independently accept O, then reviewed H/G mixed-source handoff
+integration preserving H roles and prefix/ACK barriers; K dispatch stays separate.
+
+### Простыми словами
+
+В отдельном тестовом маршруте браузер теперь действительно применяет независимые
+изменения заметок после Resolution и проверяет, чем объясняется каждое изменение
+общего счётчика проекта. Создание, редактирование и удаление переживают перезапуск;
+повторное чтение не применяет событие дважды. Потерянные доказательства не чинятся.
+Обычная синхронизация этот маршрут ещё не вызывает: H/G/K пока отклоняют такую
+смешанную историю, подтверждения серверу и отправка Content выключены. Следующий
+шаг — отдельная приёмка и согласование этих владельцев источника. Готовность
+остаётся false, прогресс89,36%, публичный запуск заблокирован до release gates.
+
 ## C21.2.08N — Read-only mixed source witness verifier
 
 **LOCAL COMPLETE — BOUNDED ISOLATED READ-ONLY / REMOTE CI PENDING** (2026-10-20).
