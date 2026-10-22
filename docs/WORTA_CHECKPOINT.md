@@ -83,6 +83,93 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.16 — post-F Metadata private handoff contract audit
+
+**DESIGN AUDIT COMPLETE / CONTRACT STOP FOR DIRECT ROUTING — DOCS ONLY.**
+Starting clean branch `6.0`, local HEAD, `origin/6.0` and remote branch all
+`472d950b95c1fad829c5a1c1f62a0ff208614be3`. C21.2.15 is independently
+**REMOTELY ACCEPTED**, read-only diagnostic scope only: Cloud **39768042164
+SUCCESS**, all6 mandatory jobs SUCCESS, completed run head/job identity checked
+once. Previous .15 pending record and all older checkpoint entries remain intact
+as history; this new acceptance supersedes only its pending status.
+
+Reviewed actual F/H/O/source, G/Q, K, Metadata owner, historical readers and native
+transaction contracts. New authoritative audit:
+[Post-F Metadata private handoff](web/C21_POST_F_METADATA_PRIVATE_HANDOFF_AUDIT.md).
+It includes call-site/authority maps, live versus historical admission, earliest
+barriers, allowed two-record delta, ten-store CAS, replay/restart/rollback,
+concurrency/revocation, genuine acceptance matrix and CI capacity proposal.
+
+Storage feasibility confirmed: `BrowserSyncTransaction` / `runBrowserTransaction`
+can compare all ten bounded recovery stores and schedule owner writes in one
+strict native transaction; `BrowserPersistence.syncTransaction` includes the two
+identity stores and validates local/canonical/device binding. Full inventory means
+all records of the bound account, including unrelated projects, not a filtered
+project or a claim to compare every user's database records. Existing F/G commits
+show the synchronous CAS pattern. No async crypto/HTTP inside the transaction.
+
+Two exact CONTRACT STOPs remain for direct adapter/K implementation:
+
+1. Existing Metadata opaque plan cannot compose into a caller-owned transaction.
+   Its commit opens a separate six-store family transaction; an outside ten-store
+   check followed by that commit leaves a race. A private shared owner validation/
+   scheduling seam, exact full pre-state CAS and complete lifecycle guard are
+   required. No public/sidecar authority or copied plan.
+2. .13–15 terminal historical checks require actual complete applied Metadata
+   owner history and reject extra pending Metadata. They do not authenticate the
+   active/pending pre-state of a future delete or a general pending suffix. New
+   internal evidence-based pre/post composition must prove that boundary without
+   changing public readers or fabricating durable applied outcomes. A successful
+   read-only diagnostic cannot authorize a Metadata write or Q cursor commit.
+
+The permitted future delta is only genuine Metadata owner head/history plus its
+own applied inbox proof. Note/project ciphertext, membership, source_revision,
+history/intents, bindings, receipts/outbox and all cursors stay unchanged. Recheck
+actual history/source after native commit. A later verification/prefix failure
+halts the pass but does not roll back earlier genuine committed owner evidence.
+Missing sequence, fork, unsupported family/Stage/cover/own/new generation, stale
+inventory or lifecycle failure remain barriers; no fallback or automatic retry.
+
+Migration / new durable format / wire / crypto / backend requirement: **NO** for
+the defined coverless two-record handoff. Private composition remains unimplemented
+and needs separate acceptance. Evidence insufficiency in a future cohort must
+STOP before any new format or authorization relaxation.
+
+Recommended **C21.2.17 — private Metadata atomic-handoff prerequisite repair**:
+isolated dormant owner seam and full-account pending/active/terminal pre/post
+verification with genuine F/H/O/Metadata and real IDB rollback/restart evidence.
+Coverless imported same-F-project create/update/delete only where a genuine
+baseline is provable; no-head create and unrelated-project routes cannot be
+assumed. No K/G/Q integration in that prerequisite. Stage/StageOrder remain blocked.
+Neither this proposal nor a Metadata adapter is implemented in .16.
+
+Accepted .15 timings: Frontend35m49s/40, complete-project26m13s/40. Future planning
+estimate only: isolated primitive2–4 runner minutes plus reused native profiles
+1–2 minutes, to be measured. Add no duplicate heavy workload to Frontend; retain
+all six jobs, coverage and5000ms/40min budgets; partition only with measured evidence.
+This docs-only stage runs no unit/Chromium/build suites. Source/API/reference/scope
+checks, exact historical checkpoint byte preservation, both protected .pyc SHA-256
+checks and git diff --check: PASS. Actual workflow push filters: **Cloud NOT EXPECTED;
+SQLite NOT EXPECTED**. Do not poll or wait for Actions after push.
+
+C21.2.11 **IMPLEMENTATION STOP**, C21.2.08 **NOT CLOSED**, C21/C21.2 IN PROGRESS,
+Web **89.36%**, ready=false. No Metadata routing, K/H/O/G activation, Q commit,
+ACK, Note capability, Content writer/sealing/upload/self-echo, registration or
+scheduler activation. Closed registration, VPS Security Hardening/Security Audit,
+PUBLIC RELEASE BLOCKED, owner reminders and every release/security gate retained.
+No progress points for design-only work; numeric stages and historical records
+are unchanged.
+
+### Простыми словами
+
+Историю после удаления Metadata уже можно отдельно проверить. Но для безопасной
+записи нужна единая операция: проверить всё состояние и изменить только Metadata,
+не затронув заметки. База это позволяет, однако текущий Metadata owner пока не
+предоставляет нужную внутреннюю передачу управления, а историческая проверка
+не принимает неприменённые Metadata-события. Следующий предлагаемый шаг — доказать
+и проверить эти две границы изолированно. Аудит ничего не включает и не означает
+готовности полной Web-синхронизации.
+
 ## C21.2.15 — read-only historical prefix qualification
 
 **LOCAL COMPLETE / REMOTE CI PENDING — DIAGNOSTIC ONLY, NO CURSOR COMMIT.**
