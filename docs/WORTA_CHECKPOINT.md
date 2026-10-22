@@ -83,6 +83,131 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.18 — post-F Metadata routing and historical prefix integration
+
+Preflight: clean branch `6.0`, HEAD and `origin/6.0` both
+`4934cc12c8593e3fe5633b33f1a68e731c982ea0`. Protected engine/game_data bytecode
+SHA-256 values match the preceding repair record. The owner supplies independently
+verified **C21.2.17 REMOTELY ACCEPTED**, that exact SHA, Cloud run **39819436126
+SUCCESS / all six mandatory jobs**. This acceptance includes the native bridge CI
+repair; prior cancelled/failed attempts below remain historical evidence.
+Accepted CI preparation and bridge behavior are retained.
+
+**LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING — DORMANT, BOUNDED UPDATE/DELETE.**
+[Contract, authority and restart details](web/C21_POST_F_METADATA_ROUTING.md).
+`BrowserV10Recovery.bindPostFMetadata` is a separate explicit K binding. It first
+authenticates the complete original account inventory through accepted .17 private
+F/H/Metadata/Content/source verification, then selects the actual private Metadata
+handoff or the existing live H/O owner. It never catches failed live H/Q as a
+selection signal. At most one Metadata outcome applies per pass; every next event
+requires a fresh actual durable inventory. Metadata3, both F protocols, all four
+strategies, accepted Content ID0/ID1 and genuine `M<E<D` retained history are covered.
+
+The new private prefix owner independently mints closure/scope/session/device-bound
+authority from fresh full-account original-wire/proof/source authentication. Its
+family joins reauthenticate every sequence from1, including the old proven prefix;
+keep_both counts once, received rows never qualify, and the earliest blocker caps
+both counts and the candidate. It consumes certificates before awaiting plan
+preparation, consumes commit plans on every attempt, rechecks the full inventory
+inside the native cursor transaction and verifies actual durable state afterward.
+Metadata owner commit and cursor commit are separate durable operations: the former
+changes exactly its head/inbox records; the latter can change only proven_prefix.
+Source, membership, Note history, ACK/pull/local-ordinal and all other records stay
+pinned around those operations. No .15 diagnostic or public G/Q token grants this
+new authority. Old .13–17 APIs, default/mixed K body and G/Q remain unchanged.
+
+After an applied Metadata outcome, a failed later history/cursor stage retains the
+returned owner result and exposes a blocker. Post-completion uncertainty has explicit
+ownerCommitMayHaveOccurred/prefixCommitMayHaveOccurred flags. Native interruption
+does not invent rollback; fresh restart authenticates actual disk and resumes the
+cursor without repeating the owner mutation. Received Content on either side of D,
+including an old nondeleted dependency, and Legacy transport after D gain no new
+first-apply permission. Create/no-head, Metadata2, covers, Stage/StageOrder, own/local,
+extra pending Metadata, further Resolution and unrelated-project routes stay blocked.
+
+Validation: **761 distinct PASS /17 files**, failed/skipped0 in complete commands.
+The .11–17/new group passed366 in486.42s; affected F/H/O/G/K/N/L/readiness regressions
+passed394 in261.78s; final exact new CI command passed **74/74 in72.54s** (new cases
+already present in the first group are counted once). A focused stronger rejection
+of an actual old G/Q token also passed; it is not an additional distinct case.
+Original .11 negative tests and accepted .17 owner/authentication/CI repair bytes
+remain unchanged. Protected engine/game_data .pyc hashes and full historical
+checkpoint bytes are preserved.
+
+Final rebuilt Chromium **8 profiles /46.246s**:16 real Metadata owner commits,
+24 separate cursor commits,56 native rollback checks,40 full process/disk reopens,
+24 renderer crashes before owner/after owner/after cursor,16 complete-inventory
+transport races,16 replay checks,8 competing-tab exclusions and8 deliberate
+post-cursor verification failures. Local auth/key/epoch/profile revocations occur
+during real native owner/cursor writes. All twelve-store comparisons preserve
+unrelated evidence and source. Metadata/cursor/replay nonce or unauthorized HTTP0;
+ordinary O's genuine source encryption is measured separately. ACK/capability0,
+ready=false. This does not prove discovery of unobserved server revocation.
+
+Typecheck, production build, acceptance harness build/native syntax, workflow
+syntax/old-step/matrix/budget checks and git diff --check PASS; existing Vite warnings
+only. Task-created preview/harness and disposable browser profiles are removed;
+pre-existing frontend/dist and main dependencies remain. No Python/Rust/backend,
+schema, crypto, protocol, UI or default production orchestration changes.
+
+CI adds only the74-case isolated unit step to existing foundation and the8-profile
+native mode to existing complete-project, reusing its installed harness/preview.
+Completed accepted run39819436126 measured foundation16m17s, complete-project31m32s,
+content-action37m43s. Conservative observed-ratio planning gives about4m19s extra
+foundation (total20m36s/40) and2m40s extra complete-project (total34m12s/40), with no
+added content-action/Frontend workload or extra Rust compilation. All old steps,
+test lists, six jobs and40-minute budgets remain; no suites move or timeouts rise.
+Fresh Cloud6/6 on the new SHA is required; SQLite is NOT EXPECTED by changed-path
+filters. No new-SHA Actions polling/wait is performed.
+
+C21.2.11 is **PARTIALLY RESOLVED LOCALLY** only for this explicit update/delete
+route; independent .18 remote acceptance is pending and create remains unsupported.
+The old/default .11 STOP and its genuine counterexample remain historical evidence;
+neither .11 nor .08 is CLOSED. Recommended next proposal after .18 acceptance:
+**C21.2.19 — legitimate post-F Metadata no-head/create baseline audit**, with no
+create implementation in this task. C21/C21.2 IN PROGRESS, Web **89.36%**, ready=false;
+registration CLOSED, VPS hardening/security audit, PUBLIC RELEASE BLOCKED, owner
+reminders and every C22/C23/PF6.0+RC/release gate remain mandatory. No progress credit.
+
+## C21 REMAINING ACCEPTANCE GATES
+
+Inventory audited against the actual baseline above before .18 implementation;
+current rows incorporate the completed local .18 changes and pending remote gate.
+ACCEPTED means only the stated bounded component; PARTIAL/BLOCKED never means the
+underlying accepted component is absent. This section supersedes stale current-work
+implications in historical entries without rewriting those entries. Proposed .19
+entries below are alternative scoped follow-up proposals, not an assignment of all
+that work to one stage, new numbering/weights, or permission to implement it in .18.
+For each C21 implementation, remote acceptance means independent Cloud 6/6 on its
+new SHA and SQLite checks only when the actual changed-path filters require them.
+
+| Requirement | Status and exact existing evidence | Blocking dependency / next proposed numbered stage | Required local and remote acceptance | Closure / release effect |
+|---|---|---|---|---|
+| Post-F Metadata update/delete and original .11 historical-delete STOP | PARTIAL. .17 handoff ACCEPTED; .18 explicit `v10MixedRecovery.ts::bindPostFMetadataRecovery` and `privateMetadataPrefix.ts` LOCAL COMPLETE, remote pending. `postFMetadataBoundary.spec.ts` preserves the old real M/E/D counterexample and default K STOP. | C21.2.18 independent remote acceptance; subsequent create/no-head prerequisite remains a proposed C21.2.19 audit. | Local F2/F3 × four strategies, ID0/ID1, separate genuine owner/cursor commits and native restart/races PASS; fresh Cloud6/6 required. | Bounded update/delete problem locally resolved; .11 cannot close completely while its other required cohorts remain unsupported. |
+| Complete Note reader/capability, C21.2.08 | PARTIAL. F/H/O/G/Q/J/K accepted dormant bounded readers; `noteReaderReadiness.ts` always returns ready/declarationAllowed/writerAuthorized=false. Frozen server predicate is in `backend/app/cloud/services.py::content_note_reader_ready`; no partial capability exists. | Complete supported lifecycle, production dispatch, all-device gate; proposed C21.2.19 reader-readiness scope after its dependencies. | Full lifecycle matrix, truthful server gate and real registered-device tests; fresh Cloud6/6 before any declaration. | Blocks .08/C21 closure and release readiness; decoder support alone is insufficient. |
+| C21.1.06 protected-apply completion and remaining Web entity families | PARTIAL. Original .06 audit is still NOT LOCAL COMPLETE. Its lineage prerequisite now exists in `projectBindings.ts`, `initialNoteCapture.ts`, `bootstrapCompletion.ts`; bounded Metadata/Note/Stage/StageOrder apply and prefix were independently accepted in .07–.30. `persistence.ts::BrowserPersistenceSession` exposes those owners, while Document/Map/Progress/Game/Account native runtimes in `frontend/src/cloud/*Runtime.ts` still use Tauri/SQLite infrastructure. | Reconcile the original all-family claim with actual browser adapters/dependencies/cover material; proposed C21.2.19 family-coverage audit before a scoped implementation. | Family-by-family browser producer/consumer, projection/conflict/orphan/replay/prefix/ACK evidence; Cloud6/6 and relevant SQLite filters. | Blocks full C21 Web synchronization; existing native C18 acceptance remains accepted. |
+| Metadata create / legitimate no-head post-F baseline | PARTIAL. Old pre-F imported Metadata create exists in `importedMetadataApply.ts`; .17 explicitly returns `unsupported_create_baseline`, tested in `privateMetadataHandoff.spec.ts`. | Prove a real no-head F baseline and its source/lineage contract; proposed C21.2.19 prerequisite audit. | Genuine no-head fixtures and atomic create/replay/negative source tests, then Cloud6/6. | Blocks the originally claimed create coverage/.11 full closure; .18 update/delete cannot claim it. |
+| Metadata transport2 compatibility | PARTIAL / explicit boundary. `encryptedSyncV2.ts::parseV2PullResponse` permits Note descriptors only; `syncDurability.ts` preserves that parser. Metadata3 works; both F protocols work. .17 tests reject Metadata2. | Decide the supported Web compatibility claim before any wire change; proposed C21.2.19 compatibility audit. | Explicit compatible-peer matrix and parser/gate tests; Cloud6/6 for implementation. | Blocks any claim of Metadata-on-v2 support; may remain an explicit unsupported optional compatibility scope if the release contract independently accepts v3-only Metadata. |
+| Raw Legacy Resolution carried on protocol3 | NOT IMPLEMENTED / end-to-end acceptance absent. `encryptedSyncV3.ts` admits a Note/resolution descriptor, but `resolutionPlanner.ts::original` requires a framed Content event.version2 for protocol3; existing accepted raw Legacy F uses protocol2. The .08I coverage audit records this dispatch gap. | Independently specify compatible original wire→durable producer/consumer mapping; proposed C21.2.19 compatibility audit. | Real raw-on3 receive/decode/apply/restart/history/prefix tests without casting it to Content; Cloud6/6. | Blocks a complete frozen Resolution2 reader claim until supported or independently resolved in the compatibility contract. |
+| Cover references and verified encrypted blob material | PARTIAL. Native Cover crypto/retention/runtime is accepted C18 evidence; browser `importedMetadataApply.ts::metadataProofFor` rejects non-null cover references with `cover_material_unavailable`. Coverless browser owners are accepted. | Browser retained authenticated Cover material, exact reference ownership/limits and lifecycle contract; proposed C21.2.19 Cover prerequisite audit. | Genuine encrypted blob retention/read/revoke/restart plus Metadata/source/CAS/ACK tests; Cloud6/6 and applicable SQLite filters. | Blocks full browser Metadata/Cover coverage; .18 remains coverless. |
+| Post-F Stage/StageOrder dependencies and history | PARTIAL. `stageApply.ts`, `stageOrderApply.ts`, stage-prefix specs and .1.22/.1.23 acceptance cover bounded pre-F owners/prefix. Mixed K and private Metadata authentication reject these families. | Full-v10 owner/source/dependency/history contract, exact child manifests and historical references; proposed C21.2.19 structural-routing audit. | Genuine Stage/StageOrder owners after F, dependency order/delete/replay/full-account races; Cloud6/6 and relevant SQLite checks. | Blocks full mixed Web family coverage/C21 closure; not part of .18. |
+| Content writer, sealing, publication, upload, receipt and self-echo | PARTIAL. `contentNoteIntents.ts` implements accepted dormant source/I2 capture (.07); `contentAuthorityRecords.ts`, authentication/migration modules implement I2/C3/R2/S2 formats and readers (.06). `noteIntents.ts` seals Legacy intents; the Content producer is absent from `BrowserPersistenceSession`. Native `ContentNoteRuntime` has these operations through Tauri, not browser ownership. | Complete reader/capability prerequisite, private Content sealer and genuine producer/consumer ownership; proposed C21.2.19 outbound prerequisite audit per existing outbound design (planning labels remain historical). | Original source→I2→sealed candidate→outbox→raw receipt→self-echo, immutable retries/crashes and real server gate; Cloud6/6. | Blocks full browser Content synchronization/.08/C21 closure and release readiness. |
+| Own/local authorship and local source after F | PARTIAL. Legacy writer/local-unsealed conflict evidence and peer Content/local conflict are accepted; `contentNoteIntents.ts` bounds source capture and `mixedSourceValidation.ts`/historical private verifier reject local publications/future candidate3 cohorts. | Source/CAS and author-chain contract for Head2, own Content/Resolution, sealed siblings; proposed C21.2.19 author-chain prerequisite audit. | Genuine local producer, publication/receipt/self-echo and restart/race tests; Cloud6/6. | Blocks complete reader/writer lifecycle and C21 closure. |
+| Further Resolution generations / open conflict recovery | PARTIAL. Accepted F has both protocols/all four strategies and one genuine closure; H/K preserve an authentic fork without projection and stop. `resolutionPlanner.ts`, `v10Recovery.ts`, `mixedSourceValidation.ts` reject extra generations. | Genuine additional producer/closure/source chains, not reused first-generation proofs; proposed C21.2.19 lifecycle audit. | Multi-generation/open-group resolution, retained branches, deletion/restart/replay tests; Cloud6/6. | Blocks complete Resolution2 capability/.08/C21 closure. |
+| Note tombstone resurrection lifecycle | BLOCKED. `resolutionContinuation.ts` explicitly rejects implicit resurrection of a deleted parent; `noteReaderReadiness.ts` retains `tombstone_resurrection_not_accepted`, and K/O negative tests preserve this barrier. | A separately accepted genuine resurrection/lineage/source contract; proposed C21.2.19 lifecycle audit. | Real deleted-parent histories, allowed/rejected resurrection and subsequent conflict/prefix/restart matrix; Cloud6/6. | Blocks complete reader lifecycle/.08 closure; deletion support is already accepted within its current bounds. |
+| Missing/cold dependencies and unsupported mixed cohorts | PARTIAL. `v10Recovery.ts`/`v10MixedRecovery.ts` report dependency/missing-sequence barriers; O/N enforce complete source revision order. No caught-verifier fallback authorizes missing history. | Dependency retrieval/orphan recovery and an accepted source contract for each rejected cohort; proposed C21.2.19 recovery scope. | Cold profile with genuine fetched history, earliest-blocker ordering and no partial writes; real server multi-device tests and Cloud6/6. | Blocks complete recovery/readiness, not permission to weaken existing barriers. |
+| Historical G/Q prefix, cursor and exact ACK | PARTIAL. `resolutionPrefix.ts` retains accepted nonterminal certificates/CAS (.08Q); .18 `privateMetadataPrefix.ts` adds locally proven independent historical cursor authority, remote pending. `.15 historicalPrefixQualification.ts` remains read-only with cursor/ACK authority=false. `provenPrefix.ts` only exposes the previously accepted family ACK path; no Resolution-inclusive ACK authority is granted. | .18 remote acceptance; separately prove exact registered-device/server ACK eligibility after complete reader acceptance (proposed C21.2.19 ACK audit). | Local full-sequence reauthentication, exact counts/keep_both, complete CAS, token isolation and interruption PASS; Cloud6/6 required. ACK needs its own positive/negative server matrix. | Historical cursor gap locally repaired for the bounded .18 cohort; ACK/readiness remain separate C21 gates. |
+| Real multi-device restart/revocation/recovery | PARTIAL. Existing F/H/G/K and .17 native browser runners prove disk/process reopen, tab races and locally observable auth/key/profile revocation across real profiles. .17 private mode does not claim discovery of unobserved server revocation. | Accepted production reader/writer orchestration and authoritative remote revocation handling; proposed C21.2.19 orchestration acceptance scope. | Multiple real browser/server devices, offline/reopen/lost reply/revocation/recovery and exact original evidence; Cloud6/6 plus required production acceptance. | Blocks production readiness/C21 closure; existing bounded restart evidence remains accepted. |
+| Production orchestration, scheduling and readiness | NOT IMPLEMENTED for complete v10 mixed sync. `BrowserPersistenceSession` has no F/H/K/readiness/Content-intent composition; dormant bind methods and negative-only readiness do not schedule network work. Existing `noteSyncRuntime.ts`/native runtimes retain their narrower contracts. | All required reader/source/family/outbound/ACK gates and lifecycle ownership; proposed C21.2.19 composition design after dependencies. | Real Web startup/editor/manual/automatic sync/reconnect, locks/session revocation and no capability overclaim; Cloud6/6 and independent end-to-end acceptance. | Blocks C21 closure/release readiness. |
+| C22/C23, deployment/VPS security, RC and owner release | BLOCKED by preceding release requirements; existing canonical scope/release-gate sections specify C21→C22 Production Hardening→C23 Failure/Disaster→PF6.0/RC→owner stabilization/explicit public release. No audit or Cloud run substitutes for them. | Existing C22/C23/PF6.0+RC stages and owner deployment/release decisions, with VPS hardening/security audit before public access/registration. | Production/failure/disaster, backup/restore, security fixes/retest, policy/license/localization/terminology and owner acceptance. Remote evidence is the applicable stage-specific independent acceptance, not only Cloud6/6. | Mandatory release gates; registration CLOSED and PUBLIC RELEASE BLOCKED. |
+| Android launch / additional Desktop launch scope | PARTIAL / separate scope. Android code and mandatory Cloud packaging compatibility already exist; canonical scope above places C19/C20 public Android work after full Web release and retains accepted Desktop history. | Existing post-Web C19/C20 workstream and future owner launch decisions; no new mandatory Desktop-launch prerequisite is introduced. | The eventual platform-specific local/remote/store/owner acceptance; current Cloud Android packaging remains mandatory. | Optional/unrelated to C21 closure and the Web denominator; not a reason to claim Web ready or to remove existing packaging checks. |
+
+Current official Web progress **89.36%**, C21/C21.2 IN PROGRESS, ready=false.
+No accepted history, roadmap weights, registration/security or owner-release gate
+is changed by this inventory. The original/default .11 STOP is preserved; bounded
+.18 update/delete repair is local and awaits remote acceptance. C21.2.11 full
+closure and C21.2.08 NOT CLOSED retain the unresolved requirements listed above.
+
 ## C21.2.17 — private Metadata atomic-handoff prerequisite repair
 
 ### CI native bridge build and timeout repair

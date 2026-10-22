@@ -163,3 +163,16 @@ security audit, closed public registration and all owner/public-release gates re
 путь для принятой истории, а не автоматическая полная Web-синхронизация или разрешение
 отправлять данные. Следующий предлагаемый числовой этап .10 — аудит структурных
 событий после Resolution; остальные reader/producer/security gates сохраняются.
+
+## C21.2.18 — separately selected post-F Metadata recovery
+
+`BrowserV10Recovery.bindPostFMetadata` adds the bounded
+[private Metadata/historical-cursor route](C21_POST_F_METADATA_ROUTING.md).
+The original `bindMixedSources` body and historical .11 STOP assertions above
+remain unchanged. The new entry authenticates the complete accepted .17 account
+cohort before routing, uses the genuine private Metadata owner, and reloads actual
+durable state before minting separate cursor authority. It reports an applied owner
+outcome even when a later cursor stage blocks, without false rollback. Received
+Notes cannot acquire first-apply permission through a terminal Metadata history.
+The new entry is dormant and needs its own remote acceptance; no production
+composition, ACK/capability, writer, Stage/StageOrder or broader history is enabled.

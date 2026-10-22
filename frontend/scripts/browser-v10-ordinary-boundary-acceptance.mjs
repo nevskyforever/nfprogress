@@ -1,4 +1,5 @@
 import {runPrivateMetadataCase} from './browser-private-metadata-cases.mjs'
+import {runPostFMetadataCase} from './browser-post-f-metadata-cases.mjs'
 import {runOrdinaryOwnerCase} from './browser-v10-ordinary-owner-cases.mjs'
 import {runHistoricalMetadataCase} from './browser-historical-metadata-cases.mjs'
 import assert from 'node:assert/strict'
@@ -10,6 +11,8 @@ import {chromium} from '@playwright/test'
 // so replay never expands the accepted current-interval cursor contract.
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
 const privateMetadataMode=process.argv.includes('--private-metadata')
+const postFMetadataMode=process.argv.includes('--post-f-metadata')
+const postFTotals={ownerCommits:0,cursorCommits:0,rollbacks:0,restarts:0,crashes:0,races:0,replays:0,tabs:0,postCommitFailures:0}
 const privateStarted=Date.now()
 const privateTotals={crashes:0,applied:0,rollbacks:0,restarts:0,replays:0,tabs:0,races:0,revoked:0,postCommitFailures:0}
 const recoveryMode=process.argv.includes('--mixed-recovery')
@@ -21,10 +24,11 @@ const prefixMode=process.argv.includes('--mixed-prefix')||recoveryMode
 const continuationMode=process.argv.includes('--mixed-continuation')||prefixMode
 const ordinaryMode=process.argv.includes('--ordinary-owner')||continuationMode
 assert.ok(!historicalMetadataMode||!ordinaryMode,'historical Metadata is a separate acceptance mode')
+assert.ok(!postFMetadataMode||!privateMetadataMode&&!historicalMetadataMode&&!ordinaryMode,'post-F Metadata K is a separate acceptance mode')
 const hTotals={hApplied:0,hPreserved:0,hReplays:0,hRollback:0,hRaces:0,hRevoked:0,hBarriers:0,hRestarts:0,hTabs:0,oInterleaved:0}
 const qTotals={qAdvanced:0,qRaces:0,qRollback:0,qRevoked:0,qRestarts:0,qTabs:0,qReplay:0,qOrdinary:0,qForkBarriers:0}
 const kTotals={kApplied:0,kRestarts:0,kRollback:0,kPrefixRecovery:0,kRevoked:0,kTabs:0,kReplay:0,kBounded:0}
-const witnessMode=process.argv.includes('--mixed-source-witness')||ordinaryMode||historicalMetadataMode||privateMetadataMode
+const witnessMode=process.argv.includes('--mixed-source-witness')||ordinaryMode||historicalMetadataMode||privateMetadataMode||postFMetadataMode
 const ordinaryTotals={applied:0,replays:0,rollbacks:0,races:0,revocations:0,barriers:0,restarts:0,tabs:0}
 assert.equal(new URL(origin).hostname,'127.0.0.1')
 const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents']
@@ -46,7 +50,7 @@ const checkWitness=async()=>{
  assert.equal(network.length,traffic);assert.deepEqual(await snapshot(),before);witnessReads++
 }
 for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merge','delete','keep_both']){
- console.log(`${privateMetadataMode?'private Metadata':historicalMetadataMode?'historical Metadata':ordinaryMode?'O owner':'L boundary'} native ${protocol}/${strategy}`)
+ console.log(`${postFMetadataMode?'post-F Metadata K':privateMetadataMode?'private Metadata':historicalMetadataMode?'historical Metadata':ordinaryMode?'O owner':'L boundary'} native ${protocol}/${strategy}`)
  const testCase={protocol,strategy,witnessMode},directory=await mkdtemp(join(tmpdir(),'c21-v10-ordinary-boundary-'))
  const launch=async()=>{
   context=await chromium.launchPersistentContext(directory,{headless:true})
@@ -132,6 +136,14 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   const seed=await page.evaluate(d=>recovery.run(s,{maxEvents:32,replay:{since:d.since,rawPage:d.rawPage}}),decisions)
   assert.equal(seed.blocker,null);assert.equal(seed.ready,false)
   const positive=await snapshot();assert.equal(positive.inbox.find(r=>r.event_id===decisions.event_id).record_version,10)
+  if(postFMetadataMode){
+   const result=await runPostFMetadataCase({getPage:()=>page,snapshot,protocol,strategy,decision:decisions,
+    restart:async()=>{await context.close();await launch();await bind()},
+    compete:async()=>{const other=await context.newPage();await other.goto(`${origin}/scripts/browser-persistence-harness.html`);assert.equal(await other.evaluate(async s=>{try{await c21.openBrowserPersistence(s.canonicalUserId);return false}catch(e){return e.code==='writer_busy'}},scope),true);await other.close()}
+   })
+   for(const key of Object.keys(postFTotals))postFTotals[key]+=result[key]
+   profiles++;continue
+  }
   if(privateMetadataMode){
    const result=await runPrivateMetadataCase({getPage:()=>page,snapshot,protocol,strategy,decision:decisions,
     restart:async()=>{await context.close();await launch();await bind()},
@@ -299,11 +311,11 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
 }
 assert.deepEqual(errors,[])
 assert.equal(network.filter(n=>n.includes('note-reader-capabilities')||n.includes('/ack')||n.includes('/push')).length,0)
-if(!ordinaryMode&&!historicalMetadataMode&&!privateMetadataMode)console.log(JSON.stringify({result:'PASS',L:'STOP_SOURCE_AUTHORITY_AUDIT',profiles,restarts,metadataOwners,metadataRollbacks,ordinaryRejects,structuralRejects,sourceRejects,registrations,pageErrors:0,newProductionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
-if(witnessMode&&!ordinaryMode&&!historicalMetadataMode&&!privateMetadataMode)console.log(JSON.stringify({result:'PASS',N:'READ_ONLY_MIXED_SOURCE_WITNESS',witnessReads,witnessRaces,witnessRevocations,witnessTabs,witnessRejects,ordinaryPostFPositiveClaims:0,witnessWrites:0,witnessNonces:0,ready:false}))
+if(!ordinaryMode&&!historicalMetadataMode&&!privateMetadataMode&&!postFMetadataMode)console.log(JSON.stringify({result:'PASS',L:'STOP_SOURCE_AUTHORITY_AUDIT',profiles,restarts,metadataOwners,metadataRollbacks,ordinaryRejects,structuralRejects,sourceRejects,registrations,pageErrors:0,newProductionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
+if(witnessMode&&!ordinaryMode&&!historicalMetadataMode&&!privateMetadataMode&&!postFMetadataMode)console.log(JSON.stringify({result:'PASS',N:'READ_ONLY_MIXED_SOURCE_WITNESS',witnessReads,witnessRaces,witnessRevocations,witnessTabs,witnessRejects,ordinaryPostFPositiveClaims:0,witnessWrites:0,witnessNonces:0,ready:false}))
 if(historicalMetadataMode)console.log(JSON.stringify({result:'PASS',stage:historicalPrefixMode?'C21.2.15':historicalContentMode?'C21.2.14':'C21.2.13',profiles,...historicalTotals,pageErrors:0,unauthorizedHttp:0,verifierWrites:0,nonces:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
 
-if(ordinaryMode||historicalMetadataMode||privateMetadataMode)assert.equal(network.filter(n=>!/^PUT:\/api\/v1\/sync\/devices\/[^/]+$/.test(n)).length,0)
+if(ordinaryMode||historicalMetadataMode||privateMetadataMode||postFMetadataMode)assert.equal(network.filter(n=>!/^PUT:\/api\/v1\/sync\/devices\/[^/]+$/.test(n)).length,0)
 if(ordinaryMode)console.log(JSON.stringify({result:'PASS',O:'DORMANT_V10_ORDINARY_OWNER',...ordinaryTotals,profiles,restarts,registrations,pageErrors:0,unauthorizedHttp:0,productionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
 
 if(continuationMode)console.log(JSON.stringify({result:'PASS',P:'H_MIXED_SOURCE_CONTINUATION',...hTotals,profiles,pageErrors:0,unauthorizedHttp:0,GIntegration:0,KRouting:0,ResolutionAck:0,ready:false}))
@@ -311,3 +323,4 @@ if(prefixMode)console.log(JSON.stringify({result:'PASS',Q:'G_MIXED_SOURCE_LOCAL_
 if(recoveryMode)console.log(JSON.stringify({result:'PASS',stage:'C21.2.09',...kTotals,profiles,pageErrors:0,unauthorizedHttp:0,defaultKUnchanged:true,productionRecovery:0,ResolutionAck:0,NoteCapabilityPut:0,ContentPush:0,ready:false}))
 
 if(privateMetadataMode)console.log(JSON.stringify({result:'PASS',stage:'C21.2.17',durationMs:Date.now()-privateStarted,profiles,...privateTotals,pageErrors:0,unauthorizedHttp:0,sourceChanges:0,cursorChanges:0,handoffNonces:0,KRouting:0,GQIntegration:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
+if(postFMetadataMode)console.log(JSON.stringify({result:'PASS',stage:'C21.2.18',durationMs:Date.now()-privateStarted,profiles,...postFTotals,pageErrors:0,unauthorizedHttp:0,metadataSourceChanges:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))

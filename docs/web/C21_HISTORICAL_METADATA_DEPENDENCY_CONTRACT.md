@@ -648,3 +648,17 @@ C21.2.15 may be LOCAL COMPLETE only after bounded local validation; REMOTELY ACC
 requires a subsequent independent Cloud6/6 success. C21.2.08 NOT CLOSED,
 C21/C21.2 IN PROGRESS, Web89.36%, ready=false, closed registration and every
 VPS/security/public-release gate remain unchanged.
+
+## C21.2.18 — independent private historical cursor authority
+
+[The later .18 implementation](C21_POST_F_METADATA_ROUTING.md) uses fresh complete
+original-wire/proof/source authentication to mint a new closure-bound private
+cursor certificate, with full-inventory CAS in the native cursor transaction.
+It does not consume a .15 diagnostic, turn historical decoding into first apply,
+or change the public .13/.14/.15 contracts. A real Metadata owner outcome and its
+later cursor update are separate durable operations; failure of the latter retains
+the earlier applied evidence and reports a blocker. The original .11 negative tests
+remain historical/default-path evidence. Received Content before/after terminal D
+never gains historical qualification or live permission. New .18 remote acceptance
+is pending; all unimplemented source/family/outbound/readiness/release requirements
+remain in the checkpoint's C21 REMAINING ACCEPTANCE GATES inventory.

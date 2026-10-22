@@ -16,6 +16,8 @@ import {BrowserV10Transport} from './v10Transport'
 import {BrowserResolutionContinuation} from './resolutionContinuation'
 import {BrowserV10OrdinaryApply} from './v10OrdinaryApply'
 import {BrowserResolutionPrefix} from './resolutionPrefix'
+import {bindPrivateMetadataHandoff,PrivateMetadataHandoffError} from './importedMetadataApply'
+import {bindPrivateMetadataPrefix,PrivateMetadataPrefixError} from './privateMetadataPrefix'
 import {openNoteTransport} from './noteTransport'
 import {openBrowserCanonicalObject} from './canonicalReaders'
 import type {RecoveryBlocker,V10RecoveryOptions,V10RecoveryResult} from './v10Recovery'
@@ -139,6 +141,105 @@ export function bindMixedV10Recovery(tx:BrowserSyncTransaction,local:BrowserLoca
    result.more=(await step(transport.listReceived(s,1))).length>0
    if(replay)await step(transport.replayInboundPage(s,replay.since,replay.rawPage))
    return result
+  }finally{busy=false}
+ }})
+}
+
+export interface PostFMetadataRecoveryResult extends MixedV10RecoveryResult {
+ ownerCommitMayHaveOccurred:boolean
+ prefixCommitMayHaveOccurred:boolean
+}
+/** Explicit .18 single-F/coverless peer cohort. The original mixed K above and
+ * public G/Q remain unchanged. Every admission is authenticated before dispatch. */
+export function bindPostFMetadataRecovery(tx:BrowserSyncTransaction,local:BrowserLocalAuthority,current:()=>boolean,auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){
+ const metadata=bindPrivateMetadataHandoff(tx,current,auth,bindings,keys,device),prefix=bindPrivateMetadataPrefix(tx,current,auth,bindings,keys,device)
+ const h=new BrowserResolutionContinuation(tx,local,current).bind(auth,bindings,keys,device),o=new BrowserV10OrdinaryApply(tx,local,current).bind(auth,bindings,keys,device)
+ let busy=false
+ return Object.freeze({run:async(input:BrowserSyncScope,options:V10RecoveryOptions={}):Promise<PostFMetadataRecoveryResult>=>{
+  if(busy)fail('closed')
+  const s=snapshotBrowserSyncScope(input),max=options.maxEvents??8,replay=options.replay?{...options.replay}:undefined
+  if(!Number.isSafeInteger(max)||max<1||max>32)fail()
+  busy=true
+  const result:PostFMetadataRecoveryResult={ready:false,declarationAllowed:false,ackAuthorized:false,applied:[],blocker:null,more:false,replayed_events:0,prefix:null,readiness:null,ownerCommitMayHaveOccurred:false,prefixCommitMayHaveOccurred:false}
+  let lastSequence=1,prefixAdvanced=false
+  const block=(sequence:number,kind:RecoveryBlocker['kind'],reason:string,retryable=false)=>{result.blocker={sequence,kind,reason,retryable}}
+  try{
+   const initial=auth.requireContext(),{context}=await bindings.ensureForCurrentUser(s.accountId),lease=keys.leaseForAccount(s.accountId)
+   const live=()=>current()&&auth.isCurrent(initial)&&auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(device,s,auth)
+   const check=()=>{if(!live())fail('closed')}
+   if(!lease||lease.authEpoch!==context.authEpoch||lease.localAccountId!==s.accountId||lease.canonicalUserId!==s.canonicalUserId||context.userId!==s.canonicalUserId)fail('closed')
+   check()
+   const step=async<T>(work:Promise<T>)=>{const value=await work;check();return value}
+   const load=()=>step(tx<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,live,result,abort)))
+   if(replay)result.replayed_events=(await step(prefix.replay(s,replay.since,replay.rawPage))).replayed_events
+   let metadataApplied=false
+   for(;;){
+    const v=await load(),certificate=await step(prefix.prepare(s)),admission=await step(prefix.route(certificate)),proven=await step(prefix.calculate(certificate))
+    // This verifier authenticates every original row/source before selecting a
+    // route, including pending Metadata and all previously proven sequences.
+    if(!same(await load(),v))fail('stale_source')
+    const next=admission.firstPending
+    if(!next)break
+    lastSequence=next.sequence
+    const row=readFutureInboxRecord(v.rows.find(r=>(r as {server_sequence:number}).server_sequence===next.sequence),s),e=JSON.parse(row.wire_item).event
+    if(row.event_id!==next.event_id||!same(e,next.event)||row.protocol_version!==next.protocol_version)fail('stale_source')
+    if(proven.first_blocking_sequence!==next.sequence)fail()
+    if(result.applied.length===max){block(next.sequence,'budget_exhausted','manual_pass_limit',true);break}
+    if(e.entity_type==='project_metadata'){
+     if(metadataApplied){block(next.sequence,'budget_exhausted','one_metadata_outcome_per_pass',true);break}
+     const plan=await step(metadata.prepare(s,next.sequence));if(!same(await load(),v))fail('stale_source')
+     try{await metadata.commit(plan)}catch(error){
+      if(error instanceof PrivateMetadataHandoffError&&error.commitMayHaveOccurred){result.ownerCommitMayHaveOccurred=true;result.more=true;block(next.sequence,'unqualified_family','metadata_post_commit_verification_failed');return result}
+      throw error
+     }
+     result.applied.push({sequence:next.sequence,route:'metadata',status:'applied'});metadataApplied=true;check()
+     continue // Reload and independently authenticate the actual durable state.
+    }
+    if(e.entity_type!=='note'||e.project_id!==admission.root.project_id||e.device_id===s.deviceId)fail()
+    if(admission.metadataDeleted){block(next.sequence,'dependency_unavailable','deleted_metadata_live_apply');break}
+    const value=await step(lease.use(async amk=>{
+     if(e.operation!=='event')return e.operation==='resolution'?null:(await openNoteTransport(s,amk,row.protocol_version,row.wire_item,'legacy')).plaintext
+     if(row.protocol_version!==3)fail()
+     const wire=JSON.parse(row.wire_item),nonce=decodeBase64Url(wire.object.nonce),ciphertext=decodeBase64Url(wire.object.ciphertext)
+     try{
+      const c=await openBrowserCanonicalObject(amk,{accountId:s.canonicalUserId,projectId:e.project_id,entityId:e.entity_id,entityType:'note',eventId:e.event_id},{...wire.object,nonce,ciphertext}) as ContentNoteEvent
+      if(c.device_id!==e.device_id||c.event.header.revision!==e.revision||canonicalizeSyncTimestamp(c.event.header.updated_at)!==canonicalizeSyncTimestamp(e.updated_at))fail()
+      return c.event.version===2?null:c.event
+     }finally{nonce.fill(0);ciphertext.fill(0)}
+    }))
+    if(!value){block(next.sequence,'unsupported_generation','additional_resolution');break}
+    const role=[admission.root.note_id,admission.root.retained_note_id].includes(value.header.entity_id)
+    const route=role?'continuation':row.protocol_version===2?'legacy':'content'
+    try{
+     const commit=async<T,R>(prepare:Promise<T>,apply:(token:T)=>Promise<R>)=>{const plan=await step(prepare);if(!same(await load(),v))fail('stale_source');return apply(plan)}
+     const outcome=role?await commit(h.prepare(s,next.sequence),t=>h.commit(t)):await commit(o.prepare(s,next.sequence),t=>o.commit(t)),status=outcome==='conflict_preserved'?'conflict_preserved':'applied'
+     result.applied.push({sequence:next.sequence,route,status});check()
+     if(status==='conflict_preserved'){block(next.sequence,'unresolved_fork','H_preserved_without_projection');break}
+    }catch(error){
+     check()
+     if(error instanceof BrowserPersistenceError&&['note_orphan','missing_history','ineligible_lineage','stale_authority'].includes(error.code)){block(next.sequence,'dependency_unavailable',error.code,true);break}
+     if(error instanceof BrowserPersistenceError&&['unsupported_local_source','note_conflict_unproven','local_incompatible'].includes(error.code)){block(next.sequence,'unsupported_route',error.code);break}
+     throw error
+    }
+   }
+   // This is a distinct durable operation. Its private certificate is minted
+   // from a NEW full original-wire/source pass after the last owner result.
+   try{
+    const certificate=await step(prefix.prepare(s));result.prefix=await step(prefix.calculate(certificate))
+    if(result.prefix.candidate_proven_prefix>result.prefix.current_proven_prefix){await prefix.commit(await step(prefix.prepareCommit(certificate)));prefixAdvanced=true;check()}
+   }catch(error){
+    if(error instanceof PrivateMetadataPrefixError&&error.commitMayHaveOccurred)result.prefixCommitMayHaveOccurred=true
+    if(!result.applied.length&&!result.prefixCommitMayHaveOccurred)throw error
+    result.more=true;block(result.prefix?.first_blocking_sequence??lastSequence,'unqualified_family','historical_prefix_verification_failed');return result
+   }
+   if(!result.blocker&&result.prefix.first_blocking_sequence!==null)block(result.prefix.first_blocking_sequence,'unqualified_family','missing_applied_family_evidence')
+   result.more=(await load()).rows.some(r=>(r as {state:string}).state==='received')
+   if(replay)await step(prefix.replay(s,replay.since,replay.rawPage))
+   return result
+  }catch(error){
+   if(!result.applied.length&&!prefixAdvanced)throw error
+   result.prefixCommitMayHaveOccurred=prefixAdvanced;result.more=true
+   block(lastSequence,'unqualified_family','post_owner_history_verification_failed');return result
   }finally{busy=false}
  }})
 }

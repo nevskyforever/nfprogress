@@ -548,3 +548,17 @@ C21.2.11 IMPLEMENTATION STOP for original K/Q integration; C21.2.08 NOT CLOSED;
 C21/C21.2 IN PROGRESS; Web89.36%; ready=false. Registration CLOSED, VPS hardening/
 security audit, PUBLIC RELEASE BLOCKED, owner reminders and every release gate
 remain. .17 local completion is not remote acceptance or progress credit.
+
+## C21.2.18 — explicit private routing and historical cursor
+
+The baseline above is now independently accepted at
+`4934cc12c8593e3fe5633b33f1a68e731c982ea0`, Cloud `39819436126`, SUCCESS6/6.
+The later [.18 explicit route](C21_POST_F_METADATA_ROUTING.md) composes this actual
+private handoff through a separate dormant K entry and adds a separately minted,
+full-account historical cursor certificate. The accepted .17 owner and public
+.13/.14/.15 factories are unchanged. Ordinary H/O still own live first apply;
+terminal historical admission grants none. Owner and cursor commits remain two
+distinct durable operations with explicit post-commit failure reporting.
+The new slice requires its own remote acceptance. Original/default K/Q STOP,
+create/no-head, Metadata2, Stage/StageOrder, cover/local/own/further generations,
+ACK/readiness/outbound and release gates are not declared closed by .18.

@@ -268,6 +268,49 @@ export async function authenticatePrivateMetadataSource(s:BrowserSyncScope,v:Res
  await authenticateMetadataSourceState(s,v,amk,current,h)
 }
 
+/** Internal .18 authentication, never a .15 diagnostic or a caller-supplied
+ * certificate. The cursor owner keeps these freshly joined maps lexically private. */
+export async function authenticatePrivateMetadataPrefixInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ const cursor=validateBrowserSyncCursor(v.checkpoints[0],s)
+ if(v.checkpoints.length!==1||!same(cursor,v.cursor))stop('source_mismatch')
+ const rows=v.rows.map(r=>readFutureInboxRecord(r,s)).sort((a,b)=>a.server_sequence-b.server_sequence)
+ const pending=rows.filter(r=>r.state==='received'&&JSON.parse(r.wire_item).event.entity_type==='project_metadata')
+ if(pending.length>1)stop('unsupported_pending_family')
+ const mode:MetadataHandoffInspection=pending.length?{kind:'pending',sequence:pending[0]!.server_sequence}:{kind:'durable'}
+ const h=await authenticateMetadataHandoffContinuations(s,v,amk,current,mode)
+ if(h.resolutions.size!==1)stop('unsupported_generation')
+ await authenticateMetadataSourceState(s,v,amk,current,h)
+ const root=[...h.resolutions.values()][0]!.record,qualified=new Map<number,'legacy'|'content'|'resolution'|'metadata'>()
+ const metadata=validateBrowserMetadataHead(v.owners.find(o=>(o as {owner_kind:string;owner_id:string}).owner_kind==='project_metadata'&&(o as {owner_id:string}).owner_id===root.project_id),s)
+ for(const row of rows){
+  const e=JSON.parse(row.wire_item).event
+  if(e.entity_type==='project_metadata'){
+   if(row.state==='received')continue // Pending Metadata is authenticated, never qualified.
+   const owner=validateBrowserMetadataHead(v.owners.find(o=>(o as {owner_kind:string;owner_id:string}).owner_kind==='project_metadata'&&(o as {owner_id:string}).owner_id===e.project_id),s)
+   const proof=owner.history.find(p=>p.event_id===row.event_id)
+   if(row.state!=='applied'||!proof||proof.server_sequence!==row.server_sequence||!same(proof,row.applied_proof))stop('source_mismatch')
+   qualified.set(row.server_sequence,'metadata');continue
+  }
+  if(e.entity_type!=='note'||e.project_id!==root.project_id)stop('unsupported_pending_family')
+  if(row.state==='note_resolution_proven'){
+   if(row.event_id!==root.event_id||root.server_sequence!==row.server_sequence||root.wire_item!==row.wire_item||root.record_digest!==row.resolution_proof.resolution_digest)stop('source_mismatch')
+   qualified.set(row.server_sequence,'resolution');continue
+  }
+  if(row.state==='received')continue
+  if(!['note_proven','content_note_proven','note_conflict_preserved','content_note_conflict_preserved'].includes(row.state))stop('unsupported_pending_family')
+  const candidate=h.dag.events.get(row.event_id)
+  if(!candidate||candidate.record_kind!=='candidate'||!h.opened.has(row.event_id)||candidate.record_version===3||candidate.record_version===2&&candidate.server_sequence!==row.server_sequence)stop('source_mismatch')
+  if(row.state==='note_conflict_preserved'||row.state==='content_note_conflict_preserved'){
+   const proof=row.state==='note_conflict_preserved'?row.note_conflict_proof:row.content_note_conflict_proof
+   const group=h.groups.find(g=>g.group.project_id===candidate.project_id&&g.group.note_id===candidate.note_id&&g.group.group_id===proof.group_id)
+   if(!group||group.effective!=='resolved')stop('unresolved_fork')
+  }
+  qualified.set(row.server_sequence,candidate.record_version===2?'content':'legacy')
+ }
+ if(!current())throw new BrowserPersistenceError('closed')
+ return{qualified,root:{project_id:root.project_id,note_id:root.note_id,retained_note_id:root.retained_note_id},metadataDeleted:metadata.history.find(p=>p.event_id===metadata.tip_event_ids[0])!.operation==='delete'}
+}
+
 /** Existing .14 diagnostic only; authenticated maps stay module-private. */
 export async function inspectTerminalMetadataSourceHistory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
  const {h,mixed}=await authenticateTerminalMetadataSourceState(s,v,amk,current)

@@ -275,3 +275,15 @@ changes. Do not silently implement that contract or renumber prior stages.
 Stage/StageOrder and Metadata routing stay blocked in mixed K. All prior F/H/O/Q/K
 behavior and negative tests, Note-source authority, historical evidence, IDB10,
 ready=false, C21.2.08 NOT CLOSED, Web89.36% and security/public-release gates remain.
+
+## C21.2.18 — bounded alternative to the historical .11 STOP
+
+[The explicit .18 Metadata path](C21_POST_F_METADATA_ROUTING.md) selects the accepted
+private handoff before original K's live H/Q preflight and independently authenticates
+the actual post-delete history for a separate local cursor commit. The old .11
+counterexample and default K/G/Q assertions remain unchanged. The bounded new path
+supports only genuine peer coverless Metadata3 update/delete, one F and one earliest
+pending Metadata, with complete original source/history/CAS checks. No Stage/
+StageOrder/create/cover/own/local/further-generation routing is inferred. This local
+repair needs independent .18 acceptance and cannot close the original full .11
+scope or authorize ACK, Note capability, a writer or production scheduling.

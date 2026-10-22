@@ -22,6 +22,7 @@ on:
       - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
       - 'frontend/scripts/browser-historical-metadata-cases.mjs'
       - 'frontend/scripts/browser-private-metadata-cases.mjs'
+      - 'frontend/scripts/browser-post-f-metadata-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -123,6 +124,7 @@ on:
       - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
       - 'frontend/scripts/browser-historical-metadata-cases.mjs'
       - 'frontend/scripts/browser-private-metadata-cases.mjs'
+      - 'frontend/scripts/browser-post-f-metadata-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -342,6 +344,11 @@ jobs:
         working-directory: frontend
         run: npm test -- --run src/platform/web/privateMetadataAuthentication.spec.ts src/platform/web/privateMetadataHandoff.spec.ts --maxWorkers=1
 
+      - name: Run isolated post-F Metadata routing and historical cursor contract tests
+        if: matrix.shard == 'foundation'
+        working-directory: frontend
+        run: npm test -- --run src/platform/web/postFMetadataRecovery.spec.ts src/platform/web/privateMetadataPrefix.spec.ts --maxWorkers=1
+
       - name: Install pinned Chromium for historical Metadata acceptance
         if: matrix.shard == 'complete-project'
         working-directory: frontend
@@ -377,6 +384,11 @@ jobs:
         if: matrix.shard == 'complete-project'
         working-directory: frontend
         run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --private-metadata
+
+      - name: Verify post-F Metadata routing and separate historical cursor recovery
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --post-f-metadata
 
       - name: Prepare complete-project native bridge before cross-runtime acceptance
         if: matrix.shard == 'complete-project'
