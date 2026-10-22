@@ -21,7 +21,7 @@ import {noteProofDigest,noteOutcomeDigest,verifyStoredNoteProof} from './legacyN
 import {contentProofFor} from './contentNoteProof'
 import {contentConflictProofFor} from './contentNoteConflictProof'
 import {metadataProofFor} from './importedMetadataApply'
-import {validateBrowserMetadataHead} from './metadataApplyRecords'
+import {validateBrowserMetadataHead,type BrowserMetadataProof} from './metadataApplyRecords'
 import {validateBrowserProjectBinding} from './projectBindings'
 import {validateBrowserOwnerHead} from './stageRecords'
 import {openBrowserCanonicalObject} from './canonicalReaders'
@@ -104,7 +104,7 @@ async function resolution(s:BrowserSyncScope,r:BrowserResolution4,rows:Row[],dag
 
 /** Component checker over the ORIGINAL entire snapshot. No old-format account
  * view, injected authorization callback, source handoff or certificates. */
-async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:string,amk:AccountMasterKey,current:()=>boolean){
+async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:string,amk:AccountMasterKey,current:()=>boolean,handoff?:MetadataHandoffInspection){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
  let remaining=MAX_CONTINUATION_MATERIAL_BYTES
  const retain=(value:unknown)=>{try{boundResolutionJson(value,remaining)}catch{reject('resource_limit')}const bytes=new TextEncoder().encode(JSON.stringify(value));try{remaining-=bytes.length;if(remaining<0)reject('resource_limit')}finally{bytes.fill(0)}}
@@ -120,6 +120,17 @@ async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:s
  const roots=[...dag.events.values()].filter((a):a is BrowserResolution4=>a.record_kind==='resolution')
  if(roots.length!==1)reject('unsupported_generation')
  const root=roots[0]!,target=rows.find(a=>a.event_id===eventId)
+ let pending:Row|undefined
+ if(handoff){
+  const candidates=rows.filter(r=>r.state==='received'&&JSON.parse(r.wire_item).event.entity_type==='project_metadata')
+  if(handoff.kind==='durable'){if(candidates.length)reject('unproven_interval')}
+  else{
+   if(candidates.length!==1)reject('unproven_interval')
+   pending=candidates[0]!
+   if(pending.server_sequence<=root.server_sequence||pending.server_sequence!==handoff.sequence||rows.find(r=>r.state==='received')!==pending||JSON.parse(pending.wire_item).event.project_id!==root.project_id)reject('unproven_interval')
+  }
+  if(rows.some(r=>r.server_sequence<=v.cursor.proven_prefix&&r.state==='received'))reject('unproven_interval')
+ }
  if(!target)reject('not_applied')
  const targetWire=JSON.parse(target.wire_item).event
  if(targetWire.project_id!==root.project_id)reject('invalid_evidence')
@@ -130,6 +141,7 @@ async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:s
  for(const row of rows){
   const e=JSON.parse(row.wire_item).event
   if(e.device_id===s.deviceId)reject('unsupported_local')
+  if(handoff&&e.entity_type==='note'&&e.project_id!==root.project_id)reject('unsupported_family')
   if(['stage','stage_order'].includes(e.entity_type))reject('unsupported_stage')
   if(!['project_metadata','note'].includes(e.entity_type))reject('unsupported_family')
   if(row.state==='note_resolution_proven'&&row.event_id!==root.event_id)reject('unsupported_generation')
@@ -182,11 +194,24 @@ async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:s
   }
   if(!same(h.tip_event_ids,[chain.at(-1)!.event_id]))reject('unproven_interval')
   const retained=rows.filter(a=>{const e=JSON.parse(a.wire_item).event;return e.entity_type==='project_metadata'&&e.project_id===h.owner_id})
-  if(retained.length!==chain.length||retained.some(row=>!chain.some(p=>p.event_id===row.event_id)))reject('unproven_interval')
+  if(retained.length!==chain.length+(pending&&h.owner_id===root.project_id?1:0)||retained.some(row=>row!==pending&&!chain.some(p=>p.event_id===row.event_id)))reject('unproven_interval')
  }
- if(rows.some(row=>{const e=JSON.parse(row.wire_item).event;return e.entity_type==='project_metadata'&&!owners.some(h=>h.owner_kind==='project_metadata'&&h.owner_id===e.project_id&&h.history.some(p=>p.event_id===row.event_id))}))reject('unproven_interval')
- const chain=[...metadata.history].sort((a,b)=>a.server_sequence-b.server_sequence),deletion=chain.at(-1)!
- if(deletion.operation!=='delete'||chain.slice(0,-1).some(p=>p.operation==='delete'))reject('not_terminal_delete')
+ if(rows.some(row=>{const e=JSON.parse(row.wire_item).event;return row!==pending&&e.entity_type==='project_metadata'&&!owners.some(h=>h.owner_kind==='project_metadata'&&h.owner_id===e.project_id&&h.history.some(p=>p.event_id===row.event_id))}))reject('unproven_interval')
+ const chain=[...metadata.history].sort((a,b)=>a.server_sequence-b.server_sequence)
+ if(pending){
+  const wire=JSON.parse(pending.wire_item),event=await openCanonical(s,pending,amk) as ProjectMetadataEvent
+  const proof=metadataProofFor(s,wire.event,event,await noteProofDigest({protocol_version:pending.protocol_version,event:wire.event,object:wire.object}),pending.protocol_version),prior=chain.at(-1)!
+  if(prior.operation==='delete'||!['update','delete'].includes(proof.operation)||!same(proof.parent_event_ids,[prior.event_id])||proof.revision!==prior.revision+1||proof.generation<=prior.generation||proof.server_sequence<=prior.server_sequence||proof.bootstrap_id!==metadata.bootstrap_id)reject('unproven_interval')
+  if(handoff?.kind==='prediction'){
+   if(!same(handoff.proof,proof))reject()
+   // A prediction is explicit metadata material, never an applied inbox row.
+   validateBrowserMetadataHead({...metadata,history:[...metadata.history,proof].sort((a,b)=>a.event_id.localeCompare(b.event_id)),tip_event_ids:[proof.event_id]},s)
+   chain.push(proof)
+  }
+ }
+ const deletion=chain.at(-1)!,terminal=deletion.operation==='delete'
+ if(!handoff&&(!terminal||chain.slice(0,-1).some(p=>p.operation==='delete')))reject('not_terminal_delete')
+ if(handoff&&chain.slice(0,-1).some(p=>p.operation==='delete'))reject('unproven_interval')
  // Authenticate the dependency component of every retained Content outcome in
  // the root cohort. Pending Content stays pending and grants no positive result.
  for(const [id,c] of contents){
@@ -196,12 +221,21 @@ async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:s
   if(row.state==='received')continue
   const m=chain.find(p=>p.event_id===c.dependencies.metadata_event_id),at=chain.filter(p=>p.server_sequence<row.server_sequence).at(-1)
   if(!m)reject('missing_metadata')
-  if(m.operation==='delete'||!at||at.operation==='delete'||m.server_sequence>=row.server_sequence||row.server_sequence>=deletion.server_sequence)reject('outside_interval')
+  if(m.operation==='delete'||!at||at.operation==='delete'||m.server_sequence>=row.server_sequence||terminal&&row.server_sequence>=deletion.server_sequence)reject('outside_interval')
  }
  check()
+ if(handoff)return{metadataEvents:chain.length,pendingEvents:rows.filter(r=>r.state==='received').length}
  if(!['content_note_proven','note_resolution_proven'].includes(target.state))reject(target.state==='received'?'not_applied':'not_content')
  if(!contents.has(target.event_id))reject('not_content')
  return{metadataEvents:chain.length,pendingEvents:rows.filter(r=>r.state==='received').length}
+}
+
+/** Internal, non-authorizing inspection mode. Predictions never replace durable rows. */
+export type MetadataHandoffInspection={kind:'pending';sequence:number}|{kind:'prediction';sequence:number;proof:BrowserMetadataProof}|{kind:'durable'}
+export async function authenticateMetadataHandoffInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,mode:MetadataHandoffInspection):Promise<void>{
+ const root=v.history.map(r=>readFutureHistoryRecord(r,s)).find(r=>r.record_kind==='resolution')
+ if(!root||root.record_kind!=='resolution')reject('unsupported_generation')
+ await verify(s,v,root.event_id,amk,current,mode)
 }
 
 /** Internal .14 composition: authenticate actual complete inventory, never consume inspect

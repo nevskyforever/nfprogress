@@ -1,3 +1,4 @@
+import type {MetadataHandoffInspection} from './historicalMetadataDependency'
 import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import {decryptObjectBytes,type AccountMasterKey} from '@/crypto'
 import {decodeBase64Url} from '@/api/base64url'
@@ -6,7 +7,7 @@ import {decodeNoteSyncResolutionV2,type NoteSyncResolutionV2} from '@/cloud/note
 import {unframeContentNote} from '@/cloud/contentNoteCodec'
 import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {BrowserPersistenceError} from './persistence'
-import {authenticateResolutionHistory,authenticateTerminalMetadataResolutions,type ResolutionInventory} from './resolutionAuthentication'
+import {authenticateResolutionHistory,authenticateTerminalMetadataResolutions,authenticateMetadataHandoffResolutions,type ResolutionInventory} from './resolutionAuthentication'
 import {boundResolutionJson,readFutureInboxRecord,type BrowserResolution4} from './resolutionRecords'
 import {openHistoryCandidate} from './noteHistory'
 import {openFrozenLocalVersion,unsealedPlaintext} from './noteUnsealedVersion'
@@ -54,6 +55,15 @@ export async function authenticateTerminalMetadataContinuations(s:BrowserSyncSco
   if(r.protocol_version!==3||!['content_note_proven','content_note_conflict_preserved'].includes(r.state))bad()
  })
 }
+/** Dormant private Metadata verifier: retained outcomes only, never first apply. */
+export async function authenticateMetadataHandoffContinuations(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,mode:MetadataHandoffInspection){
+ const base=await authenticateMetadataHandoffResolutions(s,v,amk,current,mode)
+ return authenticateContinuationCore(s,v,amk,current,base,async row=>{
+  const r=readFutureInboxRecord(row,s)
+  if(r.protocol_version!==3||!['content_note_proven','content_note_conflict_preserved'].includes(r.state))bad()
+ })
+}
+
 async function authenticateContinuationCore(s:BrowserSyncScope,v:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean,base:Awaited<ReturnType<typeof authenticateResolutionHistory>>,verifyPeerDependencies:(row:unknown,binding:ReturnType<typeof validateBrowserProjectBinding>)=>Promise<unknown>){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
  check()

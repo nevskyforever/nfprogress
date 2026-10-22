@@ -1,4 +1,4 @@
-import {authenticateTerminalMetadataInventory} from './historicalMetadataDependency'
+import {authenticateTerminalMetadataInventory,authenticateMetadataHandoffInventory,type MetadataHandoffInspection} from './historicalMetadataDependency'
 import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import { decryptObjectBytes, type AccountMasterKey } from '@/crypto'
 import { decodeBase64Url } from '@/api/base64url'
@@ -104,6 +104,11 @@ export async function authenticateTerminalMetadataResolutions(scope:BrowserSyncS
   return authenticateResolutionHistoryCore(scope,input,amk,current,16*1024*1024,async(s,_r,_content,v,key,live)=>{
     await authenticateTerminalMetadataInventory(s,v as ResolutionInventorySnapshot,key,live)
   })
+}
+
+/** Private Metadata prerequisite only; does not mint a live Note prerequisite. */
+export async function authenticateMetadataHandoffResolutions(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,mode:MetadataHandoffInspection){
+ return authenticateResolutionHistoryCore(s,v,amk,current,16*1024*1024,async()=>authenticateMetadataHandoffInventory(s,v,amk,current,mode))
 }
 
 async function authenticateResolutionHistoryCore(scope:BrowserSyncScope,input:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean,materialLimit:number,verifyDependencies:typeof dependencies){

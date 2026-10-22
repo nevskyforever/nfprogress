@@ -21,6 +21,7 @@ on:
       - 'frontend/scripts/browser-mixed-prefix-cases.mjs'
       - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
       - 'frontend/scripts/browser-historical-metadata-cases.mjs'
+      - 'frontend/scripts/browser-private-metadata-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -121,6 +122,7 @@ on:
       - 'frontend/scripts/browser-mixed-prefix-cases.mjs'
       - 'frontend/scripts/browser-mixed-recovery-cases.mjs'
       - 'frontend/scripts/browser-historical-metadata-cases.mjs'
+      - 'frontend/scripts/browser-private-metadata-cases.mjs'
       - 'frontend/scripts/browser-indexeddb-v10-acceptance.mjs'
       - 'frontend/scripts/browser-persistence-harness.html'
       - 'frontend/scripts/browser-persistence-harness.ts'
@@ -331,6 +333,11 @@ jobs:
         working-directory: frontend
         run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts src/platform/web/historicalMetadataDependency.spec.ts src/platform/web/historicalContentAuthentication.spec.ts src/platform/web/historicalPrefixQualification.spec.ts --maxWorkers=1
 
+      - name: Run isolated private Metadata prerequisite contract tests
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: npm test -- --run src/platform/web/privateMetadataAuthentication.spec.ts src/platform/web/privateMetadataHandoff.spec.ts --maxWorkers=1
+
       - name: Install pinned Chromium for historical Metadata acceptance
         if: matrix.shard == 'complete-project'
         working-directory: frontend
@@ -361,6 +368,11 @@ jobs:
         if: matrix.shard == 'complete-project'
         working-directory: frontend
         run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --historical-metadata --historical-content --historical-prefix
+
+      - name: Verify private Metadata atomic handoff and disk recovery
+        if: matrix.shard == 'complete-project'
+        working-directory: frontend
+        run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --private-metadata
 
       - name: Prepare complete-project headless bridge before bounded IPC calls
         if: matrix.shard == 'complete-project'

@@ -1,3 +1,4 @@
+import {bindPrivateMetadataHandoff} from '../src/platform/web/importedMetadataApply'
 import {BrowserHistoricalPrefixQualification} from '../src/platform/web/historicalPrefixQualification'
 import {BrowserHistoricalContentAuthentication} from '../src/platform/web/historicalContentAuthentication'
 import {BrowserV10OrdinaryApply} from '../src/platform/web/v10OrdinaryApply'
@@ -130,6 +131,43 @@ function historicalPrefixFixture(session: Awaited<ReturnType<typeof persistence.
  }
  return new BrowserHistoricalPrefixQualification(transaction,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
+/** Acceptance-only injection around real native scheduling, never a runtime bypass. */
+function privateMetadataFixture(session:Awaited<ReturnType<typeof persistence.openBrowserPersistence>>,meta:Awaited<ReturnType<typeof metadataFixture>>,device:VerifiedBrowserDevice,fault?:string){
+ const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean};let active=true,written=false
+ const transaction:BrowserSyncTransaction=async(...args)=>{
+  if(fault==='postcheck'&&written&&args[2]==='readonly')throw Error('INJECTED_POST_COMMIT_READ')
+  if(args[2]==='readwrite'&&fault&&fault!=='postcheck'){
+   const schedule=args[3]
+   args[3]=(tx,result,abort)=>{
+    const proxy=new Proxy(tx,{get:(target,key)=>{
+     if(key==='objectStore')return(name:string)=>{
+      const store=target.objectStore(name)
+      if(name!=='ownerHeads')return store
+      return new Proxy(store,{get:(target,key)=>{
+       if(key==='put')return(value:unknown)=>{
+        const request=target.put(value)
+        request.addEventListener('success',()=>{
+         if(fault==='abort')tx.abort()
+         else if(fault==='request')target.add(value) // Genuine duplicate-key request aborts natively.
+         else if(fault==='key')meta.keys.lock()
+         else if(fault==='profile')active=false
+         else if(fault==='auth')void meta.auth.logout()
+         else if(fault==='epoch')void meta.auth.login('fixture','fixture')
+        },{once:true})
+        return request
+       }
+       const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value
+      }})
+     }
+     const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value
+    }})
+    schedule(proxy,result,abort)
+   }
+  }
+  const result=await internal.syncTransaction(...args);if(args[2]==='readwrite')written=true;return result
+ }
+ return bindPrivateMetadataHandoff(transaction,()=>internal.active&&active,meta.auth,meta.bindings,meta.keys,device)
+}
 // Identity-only fixture deliberately provisions no crypto reader/writer capabilities.
 async function deviceFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, user: string) {
   const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-device-access', refresh_token: 'fixture-device-refresh', access_expires_in: 60 }), refresh: async () => { throw Error('fixture_no_refresh') }, logout: async () => {}, me: async () => ({ id: user, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: '2026-10-14T00:00:00Z' }) })
@@ -140,4 +178,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, historicalPrefixFixture, historicalContentFixture, historicalMetadataFixture, mixedV10RecoveryFixture, mixedResolutionPrefixFixture, v10OrdinaryOwnerFixture, mixedSourceWitnessFixture, v10RecoveryFixture, v10TransportFixture, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, privateMetadataFixture, historicalPrefixFixture, historicalContentFixture, historicalMetadataFixture, mixedV10RecoveryFixture, mixedResolutionPrefixFixture, v10OrdinaryOwnerFixture, mixedSourceWitnessFixture, v10RecoveryFixture, v10TransportFixture, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })

@@ -388,3 +388,163 @@ Metadata пока требует внутренней доработки. Про
 [sqlite]: ../../.github/workflows/sqlite-sync-tests.yml
 [stage]: ../../frontend/src/platform/web/stageApply.ts
 [order]: ../../frontend/src/platform/web/stageOrderApply.ts
+
+
+## C21.2.17 — isolated prerequisite implementation and local evidence
+
+**LOCAL COMPLETE / REMOTE CI PENDING, dormant update/delete prerequisite only.**
+Baseline `2f85c00f9134de67f2ffb5bd5ed74b4888366d37` is C21.2.16 DESIGN AUDIT
+COMPLETE, docs-only; neither Cloud nor SQLite CI was expected. The earlier .16
+findings describe the baseline, not a claim that these new mechanisms were then
+implemented. C21.2.15 remains independently accepted at472d950, Cloud39768042164,
+SUCCESS6/6. Fresh independent Cloud6/6 is required before accepting .17 remotely.
+
+### Exact new private boundary
+
+[dependency] `authenticateMetadataHandoffInventory` adds an internal explicit
+`MetadataHandoffInspection` mode: pending, prediction or durable. Private `verify`
+continues to use the original complete account rows, original wire/AEAD, authentic
+F evidence, Metadata histories and family proofs. Pending mode allows exactly one
+received Metadata row, in the F project, after F and at the earliest received
+sequence. Every other Metadata row must have its own genuine applied owner proof.
+Extra pending Metadata, gaps/duplicates, unqualified received rows within the old
+proven prefix, unrelated Note material anywhere in the complete inventory, wrong
+project, Stage, cover, own/local and unsupported generations
+reject. Active history independently enforces `M<E`; terminal history enforces
+`M<E<D` for each actual applied Content outcome. Received Content is authenticated
+as pending material and never receives a historical applied result or first-apply
+certificate. A genuine formerly applied late-dependency counterexample (`q(M)>q(E)`)
+is produced through actual old Metadata/O owners and explicitly rejected.
+
+Prediction mode reopens the actual pending encrypted event and reproduces its
+proof, compares it to the owner-prepared proof, checks exact linear transition,
+and checks the proposed Metadata chain. The inbox row remains received throughout
+this verification. The predicted source is unchanged. No pending row is relabeled
+as applied to call a public reader. Durable mode authenticates actual persisted
+owner results from a fresh inventory, accepting a genuine active or terminal chain
+without admitting any extra pending Metadata.
+
+[f-auth] `authenticateMetadataHandoffResolutions` and [h-auth]
+`authenticateMetadataHandoffContinuations` preserve original F/H authentication,
+using this internal dependency component only for retained outcomes. [mixed]
+`authenticatePrivateMetadataSource` uses the same independent complete source,
+Note membership/projection/revision and Head2 checks. The historical/mixed source
+selection body is factored once into private `authenticateMetadataSourceState`;
+evidence selects the path, never a caught error. These functions return no commit
+capability. Existing public .13/.14/.15 factories/results, live first-apply functions,
+H/O/G/Q/K and .11 negative assertions retain their contracts.
+
+[owner] now contains module-private `scheduleMetadataOwnerCommit`, shared by the
+old public family commit and the new isolated `bindPrivateMetadataHandoff` factory.
+The original opaque plans/WeakMap and genuine owner preparation remain in that
+module; no owner DTO or authorization callback enters K. Old family checks run
+again under the actual native write transaction: imported lineage, expected
+head/binding, retained history, exact wire/proof, local outbox/receipts, cursor,
+parent/tip and replay checks. Old public prepare/commit/apply and reusable exact
+old-token replay behavior are preserved. The new handoff is single-use and tied
+to its factory's actual owner, scope/auth/key/device/profile lifecycle.
+
+New factory preparation loads and authenticates A, obtains a genuine owner plan,
+authenticates its prediction separately, builds private B with exactly the allowed
+two-record delta, checks the same row/byte resource bounds, and rechecks A. Commit
+consumes both private handoff and owner handle, opens one full-ten-store strict
+transaction, rechecks complete A in that transaction and invokes the private owner
+scheduler. The exact next head/inbox records must equal the prepared delta. No
+crypto or awaits run in IDB callbacks. Auth/key invalidation aborts the transaction;
+profile/epoch/device checks run throughout. [db] still includes and validates both
+identity stores. No migration, store/index, wire, crypto, proof-format or backend
+change was made.
+
+Only after native completion does the factory reload actual durable state,
+compare it with B, authenticate complete F/H/Content/source again and perform a
+final snapshot/lifecycle recheck. A failure after completion returns the static
+`PrivateMetadataHandoffError` code `post_commit_verification_failed` with
+`commitMayHaveOccurred=true`; it does not pretend rollback or repair. Native
+completion is also tracked when the session rejects after completion. Fresh
+read-only `replay` reconstructs genuine durable evidence, including old Metadata
+ancestors without rolling back descendants; it creates no plan or writes.
+Returned frozen outcome flags include ready/ACK/cursor authorization=false.
+Unexpected preparation/reader errors are sanitized; no plaintext escapes.
+
+### Supported and blocked operations
+
+| Cohort | Actual .17 result |
+|---|---|
+| One earliest genuine peer Metadata update from active linear parent, same F project, coverless | Supported isolated prepare/commit, real owner proof; source/cursors unchanged |
+| Terminal delete from same active parent with complete authentic applied Content intervals | Supported isolated commit plus independent durable post-state verification |
+| Exactly one Metadata candidate with later received Content | Metadata may apply where otherwise valid; Content stays received. Content before Metadata blocks preparation; Content after current delete cannot first-apply |
+| Exact replay of applied Metadata, including genesis/older ancestor after later descendants | Fresh complete durable verification; already_applied, zero writes |
+| Metadata create / missing owner baseline | BLOCKED, `unsupported_create_baseline`; legitimate no-head Legacy-F baseline was not independently proved. No synthetic genesis added |
+| Metadata transport2 | BLOCKED by unchanged `syncDurability.validatePage` → `encryptedSyncV2.parseV2PullResponse`, whose descriptor accepts only Note ([actual v2 parser](../../frontend/src/api/encryptedSyncV2.ts)); helper types accepting2 are not durable transport support |
+| Metadata transport3 | Actual supported durable path; update ID1 and delete ID0 tested. F protocols2/3 and Content ID0/ID1 retain their own contracts |
+| Second genesis, repeated delete/reactivation, wrong parent, fork, covers, Stage/StageOrder, own/local, extra Resolution, additional pending Metadata | Reject, preserve bytes; no alternate verifier/fallback |
+| Unrelated-project routing, K/G/Q integration, new cursor commit, ACK/declaration, scheduler, writer/upload | Not implemented or activated |
+
+The transport2 result corrects the earlier audit's prospective Metadata2/3 test
+assumption using actual parser evidence. No wire/parser relaxation was made to
+make that cohort pass. Initial transport2 positive fixture expectations were
+replaced by an explicit rejection assertion while retaining both F protocols.
+Native fixture repair also kept Metadata names within codec limits and used a
+real inbound transport race: accepted O correctly refuses to skip an earlier
+pending Metadata. O applies that later Note only after Metadata commits.
+
+### Completed local validation
+
+- **82 new cases**: private authentication36 and private owner46; complete focused
+  command with the unchanged old Metadata owner41: **123 PASS /3files,64.92s**.
+  The later stronger old-owner-token rejection assertion also passes in isolation.
+- Existing .11 STOP13 + .13 verifier51 + .14 reader51 + .15 qualifier55:
+  **170 PASS /4files,170.37s**. F/H/G/K/O/N/L affected suites:
+  **381 PASS /7files,199.89s**. Total **674 distinct PASS /14files**; no failed or
+  skipped cases in complete checks; filtered single-case runs are not skipped CI
+  tests. No timeout/skip/retry or assertion relaxation.
+- Real Chromium: **8 profiles,16 durable owner commits** (8 normal update results
+  plus8 genuine deletes followed by intentionally failed post-check), **24 native
+  rollback checks**, **24 full process/disk reopens**, **16 renderer crashes**
+  (before commit and after durable commit), **24 ancestor/current replays**,
+  **8 competing-tab exclusions**, **8 complete-inventory races**, **8 lifecycle
+  aborts**, **8 explicit post-commit failure reports**. Final measured duration
+  **32.264s**. Rollback includes actual duplicate-key request failure and explicit
+  abort after the first owner write; all twelve stores remain byte-identical.
+  Auth/key/profile/epoch revocation occurs during real native writes across the
+  profiles; device/scope invalidation and other lifecycle phases are also covered
+  by unit checks. This proves locally observable token invalidation, not discovery
+  of unobserved remote server revocation.
+- Successful handoff changes exactly one head and one inbox row; original wire,
+  previous proofs, all source/membership/revisions, bindings, publications and
+  cursors stay unchanged. Real setup/O actors' own writes are measured separately.
+  Prepare/commit/replay traps and request accounting report nonce/unauthorized
+  HTTP/page errors0, ACK/capability/publication0. A real public .15 diagnostic and
+  foreign/reused/old-owner plans cannot authorize private commit. Genuine terminal
+  state passes fresh private replay and independent .15 qualification; old Q/K
+  remain rejected with zero repair or cursor advancement.
+- Typecheck/build, acceptance harness build/native syntax, workflow coverage,
+  unchanged default API/call-site checks, protected-file hashes, historical
+  checkpoint preservation and git diff --check PASS. Existing
+  Vite chunk/ineffective-import warnings remain; no dependency changes.
+
+New CI coverage is only in complete-project: two isolated suites with maxWorkers1
+and a separate bounded eight-profile native mode reusing the existing harness,
+Chromium install and preview. Existing241 historical cases/native coverage and
+all six jobs remain; Frontend receives no new suite/profile run. The measured
+local new/focused workload is about65s plus32s native; runner planning reserve
+2–6 minutes fits the accepted complete-project26m13s/40 envelope, subject to fresh
+remote measurement. Frontend35m49s/40, all job budgets40 and every test/hook5000ms
+remain unchanged. No unbounded CI budget or duplicate suite was added.
+
+### Proposed C21.2.18 and unchanged release boundary
+
+After fresh independent .17 Cloud6/6 acceptance, propose **C21.2.18 — controlled
+post-F Metadata mixed-K routing contract/implementation**. First review explicit
+pending/active/terminal routing before K's current live H/Q preflight and how to
+report committed owner success when a later historical cursor stage is blocked.
+Current G/Q historical admission and commit authority still need separate reviewed
+composition; .15 diagnostics cannot become their certificate. Do not silently
+cross .11's STOP, activate production sync or mix Stage/StageOrder into that slice.
+Create, Metadata-v2, multiple pending Metadata and unrelated-project routes stay
+explicitly blocked unless separately evidenced and accepted.
+
+C21.2.11 IMPLEMENTATION STOP for original K/Q integration; C21.2.08 NOT CLOSED;
+C21/C21.2 IN PROGRESS; Web89.36%; ready=false. Registration CLOSED, VPS hardening/
+security audit, PUBLIC RELEASE BLOCKED, owner reminders and every release gate
+remain. .17 local completion is not remote acceptance or progress credit.

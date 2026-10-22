@@ -1,9 +1,10 @@
+import type {MetadataHandoffInspection} from './historicalMetadataDependency'
 import type {AccountMasterKey} from '@/crypto'
 import {canonical} from '@/cloud/projectMetadataCodec'
 import {canonicalizeSyncTimestamp} from '@/cloud/syncTimestamp'
 import {decodeBase64Url} from '@/api/base64url'
 import {BrowserPersistenceError} from './persistence'
-import {authenticateContinuationHistory,authenticateTerminalMetadataContinuations,verifyContinuationSources,openHistoricalJson,sameResolutionValue as same} from './resolutionHistorical'
+import {authenticateContinuationHistory,authenticateTerminalMetadataContinuations,authenticateMetadataHandoffContinuations,verifyContinuationSources,openHistoricalJson,sameResolutionValue as same} from './resolutionHistorical'
 import {validateLocalProjectRecord,validateLocalNoteRecord,validateLocalProject,validatePersistedLocalNote,assertContentNoteRoute,localExact,MAX_LOCAL_NOTES,type LocalProjectPayload,type LocalNoteRecord} from './localAuthorityRecords'
 import {openBrowserCanonicalObject} from './canonicalReaders'
 import {openNoteTransport} from './noteTransport'
@@ -237,6 +238,9 @@ async function validateAuthenticatedInventory(s:BrowserSyncScope,v:ResolutionInv
  * never by catching an authentication failure. */
 async function authenticateTerminalMetadataSourceState(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
  const h=await authenticateTerminalMetadataContinuations(s,v,amk,current)
+ return authenticateMetadataSourceState(s,v,amk,current,h)
+}
+async function authenticateMetadataSourceState(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,h:Awaited<ReturnType<typeof authenticateContinuationHistory>>){
  const mixed=[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
   c.record_kind==='candidate'&&c.project_id===root.record.project_id&&![root.record.note_id,root.record.retained_note_id].includes(c.note_id)&&
   ((h.rows.find(r=>r.event_id===c.event_id)?.server_sequence??0)>root.record.server_sequence||(c.projection?.source_revision??0)>root.project.source_revision)))
@@ -253,6 +257,15 @@ async function authenticateTerminalMetadataSourceState(s:BrowserSyncScope,v:Reso
  }
  if(!current())throw new BrowserPersistenceError('closed')
  return{h,mixed}
+}
+
+/** Isolated .17 verifier, no write grant or public reader mode. */
+export async function authenticatePrivateMetadataSource(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,mode:MetadataHandoffInspection):Promise<void>{
+ const cursor=validateBrowserSyncCursor(v.checkpoints[0],s)
+ if(v.checkpoints.length!==1||!same(cursor,v.cursor))stop('source_mismatch')
+ const h=await authenticateMetadataHandoffContinuations(s,v,amk,current,mode)
+ if(h.resolutions.size!==1)stop('unsupported_generation')
+ await authenticateMetadataSourceState(s,v,amk,current,h)
 }
 
 /** Existing .14 diagnostic only; authenticated maps stay module-private. */

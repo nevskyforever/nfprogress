@@ -83,6 +83,99 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.17 — private Metadata atomic-handoff prerequisite repair
+
+**LOCAL COMPLETE / REMOTE CI PENDING — ISOLATED UPDATE/DELETE ONLY.**
+Starting clean branch6.0, local HEAD/origin/remote all
+`2f85c00f9134de67f2ffb5bd5ed74b4888366d37`. That SHA is C21.2.16 **DESIGN AUDIT
+COMPLETE**, docs-only; Cloud/SQLite were NOT EXPECTED. C21.2.15 independently
+accepted at472d950, Cloud39768042164 SUCCESS6/6, remains recorded. No new remote
+acceptance is inferred. Every earlier checkpoint entry remains byte-identical.
+
+Implementation details and evidence:
+[private handoff audit, .17 appendix](web/C21_POST_F_METADATA_PRIVATE_HANDOFF_AUDIT.md#c21217--isolated-prerequisite-implementation-and-local-evidence).
+Private pending/prediction/durable verification uses complete original account
+history, actual Metadata AEAD/own proofs, authentic F/H/O, membership/revisions,
+Head2 and current encrypted source. It establishes M<E for active outcomes and
+M<E<D under terminal deletion. Exactly one pending Metadata must be earliest,
+post-F and in that F project; extra pending Metadata rejects whole preparation.
+Prediction never relabels an inbox row or masquerades as durable applied evidence.
+A genuine late-Metadata-reference history created through old real owners rejects.
+
+The actual Metadata owner now shares a module-private synchronous scheduler
+between its unchanged public family API and a dormant acceptance-only factory.
+Owner plans remain module-private, owner/scope bound, cryptographically prepared.
+The new factory prepares/authenticates A and the owner-derived prediction B,
+checks bounds, and commits under one strict ten-recovery-store transaction with
+the existing two identity stores included. Complete A CAS and all old family
+checks precede exactly two writes: own Metadata head/history plus own inbox proof.
+Source/project/Note/membership/revision/cursor and other records cannot change.
+New handoff plans are consumed on success/failure/abort and cannot be transferred
+between factories or created from public diagnostics/old owner tokens.
+
+After native completion, freshly verify actual B and the complete durable history/
+source. Post-commit failure reports commitMayHaveOccurred=true; no false rollback,
+repair or automatic retry. Read-only fresh replay preserves later descendants.
+Public .13/.14/.15 results and live H/O/F first-apply semantics remain unchanged.
+No normal startup/persistence/K/G/Q invokes the new factory.
+
+Supported locally: genuine peer imported/captured/active coverless Metadata
+**update and terminal delete**, same F project. **Create remains unsupported**:
+no legitimate no-head Legacy-F baseline independently established; precise
+unsupported_create_baseline result, no invented genesis. **Metadata transport2
+remains unsupported** by the frozen v2 Note-only durable parser despite broad
+helper types; tested rejection, no protocol change. Metadata transport3, F2/F3,
+Content ID0/ID1, compressed update and ordinary tombstone are genuinely exercised.
+Second genesis/reactivation/repeated delete, wrong parents/forks, covers/Stage/
+StageOrder/local/own/new generations, additional pending Metadata and unrelated
+routing remain barriers.
+
+Validation: **674 distinct PASS /14files**: new authentication36 + handoff46 + old
+Metadata41 =123 in64.92s; unchanged .11/.13/.14/.15 regressions170 in170.37s;
+F/H/G/K/O/N/L regressions381 in199.89s. Complete checks failed/skipped0; later
+single-case stronger old-token assertion also PASS. All hooks/bodies5000ms.
+Initial fixture assumptions were corrected without runtime relaxation: Metadata2
+is genuinely unsupported; native Metadata names obey codec limits; a competing
+transport receive races CAS, and O still cannot skip earlier pending Metadata.
+
+Chromium **8 real profiles /32.264s**:16 durable commits,24 native rollbacks,
+24 disk/process reopens,16 renderer crashes before commit/after durable commit,
+24 replays,8 competing tabs,8 CAS races,8 lifecycle aborts,8 deliberate post-commit
+failure reports. All twelve stores byte-identical on rollback. Each committed
+delta touches exactly two records. Fresh terminal replay and .15 qualification
+PASS, old Q/K still reject. HTTP/nonces/page errors/ACK/capability0; handoff source
+and cursor changes0. Fixture/accepted O setup writes are separate from handoff.
+
+Typecheck/build and harness build PASS (existing Vite warnings only). Workflow,
+source/default API/negative-test preservation, protected .pyc SHA-256, historical
+checkpoint preservation and git diff --check are PASS. No
+schema/migration/wire/proof/crypto/backend change. New CI coverage only in existing
+complete-project:82 isolated cases and8 native profiles, no added Frontend suite.
+Measured local workload65s+32s, planned runner reserve2–6min within accepted
+complete-project26m13s/40; fresh CI must confirm. All six jobs and40min budgets
+retained. Cloud6jobs EXPECTED, SQLite NOT EXPECTED by actual path filters. Do not
+poll or wait for Actions after push; .17 needs independent fresh6/6 acceptance.
+
+Next proposed **C21.2.18 — controlled post-F Metadata mixed-K routing contract/
+implementation**, only after .17 independent acceptance. Explicit K preflight
+cohort selection and owner-result versus later G/Q failure need review; .15
+is never a Q certificate. No .18 routing or cursor integration is implemented.
+C21.2.11 **IMPLEMENTATION STOP** (original K/Q), C21.2.08 **NOT CLOSED**,
+C21/C21.2 IN PROGRESS, Web **89.36%**, ready=false. No new scheduler, writer,
+Content sealing/upload/receipts/self-echo, Note capability, Resolution ACK or
+production sync. Registration CLOSED; VPS hardening/security audit, PUBLIC RELEASE
+BLOCKED, owner reminders and all release/security gates retained. No progress credit.
+
+### Простыми словами
+
+Изолированная операция теперь умеет безопасно обновлять и удалять Metadata:
+проверяет настоящую историю и записывает только два связанных изменения за один
+раз. Заметки и курсоры не затрагиваются. При сбое до записи данные сохраняются;
+если запись уже произошла, последующая ошибка честно сообщает об этом. Проверены
+падения renderer и повторное открытие базы с диска. Создание Metadata без
+доказанной исходной истории остаётся заблокированным. Автоматическая обработка
+через K, ACK и полная Web-синхронизация ещё не включены.
+
 ## C21.2.16 — post-F Metadata private handoff contract audit
 
 **DESIGN AUDIT COMPLETE / CONTRACT STOP FOR DIRECT ROUTING — DOCS ONLY.**
