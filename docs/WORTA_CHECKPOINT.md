@@ -95,6 +95,147 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## MANDATORY CI/CD RELEASE GATE — WORTA 6.0 AND ALL FUTURE UPDATES
+
+**Owner-approved permanent planning requirement.** This release policy applies to
+the first public WORTA 6.0 Web release; every later production update, including
+6.0.1, 6.0.2, 6.1 and later; future Desktop and Android releases when those
+workstreams are active; and emergency security patches and hotfixes. A small
+change or emergency does not waive an applicable mandatory gate. The exact matrix
+may vary by target, but every applicable gate must run and pass. This section
+records a required future pipeline; it does not claim that the unified pipeline
+already exists or authorize a release.
+
+**Required sequence:**
+
+`Source revision → automatic CI → release candidate build → staging deployment → integration/security/recovery acceptance → owner approval → controlled production release → post-deployment verification.`
+
+### A. Automatic CI and release qualification
+
+- Ordinary pushes and pull requests continue to run the existing applicable
+  automatic checks. Before **every production release**, separately run the full
+  required release-qualification matrix even when ordinary path filters would not
+  select some tests. Use and record the exact source SHA intended for publication.
+- The applicable matrix includes frontend typecheck/tests/build; backend and
+  PostgreSQL cloud tests; Python and Rust SQLite checks; Rust and cross-runtime
+  acceptance; cryptographic and migration checks; browser persistence and
+  multi-device tests; and target-specific packaging/runtime qualification.
+- Every mandatory result must be **SUCCESS**. FAILED, CANCELLED, TIMED_OUT,
+  SKIPPED, absent, or otherwise unreported mandatory results block publication.
+  Do not use `continue-on-error`, disabled assertions, fabricated success,
+  weakened acceptance, or silent omission to turn a blocked result green.
+- Record the exact source SHA, workflow run IDs, job/test results, artifact names
+  and cryptographic identities. A result from another commit is not evidence for
+  the release candidate.
+
+### B. Release candidate artifacts
+
+- Build candidate artifacts reproducibly from the qualified source revision.
+  Verify application versions, dependency locks, checksums, required license
+  notices, software composition, dependency vulnerabilities, and supply-chain
+  provenance. Preserve GPLv3 compatibility requirements.
+- Sign distribution artifacts where the selected platform requires signing, and
+  enforce verification of those signatures. Record build provenance and hashes.
+  Publish only the exact artifact identity that passed qualification; rebuilding
+  or substituting an artifact requires qualifying that artifact again.
+
+### C. Staging and production safety
+
+- Before publication, verify production configuration and database migration
+  safety/compatibility. Test upgrades from supported prior versions and old-client
+  protocol barriers.
+- Verify backup restoration by performing a restore. Test data retention through
+  failed upgrades, restarts and network interruptions. Run smoke, integration,
+  authentication, authorization, encryption and recovery checks in an isolated
+  staging environment; never run destructive failure tests against real user data.
+- Check rollback feasibility and define forward recovery when a database migration
+  cannot safely be reversed. Protect production secrets, credentials and
+  deployment identities throughout build and deployment.
+
+### D. Release authorization
+
+- Production publication requires explicit owner approval after all applicable
+  qualification and security gates pass. Passing CI alone never authorizes public
+  release. Failed or missing security results block publication even when ordinary
+  tests pass.
+- Keep registration and public access **CLOSED** until their separate explicit
+  authorization. Protect production environments and restrict production
+  credentials to authorized release jobs with controlled deployment permissions.
+
+### E. Controlled deployment and verification
+
+- After approval, publish only the already-qualified artifacts. Deploy Web and
+  backend updates through a controlled procedure, then verify service health,
+  required endpoints, database connectivity and application behavior. Record the
+  deployed version and exact SHA, and monitor errors immediately after rollout.
+- Stop rollout on failed health checks. Use controlled rollback or forward
+  recovery as appropriate while preserving encrypted user data and existing
+  accounts. A failed deployment is never recorded or reported as a successful
+  release. Keep a traceable record of approval, checks and deployment outcome for
+  every release.
+
+### F. Reusable update interface — PLANNED
+
+Implement a unified release interface that can select a version and one or more
+targets, show its plan without side effects in `--dry-run` mode, and execute only
+the stages authorized for those targets. A proposed interface is:
+
+```text
+worta-release qualify --version 6.0.1 --target web --dry-run
+worta-release qualify --version 6.0.1 --target desktop-windows --target desktop-macos-arm64
+```
+
+This is a design example, **not an implemented command**. The older proposal
+`npm run release -- 6.0.1 --all` is historical planning, not an accepted
+production command. No release automation is implemented or accepted by this
+checkpoint.
+
+### Existing CI/CD capabilities and their limits
+
+| Existing functionality | Current boundary |
+| --- | --- |
+| `.github/workflows/cloud-backend-tests.yml` runs automatic push/PR checks with path filters, including PostgreSQL mandatory shards, PostgreSQL regressions, Frontend admin and Android compression packaging; it also supports manual dispatch. | This is the normal change-triggered matrix. Its path filters do not by themselves guarantee that every release-required check ran for every release SHA. |
+| `.github/workflows/sqlite-sync-tests.yml` runs path-filtered Python SQLite and Windows Rust SQLite jobs. | SQLite coverage is selected by its own paths; a release must run it whenever applicable even if ordinary filters did not select it. |
+| `.github/workflows/release-qualification.yml` is manually dispatched with a required source revision, checks out and verifies that SHA, builds macOS ARM/Intel and Windows qualification artifacts, and uploads evidence. | It is platform qualification evidence, not the complete Cloud/SQLite/security/staging/approval/production pipeline. Its app artifacts are unsigned qualification outputs. |
+| `.github/workflows/f11-windows-qualification.yml` is manually dispatched, records checkout provenance, runs frontend/Rust/helper and Windows package/runtime checks, and uploads private evidence. | Authenticode, updater configuration and installer smoke are optional inputs. It is not automatic complete-matrix release approval. |
+| `.github/workflows/build.yml` is the historical Windows release workflow associated with `main`; it builds Windows Tauri/NSIS artifacts and has a separate publication job with `publish_production`, the protected `nfprogress-production` environment and an explicit manual dispatch. | It does not implement the complete WORTA Web/backend staging path or full all-target release matrix. It permits some platform asset downloads to be unavailable, so its publication behavior is not proof that all applicable artifacts and gates passed. |
+| Packaging and updater tools verify selected artifact metadata/hashes, generate manifests and package notices; the Android compression job verifies Web assets/notices in its Android package. | These checks cover their named artifacts only. There is no accepted unified provenance, dependency-security, staging, migration/restore, owner-approval and post-deployment verification pipeline for all WORTA releases. |
+
+F11 records a bounded Desktop distribution decision that accepted
+unsigned/ad-hoc/self-signed output for that rollout and treated OS signing as
+future hardening; it also distinguishes OS signing from Tauri updater
+cryptographic signatures. That historical evidence is preserved. It does not
+establish signing or signature-verification acceptance for every future target:
+the applicable platform's signing requirement and verification must be satisfied
+as part of that target's release qualification. The existing Windows GitHub
+publisher and `scripts/upload-release.sh` are legacy publication mechanisms, not
+the future unified production pipeline. No staging deployment, vulnerability
+gate, backup restoration, full Web/backend production rollout or post-deployment
+health workflow is accepted as implemented here.
+
+### Roadmap responsibility and completion gate
+
+- **C21 — Web:** complete Web synchronization and preserve existing automated CI.
+- **C22 — Production Hardening:** implement the production CI/CD architecture,
+  isolated staging/production, artifact provenance, credential and deployment
+  permissions, release-build gates, security checks and safe deployment
+  preparation.
+- **C23 — Failure/Disaster Tests:** qualify failed upgrades and migrations,
+  backup restoration, interrupted deployments, lost connections, crashes, data
+  preservation, recovery and feasible rollback/forward-recovery procedures.
+- **PF6.0 / RC:** run end-to-end release qualification and the full mandatory CI
+  matrix; produce release-candidate artifacts; obtain explicit owner approval;
+  perform controlled publication and post-deployment checks.
+
+This is a mandatory requirement within the existing roadmap, with no new stage,
+percentage or weight. The first FULL WEB RELEASE is not complete until these
+gates are independently accepted and the owner makes the release decision.
+Android public distribution remains a separate post-Web workstream. Current
+status is preserved: C21/C21.2 IN PROGRESS; C21.2.18 LOCAL COMPLETE / REMOTE CI
+PENDING; C21.2.11 partially resolved; C21.2.08 NOT CLOSED; Web 89.36%;
+`ready=false`; registration CLOSED; PUBLIC RELEASE BLOCKED. Existing VPS
+hardening and independent security-audit gates remain mandatory.
+
 ## 2026-10-23 — сводная фиксация: C21.2.18, VPS и лендинг
 
 **Источник статусов:** C21.2.18 и ветка лендинга сверены с GitHub; подробности
