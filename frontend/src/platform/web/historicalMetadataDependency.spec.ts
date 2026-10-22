@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {afterEach,beforeEach,describe,expect,it,vi} from 'vitest'
-import {historicalMetadataFixture} from './historicalMetadataDependency.testFixture'
+import {historicalMetadataAfterOrdinary,historicalMetadataFixture} from './historicalMetadataDependency.testFixture'
 import {scope} from './bootstrap.testFixture'
 import {metadataRow} from './metadataPrefix.testFixture'
 import {ordinaryV10Fixture} from './v10OrdinaryApply.testFixture'
@@ -111,9 +111,15 @@ it('genuine unresolved H fork remains a barrier',async()=>{
  const f=await historicalMetadataFixture('keep_both',3,false,{fork:true}),before=f.before()
  expect(await f.reader.inspect(scope,f.ordinary.event_id)).toMatchObject({historicalMetadataAdmissible:false,reason:'unresolved_fork'});expect(f.before()).toEqual(before)
 })
-it('genuine Stage-scoped F/H/O history remains unsupported',async()=>{
- const f=await historicalMetadataFixture('keep_both',3,false,{stage:true}),before=f.before()
- expect(await f.reader.inspect(scope,f.ordinary.event_id)).toMatchObject({historicalMetadataAdmissible:false,reason:'unsupported_stage'});expect(f.before()).toEqual(before)
+describe('genuine Stage-scoped history',()=>{
+ let baseline:Awaited<ReturnType<typeof ordinaryV10Fixture>>,f:Fixture
+ // Each real-owner phase has its own unchanged 5000ms hook budget. Nothing runs outside a hook/test.
+ beforeEach(async()=>{baseline=await ordinaryV10Fixture('keep_both',3,false,true)},5000)
+ beforeEach(async()=>{f=await historicalMetadataAfterOrdinary(baseline)},5000)
+ it('genuine Stage-scoped F/H/O history remains unsupported',async()=>{
+  const before=f.before()
+  expect(await f.reader.inspect(scope,f.ordinary.event_id)).toMatchObject({historicalMetadataAdmissible:false,reason:'unsupported_stage'});expect(f.before()).toEqual(before)
+ },5000)
 })
 it('genuine late Metadata reference accepted by the live owner does not establish historical ordering',async()=>{
  const f=await ordinaryV10Fixture(),old=f.m.event.header.event_id,later=crypto.randomUUID();f.m.event.header.event_id=later

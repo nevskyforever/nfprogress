@@ -83,6 +83,83 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.13 — CI timeout repair
+
+**LOCAL REPAIR / FRESH REMOTE ACCEPTANCE REQUIRED.** Starting clean branch `6.0`,
+HEAD and fetched `origin/6.0` both `04f4cf6abf992da0b4e2131ed5f43e1a2a4c7de5`.
+Independent Cloud **39680777802 FAILURE** at that exact SHA:5/6 mandatory jobs
+SUCCESS, **PostgreSQL mandatory (complete-project) FAILURE**. Completed logs and
+job metadata confirm step **Run isolated C21 recovery and historical Metadata
+contract tests**,134 PASS/1 FAIL; `historicalMetadataDependency.spec.ts:114`,
+**genuine Stage-scoped F/H/O history remains unsupported**,5006ms against5000ms.
+Subsequent complete-project Chromium/native/acceptance steps were skipped due to
+that earlier failure; they are not claimed as successful for this run.
+
+Root cause: one test body accumulated genuine Stage/StageOrder transport and K/F/H
+baseline applies, independent O and both H continuations, Metadata update/delete,
+and the read-only assertion under a single5000ms timer. Ordinary fixture Stage
+setup retains real received Stage/StageOrder, baseline create/update/delete,
+original/retained branches and actual accepted owner commits. Full authentication
+and encryption are intentionally repeated by those owners; no production defect
+or safe authorization optimization was established. The measured bottleneck is
+real fixture construction, not the unsupported_stage decision. Local unthrottled
+profile: baseline996ms, O163ms, original H226ms, retained H240ms, Metadata5ms;
+inspect plus byte-identical storage assertion10ms (total about1641ms).
+
+Bounded shared-runner approximation used the actual one-worker Vitest command,
+real AEAD/owners and unchanged wall-clock timers, with its process group runnable
+40ms per100ms. Before repair it reproduced5005ms timeout: baseline3057ms, O537ms,
+original H750ms, then timeout before the retained-H/verification sequence finished.
+This is controlled local CPU contention, not a claim to reproduce Ubuntu/Node20
+hardware exactly (local Node26.4.0). An initial stronger30% CPU duty run also
+reproduced the expected original timeout; no production change follows from it.
+
+Test-only repair extracts the existing owner suffix into
+`historicalMetadataAfterOrdinary` without changing its statements. The Stage case
+uses two ordered beforeEach hooks: genuine applied Stage/F/H baseline, then genuine
+post-F O/H and Metadata lifecycle. Each hook and the verification body explicitly
+retains5000ms. Nothing is initialized outside timed hooks/tests, no shared cached
+history, retries, skipped assertions, synthetic proofs or raised limits. The same
+51 verifier cases remain; unsupported_stage and exact before/after storage equality
+are unchanged. Shared ordinary/recovery fixtures, production verifier/owners,
+13 C21.2.11 STOP tests, Vitest config and workflows are byte-identical to baseline.
+
+After repair three controlled40%-duty runs exited successfully. Instrumented
+phase measurements across two successful Vitest runs: baseline3059–3060ms, continuation
+1981–2053ms, inspection13–80ms. Aggregate hook+test duration was5019–5126ms;
+Vitest still bounds each individual phase at5000ms. Temporary profiling statements
+were removed. A controller exit race after one additional successful Vitest run
+was corrected in the disposable local harness; three clean controller exits are
+recorded separately. No harness/profiling files are added to the repository.
+
+Validation: exact isolated CI command PASS,135/135 in126.80s (test execution
+126.07s):51 verifier cases, unchanged13 C21.2.11 STOP cases and71 genuine mixed
+recovery/historical regressions. Failed/skipped0 in this final complete run. Typecheck/build PASS (existing Vite
+dynamic-import/chunk-size warnings only); git diff --check, full historical
+checkpoint preservation and both protected .pyc SHA-256 checks PASS. Native Chromium
+was not repeated: only the isolated unit fixture/spec changed; browser harness,
+shared owner fixtures and production behavior are unchanged. Workflow syntax/coverage and exact
+one-worker command checked; original mandatory suites and all6 job names retained,
+Frontend admin40-minute budget unchanged. Cloud all6 EXPECTED for the actual
+frontend/src paths; SQLite NOT EXPECTED. Completed failed-run evidence was read
+once; no new Actions polling/wait or remote success claim.
+
+C21.2.13 remains **REMOTE ACCEPTANCE PENDING**, requiring a fresh independent
+all-six-success Cloud result. **C21.2.14 NOT STARTED**. C21.2.11 **IMPLEMENTATION
+STOP**, C21.2.08 **NOT CLOSED**, C21/C21.2 IN PROGRESS, Web **89.36%**, ready=false.
+No historical verifier capability, owner integration, Metadata routing, scheduler,
+Content writer/upload, ACK, Note capability, schema or protocol changes. Existing
+VPS/security/public-release gates and every historical checkpoint record retained.
+
+### Простыми словами
+
+Тест тратил почти весь лимит на создание настоящей зашифрованной истории. На более
+медленном CI он не успевал дойти до короткой проверки отказа. Подготовка разделена
+на две последовательные части с прежним лимитом пять секунд для каждой. Настоящие
+события, проверка отказа и полное сравнение сохранённых данных остались прежними.
+Это исправление теста; новая возможность синхронизации не включена. Перед следующим
+этапом нужна новая независимая успешная проверка всех шести заданий CI.
+
 ## C21.2.13 — read-only historical Metadata dependency verifier
 
 **LOCAL COMPLETE / REMOTE CI PENDING — READ-ONLY COMPONENT ONLY.** Baseline clean
