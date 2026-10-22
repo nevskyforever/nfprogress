@@ -36,10 +36,23 @@ def _native_bridge(tmp_path: Path, request: dict[str, object]) -> dict[str, obje
         'NFPROGRESS_C15_NATIVE_BRIDGE_REQUEST': str(request_path),
         'NFPROGRESS_C15_NATIVE_BRIDGE_RESPONSE': str(response_path),
     })
-    completed = subprocess.run([
-        'cargo', 'test', '--manifest-path', str(CARGO_MANIFEST),
-        'c15_headless_native_bridge', '--', '--ignored', '--nocapture', '--test-threads=1',
-    ], cwd=ROOT, env=environment, text=True, capture_output=True, timeout=180, check=False)
+    bridge_binary = environment.get('NFPROGRESS_C15_NATIVE_BRIDGE_BIN')
+    if bridge_binary:
+        binary_path = Path(bridge_binary).resolve(strict=True)
+        target_directory = (CARGO_MANIFEST.parent / 'target').resolve()
+        if (not binary_path.is_relative_to(target_directory)
+                or not binary_path.name.startswith('nfprogress_desktop_lib-')
+                or not os.access(binary_path, os.X_OK)):
+            raise AssertionError(f'invalid prebuilt native bridge binary: {binary_path}')
+        command = [str(binary_path), 'c15_headless_native_bridge', '--ignored', '--nocapture', '--test-threads=1']
+    else:
+        command = [
+            'cargo', 'test', '--manifest-path', str(CARGO_MANIFEST),
+            'c15_headless_native_bridge', '--', '--ignored', '--nocapture', '--test-threads=1',
+        ]
+    completed = subprocess.run(
+        command, cwd=ROOT, env=environment, text=True, capture_output=True, timeout=180, check=False,
+    )
     if completed.returncode != 0:
         raise AssertionError(f'native bridge failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}')
     assert response_path.is_file(), 'native bridge did not produce a response'

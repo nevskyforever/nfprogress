@@ -85,6 +85,57 @@ ChatGPT сопровождает защиту и проверку; пароли,
 
 ## C21.2.17 — private Metadata atomic-handoff prerequisite repair
 
+### CI native bridge build and timeout repair
+
+The accepted local Metadata implementation above is retained unchanged. Its remote
+acceptance remains pending. Cloud run `39796310722`, attempt 1 was CANCELLED near
+the 40-minute workflow limit. Attempt 2 was FAILURE: five of six mandatory jobs
+SUCCESS; `PostgreSQL mandatory (content-action)`, job `119931085190`, failed
+`tests/test_cloud_c18_content_note_acceptance.py::test_stage_plain_explicit_notes_two_devices_and_missing_third_reader`
+after 22 passes and one `subprocess.TimeoutExpired` at 180 seconds. The nested
+command was `cargo test ... c15_headless_native_bridge -- --ignored --nocapture
+--test-threads=1`; its log showed Cargo downloading/building dependencies, not a
+confirmed acceptance assertion failure.
+
+CI now builds the exact `nfprogress_desktop_lib` lib-test executable once in the
+existing `content-action`, `foundation`, and `complete-project` shards, which use
+the shared bridge helper. The workflow selects the single Cargo JSON
+`compiler-artifact` for that test profile and exact target, validates its executable
+path under `frontend/src-tauri/target`, and exports that path. `_native_bridge`
+executes the same ignored Rust test harness directly when that scoped CI variable is
+present. The original test filter/flags, request/response environment variables,
+unique mode-0600 exchange files, genuine Rust operation, 180-second operation limit,
+and nonzero/timeout failure behavior remain. Without the CI artifact variable,
+developers retain the existing Cargo launcher.
+
+Validation: native Rust lib-test build PASS in 49.15s; repeating the exact filtered
+`--no-run` preparation with the completed target took 0.20s and emitted the same
+single Cargo test artifact without recompilation. The Cargo JSON artifact parser
+selected exactly one executable beneath the crate target directory. Two calls via
+the actual Python bridge helper independently provisioned devices through Rust and
+returned real identities in 0.119s and 0.117s; each produced and then removed its
+isolated request/response pair. A rejected native action still became an assertion
+failure, and a simulated timeout propagated with the 180-second limit and all bridge
+environment variables verified. The local Cargo fallback also completed a real
+provision operation in 4.646s after the build. Python syntax and `git diff --check`
+PASS. Protected `engine.cpython-312.pyc` and `game_data.cpython-312.pyc` retain their
+observed SHA-256 values (`a256bcf08940a513a98f6551e314511cf6961bf298b88b294fd6d9c133d4bec5`
+and `8bd116c0b5b284f4f4b80551d10199e20d3c4546fe8caac22c07ff2973d568d2`); the
+existing checkpoint history has only this additive repair record. The task-created
+3.4 GB Rust target was removed after the maintenance dry run; pre-existing
+`frontend/dist` was retained. The three shards retain their 40-minute job limits
+and every mandatory test; the native test harness is built once before Python
+acceptance and repeated Cargo launches during bridge operations are removed. No
+full local Cloud suite was run; the complete job's elapsed time still requires
+remote CI confirmation.
+
+This is a CI/test-helper repair only. No production Rust/backend, protocol, schema,
+Metadata implementation, or accepted C21.2.11–17 behavior changed. All six mandatory
+Cloud checks remain active. The path filters trigger Cloud; SQLite is not expected
+for these changed paths. After push, do not poll Actions. C21.2.17 remains **LOCAL
+COMPLETE / REMOTE ACCEPTANCE PENDING** until the new SHA independently passes all
+six mandatory Cloud jobs. C21.2.18 has not started.
+
 **LOCAL COMPLETE / REMOTE CI PENDING — ISOLATED UPDATE/DELETE ONLY.**
 Starting clean branch6.0, local HEAD/origin/remote all
 `2f85c00f9134de67f2ffb5bd5ed74b4888366d37`. That SHA is C21.2.16 **DESIGN AUDIT
