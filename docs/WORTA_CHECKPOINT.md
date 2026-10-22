@@ -1,5 +1,17 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-23 — C21.2.18 frontend CI regression repair
+
+Starting branch `6.0` was fast-forwarded from `7033aeb716acd2d63925c33f1a68e731c982ea0` to the docs-only checkpoint baseline `e2bcd79125961b4c797ca3d950210247975539c9`; the worktree was clean before the task. Original C21.2.18 implementation SHA: `7033aeb716acd2d63925c33d08bca9c55a075496`. C21.2.17 remains **REMOTELY ACCEPTED**, Cloud `39819436126`, all 6 mandatory jobs SUCCESS.
+
+**Owner-reported Cloud regression:** run `39837806935` was FAILURE with 5/6 mandatory jobs SUCCESS. Only **Frontend admin** failed, in `Run C21 persistence contract tests`: `metadataPrefixProof.spec.ts`, `C21.1.21 current coverless Metadata proof / wire tampering cannot qualify applied Metadata`, `AssertionError: expected 3 to be less than 2`; frontend reported 2387 PASS and 1 FAIL. C21.2.18 was not remotely accepted on its original SHA.
+
+**Confirmed root cause — defective negative-test input, no production bypass found.** The test changed ciphertext with `slice(0,-1)+'A'`. A temporary bounded diagnostic over fresh genuine fixtures reproduced the exact failure condition at attempt 189: original suffix `dshekrDA`, mutated suffix `dshekrDA`, `wireChanged=false`, and candidate prefix 3. The expression is the identity when the original ciphertext already ends in `A`. A genuine local fixture ending in `B` showed that the old expression does change that sample. Production `metadataPrefixProof.ts` recomputes the exact wire digest and decrypts/reproduces the proof for the unproven Metadata row. The repaired test flips one decoded ciphertext byte, verifies the bytes, canonical serialization and recomputed digest all differ, confirms the original AEAD opener rejects the changed ciphertext, then verifies the prefix stops before Metadata and the entire stored inventory—including cursor, ACK, source, owner proof and owner-head history—remains unchanged. The same fixture first proves prefix 3 with its original authenticated wire.
+
+**Local validation:** repaired negative case passed three consecutive executions with fresh genuine encrypted fixtures; complete `metadataPrefixProof.spec.ts` passed 38/38. Fourteen related owner, historical-prefix, private-handoff, post-F boundary/routing and F/H/O/G/Q/K regression specs passed 630/630, including the preserved C21.2.11 default-route negative boundary. `npm run build` passed TypeScript typecheck and production Vite build; existing Vite dynamic-import and large-chunk warnings remain. `git diff --check` passed. The only code file changed is the negative spec; no production cryptographic/security validation, proof format, encryption, routing, storage, ACK or readiness behavior changed.
+
+The modified `frontend/src/**` path selects the existing Cloud workflow; all six mandatory jobs remain enabled with their original test coverage and 40-minute limits. SQLite is not selected by its actual path filters. Fresh independent Cloud 6/6 on the repaired SHA is required for **C21.2.18 REMOTELY ACCEPTED**. The VPS and `landing/worta` summaries recorded below are retained unchanged. C21.2.11 remains **PARTIALLY RESOLVED LOCALLY** for bounded update/delete only; C21.2.08 remains NOT CLOSED, Web 89.36%, `ready=false`, registration CLOSED, and C22/C23/PF6.0/RC, security and owner release gates remain mandatory. No C21.2.19 work started.
+
 ## Канонический scope релиза — FULL WEB RELEASE = MAIN ROADMAP 100%
 
 **Решение владельца, C21.2.08I, 2026-10-20.** Этот новый раздел имеет приоритет
