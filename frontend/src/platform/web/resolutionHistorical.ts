@@ -1,3 +1,4 @@
+import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import {decryptObjectBytes,type AccountMasterKey} from '@/crypto'
 import {decodeBase64Url} from '@/api/base64url'
 import {canonical} from '@/cloud/projectMetadataCodec'
@@ -5,7 +6,7 @@ import {decodeNoteSyncResolutionV2,type NoteSyncResolutionV2} from '@/cloud/note
 import {unframeContentNote} from '@/cloud/contentNoteCodec'
 import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {BrowserPersistenceError} from './persistence'
-import {authenticateResolutionHistory,type ResolutionInventory} from './resolutionAuthentication'
+import {authenticateResolutionHistory,authenticateTerminalMetadataResolutions,type ResolutionInventory} from './resolutionAuthentication'
 import {boundResolutionJson,readFutureInboxRecord,type BrowserResolution4} from './resolutionRecords'
 import {openHistoryCandidate} from './noteHistory'
 import {openFrozenLocalVersion,unsealedPlaintext} from './noteUnsealedVersion'
@@ -39,8 +40,23 @@ export interface HistoricalResolutionOutput {
 }
 /** Isolated future-v10 historical adapters, never an apply/prefix certificate. */
 export async function authenticateContinuationHistory(s:BrowserSyncScope,v:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean){
+ const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)
+ return authenticateContinuationCore(s,v,amk,current,base,async(row,binding)=>prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row)))
+}
+/** Explicit retained-outcome composition only. Complete .13 Metadata authentication
+ * runs inside the F pass; this path never calls a live certificate factory. */
+export async function authenticateTerminalMetadataContinuations(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ const base=await authenticateTerminalMetadataResolutions(s,v,amk,current)
+ return authenticateContinuationCore(s,v,amk,current,base,async row=>{
+  // Complete-inventory interval/proof authentication above covered ALL candidates.
+  // Still reject any first apply or incompatible publication here, independently.
+  const r=readFutureInboxRecord(row,s)
+  if(r.protocol_version!==3||!['content_note_proven','content_note_conflict_preserved'].includes(r.state))bad()
+ })
+}
+async function authenticateContinuationCore(s:BrowserSyncScope,v:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean,base:Awaited<ReturnType<typeof authenticateResolutionHistory>>,verifyPeerDependencies:(row:unknown,binding:ReturnType<typeof validateBrowserProjectBinding>)=>Promise<unknown>){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
- check();const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES);check()
+ check()
  const dag=base.dag,rows=v.rows.map(r=>readFutureInboxRecord(r,s)),bindings=v.bindings.map(b=>validateBrowserProjectBinding(b,s)),opened=new Map<string,NoteSyncPlaintext>(),resolutions=new Map<string,HistoricalResolutionOutput>()
  if(rows.some(r=>r.server_sequence>v.cursor.pull_cursor))bad()
  for(const r of dag.events.values())if(r.record_kind==='resolution'){
@@ -103,7 +119,7 @@ export async function authenticateContinuationHistory(s:BrowserSyncScope,v:Resol
    const local=group.members.find(m=>m.source==='local_unsealed')
    if(local){const frozen=dag.history.find(h=>h.record_kind==='local_version'&&h.version_id===local.version_id);if(!frozen||frozen.record_kind!=='local_version'||proof.record_version!==2||proof.local_version_id!==frozen.version_id||proof.local_version_digest!==frozen.record_digest||proof.local_mutation_generation!==frozen.intent.mutation_generation)bad();await openFrozenLocalVersion(s,frozen,amk)}else if(proof.record_version!==1)bad()
   }
-  if(c.record_version===2)await prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row))
+  if(c.record_version===2)await verifyPeerDependencies(row,binding)
   check()
  }
  for(const row of rows)if(['note_proven','note_conflict_preserved','content_note_proven','content_note_conflict_preserved','content_note_self_echo_proven'].includes(row.state)&&!dag.events.has(row.event_id))bad()

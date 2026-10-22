@@ -1,3 +1,5 @@
+import {authenticateTerminalMetadataInventory} from './historicalMetadataDependency'
+import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import { decryptObjectBytes, type AccountMasterKey } from '@/crypto'
 import { decodeBase64Url } from '@/api/base64url'
 import { canonical } from '@/cloud/projectMetadataCodec'
@@ -93,6 +95,18 @@ async function dependencies(s:BrowserSyncScope,r:BrowserResolution4,content:Cont
 
 /** Read-only authentication; no durable plans, writes, registration or prefix certificates. */
 export async function authenticateResolutionHistory(scope:BrowserSyncScope,input:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean,materialLimit=Number.POSITIVE_INFINITY){
+  return authenticateResolutionHistoryCore(scope,input,amk,current,materialLimit,dependencies)
+}
+
+/** Isolated terminal-delete reader only: full original F checks with the fresh
+ * complete .13 internal dependency semantics; no live prerequisite is minted. */
+export async function authenticateTerminalMetadataResolutions(scope:BrowserSyncScope,input:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+  return authenticateResolutionHistoryCore(scope,input,amk,current,16*1024*1024,async(s,_r,_content,v,key,live)=>{
+    await authenticateTerminalMetadataInventory(s,v as ResolutionInventorySnapshot,key,live)
+  })
+}
+
+async function authenticateResolutionHistoryCore(scope:BrowserSyncScope,input:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean,materialLimit:number,verifyDependencies:typeof dependencies){
   const s=snapshotBrowserSyncScope(scope);check(current)
   // Snapshot caller material before the first asynchronous operation.
   const v=structuredClone(input),dag=inspectResolutionDag(s,v.history),rows=v.rows.map(r=>readFutureInboxRecord(r,s)),seq=new Set<number>(),ids=new Set<string>()
@@ -131,7 +145,7 @@ export async function authenticateResolutionHistory(scope:BrowserSyncScope,input
     if(e.resolution_format!==1||e.kind!=='resolution_apply'||!same(e.identity,resolutionIdentity(r)))bad()
     exact(e.authenticated_payload,['wire_frame_digest','wrapper_payload_digest','resolution_payload_digest'])
     if(!same(e.authenticated_payload,{wire_frame_digest:frameDigest,wrapper_payload_digest:content?await noteProofDigest(content):null,resolution_payload_digest:r.payload_digest}))bad()
-    await dependencies(s,r,content,v,amk,current)
+    await verifyDependencies(s,r,content,v,amk,current)
     const group=readFutureHistoryRecord(e.group_snapshot,s),priorHead=readFutureHistoryRecord(e.head_before,s)
     if(group.record_kind!=='group'||group.group_id!==r.local_group_id||group.conflict_generation!==r.local_generation||group.bootstrap_id!==r.bootstrap_id||group.project_id!==r.project_id||group.note_id!==r.note_id||!same(group.tip_event_ids,r.parent_event_ids)||await noteProofDigest(group)!==r.group_digest||!dag.history.some(h=>same(h,group)))bad()
     if(priorHead.record_kind!=='head'||priorHead.project_id!==r.project_id||priorHead.note_id!==r.note_id||priorHead.bootstrap_id!==r.bootstrap_id||!same(priorHead.tip_event_ids,r.parent_event_ids))bad()

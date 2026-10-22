@@ -83,6 +83,119 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.14 — read-only historical Content and Resolution authentication
+
+**LOCAL COMPLETE / REMOTE CI PENDING — ISOLATED READ-ONLY COMPOSITION ONLY.**
+Starting clean branch `6.0`, HEAD and fetched `origin/6.0` both
+`a67d104f3aa1462c75d9f07669b307186bf4ed84`. C21.2.13 implementation
+`04f4cf6abf992da0b4e2131ed5f43e1a2a4c7de5` plus timeout repair
+`a67d104f3aa1462c75d9f07669b307186bf4ed84` are **REMOTELY ACCEPTED**, read-only
+verifier only. Independent Cloud **39747671030 SUCCESS**, all6 mandatory jobs
+SUCCESS; completed run HEAD/job identity verified once before implementation.
+The earlier failed run39680777802 and all .13 repair history remain below.
+
+Audited live prerequisite reuse: F `resolutionAuthentication.dependencies` demands
+current nondeleted Metadata, while H `authenticateContinuationHistory` calls live
+`prepareNotePrerequisite` for already retained Content candidates. Default F/H,
+O prepare/reconcile, F planner/replay, J retained replay, N/P source, G/Q, mixed K,
+ordinary Content prefix and intent-rebase callers continue using those live paths.
+No existing caller is redirected to the new read-only entrypoint.
+
+New dormant `BrowserHistoricalContentAuthentication.bind(...).inspect(scope,id)`
+loads the real complete bounded ten-store v10 account snapshot, authenticates
+retained outcomes, independently verifies current source and rechecks complete
+inventory/session lifecycle before returning frozen diagnostics. The internal
+.13 `authenticateTerminalMetadataInventory` returns void and calls its unchanged
+private full-inventory verifier; public inspect results never authorize anything.
+Full original F/H authentication cores are shared without changing their checks:
+AEAD/frame/codec and original payload/evidence/proof joins, parent/group/transition,
+source-before/after, Head2, original/retained identity, causal DAG and genuine
+outcomes. No filtered v9 history, invented past owner inventory or local apply
+timestamp, synthetic Head1/projection/proof or public historical bypass flag.
+
+Historical dependency validation reopens every actual Metadata wire/proof and
+requires exact peer imported bootstrap/ancestry, nondelete M, `M < E < D`, complete
+linear active interval and one terminal delete. It covers every retained Content
+candidate/F dependency, not merely a selected target. Legacy F2 followed by genuine
+Content O/H is supported without inventing a Content dependency for Legacy F.
+Scope: one F, project-scoped peer Content, ID0/ID1, four strategies, no own/local
+material, open fork, Stage/StageOrder/cover or additional Resolution generation.
+Missing/corrupt/foreign/digest-only evidence, unknown formats, reactivation,
+repeated delete or competing history reject; no fallback/repair is introduced.
+
+Current-source verification stays separate: complete mixed baseline/membership,
+contiguous source revisions and genuine final O/H projections must match current
+encrypted Note/project records. Evidence-selected F/H-only histories use their
+original source/role checks plus non-output projection checks, preserving accepted
+cross-role commit order outside the stricter mixed cohort. A failed mixed path
+cannot fall back. Valid-AEAD current Note/project drift still passes the .13
+Metadata component but fails .14 source verification in explicit tests.
+
+Successful historicalAuthenticated/fullHistoryAuthenticated/currentSourceVerified
+are bounded read diagnostics, never authority. sourceAuthorized/firstApplyAllowed/
+commitAuthorized/ackAuthorized/ready stay false. Received Content before/after D
+stays received; earliest pending sequence is reported, not bypassed. No source
+revision, inbox outcome, owner head, cursor, writer or certificate is created.
+New first apply, local intent, own echo/new Resolution and existing live replay
+retain strict active dependencies. Original .11 Q/K rejection remains unchanged.
+
+Final unit validation: **507 PASS /10files**, failed/skipped0. New .14 suite51,
+unchanged .13 verifier51 and .11 STOP13, F apply/H historical/G prefix/K mixed/L
+negative284 plus original F reader/N witness108. Seven regression files348 PASS
+in167.26s; new suite/F reader/N witness159 PASS in81.19s. Both F protocols/all4
+strategies/ID0-ID1 and genuine O/H/Metadata owners; pending/fork/Stage, missing/
+forged/AEAD/proof/source/Head2, valid-AEAD drift, source revision, lifecycle,
+real Metadata owner race and full account drift. Hook/body limits5000ms retained;
+expensive baseline and post-F fixture stages are separately bounded. A bounded
+40%-CPU-duty check PASS for Stage and compressed keep_both:2 selected tests,
+3185ms/4823ms aggregate hook+body times; every individual hook/body still5000ms.
+Supplemental direct diagnostic-to-ACK/transport-token rejection PASS, with zero HTTP;
+final native rerun after adding failure-safe race coordination also PASS.
+
+Native Chromium PASS:8 genuine persistent profiles,8 full process disk reopens,
+8 competing-tab exclusions,8 lifecycle revocations and8 genuine external Metadata
+owner races. Per phase26 .14 Content/F targets plus preserved26 .13 component/
+Legacy controls; exact read-only replay after reopen, all12 stores byte-identical.
+Readwrite/getRandomValues/fetch traps prove historical-reader writes0/nonces0/HTTP0;
+page errors/unauthorized HTTP0. One real owner change invalidates both simultaneous
+readers' complete snapshots; actor writes are separate. No J post-delete transport
+replay or G/Q prefix advance is claimed. Disposable profiles are removed by runner.
+
+Typecheck/build PASS with existing Vite warnings only. Native script syntax,
+workflow/path coverage, exact original F/H/source-fold body comparison, unchanged
+live prerequisite/Q/K/old negative tests, documentation history, protected hashes
+and git diff --check PASS. IDB10 schema/migration,
+wire/crypto/proof formats and backend/native code remain unchanged.
+
+CI capacity: accepted Cloud complete-project27m32s/40 (isolated135 tests6m53s,
+native .13 mode38s), Frontend admin21m40s/40. New51 cases run once in the existing
+complete-project unit command; native .14 checks extend the same8 profiles while
+retaining every .13 assertion. No new Frontend workload, job/test timeout, skip,
+retry or removed check. All6 original mandatory jobs preserved. Cloud all6 EXPECTED;
+SQLite NOT EXPECTED for changed paths. Do not poll/wait after push; .14 REMOTELY
+ACCEPTED requires a fresh independent all-six-success Cloud result.
+
+Contract details: `docs/web/C21_HISTORICAL_METADATA_DEPENDENCY_CONTRACT.md`, .14
+appendix. Proposed **C21.2.15 — read-only historical prefix qualification**: a
+separate bounded review of complete family/source/earliest-event qualification,
+without prefix commit, ACK, Metadata owner adapter or K activation. Not implemented.
+C21.2.11 **IMPLEMENTATION STOP**, C21.2.08 **NOT CLOSED**, C21/C21.2 IN PROGRESS,
+Web **89.36%**, ready=false. Scheduler, Content sealing/upload/writer, Note capability,
+Resolution ACK, registration and public release remain OFF. Historical records,
+protected .pyc, closed registration, VPS Security Hardening/Security Audit,
+PUBLIC RELEASE BLOCKED and owner reminders retained.
+
+### Простыми словами
+
+Браузер теперь может отдельно подтвердить подлинность уже принятых Content/F
+событий после последующего удаления Metadata. Он заново проверяет настоящую
+зашифрованную историю и отдельно сверяет текущее состояние проекта. Обычные и
+сжатые варианты проверены, в том числе после полного перезапуска Chromium.
+Новая проверка ничего не записывает и не разрешает новые изменения: исходный
+STOP для Metadata routing, Q/K и текущих writer-проверок остаётся. Полная Web-
+синхронизация и ready не включены. Следующий предлагаемый шаг — отдельно проверить
+историческую квалификацию непрерывной последовательности событий без её commit.
+
 ## C21.2.13 — CI timeout repair
 
 **LOCAL REPAIR / FRESH REMOTE ACCEPTANCE REQUIRED.** Starting clean branch `6.0`,

@@ -3,7 +3,7 @@ import {canonical} from '@/cloud/projectMetadataCodec'
 import {canonicalizeSyncTimestamp} from '@/cloud/syncTimestamp'
 import {decodeBase64Url} from '@/api/base64url'
 import {BrowserPersistenceError} from './persistence'
-import {authenticateContinuationHistory,openHistoricalJson,sameResolutionValue as same} from './resolutionHistorical'
+import {authenticateContinuationHistory,authenticateTerminalMetadataContinuations,verifyContinuationSources,openHistoricalJson,sameResolutionValue as same} from './resolutionHistorical'
 import {validateLocalProjectRecord,validateLocalNoteRecord,validateLocalProject,validatePersistedLocalNote,assertContentNoteRoute,localExact,MAX_LOCAL_NOTES,type LocalProjectPayload,type LocalNoteRecord} from './localAuthorityRecords'
 import {openBrowserCanonicalObject} from './canonicalReaders'
 import {openNoteTransport} from './noteTransport'
@@ -44,6 +44,11 @@ export function validateMixedPrefixInventory(s:BrowserSyncScope,v:ResolutionInve
 async function validateInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,preserveHConflicts:boolean){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
  const h=await authenticateContinuationHistory(s,v,amk,current);check()
+ return validateAuthenticatedInventory(s,v,amk,current,preserveHConflicts,h)
+}
+async function validateAuthenticatedInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,preserveHConflicts:boolean,h:Awaited<ReturnType<typeof authenticateContinuationHistory>>){
+ const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}
+ check()
  if(!h.resolutions.size)stop('no_resolution')
  if(h.resolutions.size!==1)stop('unsupported_generation') // Frozen K/F account boundary.
  const identities=new Map<string,string>()
@@ -222,4 +227,27 @@ async function validateInventory(s:BrowserSyncScope,v:ResolutionInventorySnapsho
   if(!id||h.dag.events.get(id)?.record_kind!=='resolution')stop('unresolved_fork')
  }
  check();return{projects:h.resolutions.size,baselineNotes,hTransitions,ordinaryTransitions,pendingEvents:h.rows.filter(r=>r.state==='received').length}
+}
+
+/** Internal .14 read-only composition. No owner calls this and no source grant is
+ * returned. Historical versus mixed source ordering is selected from evidence,
+ * never by catching an authentication failure. */
+export async function inspectTerminalMetadataSourceHistory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ const h=await authenticateTerminalMetadataContinuations(s,v,amk,current)
+ const mixed=[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
+  c.record_kind==='candidate'&&c.project_id===root.record.project_id&&![root.record.note_id,root.record.retained_note_id].includes(c.note_id)&&
+  ((h.rows.find(r=>r.event_id===c.event_id)?.server_sequence??0)>root.record.server_sequence||(c.projection?.source_revision??0)>root.project.source_revision)))
+ if(mixed)await validateAuthenticatedInventory(s,v,amk,current,false,h)
+ else{
+  await verifyContinuationSources(s,v,h,amk,current)
+  for(const raw of v.localNotes){
+   const n=raw as LocalNoteRecord
+   if([...h.resolutions.values()].some(r=>r.record.project_id===n.project_id&&[r.record.note_id,r.record.retained_note_id].includes(n.note_id)))continue
+   const head=h.dag.history.find(a=>a.record_kind==='head'&&a.project_id===n.project_id&&a.note_id===n.note_id)
+   const c=head?.record_kind==='head'?h.dag.events.get(head.linear_head_event_id):undefined
+   if(!c||c.record_kind!=='candidate'||!same(c.projection,raw))stop('source_mismatch')
+  }
+ }
+ if(!current())throw new BrowserPersistenceError('closed')
+ return{resolutions:h.resolutions.size,candidates:h.opened.size,pendingEvents:h.rows.filter(r=>r.state==='received').length,firstPendingSequence:h.rows.filter(r=>r.state==='received').map(r=>r.server_sequence).sort((a,b)=>a-b)[0]??null,sourceCohort:mixed?'mixed' as const:'historical' as const}
 }

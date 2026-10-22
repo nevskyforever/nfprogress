@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 /** Independent .13 branch over the same real native F seed. No synthetic puts. */
-export async function runHistoricalMetadataCase({getPage,snapshot,restart,compete,protocol,strategy,decision}){
+export async function runHistoricalMetadataCase({getPage,snapshot,restart,compete,protocol,strategy,decision,authenticateContent=false}){
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg)
- const ids=await evaluate(async({protocol,strategy,decision})=>{
+ const ids=await evaluate(async({protocol,strategy,decision,authenticateContent})=>{
   const project='planner-project',peer='44444444-4444-4444-8444-444444444444',stamp='2026-10-22T00:00:00.000000Z'
   const b=(await nativeRows('projectBindings')).find(b=>b.project_id===project),m=(await nativeRows('ownerHeads')).find(h=>h.owner_kind==='project_metadata'&&h.owner_id===project)
   const send=async(event,frame)=>{
@@ -31,8 +31,9 @@ export async function runHistoricalMetadataCase({getPage,snapshot,restart,compet
   }
   const update=await appendHistoricalMetadata('update',2,m.tip_event_ids[0],true),deletion=await appendHistoricalMetadata('delete',3,update.event_id)
   globalThis.historical=c21.historicalMetadataFixture(session,meta,verifiedDevice)
-  return{o:o.event_id,h:h.event_id,retained:retained?.event_id,F:decision.event_id,deletion:deletion.event_id}
- },{protocol,strategy,decision})
+  if(authenticateContent)globalThis.historicalContent=c21.historicalContentFixture(session,meta,verifiedDevice)
+  return{authenticateContent,o:o.event_id,h:h.event_id,retained:retained?.event_id,F:decision.event_id,deletion:deletion.event_id}
+ },{protocol,strategy,decision,authenticateContent})
  const check=async()=>{
   const before=await snapshot()
   const result=await evaluate(async ids=>{
@@ -41,35 +42,48 @@ export async function runHistoricalMetadataCase({getPage,snapshot,restart,compet
    crypto.getRandomValues=()=>{nonces++;throw Error('NO_VERIFIER_NONCES')};globalThis.fetch=()=>{http++;throw Error('NO_VERIFIER_HTTP')}
    try{
     const results=[];for(const id of [ids.o,ids.h,...(ids.retained?[ids.retained]:[])])results.push(await historical.inspect(s,id))
-    return{results,F:await historical.inspect(s,ids.F),replay:await historical.inspect(s,ids.o),writes,nonces,http,keys:Object.keys(historical)}
+    const authenticated=ids.authenticateContent?await Promise.all([ids.F,ids.o,ids.h,...(ids.retained?[ids.retained]:[])].map(id=>historicalContent.inspect(s,id))):[]
+    if(ids.authenticateContent){const replay=await historicalContent.inspect(s,ids.o);if(JSON.stringify(replay)!==JSON.stringify(authenticated[1]))throw Error('HISTORICAL_CONTENT_REPLAY_CHANGED')}
+    return{authenticated,results,F:await historical.inspect(s,ids.F),replay:await historical.inspect(s,ids.o),writes,nonces,http,keys:Object.keys(historical)}
    }finally{IDBDatabase.prototype.transaction=tx;crypto.getRandomValues=random;globalThis.fetch=fetch}
   },ids)
   assert.deepEqual(result.keys,['inspect']);assert.equal(result.writes,0);assert.equal(result.nonces,0);assert.equal(result.http,0)
   for(const r of result.results){assert.equal(r.historicalMetadataAdmissible,true);assert.equal(r.fullHistoryAuthenticated,false);assert.equal(r.sourceAuthorized,false);assert.equal(r.firstApplyAllowed,false);assert.equal(r.commitAuthorized,false);assert.equal(r.ackAuthorized,false);assert.equal(r.ready,false)}
+  for(const r of result.authenticated){assert.equal(r.historicalAuthenticated,true);assert.equal(r.fullHistoryAuthenticated,true);assert.equal(r.currentSourceVerified,true);assert.equal(r.sourceAuthorized,false);assert.equal(r.firstApplyAllowed,false);assert.equal(r.commitAuthorized,false);assert.equal(r.ackAuthorized,false);assert.equal(r.ready,false)}
   assert.equal(result.F.historicalMetadataAdmissible,protocol===3);assert.equal(result.F.reason,protocol===3?null:'not_content');assert.deepEqual(result.replay,result.results[0]);assert.deepEqual(await snapshot(),before)
   return result
  }
  const original=await check(),intact=await snapshot();await compete();assert.deepEqual(await snapshot(),intact)
- await restart();await evaluate(()=>{globalThis.historical=c21.historicalMetadataFixture(session,meta,verifiedDevice)})
+ await restart();await evaluate(ids=>{globalThis.historical=c21.historicalMetadataFixture(session,meta,verifiedDevice);if(ids.authenticateContent)globalThis.historicalContent=c21.historicalContentFixture(session,meta,verifiedDevice)},ids)
  assert.deepEqual(await snapshot(),intact);assert.deepEqual(await check(),original)
  assert.equal(await evaluate(async()=>{let rejects=0;for(const action of [()=>mixedRecovery.run(s),()=>c21.mixedResolutionPrefixFixture(session,meta,verifiedDevice).prepare(s)])try{await action()}catch{rejects++}return rejects}),2)
  // A separate genuine owner acts between the verifier's two readonly snapshots.
  // Its known fixture writes are not counted as verifier writes.
  const beforeRace=await snapshot()
  assert.equal(await evaluate(async ids=>{
-  const racing=c21.historicalMetadataFixture(session,meta,verifiedDevice,async()=>{
+  const change=async()=>{
    const project='planner-project',binding=(await nativeRows('projectBindings')).find(b=>b.project_id===project),head=(await nativeRows('ownerHeads')).find(h=>h.owner_kind==='project_metadata'&&h.owner_id===project),old=head.history.find(p=>p.event_id===head.tip_event_ids[0]),cursor=(await nativeRows('cursors'))[0]
    const stamp='2026-10-22T00:00:00.000000Z',h={account_id:s.canonicalUserId,bootstrap_id:binding.bootstrap_id,device_id:old.source_device_id,project_id:project,entity_id:project,event_id:crypto.randomUUID(),operation:'delete',revision:old.revision+1,generation:old.generation+1,parent_event_ids:[old.event_id],updated_at:stamp},payload={version:1,header:h,metadata:null,deleted_at:stamp},frame=c21.frameProjectMetadata(payload)
    const event={event_id:h.event_id,device_id:h.device_id,server_sequence:cursor.pull_cursor+1,project_id:project,entity_id:project,entity_type:'project_metadata',operation:'delete',revision:h.revision,updated_at:stamp,deleted_at:stamp}
    const object=await meta.keys.leaseForAccount(s.accountId).use(async amk=>{const o=await c21.encryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:project,entityId:project,entityType:'project_metadata'},frame);try{return{crypto_version:1,aad_version:1,nonce:c21.encodeBase64Url(o.nonce),ciphertext:c21.encodeBase64Url(o.ciphertext)}}finally{o.nonce.fill(0);o.ciphertext.fill(0)}})
    try{await session.sync.commitInboundPage(s,cursor.pull_cursor,JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[{event,object}],next_cursor:event.server_sequence,has_more:false}))}finally{frame.fill(0)}
    await session.metadata.apply(s,event,meta.auth,meta.bindings,meta.keys)
-  })
-  try{await racing.inspect(s,ids.o);return false}catch(e){return e.code==='stale_source'}
+  }
+  let waiting=0,release,rejectChange;const both=new Promise((resolve,reject)=>{release=resolve;rejectChange=reject})
+  const beforeReload=async()=>{
+   if(!ids.authenticateContent)return change()
+   if(++waiting===2){try{await change();release()}catch(e){rejectChange(e)}}
+   await both
+  }
+  const racing=c21.historicalMetadataFixture(session,meta,verifiedDevice,beforeReload)
+  const tasks=[racing.inspect(s,ids.o)]
+  if(ids.authenticateContent)tasks.push(c21.historicalContentFixture(session,meta,verifiedDevice,beforeReload).inspect(s,ids.o))
+  const results=await Promise.allSettled(tasks)
+  return results.every(r=>r.status==='rejected'&&r.reason.code==='stale_source')
  },ids),true)
  const raced=await snapshot();for(const name of ['localProjects','localNotes','legacyNoteHistory','legacyNoteIntents','outbox','receipts','projectBindings'])assert.deepEqual(raced[name],beforeRace[name])
  assert.equal((await evaluate(ids=>historical.inspect(s,ids.o),ids)).historicalMetadataAdmissible,false)
  const before=await snapshot();await evaluate(()=>meta.keys.lock())
- assert.equal(await evaluate(async ids=>{try{await historical.inspect(s,ids.o);return false}catch{return true}},ids),true);assert.deepEqual(await snapshot(),before)
- return{historicalChecks:original.results.length+1,restarts:1,tabs:1,revoked:1,races:1,wireAndStorageUnchanged:true}
+ assert.equal(await evaluate(async ids=>{for(const reader of [historical,...(ids.authenticateContent?[historicalContent]:[])]){try{await reader.inspect(s,ids.o);return false}catch{}}return true},ids),true);assert.deepEqual(await snapshot(),before)
+ return{historicalChecks:original.results.length+1,contentChecks:original.authenticated.length,restarts:1,tabs:1,revoked:1,races:1,wireAndStorageUnchanged:true}
 }

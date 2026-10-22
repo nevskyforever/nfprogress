@@ -204,6 +204,14 @@ async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:s
  return{metadataEvents:chain.length,pendingEvents:rows.filter(r=>r.state==='received').length}
 }
 
+/** Internal .14 composition: authenticate actual complete inventory, never consume inspect
+ * diagnostics or mint a prerequisite/source/prefix certificate. No value escapes. */
+export async function authenticateTerminalMetadataInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean):Promise<void>{
+ const target=v.rows.map(r=>readFutureInboxRecord(r,s)).find(r=>r.state==='content_note_proven'||r.state==='note_resolution_proven'&&r.protocol_version===3)
+ if(!target)reject('not_content')
+ await verify(s,v,target.event_id,amk,current)
+}
+
 /** Isolated .13 reader. No persistence composition or F/H/O/G/Q/K imports this
  * factory. Only a frozen diagnostic escapes; there is no capability state. */
 export class BrowserHistoricalMetadataDependency {

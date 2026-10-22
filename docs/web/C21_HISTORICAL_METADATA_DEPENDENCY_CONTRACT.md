@@ -366,3 +366,134 @@ retain evidence and explicit barriers. No .14 implementation is included.
 C21.2.13 is LOCAL COMPLETE / REMOTE CI PENDING for this read-only component only;
 .11 stays IMPLEMENTATION STOP and .08 NOT CLOSED. Web89.36%, ready=false,
 closed registration and every VPS/security/public-release gate remain unchanged.
+
+## C21.2.14 — isolated historical Content/F authentication
+
+**LOCAL IMPLEMENTATION / REMOTE CI PENDING.** This appendix supersedes only the
+proposal/status for the new slice, not the historical .12/.13 records above.
+C21.2.13 implementation04f4cf6 plus timeout repair/baseline
+`a67d104f3aa1462c75d9f07669b307186bf4ed84` are independently **REMOTELY ACCEPTED**:
+Cloud39747671030 SUCCESS, all6 mandatory jobs; completed run identity/jobs verified.
+
+### Explicit reader, unchanged authorization
+
+`BrowserHistoricalContentAuthentication.bind(...).inspect(scope,eventId)` is a
+separate dormant read-only entrypoint. It loads all ten bounded durable account
+stores (original32MiB/16384-row limits), reacquires real account/device/key/profile/
+epoch context and compares the complete inventory again before returning. It
+exposes a frozen inspect-only handle and frozen counts/diagnostics, never decrypted
+material, an owner plan, prerequisite, source grant, prefix certificate or ACK grant.
+`historicalAuthenticated/fullHistoryAuthenticated/currentSourceVerified` describe
+this bounded historical cohort for an eligible retained target. All
+sourceAuthorized/firstApplyAllowed/commitAuthorized/ackAuthorized/ready flags
+remain false. Missing/received targets get no positive historical result; the
+earliest received sequence stays visible and no event is applied or skipped.
+
+The internal `authenticateTerminalMetadataInventory` returns **void**, not the
+public .13 inspect result or a detached Boolean/certificate. It invokes the actual
+unchanged module-private .13 verifier over the complete original snapshot. This
+freshly authenticates every candidate, original F evidence and Metadata ancestor,
+including exact AEAD/wire/proofs/bootstrap and `M < E < D`. An actual retained
+Content outcome is required even for a Legacy F target; no Content dependency is
+invented for Legacy F. Terminal delete, peer/imported/captured lineage, project
+scope, coverless material, one F, no local/own material or unresolved fork and no
+Stage/StageOrder remain the accepted bounded fences. The public .13 API/result
+and all51 previous cases retain their semantics.
+
+| Layer | Historical-only composition | Default callers remain |
+|---|---|---|
+| `resolutionAuthentication.ts` | `authenticateTerminalMetadataResolutions` uses the internal complete .13 validation for dependency admission; the original F authentication core independently checks original AEAD/frame/codec, payload/identity, parent/group/transition, source snapshots and immutable output proofs | `authenticateResolutionHistory` uses its unchanged live `dependencies`, including active Metadata tip and Stage checks |
+| `resolutionHistorical.ts` | `authenticateTerminalMetadataContinuations` shares the original continuation core after that F pass; only genuine peer persisted Content applied/conflict outcomes are accepted, without minting a live prerequisite | `authenticateContinuationHistory` still calls the same live `prepareNotePrerequisite` for Content candidates |
+| `mixedSourceValidation.ts` | `inspectTerminalMetadataSourceHistory` independently validates the current source after historical authentication. The same complete mixed revision/member/projection fold is used only when genuine independent post-F evidence selects it | N/O/P/Q source owners still call their original default entrypoints with original live F/H authentication |
+| F/H-only source history | Evidence selects original `verifyContinuationSources` plus non-output projection checks; genuine historical cross-role source order is retained | No failed mixed verification can fall back to this route |
+| `noteTransportPrerequisite.ts`, F planner, O/H writers, J replay, G/Q and K | **No integration** | Live prerequisites, private WeakMap grants, first apply/replay/publication, prefix commit and mixed dispatch remain unchanged |
+
+Private shared cores accept no public historical flag or caller-provided exemption.
+Only named read-only composition selects the bounded alternative internally. Their
+historical maps are ordinary internal validation material, never owner certificates;
+source checking is not skipped and is never inferred from Metadata success.
+Complete current Note/project AEAD alone is insufficient: exact source revisions,
+F-boundary membership, reconstructible prior applied baselines, genuine O/H
+projections, Head2/role reachability, causal chains, retained tombstones and final
+records must independently match. Tests deliberately change current source under
+valid AEAD: .13 dependency admissibility still succeeds, .14 authentication rejects.
+No past complete owner inventory or application timestamp is synthesized.
+
+### Call-site audit and remaining barriers
+
+Two live-prerequisite reuse points are relevant: F `dependencies` requires today's
+qualified nondeleted Metadata tip; H `authenticateContinuationHistory` calls fresh
+`prepareNotePrerequisite` for retained Content candidates. The latter mints live
+prerequisite certificates and therefore is not weakened. O/H prepare/reconcile,
+F planner predicted-state/replay, mixed source validation, J retained replay,
+G/Q prefix and mixed K all retain those default readers. Ordinary Content prefix
+and intent-rebase checks also keep their existing live prerequisite. No entrypoint
+is substituted in those callers, and original .11 Q/K rejection stays negative.
+
+The alternative supports Content F3 ID0/ID1 and Legacy F2 followed by genuine
+Content O/H, all four F strategies, independent peer Content and original/retained
+H descendants, clean Metadata update then terminal delete and exact read-only
+replay. A genuine F/H-only cross-role apply order outside the mixed cohort is
+separately tested. This is not general reader readiness or universal historical
+compatibility. Active-tip histories continue through existing default readers;
+unsupported additional generations, resurrection, local/own material, unrelated
+source writers, Stage/StageOrder/cover material, missing ancestors/sequences,
+digest-only evidence, altered ciphertext/proofs/source, repeated delete,
+reactivation, competing Metadata and open forks reject without repair/fallback.
+
+Received Content on either side of deletion stays received. Fresh O/H/F operations,
+self-echo and new Resolution retain strict current dependencies. Historical
+success cannot advance a cursor, authorize a writer, ACK, Note declaration or
+registration, publish Content or activate a scheduler. All diagnostics are
+sanitized; concurrent inventory/source/Metadata changes reject stale_source and
+lifecycle revocation rejects. Retry requires an entirely fresh read. Existing
+IDB10 stores/formats/migration, original wire, crypto and proofs are unchanged;
+no migration or new durable evidence is needed for this bounded cohort.
+
+### Validation, workload and next numeric slice
+
+Use actual F/H/O/Metadata owners only. The new suite splits baseline and post-F
+construction into separate meaningful5000ms hooks; each test body also retains
+5000ms. It covers both protocols, all four strategies, ID0/ID1, historical replay,
+pending-before/after deletion, forks, Stage, corrupted/foreign/missing evidence,
+valid-AEAD source drift, Head2, competing Metadata/account snapshots, lifecycle
+revocation, zero writes/nonces/HTTP and refusal to consume diagnostics as O/H/Q
+commit authority, live transport/source prerequisite or ACK reader/ACK token. Public .13 inspect is trapped in a positive test to prove that
+its diagnostic is never used as authentication. Original .11/.13 negatives remain.
+
+Final focused verification:51 new cases plus108 original F-reader/N-witness cases
+PASS; unchanged .13/.11 and F/H/G/K/L regressions348 PASS. Total507/10files, final
+failed/skipped0. Typecheck/build PASS (existing Vite warnings); detailed timings
+and protected/history/workflow checks are recorded in checkpoint.
+
+Native `--historical-metadata --historical-content` extends the existing eight real
+persistent F profiles instead of duplicating setup. All previous .13 assertions
+remain; additional .14 F/Content targets and exact replay are checked under
+readwrite/getRandomValues/fetch traps, before/after full process reopen. All12
+stores remain byte-identical. Competing tabs are excluded. Two simultaneous
+readers are invalidated by one genuine external Metadata-owner commit between
+both first and second snapshots; key revocation rejects both readers. Known actor
+writes are distinct from zero historical-reader writes. No J replay-after-delete
+or G/Q prefix advancement is claimed. Counts/results are recorded in checkpoint.
+
+Capacity was reviewed BEFORE extending CI: accepted complete-project job
+39747671030 took27m32s/40; isolated135 tests took6m53s and native .13 took38s.
+Frontend admin took21m40s/40 and receives no new workload. New unit cases run once
+in the existing complete-project isolated command; one native mode adds checks to
+the same profiles. All six job names, mandatory checks and time budgets remain;
+no retries/skips or increased per-test/hook timeout. Runner capacity still needs
+fresh independent all-six acceptance; Actions are not polled after publication.
+
+Proposed **C21.2.15 — read-only historical prefix qualification**: separately review
+and bound whole-account family/earliest-event qualification using this authenticated
+historical reader plus independent source checks. No prefix commit certificate,
+network ACK, Metadata owner adapter or K dispatch activation is implied; original
+.11 STOP remains until its eventual atomic adapter is independently accepted.
+Do not implement .15 here. Further Stage/cover/local/own/additional-generation
+readers, full recovery, writer/upload/self-echo, production orchestration and all
+security/release acceptance remain prerequisites for C21 closure.
+
+C21.2.14 LOCAL COMPLETE is limited to the isolated read-only composition and requires
+new independent Cloud6/6 success for REMOTELY ACCEPTED. C21.2.11 IMPLEMENTATION STOP,
+C21.2.08 NOT CLOSED, C21/C21.2 IN PROGRESS, Web89.36%, ready=false, closed registration
+and all VPS hardening/security/public-release gates remain unchanged.
