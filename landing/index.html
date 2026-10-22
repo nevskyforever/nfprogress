@@ -6,6 +6,8 @@
     <meta name="theme-color" content="#faf9fc">
     <meta name="description" content="WORTA помогает собрать работу над текстом в понятный процесс: проекты, этапы, цели и история прогресса — в одном месте.">
     <title>WORTA — пространство для вашей книги</title>
+    <link rel="icon" href="assets/worta-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
     <link rel="stylesheet" href="styles.css">
     <script src="script.js" defer></script>
   </head>
@@ -15,7 +17,7 @@
     <header class="site-header">
       <div class="header-inner">
         <a class="wordmark" href="#top" aria-label="WORTA — на главную">
-          <span class="wordmark-mark" aria-hidden="true">w</span>
+          <img class="wordmark-icon" src="assets/worta-icon.svg" alt="" width="40" height="40">
           <span>WORTA</span>
         </a>
 
@@ -27,6 +29,7 @@
         <nav class="primary-nav" id="primary-nav" aria-label="Основная навигация">
           <a href="#features">Возможности</a>
           <a href="#workflow">Как это работает</a>
+          <a href="#downloads">Скачать</a>
           <a href="#availability">Доступность</a>
           <button class="theme-toggle" type="button" aria-label="Включить тёмную тему" title="Переключить тему">
             <span class="theme-icon" aria-hidden="true">◐</span>
@@ -182,14 +185,44 @@
           <a class="button button-primary" href="#availability">Открыть WORTA <span aria-hidden="true">↗</span></a>
         </div>
       </section>
+
+      <section class="downloads section-wrap section-space" id="downloads" aria-labelledby="downloads-title">
+        <div class="section-heading section-heading-centered reveal">
+          <p class="eyebrow">Настольное приложение</p>
+          <h2 id="downloads-title">WORTA для вашего компьютера</h2>
+          <p>Работайте над книгой в настольной версии. Ссылки появятся, когда актуальные установочные файлы будут подтверждены.</p>
+        </div>
+        <div class="download-grid" id="download-grid" aria-live="polite">
+          <article class="download-card" data-platform="windows">
+            <span class="download-platform">Windows</span>
+            <span class="download-architecture">64-разрядная версия</span>
+            <span class="download-version">Сборка пока не опубликована</span>
+            <span class="download-status">Ссылка появится после подтверждения выпуска</span>
+          </article>
+          <article class="download-card" data-platform="macos-arm">
+            <span class="download-platform">macOS</span>
+            <span class="download-architecture">Apple Silicon · ARM</span>
+            <span class="download-version">Сборка пока не опубликована</span>
+            <span class="download-status">Ссылка появится после подтверждения выпуска</span>
+          </article>
+          <article class="download-card" data-platform="macos-intel">
+            <span class="download-platform">macOS</span>
+            <span class="download-architecture">Intel · x86-64</span>
+            <span class="download-version">Сборка пока не опубликована</span>
+            <span class="download-status">Ссылка появится после подтверждения выпуска</span>
+          </article>
+        </div>
+        <p class="download-note" id="download-note" role="status">Сейчас нет подтверждённых ссылок на актуальные настольные сборки.</p>
+      </section>
     </main>
 
     <footer class="site-footer">
       <div class="footer-inner section-wrap">
-        <a class="wordmark footer-wordmark" href="#top" aria-label="WORTA — на начало страницы"><span class="wordmark-mark" aria-hidden="true">w</span><span>WORTA</span></a>
+        <a class="wordmark footer-wordmark" href="#top" aria-label="WORTA — на начало страницы"><img class="wordmark-icon" src="assets/worta-icon.svg" alt="" width="40" height="40"><span>WORTA</span></a>
         <p>Рабочее пространство для тех, кто пишет.</p>
         <nav class="footer-links" aria-label="Ссылки в подвале">
           <a href="#availability">Доступность</a>
+          <a href="#downloads">Скачать</a>
           <a href="#features">Возможности</a>
           <a href="#top">Наверх ↑</a>
         </nav>

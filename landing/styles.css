@@ -92,7 +92,7 @@ svg { display: block; }
 .site-header { position: sticky; z-index: 10; top: 0; border-bottom: 1px solid color-mix(in srgb, var(--border) 74%, transparent); background: color-mix(in srgb, var(--page) 90%, transparent); backdrop-filter: blur(16px); }
 .header-inner { display: flex; width: min(1280px, calc(100% - 64px)); min-height: 82px; margin-inline: auto; align-items: center; justify-content: space-between; gap: 32px; }
 .wordmark { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-size: 20px; font-weight: 760; letter-spacing: .09em; }
-.wordmark-mark { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--border)); border-radius: 11px; background: linear-gradient(145deg, var(--accent-soft), var(--surface)); color: var(--accent); font-family: Georgia, serif; font-size: 22px; font-style: italic; font-weight: 500; letter-spacing: -.1em; }
+.wordmark-icon { display: block; width: 38px; height: 38px; flex: 0 0 auto; border-radius: 11px; }
 .primary-nav { display: flex; align-items: center; gap: 27px; }
 .primary-nav > a, .footer-links a { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 560; transition: color .18s ease; }
 .primary-nav > a:hover, .footer-links a:hover { color: var(--accent-strong); }
@@ -213,10 +213,22 @@ h2 { margin-bottom: 17px; font-size: clamp(32px, 4vw, 48px); font-weight: 660; l
 .availability-decoration span:nth-child(2) { transform: rotate(56deg) scale(.8); }
 .availability-decoration span:nth-child(3) { transform: rotate(96deg) scale(.6); }
 
+.downloads { padding-top: 32px; padding-bottom: 100px; }
+.download-grid { display: grid; margin-top: 38px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.download-card { display: flex; min-height: 220px; padding: 25px; align-items: flex-start; flex-direction: column; border: 1px solid var(--border); border-radius: 22px; background: var(--surface-raised); box-shadow: var(--shadow-soft); }
+.download-platform { color: var(--text); font-size: 20px; font-weight: 680; letter-spacing: -.025em; }
+.download-architecture { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.download-version { margin-top: 22px; color: var(--accent-strong); font-size: 13px; font-weight: 620; }
+.download-status { margin-top: 7px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.download-button { display: inline-flex; min-height: 42px; margin-top: 16px; padding: 0 17px; align-items: center; justify-content: center; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 650; text-decoration: none; transition: background .18s ease, transform .18s ease; }
+.download-button:hover { background: var(--accent-strong); transform: translateY(-1px); }
+.download-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); outline-offset: 3px; }
+.download-note { max-width: 760px; margin: 22px auto 0; color: var(--muted); font-size: 13px; line-height: 1.65; text-align: center; }
+
 .site-footer { border-top: 1px solid var(--border); }
 .footer-inner { display: grid; min-height: 120px; padding-block: 26px; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 28px; }
 .footer-wordmark { font-size: 16px; }
-.footer-wordmark .wordmark-mark { width: 28px; height: 28px; font-size: 18px; }
+.footer-wordmark .wordmark-icon { width: 30px; height: 30px; border-radius: 9px; }
 .footer-inner > p { margin: 0; color: var(--muted); font-size: 12px; }
 .footer-links { display: flex; flex-wrap: wrap; gap: 18px; }
 .footer-links a, .footer-inner small { font-size: 11px; }
@@ -289,6 +301,9 @@ h2 { margin-bottom: 17px; font-size: clamp(32px, 4vw, 48px); font-weight: 660; l
   .availability { padding-top: 4px; padding-bottom: 82px; }
   .availability-card { min-height: auto; padding: 34px 27px; align-items: flex-start; flex-direction: column; gap: 22px; border-radius: 24px; }
   .availability-card > .button { width: 100%; }
+  .downloads { padding-top: 12px; padding-bottom: 78px; }
+  .download-grid { grid-template-columns: 1fr; gap: 12px; }
+  .download-card { min-height: 190px; padding: 22px; }
   .footer-inner { padding-block: 28px; grid-template-columns: 1fr auto; gap: 14px; }
   .footer-inner > p { grid-column: 1 / -1; grid-row: 2; }
   .footer-links { grid-column: 1 / -1; grid-row: 3; gap: 15px; }

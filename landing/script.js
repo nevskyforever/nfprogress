@@ -78,6 +78,66 @@
     })
   })
 
+  const downloadNote = document.querySelector('#download-note')
+  const supportedPlatforms = new Set(['windows', 'macos-arm', 'macos-intel'])
+  const allowedDownloadHosts = new Set(['github.com', 'nfproject.ru', 'worta.ru', 'www.worta.ru'])
+
+  function validRelease(release) {
+    if (!release || typeof release !== 'object') return false
+    if (!supportedPlatforms.has(release.platform)) return false
+    if (typeof release.version !== 'string' || !/^\d+\.\d+\.\d+(?:[-+][\da-z.-]+)?$/i.test(release.version)) return false
+    if (typeof release.url !== 'string') return false
+
+    try {
+      const url = new URL(release.url)
+      return url.protocol === 'https:' && !url.username && !url.password && allowedDownloadHosts.has(url.hostname)
+    } catch {
+      return false
+    }
+  }
+
+  async function loadDesktopReleases() {
+    if (!downloadNote) return
+
+    try {
+      const response = await fetch('releases.json', { cache: 'no-cache' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+
+      const data = await response.json()
+      if (!data || !Array.isArray(data.releases)) throw new Error('Invalid release list')
+
+      const releases = data.releases.filter(validRelease)
+      const uniqueReleases = new Map(releases.map((release) => [release.platform, release]))
+      uniqueReleases.forEach((release, platform) => {
+        const card = document.querySelector(`.download-card[data-platform="${platform}"]`)
+        if (!card) return
+
+        const version = card.querySelector('.download-version')
+        const status = card.querySelector('.download-status')
+        version.textContent = `Версия ${release.version}`
+        status.textContent = 'Установочный файл опубликован.'
+
+        const link = document.createElement('a')
+        link.className = 'download-button'
+        link.href = release.url
+        link.textContent = 'Скачать'
+        card.append(link)
+      })
+
+      if (uniqueReleases.size) {
+        downloadNote.textContent = typeof data.message === 'string' ? data.message : 'Выберите сборку для своей платформы.'
+      } else {
+        downloadNote.textContent = typeof data.message === 'string'
+          ? data.message
+          : 'Сейчас нет подтверждённых ссылок на актуальные настольные сборки.'
+      }
+    } catch {
+      downloadNote.textContent = 'Не удалось загрузить список релизов. Попробуйте позже.'
+    }
+  }
+
+  loadDesktopReleases()
+
   if (!reducedMotion.matches && 'IntersectionObserver' in window) {
     const observer = new IntersectionObserver((entries, currentObserver) => {
       entries.forEach((entry) => {
