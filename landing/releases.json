@@ -1,5 +1,27 @@
 {
   "schema_version": 1,
-  "releases": [],
-  "message": "Актуальные настольные сборки пока не подтверждены. Ссылки появятся после проверки нового выпуска."
+  "releases": [
+    {
+      "platform": "windows",
+      "status": "unavailable",
+      "version": null,
+      "url": null,
+      "message": "Временно недоступно. Текущий установщик собран под брендом NFProgress."
+    },
+    {
+      "platform": "macos-arm",
+      "status": "unavailable",
+      "version": null,
+      "url": null,
+      "message": "Временно недоступно. Текущий архив собран под брендом NFProgress."
+    },
+    {
+      "platform": "macos-intel",
+      "status": "unavailable",
+      "version": null,
+      "url": null,
+      "message": "Временно недоступно. Текущий архив собран под брендом NFProgress."
+    }
+  ],
+  "message": "Подтверждённых установщиков WORTA пока нет."
 }

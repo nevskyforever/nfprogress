@@ -81,16 +81,27 @@
   const downloadNote = document.querySelector('#download-note')
   const supportedPlatforms = new Set(['windows', 'macos-arm', 'macos-intel'])
   const allowedDownloadHosts = new Set(['github.com', 'nfproject.ru', 'worta.ru', 'www.worta.ru'])
+  const downloadFormats = {
+    windows: { architecture: /windows[-_](?:x86_64|x64|x86-64)|win[-_]x64/i, extension: /\.exe$/i },
+    'macos-arm': { architecture: /(?:mac|macos|darwin)[-_](?:arm|arm64|aarch64)/i, extension: /\.(?:dmg|zip)$/i },
+    'macos-intel': { architecture: /(?:mac|macos|darwin)[-_](?:intel|x86_64|x64)/i, extension: /\.(?:dmg|zip)$/i },
+  }
 
   function validRelease(release) {
     if (!release || typeof release !== 'object') return false
     if (!supportedPlatforms.has(release.platform)) return false
-    if (typeof release.version !== 'string' || !/^\d+\.\d+\.\d+(?:[-+][\da-z.-]+)?$/i.test(release.version)) return false
-    if (typeof release.url !== 'string') return false
+    if (!['available', 'preparing', 'unavailable'].includes(release.status)) return false
+    if (release.version && (typeof release.version !== 'string' || !/^\d+\.\d+\.\d+(?:[-+][\da-z.-]+)?$/i.test(release.version))) return false
+    if (release.status === 'preparing' && !release.version) return false
+
+    if (release.status !== 'available') return release.url == null
+    if (!release.version || typeof release.url !== 'string') return false
 
     try {
       const url = new URL(release.url)
-      return url.protocol === 'https:' && !url.username && !url.password && allowedDownloadHosts.has(url.hostname)
+      const format = downloadFormats[release.platform]
+      const filename = decodeURIComponent(url.pathname.split('/').pop() || '')
+      return url.protocol === 'https:' && !url.username && !url.password && !url.port && allowedDownloadHosts.has(url.hostname) && url.pathname.includes(release.version) && format.architecture.test(filename) && format.extension.test(filename)
     } catch {
       return false
     }
@@ -104,9 +115,14 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
 
       const data = await response.json()
-      if (!data || !Array.isArray(data.releases)) throw new Error('Invalid release list')
+      if (!data || data.schema_version !== 1 || !Array.isArray(data.releases) || data.releases.length !== supportedPlatforms.size) {
+        throw new Error('Invalid release list')
+      }
 
       const releases = data.releases.filter(validRelease)
+      if (releases.length !== supportedPlatforms.size || new Set(releases.map((release) => release.platform)).size !== supportedPlatforms.size) {
+        throw new Error('Invalid platform list')
+      }
       const uniqueReleases = new Map(releases.map((release) => [release.platform, release]))
       uniqueReleases.forEach((release, platform) => {
         const card = document.querySelector(`.download-card[data-platform="${platform}"]`)
@@ -114,8 +130,17 @@
 
         const version = card.querySelector('.download-version')
         const status = card.querySelector('.download-status')
-        version.textContent = `Версия ${release.version}`
-        status.textContent = 'Установочный файл опубликован.'
+        card.dataset.releaseStatus = release.status
+        version.textContent = release.version ? `Версия ${release.version}` : 'Версия не подтверждена'
+        status.textContent = typeof release.message === 'string'
+          ? release.message
+          : release.status === 'preparing'
+            ? `Версия ${release.version} готовится.`
+            : release.status === 'unavailable'
+              ? 'Временно недоступно.'
+              : 'Установочный файл опубликован.'
+
+        if (release.status !== 'available') return
 
         const link = document.createElement('a')
         link.className = 'download-button'
@@ -124,12 +149,12 @@
         card.append(link)
       })
 
-      if (uniqueReleases.size) {
+      if (Array.from(uniqueReleases.values()).some((release) => release.status === 'available')) {
         downloadNote.textContent = typeof data.message === 'string' ? data.message : 'Выберите сборку для своей платформы.'
       } else {
         downloadNote.textContent = typeof data.message === 'string'
           ? data.message
-          : 'Сейчас нет подтверждённых ссылок на актуальные настольные сборки.'
+          : 'Загрузки временно недоступны: подтверждённых установщиков WORTA пока нет.'
       }
     } catch {
       downloadNote.textContent = 'Не удалось загрузить список релизов. Попробуйте позже.'
