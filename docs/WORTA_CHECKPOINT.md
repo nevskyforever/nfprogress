@@ -83,6 +83,104 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## 2026-10-23 — сводная фиксация: C21.2.18, VPS и лендинг
+
+**Источник статусов:** C21.2.18 и ветка лендинга сверены с GitHub; подробности
+выполненных локальных и VPS-действий переданы владельцем из отдельных worktree/
+Codex-отчётов и не выдаются за независимую проверку сервера или хостинга.
+Эта запись дополнительно уточняет последующие исторические записи, не меняя их.
+
+### Основная ветка 6.0 — C21.2.18
+
+- **GitHub VERIFIED:** `origin/6.0` содержит commit
+  `7033aeb716acd2d63925c33d08bca9c55a075496`, baseline
+  `4934cc12c8593e3fe5633b33f1a68e731c982ea0`.
+  C21.2.17 независимо **REMOTELY ACCEPTED**: Cloud `39819436126`,
+  SUCCESS во всех6 обязательных jobs; соответствующая CI-починка включена.
+- **Результат Codex / LOCAL COMPLETE:** C21.2.18 создал dormant частный
+  post-F Metadata update/delete route и отдельный исторический сертификат
+  локального cursor commit. Временная ошибка cursor не отменяет уже состоявшийся
+  Metadata owner commit. Обычные K/G/Q, прежний отрицательный тест C21.2.11,
+  ACK, capability, readiness и production synchronization не активированы.
+  Изменено17 файлов. Отчёт: 761 различный локальный PASS (74 новых);
+  восемь реальных Chromium-профилей,16 Metadata commits,24 cursor commits,
+  56 проверок rollback и24 renderer crash. Typecheck, builds, workflow и
+  защищённые байткоды проверены локально.
+- **GitHub CI VERIFIED — НЕ ПРИНЯТО:** для SHA `7033aeb` прогон
+  [Cloud39837806935](https://github.com/nevskyforever/nfprogress/actions/runs/39837806935)
+  завершён **FAILURE, 5/6 SUCCESS**. Единственный failed job — **Frontend
+  admin**, шаг `Run C21 persistence contract tests`, файл
+  `src/platform/web/metadataPrefixProof.spec.ts`, тест
+  `C21.1.21 current coverless Metadata proof / wire tampering cannot qualify
+  applied Metadata`: `AssertionError: expected 3 to be less than 2`.
+  В этом frontend-наборе2387 PASS,1 FAIL; следующие steps были пропущены
+  после ошибки. Остальные пять mandatory jobs SUCCESS. Причина сбоя в коде/
+  тесте и исправление **не подтверждены**: нужно отдельно разобраться,
+  сохранить отрицательное security-поведение и повторить Cloud6/6 на
+  исправленном SHA. Не считать C21.2.18 REMOTELY ACCEPTED.
+- Неразрешённые ограничения: Metadata create/no-head; transport2 Metadata;
+  Stage/StageOrder, дополнительные поколения Resolution, own/local и
+  дополнительные pending-цепочки, Content outbound/seal/upload/self-echo,
+  ACK/reader capability/readiness, multi-device и production orchestration.
+  C21.2.11 остаётся историческим IMPLEMENTATION STOP / частично локально
+  устранённым только для bounded update/delete; C21.2.08 NOT CLOSED.
+
+### Отдельный инфраструктурный worktree — infra/vps-6.0
+
+- **USER/CODEX REPORTED — LOCAL ONLY:** отдельный `infra/vps-6.0` worktree,
+  последний локальный SHA `ee2b6f7b18ae74d3a281799b000dcd56dbe1cbc2`.
+  Ветка `infra/vps-6.0` **не найдена среди remote refs** при проверке
+  GitHub 2026-10-23. Push, merge в `6.0` и CI этого инфраструктурного
+  результата не производились; основной checkout не изменялся.
+- На закрытом SpaceWeb VPS подготовлены CPython3.13.17, локально доступный
+  PostgreSQL16.15 и Caddy2.6.2 только на `127.0.0.1:8080`. По отчёту,
+  UFW пропускает только SSH; публичные 80/443 закрыты; DNS не менялся,
+  backend WORTA на VPS **не устанавливался и не запускался**, регистрация
+  и тестовый публичный доступ не открыты. Отдельный SSH read-only осмотр
+  подтвердил работавшие PostgreSQL/Caddy, около646 МиБ RAM и6,51 ГиБ
+  свободного диска. Это **не является** свежей независимой проверкой VPS.
+- Локально собран backend bundle: production lock и39 проверенных wheels,
+  SHA-256 `8067fc21dd167d5d0020540a4b788a77ca4c8dd781b40e39806032cb4ff9dc34`.
+  По отчёту, в Ubuntu24.04 amd64 offline-проверке PASS: хеши,
+  установка зависимостей, `pip check`, синтаксис и воспроизводимость.
+  Bundle **не развёрнут**; артефакт хранится вне репозитория.
+  Владелец подтвердил существование резервной копии, но **восстановление не
+  проверялось**.
+- **VPS DEPLOYMENT BLOCKED / C22 NOT ACCEPTED**: требуется отдельно закрыть
+  legacy API/`PickleRepository`, production `RuntimeConfig`, ограничения
+  PostgreSQL pool и параллельных Argon2, изоляцию тестовой среды, нативные
+  resource/failure checks, security hardening и отдельное согласование
+  закрытой установки. Никакого автоматического merge или раскрытия портов
+  не разрешено.
+
+### Отдельная ветка лендинга — landing/worta
+
+- **GitHub VERIFIED:** опубликованная в origin ветка `landing/worta`
+  находится на commit `89b0613001c0a6ae039ec5c44aef08a4c236495e`
+  (`Add SEO metadata for WORTA landing`); она **не слита** в `6.0`.
+- **USER/CODEX REPORTED:** статический адаптивный лендинг опубликован
+  на [worta.ru](https://worta.ru/); `www.worta.ru` также отвечает.
+  Светлая/тёмная темы, мобильное меню, reduced-motion, клавиатурная
+  доступность и работа без JavaScript проверялись в отдельной ветке
+  на ширинах320–1920 px. Есть настоящая иконка, исторические скриншоты
+  с пометкой о прежней версии и раздел загрузок. Пока нет подтверждённых
+  сборок WORTA, кнопки скачивания **отключены**.
+- Включены canonical, OG/Twitter Card, `robots.txt`, `sitemap.xml`,
+  `releases.json` для будущих версий; автопубликация релизов выключена.
+  Отдельная проверка сравнила SHA-256 локальных и размещённых файлов,
+  не затрагивая соседние сайты. Реальные полевые Core Web Vitals не
+  измерялись, серверный `Cache-Control` пока не выставляется;
+  хостинг-конфигурация не менялась. Публикация лендинга **не равна**
+  выпуску приложения и не отменяет VPS/security/release gates.
+
+**Консолидированный статус:** C21/C21.2 IN PROGRESS; Web **89,36%**,
+`ready=false`, регистрация CLOSED, PUBLIC WEB RELEASE BLOCKED.
+C21.2.18 требует исправления Frontend admin и независимого Cloud6/6.
+C22/C23/PF6.0/RC, security audit, owner stabilization и явное
+разрешение владельца обязательны. Android остаётся отдельным
+post-Web workstream. Никакого изменения процентов, roadmap weights,
+исторических статусов и секретов/SSH-ключей эта фиксация не делает.
+
 ## C21.2.18 — post-F Metadata routing and historical prefix integration
 
 Preflight: clean branch `6.0`, HEAD and `origin/6.0` both
