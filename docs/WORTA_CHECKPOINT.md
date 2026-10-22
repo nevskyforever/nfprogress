@@ -83,6 +83,127 @@ ChatGPT сопровождает защиту и проверку; пароли,
 не создаёт. Все policy/license/owner stabilization gates остаются обязательными.
 
 
+## C21.2.15 — read-only historical prefix qualification
+
+**LOCAL COMPLETE / REMOTE CI PENDING — DIAGNOSTIC ONLY, NO CURSOR COMMIT.**
+Starting clean branch `6.0`, HEAD and fetched `origin/6.0` both
+`4ef43f266e7edfb83939f5033880e273c0501889`. C21.2.14 is independently
+**REMOTELY ACCEPTED**, isolated reader only: Cloud **39755485254 SUCCESS**, all6
+mandatory jobs SUCCESS; completed run SHA/jobs verified once before implementation.
+Every previous checkpoint entry and failure/acceptance record remains unchanged.
+
+New dormant `BrowserHistoricalPrefixQualification.bind(...).inspect(scope)` loads
+all ten real bounded v10 account recovery stores under real identity/device/auth/
+key/profile/epoch guards. It reuses fresh internal .13/.14 Metadata/F/H/source
+semantics, never public diagnostics or Q prepare/calculate/certificates. The .14
+source composition is factored into a module-private authenticated-state helper;
+its exact validation body, evidence-based historical/mixed routing and old public
+counts are preserved. Default N/O/P source paths, G/Q, K and live prerequisites
+are unchanged. New .15 explicitly requires one authenticated F; ordinary-only
+history cannot enter through an absent F/dependency callback. No grant escapes.
+
+Historically qualified families: Legacy peer applied or genuinely F-resolved
+preserved outcomes; Content peer C1 outcomes with original AEAD, transport/
+dependency/outcome proof and exact `M < E < D`; the actual original F proof and
+closure (keep_both counts once); and each Metadata sequence's own reproduced
+applied owner proof. A Metadata delete qualifies only itself. Other Metadata must
+have its own genuine same-account owner/binding lineage; unrelated Note/source
+writers, Stage/StageOrder, own/local publication, unknown generations or open forks
+cannot borrow qualification. No synthetic past owner snapshot, filtered v9 view,
+proof/Head1 projection, source revision or family coverage is fabricated.
+
+The complete current-source witness stays independent: actual membership,
+contiguous mixed revisions, projections, role/Head2 reachability and causal chains
+must match encrypted current source. Genuine F/H-only cross-role ordering remains
+supported via authenticated evidence selection, never failed-check fallback.
+Valid-AEAD source drift rejects even if the historical Metadata component passes.
+
+Every sequence from1, including the entire existing proven_prefix, is independently
+qualified. Counts cover1..candidate with one family per actual server sequence.
+A saved cursor cannot cover corrupt proofs or an unapplied event. Supported
+pending Content stops a successful candidate immediately; missing/duplicate rows,
+unsupported full-account material or corrupt source/proofs reject with no candidate.
+Qualification errors have static reasons and optional offending sequence, not a
+claim about a partially authenticated prefix. Complete snapshot and session are
+rechecked before returning a result or qualification error; stale changes/revocation
+reject. No live application, owner/ACK capability or readiness follows.
+
+Verified candidates from genuine owners:
+
+- no pending:14, or16 for keep_both; first blocker NULL;
+- keep_both pending before D: candidate15, blocker16/received; D17 retained but
+  not counted, Metadata count2;
+- keep_both pending after D: candidate16, blocker17/received, Metadata count3;
+- a received event falsely inside durable proven_prefix: rejection, no repair.
+Frozen inspect-only diagnostics expose current/candidate/pull cursor, first blocker,
+supported family counts and source cohort. counts are frozen too. All
+cursorCommitAuthorized/sourceAuthorized/firstApplyAllowed/commitAuthorized/
+ackAuthorized/declarationAllowed/ready flags stay false; there is no token,
+plaintext, persisted witness, prepare/calculate/commit or declaration surface.
+
+Final focused verification: **562 distinct PASS /11files**, failed/skipped0 in
+completed full checks. New .15 suite55 PASS in98.78s; old .11 STOP13, .13 verifier51,
+.14 reader51 PASS in the four-file169-case run316.53s (that run also includes the
+previous54 new cases); final55 adds the genuine no-F guard regression. Affected
+F/H/G/K/L/F-reader/N-witness392 PASS/7files in140.55s. Positives use actual F/H/O/
+Metadata owners, both F protocols, all4 strategies, ID0/ID1, real current prefixes
+and preserved losing branches. Negatives include gaps/duplicates, pending,
+unsupported later Stage/StageOrder/unrelated Note, unresolved fork, foreign/missing/
+corrupt proof/chain/source/Head2, source drift under valid AEAD, owner/cursor races,
+revocation and rejected use as O/H/Metadata/Q/transport/ACK authority. Public
+.13/.14 bind and Q bindings are trapped in a positive zero-write test. An initial
+foreign-account negative expectation was corrected to missing_sequence: moving
+that record's account key removes it from this account's inventory; the fail-closed
+rejection and byte-identical state assertion were retained. Tests/hooks remain5000ms.
+
+Native Chromium PASS on the same8 disposable .13/.14 profiles:24 prefix checks
+with exact replay,8 genuine readonly IDB aborts followed by fresh success,
+8 full process/disk reopens,8 competing-tab exclusions,8 revocations and8 real
+external Metadata-owner races. Initial candidate reaches genuine D, then actual
+received Content after D remains pending and blocks after reopen. Family counts
+and all12 stores/cursors/proofs stay byte-identical around reader calls. Readwrite/
+getRandomValues/fetch traps prove reader writes0/nonces0/HTTP0; page errors and
+unauthorized HTTP0. One real owner actor invalidates all three readers' complete
+snapshots; its known fixture writes are separate. Native race coordination has a
+bounded5000ms failure deadline, not a retry or timeout increase. All previous
+.13/.14 assertions remain. No J transport replay or Q/G prefix commit is claimed.
+
+Typecheck/build PASS with existing Vite warnings. Workflow/path coverage, native
+syntax, exact unchanged N/O/P and .14 source-body comparison, byte-identical
+G/Q/K/live owners/prerequisites and old negative tests, protected .pyc SHA-256,
+historical checkpoint/contract preservation and git diff --check PASS. Temporary
+preview/profiles/acceptance bundle cleaned after final native PASS. No schema/migration/wire/crypto/backend/protocol changes.
+
+CI capacity reviewed before extending: accepted39755485254 complete-project
+21m01s/40 (isolated186 tests7m55s, native37s); Frontend admin32m14s/40. New55 cases
+run once only in the existing complete-project command (now241 cases), native
+extends the existing8 profiles. Frontend gets no new test workload. Six mandatory
+Cloud job names and all original checks/budgets preserved; no skips/retries or
+raised limits. Cloud all6 EXPECTED; SQLite NOT EXPECTED. .15 needs fresh independent
+all-six-success Cloud acceptance; do not poll or wait for Actions after push.
+
+No STOP required for read-only separation: maps stay module-private and no Q or
+write-authorizing certificate is obtained. The actual Metadata adapter remains
+blocked. Proposed **C21.2.16 — post-F Metadata private handoff contract audit**:
+review active pre-state versus historical terminal-delete post-state admission,
+real Metadata owner plan ownership, structural-only predicted changes and exact
+ten-store atomic CAS/lifecycle/replay. Public diagnostics are never that grant.
+No .16 implementation, cursor commit, Metadata routing, ACK, Note capability,
+Content writer/sealing/upload/receipt/self-echo, scheduler or registration activation.
+C21.2.11 **IMPLEMENTATION STOP**, C21.2.08 **NOT CLOSED**, C21/C21.2 IN PROGRESS,
+Web **89.36%**, ready=false. Closed registration, VPS Security Hardening/Security
+Audit, PUBLIC RELEASE BLOCKED, owner reminders and all release gates retained.
+
+### Простыми словами
+
+Браузер теперь отдельно определяет непрерывную подтверждённую часть сохранённой
+истории после удаления Metadata. Обычные и сжатые варианты проверены. Если перед
+удалением есть неприменённое событие, проверка останавливается перед ним; само
+удаление не закрывает этот пропуск. После перезапуска pending-события остаются
+на месте. Результат ничего не записывает, не двигает курсор и не отправляет ACK.
+Полная Web-синхронизация и Metadata routing ещё не включены. Следующий предлагаемый
+шаг — проверить частный контракт безопасной передачи управления Metadata owner.
+
 ## C21.2.14 — read-only historical Content and Resolution authentication
 
 **LOCAL COMPLETE / REMOTE CI PENDING — ISOLATED READ-ONLY COMPOSITION ONLY.**

@@ -10,6 +10,9 @@ import {openNoteTransport} from './noteTransport'
 import type {ContentNoteEvent} from '@/cloud/contentNoteCodec'
 import type {BrowserNoteCandidate} from './noteHistoryRecords'
 import {validateBrowserOwnerHead} from './stageRecords'
+import {validateBrowserMetadataHead} from './metadataApplyRecords'
+import {validateBrowserSyncCursor} from './syncDurability'
+import {readFutureInboxRecord} from './resolutionRecords'
 import {prepareMetadataPrefix} from './metadataPrefixProof'
 import {prepareStagePrefix} from './stageApply'
 import {prepareStageOrderPrefix} from './stageOrderApply'
@@ -232,7 +235,7 @@ async function validateAuthenticatedInventory(s:BrowserSyncScope,v:ResolutionInv
 /** Internal .14 read-only composition. No owner calls this and no source grant is
  * returned. Historical versus mixed source ordering is selected from evidence,
  * never by catching an authentication failure. */
-export async function inspectTerminalMetadataSourceHistory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+async function authenticateTerminalMetadataSourceState(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
  const h=await authenticateTerminalMetadataContinuations(s,v,amk,current)
  const mixed=[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
   c.record_kind==='candidate'&&c.project_id===root.record.project_id&&![root.record.note_id,root.record.retained_note_id].includes(c.note_id)&&
@@ -249,5 +252,79 @@ export async function inspectTerminalMetadataSourceHistory(s:BrowserSyncScope,v:
   }
  }
  if(!current())throw new BrowserPersistenceError('closed')
+ return{h,mixed}
+}
+
+/** Existing .14 diagnostic only; authenticated maps stay module-private. */
+export async function inspectTerminalMetadataSourceHistory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ const {h,mixed}=await authenticateTerminalMetadataSourceState(s,v,amk,current)
  return{resolutions:h.resolutions.size,candidates:h.opened.size,pendingEvents:h.rows.filter(r=>r.state==='received').length,firstPendingSequence:h.rows.filter(r=>r.state==='received').map(r=>r.server_sequence).sort((a,b)=>a-b)[0]??null,sourceCohort:mixed?'mixed' as const:'historical' as const}
+}
+
+
+type HistoricalPrefixFamily='legacy'|'content'|'resolution'|'metadata'
+type HistoricalPrefixBlocker='missing_sequence'|'duplicate_sequence'|'unsupported_family'|'unqualified_proven_sequence'|'invalid_history'
+export class HistoricalPrefixQualificationError extends Error {
+ readonly name='HistoricalPrefixQualificationError'
+ constructor(readonly code:HistoricalPrefixBlocker,readonly sequence:number|null=null){super(`historical_prefix_${code}`)}
+}
+function prefixReject(code:HistoricalPrefixBlocker,sequence:number|null=null):never{throw new HistoricalPrefixQualificationError(code,sequence)}
+
+/** Isolated .15 read-only calculation. Does NOT call Q, obtain a family grant or
+ * expose the authenticated F/H maps. Every family is joined to its own outcome. */
+export async function inspectTerminalMetadataHistoricalPrefix(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+ const cursor=validateBrowserSyncCursor(v.checkpoints[0],s)
+ if(!same(cursor,v.cursor))prefixReject('invalid_history')
+ const rows=v.rows.map(r=>readFutureInboxRecord(r,s)).sort((a,b)=>a.server_sequence-b.server_sequence)
+ const seen=new Set<number>()
+ for(const row of rows){if(seen.has(row.server_sequence))prefixReject('duplicate_sequence',row.server_sequence);seen.add(row.server_sequence)}
+ const gap=rows.findIndex((row,i)=>row.server_sequence!==i+1)
+ if(gap>=0||rows.length!==cursor.pull_cursor)prefixReject('missing_sequence',gap>=0?gap+1:rows.length+1)
+ // Unsupported material is never hidden to manufacture a partial account view.
+ // Errors identify the rejected material, not an authenticated partial prefix.
+ for(const row of rows)if(!['note','project_metadata'].includes(JSON.parse(row.wire_item).event.entity_type))prefixReject('unsupported_family',row.server_sequence)
+ const {h,mixed}=await authenticateTerminalMetadataSourceState(s,v,amk,current)
+ if(h.resolutions.size!==1)prefixReject('invalid_history') // This path is ONLY the accepted one-F cohort.
+ const qualified=new Map<number,HistoricalPrefixFamily>(),projects=new Set([...h.resolutions.values()].map(root=>root.record.project_id))
+ for(const row of h.rows){
+  const e=JSON.parse(row.wire_item).event
+  if(e.entity_type==='project_metadata'){
+   const owner=v.owners.find(o=>(o as {owner_kind:string;owner_id:string}).owner_kind==='project_metadata'&&(o as {owner_id:string}).owner_id===e.project_id)
+   const head=validateBrowserMetadataHead(owner,s),proof=head.history.find(p=>p.event_id===row.event_id)
+   // Full .13 crypto already reproduced this exact owner proof from original AEAD.
+   // Neither a delete nor its sequence grants any Note/source qualification.
+   if(row.state!=='applied'||!proof||proof.server_sequence!==row.server_sequence||!same(proof,row.applied_proof))prefixReject('invalid_history',row.server_sequence)
+   qualified.set(row.server_sequence,'metadata');continue
+  }
+  if(!projects.has(e.project_id))prefixReject('unsupported_family',row.server_sequence)
+  if(row.state==='note_resolution_proven'){
+   const root=h.resolutions.get(row.event_id)
+   if(!root||root.record.server_sequence!==row.server_sequence||root.record.wire_item!==row.wire_item||root.record.record_digest!==row.resolution_proof.resolution_digest)prefixReject('invalid_history',row.server_sequence)
+   qualified.set(row.server_sequence,'resolution');continue
+  }
+  if(!['note_proven','content_note_proven','note_conflict_preserved','content_note_conflict_preserved'].includes(row.state))continue
+  const candidate=h.dag.events.get(row.event_id)
+  if(!candidate||candidate.record_kind!=='candidate'||!h.opened.has(row.event_id)||candidate.record_version===2&&candidate.server_sequence!==row.server_sequence)prefixReject('invalid_history',row.server_sequence)
+  if(row.state==='note_conflict_preserved'||row.state==='content_note_conflict_preserved'){
+   const proof=row.state==='note_conflict_preserved'?row.note_conflict_proof:row.content_note_conflict_proof
+   const group=h.groups.find(g=>g.group.project_id===candidate.project_id&&g.group.note_id===candidate.note_id&&g.group.group_id===proof.group_id)
+   if(!group||group.effective!=='resolved')prefixReject('invalid_history',row.server_sequence)
+  }
+  if(candidate.record_version===3)prefixReject('invalid_history',row.server_sequence)
+  qualified.set(row.server_sequence,candidate.record_version===2?'content':'legacy')
+ }
+ const counts:Record<HistoricalPrefixFamily,number>={legacy:0,content:0,resolution:0,metadata:0}
+ let candidate=cursor.proven_prefix,first:number|null=null,blocker:'received'|'unproven_family'|null=null
+ // Independently verify the complete already-proven interval as well as the new
+ // candidate. The durable cursor is never accepted as evidence for a sequence.
+ for(const row of rows){
+  const family=qualified.get(row.server_sequence)
+  if(!family){
+   if(row.server_sequence<=cursor.proven_prefix)prefixReject('unqualified_proven_sequence',row.server_sequence)
+   first=row.server_sequence;blocker=row.state==='received'?'received':'unproven_family';break
+  }
+  counts[family]++;candidate=row.server_sequence
+ }
+ if(!current())throw new BrowserPersistenceError('closed')
+ return Object.freeze({readOnly:true as const,current_proven_prefix:cursor.proven_prefix,candidate_historical_prefix:candidate,pull_cursor:cursor.pull_cursor,first_blocking_sequence:first,blocker,counts:Object.freeze(counts),sourceCohort:mixed?'mixed' as const:'historical' as const,cursorCommitAuthorized:false as const,sourceAuthorized:false as const,firstApplyAllowed:false as const,commitAuthorized:false as const,ackAuthorized:false as const,declarationAllowed:false as const,ready:false as const})
 }

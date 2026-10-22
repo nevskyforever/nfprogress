@@ -9,9 +9,10 @@ import {chromium} from '@playwright/test'
 // so replay never expands the accepted current-interval cursor contract.
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
 const recoveryMode=process.argv.includes('--mixed-recovery')
-const historicalContentMode=process.argv.includes('--historical-content')
+const historicalPrefixMode=process.argv.includes('--historical-prefix')
+const historicalContentMode=process.argv.includes('--historical-content')||historicalPrefixMode
 const historicalMetadataMode=process.argv.includes('--historical-metadata')||historicalContentMode
-const historicalTotals={historicalChecks:0,contentChecks:0,restarts:0,tabs:0,revoked:0,races:0}
+const historicalTotals={historicalChecks:0,contentChecks:0,prefixChecks:0,prefixAborts:0,restarts:0,tabs:0,revoked:0,races:0}
 const prefixMode=process.argv.includes('--mixed-prefix')||recoveryMode
 const continuationMode=process.argv.includes('--mixed-continuation')||prefixMode
 const ordinaryMode=process.argv.includes('--ordinary-owner')||continuationMode
@@ -128,7 +129,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   assert.equal(seed.blocker,null);assert.equal(seed.ready,false)
   const positive=await snapshot();assert.equal(positive.inbox.find(r=>r.event_id===decisions.event_id).record_version,10)
   if(historicalMetadataMode){
-   const result=await runHistoricalMetadataCase({getPage:()=>page,snapshot,protocol,strategy,decision:decisions,authenticateContent:historicalContentMode,
+   const result=await runHistoricalMetadataCase({getPage:()=>page,snapshot,protocol,strategy,decision:decisions,authenticateContent:historicalContentMode,qualifyPrefix:historicalPrefixMode,
     restart:async()=>{await context.close();await launch();await bind()},
     compete:async()=>{const other=await context.newPage();await other.goto(`${origin}/scripts/browser-persistence-harness.html`);assert.equal(await other.evaluate(async s=>{try{await c21.openBrowserPersistence(s.canonicalUserId);return false}catch(e){return e.code==='writer_busy'}},scope),true);await other.close()}
    })
@@ -288,7 +289,7 @@ assert.deepEqual(errors,[])
 assert.equal(network.filter(n=>n.includes('note-reader-capabilities')||n.includes('/ack')||n.includes('/push')).length,0)
 if(!ordinaryMode&&!historicalMetadataMode)console.log(JSON.stringify({result:'PASS',L:'STOP_SOURCE_AUTHORITY_AUDIT',profiles,restarts,metadataOwners,metadataRollbacks,ordinaryRejects,structuralRejects,sourceRejects,registrations,pageErrors:0,newProductionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
 if(witnessMode&&!ordinaryMode&&!historicalMetadataMode)console.log(JSON.stringify({result:'PASS',N:'READ_ONLY_MIXED_SOURCE_WITNESS',witnessReads,witnessRaces,witnessRevocations,witnessTabs,witnessRejects,ordinaryPostFPositiveClaims:0,witnessWrites:0,witnessNonces:0,ready:false}))
-if(historicalMetadataMode)console.log(JSON.stringify({result:'PASS',stage:historicalContentMode?'C21.2.14':'C21.2.13',profiles,...historicalTotals,pageErrors:0,unauthorizedHttp:0,verifierWrites:0,nonces:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
+if(historicalMetadataMode)console.log(JSON.stringify({result:'PASS',stage:historicalPrefixMode?'C21.2.15':historicalContentMode?'C21.2.14':'C21.2.13',profiles,...historicalTotals,pageErrors:0,unauthorizedHttp:0,verifierWrites:0,nonces:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))
 
 if(ordinaryMode||historicalMetadataMode)assert.equal(network.filter(n=>!/^PUT:\/api\/v1\/sync\/devices\/[^/]+$/.test(n)).length,0)
 if(ordinaryMode)console.log(JSON.stringify({result:'PASS',O:'DORMANT_V10_ORDINARY_OWNER',...ordinaryTotals,profiles,restarts,registrations,pageErrors:0,unauthorizedHttp:0,productionRoutes:0,ContentPush:0,ResolutionAck:0,NoteCapabilityPut:0,ready:false}))

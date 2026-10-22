@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 /** Independent .13 branch over the same real native F seed. No synthetic puts. */
-export async function runHistoricalMetadataCase({getPage,snapshot,restart,compete,protocol,strategy,decision,authenticateContent=false}){
+export async function runHistoricalMetadataCase({getPage,snapshot,restart,compete,protocol,strategy,decision,authenticateContent=false,qualifyPrefix=false}){
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg)
- const ids=await evaluate(async({protocol,strategy,decision,authenticateContent})=>{
+ const ids=await evaluate(async({protocol,strategy,decision,authenticateContent,qualifyPrefix})=>{
   const project='planner-project',peer='44444444-4444-4444-8444-444444444444',stamp='2026-10-22T00:00:00.000000Z'
   const b=(await nativeRows('projectBindings')).find(b=>b.project_id===project),m=(await nativeRows('ownerHeads')).find(h=>h.owner_kind==='project_metadata'&&h.owner_id===project)
   const send=async(event,frame)=>{
@@ -32,8 +32,10 @@ export async function runHistoricalMetadataCase({getPage,snapshot,restart,compet
   const update=await appendHistoricalMetadata('update',2,m.tip_event_ids[0],true),deletion=await appendHistoricalMetadata('delete',3,update.event_id)
   globalThis.historical=c21.historicalMetadataFixture(session,meta,verifiedDevice)
   if(authenticateContent)globalThis.historicalContent=c21.historicalContentFixture(session,meta,verifiedDevice)
-  return{authenticateContent,o:o.event_id,h:h.event_id,retained:retained?.event_id,F:decision.event_id,deletion:deletion.event_id}
- },{protocol,strategy,decision,authenticateContent})
+  if(qualifyPrefix){globalThis.historicalPrefix=c21.historicalPrefixFixture(session,meta,verifiedDevice);globalThis.appendHistoricalPending=()=>note('historical-prefix-pending')}
+  return{qualifyPrefix,authenticateContent,deletionSequence:deletion.server_sequence,o:o.event_id,h:h.event_id,retained:retained?.event_id,F:decision.event_id,deletion:deletion.event_id}
+ },{protocol,strategy,decision,authenticateContent,qualifyPrefix})
+ let prefixChecks=0,prefixAborts=0
  const check=async()=>{
   const before=await snapshot()
   const result=await evaluate(async ids=>{
@@ -44,17 +46,39 @@ export async function runHistoricalMetadataCase({getPage,snapshot,restart,compet
     const results=[];for(const id of [ids.o,ids.h,...(ids.retained?[ids.retained]:[])])results.push(await historical.inspect(s,id))
     const authenticated=ids.authenticateContent?await Promise.all([ids.F,ids.o,ids.h,...(ids.retained?[ids.retained]:[])].map(id=>historicalContent.inspect(s,id))):[]
     if(ids.authenticateContent){const replay=await historicalContent.inspect(s,ids.o);if(JSON.stringify(replay)!==JSON.stringify(authenticated[1]))throw Error('HISTORICAL_CONTENT_REPLAY_CHANGED')}
-    return{authenticated,results,F:await historical.inspect(s,ids.F),replay:await historical.inspect(s,ids.o),writes,nonces,http,keys:Object.keys(historical)}
+    let prefix,aborted=false,prefixFrozen=false
+    if(ids.qualifyPrefix){
+     if(!ids.abortChecked){try{await c21.historicalPrefixFixture(session,meta,verifiedDevice,undefined,true).inspect(s)}catch{aborted=true};if(!aborted)throw Error('EXPECTED_NATIVE_READ_ABORT')}
+     prefix=await historicalPrefix.inspect(s);prefixFrozen=Object.isFrozen(prefix)&&Object.isFrozen(prefix.counts)
+     if(JSON.stringify(prefix)!==JSON.stringify(await historicalPrefix.inspect(s)))throw Error('PREFIX_REPLAY_CHANGED')
+     if(JSON.stringify(Object.keys(historicalPrefix))!==JSON.stringify(['inspect']))throw Error('PREFIX_EXTRA_API')
+    }
+    return{prefix,aborted,prefixFrozen,authenticated,results,F:await historical.inspect(s,ids.F),replay:await historical.inspect(s,ids.o),writes,nonces,http,keys:Object.keys(historical)}
    }finally{IDBDatabase.prototype.transaction=tx;crypto.getRandomValues=random;globalThis.fetch=fetch}
   },ids)
   assert.deepEqual(result.keys,['inspect']);assert.equal(result.writes,0);assert.equal(result.nonces,0);assert.equal(result.http,0)
   for(const r of result.results){assert.equal(r.historicalMetadataAdmissible,true);assert.equal(r.fullHistoryAuthenticated,false);assert.equal(r.sourceAuthorized,false);assert.equal(r.firstApplyAllowed,false);assert.equal(r.commitAuthorized,false);assert.equal(r.ackAuthorized,false);assert.equal(r.ready,false)}
   for(const r of result.authenticated){assert.equal(r.historicalAuthenticated,true);assert.equal(r.fullHistoryAuthenticated,true);assert.equal(r.currentSourceVerified,true);assert.equal(r.sourceAuthorized,false);assert.equal(r.firstApplyAllowed,false);assert.equal(r.commitAuthorized,false);assert.equal(r.ackAuthorized,false);assert.equal(r.ready,false)}
+  if(qualifyPrefix){
+   assert.equal(result.prefixFrozen,true);assert.equal(result.prefix.current_proven_prefix,before.cursors[0].proven_prefix)
+   assert.equal(result.prefix.candidate_historical_prefix,ids.deletionSequence);assert.equal(result.prefix.pull_cursor,before.cursors[0].pull_cursor)
+   assert.equal(result.prefix.first_blocking_sequence,ids.pendingSequence??null);assert.equal(result.prefix.blocker,ids.pendingSequence?'received':null)
+   assert.deepEqual(result.prefix.counts,{metadata:3,resolution:1,legacy:protocol===2?8+Number(strategy==='keep_both'):0,content:protocol===2?2+Number(strategy==='keep_both'):10+2*Number(strategy==='keep_both')})
+   assert.equal(Object.values(result.prefix.counts).reduce((a,b)=>a+b,0),ids.deletionSequence)
+   for(const flag of ['cursorCommitAuthorized','sourceAuthorized','firstApplyAllowed','commitAuthorized','ackAuthorized','declarationAllowed','ready'])assert.equal(result.prefix[flag],false)
+   prefixChecks++;if(result.aborted){prefixAborts++;ids.abortChecked=true}
+  }
   assert.equal(result.F.historicalMetadataAdmissible,protocol===3);assert.equal(result.F.reason,protocol===3?null:'not_content');assert.deepEqual(result.replay,result.results[0]);assert.deepEqual(await snapshot(),before)
   return result
  }
- const original=await check(),intact=await snapshot();await compete();assert.deepEqual(await snapshot(),intact)
- await restart();await evaluate(ids=>{globalThis.historical=c21.historicalMetadataFixture(session,meta,verifiedDevice);if(ids.authenticateContent)globalThis.historicalContent=c21.historicalContentFixture(session,meta,verifiedDevice)},ids)
+ let original=await check(),intact=await snapshot()
+ if(qualifyPrefix){
+  const pending=await evaluate(()=>appendHistoricalPending());ids.pendingSequence=pending.server_sequence
+  const after=await snapshot();for(const name of ['localProjects','localNotes','legacyNoteHistory','legacyNoteIntents','outbox','receipts','projectBindings','ownerHeads'])assert.deepEqual(after[name],intact[name])
+  original=await check();intact=await snapshot()
+ }
+ await compete();assert.deepEqual(await snapshot(),intact)
+ await restart();await evaluate(ids=>{globalThis.historical=c21.historicalMetadataFixture(session,meta,verifiedDevice);if(ids.authenticateContent)globalThis.historicalContent=c21.historicalContentFixture(session,meta,verifiedDevice);if(ids.qualifyPrefix)globalThis.historicalPrefix=c21.historicalPrefixFixture(session,meta,verifiedDevice)},ids)
  assert.deepEqual(await snapshot(),intact);assert.deepEqual(await check(),original)
  assert.equal(await evaluate(async()=>{let rejects=0;for(const action of [()=>mixedRecovery.run(s),()=>c21.mixedResolutionPrefixFixture(session,meta,verifiedDevice).prepare(s)])try{await action()}catch{rejects++}return rejects}),2)
  // A separate genuine owner acts between the verifier's two readonly snapshots.
@@ -69,21 +93,22 @@ export async function runHistoricalMetadataCase({getPage,snapshot,restart,compet
    try{await session.sync.commitInboundPage(s,cursor.pull_cursor,JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[{event,object}],next_cursor:event.server_sequence,has_more:false}))}finally{frame.fill(0)}
    await session.metadata.apply(s,event,meta.auth,meta.bindings,meta.keys)
   }
-  let waiting=0,release,rejectChange;const both=new Promise((resolve,reject)=>{release=resolve;rejectChange=reject})
+  let waiting=0,release,rejectChange;const both=new Promise((resolve,reject)=>{release=resolve;rejectChange=reject}),deadline=ids.authenticateContent?setTimeout(()=>rejectChange(Error('HISTORICAL_RACE_GATE_TIMEOUT')),5000):null
   const beforeReload=async()=>{
    if(!ids.authenticateContent)return change()
-   if(++waiting===2){try{await change();release()}catch(e){rejectChange(e)}}
+   if(++waiting===(ids.qualifyPrefix?3:2)){try{await change();release()}catch(e){rejectChange(e)}}
    await both
   }
   const racing=c21.historicalMetadataFixture(session,meta,verifiedDevice,beforeReload)
   const tasks=[racing.inspect(s,ids.o)]
   if(ids.authenticateContent)tasks.push(c21.historicalContentFixture(session,meta,verifiedDevice,beforeReload).inspect(s,ids.o))
-  const results=await Promise.allSettled(tasks)
+  if(ids.qualifyPrefix)tasks.push(c21.historicalPrefixFixture(session,meta,verifiedDevice,beforeReload).inspect(s))
+  const results=await Promise.allSettled(tasks);if(deadline!==null)clearTimeout(deadline)
   return results.every(r=>r.status==='rejected'&&r.reason.code==='stale_source')
  },ids),true)
  const raced=await snapshot();for(const name of ['localProjects','localNotes','legacyNoteHistory','legacyNoteIntents','outbox','receipts','projectBindings'])assert.deepEqual(raced[name],beforeRace[name])
  assert.equal((await evaluate(ids=>historical.inspect(s,ids.o),ids)).historicalMetadataAdmissible,false)
  const before=await snapshot();await evaluate(()=>meta.keys.lock())
- assert.equal(await evaluate(async ids=>{for(const reader of [historical,...(ids.authenticateContent?[historicalContent]:[])]){try{await reader.inspect(s,ids.o);return false}catch{}}return true},ids),true);assert.deepEqual(await snapshot(),before)
- return{historicalChecks:original.results.length+1,contentChecks:original.authenticated.length,restarts:1,tabs:1,revoked:1,races:1,wireAndStorageUnchanged:true}
+ assert.equal(await evaluate(async ids=>{for(const reader of [historical,...(ids.authenticateContent?[historicalContent]:[]),...(ids.qualifyPrefix?[historicalPrefix]:[])]){try{await reader.inspect(s,ids.o);return false}catch{}}return true},ids),true);assert.deepEqual(await snapshot(),before)
+ return{historicalChecks:original.results.length+1,contentChecks:original.authenticated.length,prefixChecks,prefixAborts,restarts:1,tabs:1,revoked:1,races:1,wireAndStorageUnchanged:true}
 }

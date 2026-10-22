@@ -497,3 +497,154 @@ C21.2.14 LOCAL COMPLETE is limited to the isolated read-only composition and req
 new independent Cloud6/6 success for REMOTELY ACCEPTED. C21.2.11 IMPLEMENTATION STOP,
 C21.2.08 NOT CLOSED, C21/C21.2 IN PROGRESS, Web89.36%, ready=false, closed registration
 and all VPS hardening/security/public-release gates remain unchanged.
+
+## C21.2.15 — isolated read-only historical prefix qualification
+
+**ISOLATED READ-ONLY PATH — no G/Q certificate, cursor commit or Metadata route.**
+Baseline `4ef43f266e7edfb83939f5033880e273c0501889`, branch6.0. C21.2.14 is
+independently **REMOTELY ACCEPTED** for its bounded reader only: Cloud39755485254
+SUCCESS, all6 mandatory jobs, accepted run SHA independently matched. This appendix
+supersedes that slice's pending status without rewriting any historical entries.
+
+### Private evidence and supported family scope
+
+`BrowserHistoricalPrefixQualification.bind(...).inspect(scope)` loads all ten real
+bounded recovery stores under the accepted account/device/auth/key/profile/epoch
+guards. It uses fresh internal F/H/Metadata and current-source authentication,
+never the public .13/.14 inspect results, a detached Boolean, or Q prepare/calculate.
+The .14 source composition is factored into a module-private function returning
+its authenticated maps only inside `mixedSourceValidation.ts`; its existing
+public diagnostic keeps the same counts and semantics. Default N/O/P/G/Q/K and
+live first-apply paths remain unchanged.
+
+The qualifier explicitly requires exactly one authenticated F. An ordinary-only
+history, even with genuine Content and Metadata deletion, is outside this path.
+No callback simply failing to encounter F, nor a successful diagnostic, can admit
+that history. The complete terminal-delete scope from .13–14 stays: received-peer
+project-scoped Content, actual imported/captured bootstrap, complete `M < E < D`
+ancestry, coverless Metadata and authentic retained outcomes. Additional generations,
+local/own source, outbox/receipt dependencies, unsupported families and open forks
+are rejected, never filtered into an old-format account view.
+
+| Counted family | Independent authenticated evidence required |
+|---|---|
+| `legacy` | Original peer candidate/wire and genuine `note_proven` applied proof/source projection; a preserved losing candidate needs its own conflict proof and actual resolved F group |
+| `content` | Original Content AEAD/frame/codec, candidate, transport/outcome/dependency proofs and independent source checks, including the accepted historical Metadata interval; only the accepted peer C1 format |
+| `resolution` | Original accepted F row/proof, encrypted payload/evidence, parents/group/transition, historical source snapshots, output identities and current role/Head2 checks; keep_both contributes **one** server sequence |
+| `metadata` | Each sequence's genuine applied inbox proof equals its own complete authenticated owner-history entry, reproduced from original Metadata AEAD/wire; a terminal delete qualifies only itself |
+
+Legacy/Content Note qualification is confined to the accepted F project. An
+unrelated Note/source writer has no borrowed F authority and is rejected. Other
+same-account Metadata can qualify only through its independently authenticated
+existing owner/binding history; Metadata grants no Note membership/source change.
+No Stage/StageOrder count or historical coverage is invented. Preserved conflict
+material is not converted into an applied projection: only an actually resolved
+F group permits its own retained sequence to count; an unresolved fork rejects.
+
+Current-source verification remains independent and exact. Genuine mixed histories
+use the complete accepted baseline/revision/member/projection fold. F/H-only
+histories preserve their original role-specific source ordering, including genuine
+cross-role commit order outside the mixed cohort. Selection is by authenticated
+evidence, never fallback after a failed check. Source revision/membership/Head2
+mismatch or valid-AEAD current source drift rejects despite valid Metadata ancestry.
+
+### Contiguity, errors and immutable diagnostics
+
+The durable cursor is reread/validated and must equal the actual checkpoint record.
+Duplicate/gapped sequences reject before a candidate can be claimed. Every stored
+sequence **from1**, including all of `proven_prefix`, is independently qualified;
+the old cursor value is not proof. Counts cover1..candidate, not merely the delta
+beyond the current prefix. Each sequence counts at most once.
+
+For a fully authenticated supported account, the first received/unqualified row
+stops the candidate immediately. A pending event before D prevents the prefix
+from reaching D even though D has its own valid Metadata proof. A pending event
+after D leaves the candidate at D and remains pending after restart. If an already
+proven sequence is unqualified, reject rather than trust, reduce or repair the
+stored cursor. Later unsupported material cannot be hidden just because an earlier
+pending event would have stopped a partial traversal.
+
+Returned values are deeply frozen for the exposed structure: current_proven_prefix,
+candidate_historical_prefix, pull_cursor, first_blocking_sequence, blocker,
+sourceCohort and frozen family counts. Only these diagnostic scalars escape.
+All cursorCommitAuthorized/sourceAuthorized/firstApplyAllowed/commitAuthorized/
+ackAuthorized/declarationAllowed/ready flags remain false. There are no prepare,
+calculate, commit, registration or capability methods and no reusable grants,
+certificates, decrypted events or persisted witness.
+
+| Actual evidence | Result |
+|---|---|
+| Genuine fixture with no pending event | Candidate14, or16 for keep_both; first blocker NULL; source/proofs/cursor unchanged |
+| keep_both pending before terminal deletion | Candidate15, first blocker16/received; deletion17 is retained but not counted; Metadata count2 |
+| keep_both pending after terminal deletion | Candidate16, first blocker17/received; Metadata count3 |
+| Gap, including a foreign-account key removing a required row | Rejected `missing_sequence` with first gap position; no candidate |
+| Duplicate server sequence | Rejected `duplicate_sequence`; no candidate |
+| Unsupported Stage/StageOrder or unrelated Note | Rejected `unsupported_family` at the offending sequence; no candidate |
+| Received sequence already inside durable proven_prefix | Rejected `unqualified_proven_sequence`; no cursor repair |
+| Corrupt/foreign/missing proof, unknown generation, unresolved fork, invalid source or unsupported authoring | Rejected sanitized `invalid_history`; no candidate or partial-authentication claim |
+| Owner/cursor/full inventory changed during inspection | Rejected stale_source after the fresh complete snapshot comparison |
+| Account/device/key/profile/epoch revocation | Rejected by genuine lifecycle guards; no stale diagnostic accepted as authority |
+
+`HistoricalPrefixQualificationError.sequence` identifies rejected material/gaps;
+it is not an authenticated candidate or a claim about a partially verified prefix.
+Only successful full-history authentication may produce the first-blocker result
+for a pending/unqualified row. A fatal account-cohort failure returns no result;
+this conservative behavior preserves .13–14's complete-inventory fences. Decoder
+or source exceptions never become success/fallback or expose plaintext details.
+
+Before either a calculated result or a qualification error escapes, the complete
+account is reread and compared and the actual session guards are rechecked. Failed
+initial readonly transactions return no result; a later inspect starts fresh.
+No write transaction, nonce, HTTP, source revision, owner head, inbox outcome or
+cursor mutation is performed. Original bytes and pending data remain intact.
+
+### Genuine acceptance, CI capacity and remaining work
+
+New tests use actual F/H/O/Metadata commits, both F protocols, all four strategies
+and ID0/ID1, with baseline/post-F setup in separate5000ms hooks and test bodies
+bounded at5000ms. They cover real existing prefixes, exact counts, closed losing
+branches, pending-before/after D, already-proven corruption, gaps/duplicates,
+foreign scope, malformed proof/source, valid-AEAD drift, actual Metadata races,
+stale cursors, unsupported later material, F/H-only ordering and no-F rejection.
+Spies forbid public .13/.14 diagnostics and Q bindings in a positive reader test.
+Results cannot be consumed as O/H/Metadata, Q, live transport or ACK authorization.
+Old .11 STOP/.13/.14 and affected F/H/O/G/Q/K tests are retained; totals are in checkpoint.
+
+Native `--historical-prefix` extends the same eight .13/.14 persistent profiles
+and preserves all old assertions. It verifies an initial candidate through D,
+then receives a genuine pending Content after D and repeats qualification/replay
+before and after full process disk reopen. Exact family counts, immutable proofs,
+all12 stores and unchanged durable cursors are checked. Traps enforce zero
+readwrite/nonces/HTTP. Eight actual native readonly IDB aborts leave storage intact
+and fresh qualification succeeds; competing tabs are excluded. One genuine
+Metadata-owner actor invalidates all three simultaneous readers' complete snapshots;
+revocation rejects all three. The test-only race gate has a bounded5000ms deadline,
+not a retry. No transaction abort manufactures a cursor/source commit.
+
+Accepted run39755485254 complete-project took21m01s/40; the isolated186-case step
+7m55s and native .13/.14 step37s. Frontend admin took32m14s/40. New cases run once
+only in complete-project, and existing native profiles gain checks rather than
+being duplicated. Frontend gets no new suites; all six mandatory job names and
+checks, original5000ms limits and Frontend40-minute budget remain unchanged.
+Workflow/path coverage and capacity are checked; local timing cannot substitute
+for fresh independent all-six acceptance. Actions are not polled after publication.
+
+No schema, migration, durable format, original wire/proof, crypto, backend or
+protocol changes are needed for this calculation. Existing BrowserResolutionPrefix,
+bindMixedSources/Q prepare/calculate/commit, K routing, F/H/O/Metadata writers and
+live prerequisites remain untouched. C21.2.11 remains IMPLEMENTATION STOP.
+
+Proposed **C21.2.16 — post-F Metadata private handoff contract audit**: specify
+private active pre-state versus terminal-delete historical post-state admission,
+the actual Metadata owner's plan ownership, predicted structural-only changes and
+exact ten-store atomic CAS/lifecycle/replay boundaries. Public prefix/reader
+results cannot be reused as that authorization. Review any additional private
+contract before implementing a dormant Metadata adapter or cursor commit; do not
+activate either in .15. Stage/cover/local/own/additional-generation histories,
+full recovery, outbound lifecycle, ACK/readiness and production synchronization
+remain separate unaccepted dependencies.
+
+C21.2.15 may be LOCAL COMPLETE only after bounded local validation; REMOTELY ACCEPTED
+requires a subsequent independent Cloud6/6 success. C21.2.08 NOT CLOSED,
+C21/C21.2 IN PROGRESS, Web89.36%, ready=false, closed registration and every
+VPS/security/public-release gate remain unchanged.

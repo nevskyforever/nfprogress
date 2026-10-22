@@ -1,3 +1,4 @@
+import {BrowserHistoricalPrefixQualification} from '../src/platform/web/historicalPrefixQualification'
 import {BrowserHistoricalContentAuthentication} from '../src/platform/web/historicalContentAuthentication'
 import {BrowserV10OrdinaryApply} from '../src/platform/web/v10OrdinaryApply'
 import {BrowserV10Recovery} from '../src/platform/web/v10Recovery'
@@ -119,6 +120,16 @@ function historicalContentFixture(session: Awaited<ReturnType<typeof persistence
  }
  return new BrowserHistoricalContentAuthentication(transaction,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
+function historicalPrefixFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, beforeSecondRead?:()=>Promise<void>, abortFirstRead=false) {
+ const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean};let reads=0
+ const transaction:BrowserSyncTransaction=async(...args)=>{
+  if(args[2]!=='readonly')throw Error('HISTORICAL_PREFIX_WRITE_FORBIDDEN')
+  if(++reads===2)await beforeSecondRead?.()
+  if(abortFirstRead&&reads===1){const schedule=args[3];args[3]=(tx,result,abort)=>{schedule(tx,result,abort);tx.abort()}}
+  return internal.syncTransaction(...args)
+ }
+ return new BrowserHistoricalPrefixQualification(transaction,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
+}
 // Identity-only fixture deliberately provisions no crypto reader/writer capabilities.
 async function deviceFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, user: string) {
   const auth = new NormalUserAuthRuntime({ login: async () => ({ access_token: 'fixture-device-access', refresh_token: 'fixture-device-refresh', access_expires_in: 60 }), refresh: async () => { throw Error('fixture_no_refresh') }, logout: async () => {}, me: async () => ({ id: user, username: 'fixture', email: 'fixture@example.test', email_verified: true, role: 'user', status: 'active', created_at: '2026-10-14T00:00:00Z' }) })
@@ -129,4 +140,4 @@ async function nativeRows(store: string): Promise<unknown[]> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => { const r = indexedDB.open(persistence.WEB_DATABASE_NAME); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) })
   try { return await new Promise<unknown[]>((resolve, reject) => { const r = db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error) }) } finally { db.close() }
 }
-Object.assign(globalThis, { nativeRows, c21: { ...persistence, historicalContentFixture, historicalMetadataFixture, mixedV10RecoveryFixture, mixedResolutionPrefixFixture, v10OrdinaryOwnerFixture, mixedSourceWitnessFixture, v10RecoveryFixture, v10TransportFixture, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
+Object.assign(globalThis, { nativeRows, c21: { ...persistence, historicalPrefixFixture, historicalContentFixture, historicalMetadataFixture, mixedV10RecoveryFixture, mixedResolutionPrefixFixture, v10OrdinaryOwnerFixture, mixedSourceWitnessFixture, v10RecoveryFixture, v10TransportFixture, noteReaderReadinessFixture, resolutionPrefixFixture, resolutionContinuationFixture, resolutionPlannerFixture, encodeNoteSyncResolutionV2, resolutionRecords, inspectResolutionDag, authenticateResolutionHistory, openBrowserCanonicalObject, frameStructuralEvent, frameProjectMetadata, compressCanonicalFrame, canonical, readerCases, readerFrame, readFixture, deviceFixture, contentIntentFixture, assertLocalSourceInTransaction, metadataFixture, encryptObjectBytes, createNoteSyncPlaintext, encodeNoteSyncPlaintext, sealProjectMetadataEvent, openNoteSyncEvent, decodeBase64Url, encodeBase64Url } })
