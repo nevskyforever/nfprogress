@@ -1,5 +1,57 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-23 — C21.2.22 full-history replay: feasibility STOP
+
+**IMPLEMENTATION STOP / NOT LOCAL COMPLETE.** Clean branch `6.0`, HEAD,
+`origin/6.0` and actual remote branch matched
+`779736d3122f11b8382ab1e046185b5d52e23802`; fetch confirmed the baseline.
+C21.2.18 remains REMOTELY ACCEPTED at
+`8df51fbe37624324a5b0831daf6da2f1d0a55ecd`, Cloud `39850013638` SUCCESS6/6;
+C21.2.19/.21 remain AUDIT COMPLETE; C21.2.20 remains historical IMPLEMENTATION
+STOP / NOT LOCAL COMPLETE.
+
+The mandatory pre-edit gate found concrete limits to .21's proposed replay.
+Actual PostgreSQL/API pagination from0 returned the complete four-row synthetic
+Legacy/Resolution/Metadata history with original ciphertext preserved in v3;
+v2 pull after mode3 cutover returned `sync_transport_mode_incompatible`.
+Current fresh browser ingestion stores protocol3, while the actual F owner
+accepts raw Legacy Resolution on2 and framed Content Resolution on3. Four
+genuine encrypted Legacy F strategy probes passed2 preparation but rejected
+raw3 preparation without writes. A future exact re-fetch join to an existing
+authentic F2 proof may be possible; fresh raw-on3 ingestion is not accepted.
+
+A separate decisive reader gate blocks the required Content/restart/new-device
+matrix: once any Content Note exists, the actual server rejects every v3 page
+for a registered browser lacking full ordinary1/Resolution2 capability,
+including `since=0,limit=1`. The probe's authenticated registry still returned
+cursor5, and capable peers could fetch all five rows. Current browser
+registration and compression declaration do not grant that Note capability;
+`noteReaderReadiness` retains `declarationAllowed=false`. Declaring it would
+cross the frozen C21.2.08 boundary and this task's explicit scope restriction.
+No production edits or partial replay/create/security activation were made.
+`unsupported_create_baseline` remains; .17/.18 dormant behavior is preserved.
+
+Checks:3 real PostgreSQL/API tests PASS in6.34s;40 Vitest cases PASS in8.49s;
+1 selected unchanged no-head handoff negative PASS in2.48s (45 unselected by
+CLI filter). Total44 executed PASS,0 failures:39 existing checks and5 temporary
+probes, removed before commit. Disposable PostgreSQL container/anonymous volume
+removed; no host user data mounted. Protected bytecode hashes unchanged.
+Implementation typecheck/build/Chromium/Content-ID0/ID1/source/owner/cursor/CAS/
+race/revocation/full-browser restart checks NOT RUN because feasibility failed.
+The API probe's payloads are opaque transport fixtures, not crypto acceptance.
+Details: [C21.2.22 feasibility STOP](web/C21_2_22_AUTHENTICATED_HISTORY_FEASIBILITY_STOP.md).
+
+Propose **C21.2.23 — cross-transport history authentication and truthful browser
+reader-gate contract audit**. Review retained F2 versus fresh raw-on3 proof
+requirements and the real full-account reader predicate before retrying create.
+No new backend/schema/wire/crypto alternative selected; no .23 work started.
+CI increment0, six Cloud jobs/40-minute budgets preserved; future implementation
+headroom unproved. Cloud/SQLite NOT EXPECTED for docs-only paths; no Actions
+polling/dispatch. C21/C21.2 IN PROGRESS; C21.2.11 historically PARTIALLY RESOLVED;
+C21.2.08 NOT CLOSED; C21.1.06 NOT LOCAL COMPLETE. Web89.36%, `ready=false`,
+registration CLOSED, PUBLIC RELEASE BLOCKED. VPS, landing, permanent CI/CD
+release policy, C22/C23/PF6.0/RC gates and existing weights are preserved.
+
 ## 2026-10-23 — C21.2.21 trusted import-origin contract audit
 
 **AUDIT COMPLETE / NO IMPLEMENTATION.** Starting branch `6.0`, clean local
@@ -563,10 +615,10 @@ new SHA and SQLite checks only when the actual changed-path filters require them
 
 | Requirement | Status and exact existing evidence | Blocking dependency / next proposed numbered stage | Required local and remote acceptance | Closure / release effect |
 |---|---|---|---|---|
-| Post-F Metadata update/delete and original .11 historical-delete STOP | PARTIAL. .17 handoff and .18 explicit `v10MixedRecovery.ts::bindPostFMetadataRecovery` / `privateMetadataPrefix.ts` are independently REMOTELY ACCEPTED; `postFMetadataBoundary.spec.ts` preserves the old real M/E/D counterexample and default K STOP. | Create/no-head .20 stopped at trusted import provenance; .21 recommends authenticated full-log replay and requires independent retention acceptance. | Local F2/F3 × four strategies, ID0/ID1, separate genuine owner/cursor commits and native restart/races PASS; .18 Cloud `39850013638` SUCCESS6/6. | Bounded update/delete problem accepted; .11 cannot close completely while other required cohorts remain unsupported. |
+| Post-F Metadata update/delete and original .11 historical-delete STOP | PARTIAL. .17 handoff and .18 explicit `v10MixedRecovery.ts::bindPostFMetadataRecovery` / `privateMetadataPrefix.ts` are independently REMOTELY ACCEPTED; `postFMetadataBoundary.spec.ts` preserves the old real M/E/D counterexample and default K STOP. | Create/no-head .20 stopped at trusted import provenance; .22 stopped at complete-history browser access / raw Legacy-on3 compatibility. .23 contract audit proposed. | Local F2/F3 × four strategies, ID0/ID1, separate genuine owner/cursor commits and native restart/races PASS; .18 Cloud `39850013638` SUCCESS6/6. | Bounded update/delete problem accepted; .11 cannot close completely while other required cohorts remain unsupported. |
 | Complete Note reader/capability, C21.2.08 | PARTIAL. F/H/O/G/Q/J/K accepted dormant bounded readers; `noteReaderReadiness.ts` always returns ready/declarationAllowed/writerAuthorized=false. Frozen server predicate is in `backend/app/cloud/services.py::content_note_reader_ready`; no partial capability exists. | Complete supported lifecycle, production dispatch, all-device gate; proposed C21.2.19 reader-readiness scope after its dependencies. | Full lifecycle matrix, truthful server gate and real registered-device tests; fresh Cloud6/6 before any declaration. | Blocks .08/C21 closure and release readiness; decoder support alone is insufficient. |
 | C21.1.06 protected-apply completion and remaining Web entity families | PARTIAL. Original .06 audit is still NOT LOCAL COMPLETE. Its lineage prerequisite now exists in `projectBindings.ts`, `initialNoteCapture.ts`, `bootstrapCompletion.ts`; bounded Metadata/Note/Stage/StageOrder apply and prefix were independently accepted in .07–.30. `persistence.ts::BrowserPersistenceSession` exposes those owners, while Document/Map/Progress/Game/Account native runtimes in `frontend/src/cloud/*Runtime.ts` still use Tauri/SQLite infrastructure. | Reconcile the original all-family claim with actual browser adapters/dependencies/cover material; proposed C21.2.19 family-coverage audit before a scoped implementation. | Family-by-family browser producer/consumer, projection/conflict/orphan/replay/prefix/ACK evidence; Cloud6/6 and relevant SQLite filters. | Blocks full C21 Web synchronization; existing native C18 acceptance remains accepted. |
-| Metadata create / legitimate no-head post-F baseline | BLOCKED / NOT LOCAL COMPLETE. .20 stopped because original import provenance is not retained. .21 finds the current authenticated server log can prove no earlier Metadata genesis by complete replay from sequence1 through current cursor; full server-history retention and all create acceptance remain unverified. `unsupported_create_baseline` remains. Content-F requires Metadata before F. | C21.2.22 — private Legacy-F no-head create using authenticated complete-history replay, after independent retention and create acceptance. No schema/API/crypto receipt is recommended under current server behavior. | .20 bounded checks72 PASS (69 existing,3 removed probes); .19 historical218+4 PASS retained. New replay, complete source/Content-ID0/ID1, negative, atomicity, physical restart/races and Cloud6/6 acceptance NOT RUN / required before local or remote completion. | No private create authorization or .20 functional acceptance; .11 full closure and C21 release remain blocked. |
+| Metadata create / legitimate no-head post-F baseline | BLOCKED / .22 IMPLEMENTATION STOP. .20 original import provenance remains absent. .21 replay proposal was qualified by .22: v3 preserves old ciphertext, but fresh raw Legacy-on3 F ingestion rejects and full-account Content history is denied to current browser devices by the frozen Note-reader predicate. `unsupported_create_baseline` remains. Content-F requires Metadata before F. | C21.2.23 — cross-transport history authentication and truthful browser reader-gate contract audit. No new endpoint, capability bypass, schema, wire or crypto alternative selected. | .22 feasibility44 PASS (39 existing,5 removed probes); .20 historical72 and .19 historical218+4 PASS retained. Create/Content-ID0/ID1/source/owner/cursor/atomicity/native restarts and Cloud6/6 acceptance NOT RUN / required after prerequisite repair. | No .22 local completion or create authorization; .11 full closure and C21 release remain blocked. |
 | Metadata transport2 compatibility | PARTIAL / explicit boundary. `encryptedSyncV2.ts::parseV2PullResponse` permits Note descriptors only; `syncDurability.ts` preserves that parser. Metadata3 works; both F protocols work. .17 tests reject Metadata2. | Decide the supported Web compatibility claim before any wire change; proposed C21.2.19 compatibility audit. | Explicit compatible-peer matrix and parser/gate tests; Cloud6/6 for implementation. | Blocks any claim of Metadata-on-v2 support; may remain an explicit unsupported optional compatibility scope if the release contract independently accepts v3-only Metadata. |
 | Raw Legacy Resolution carried on protocol3 | NOT IMPLEMENTED / end-to-end acceptance absent. `encryptedSyncV3.ts` admits a Note/resolution descriptor, but `resolutionPlanner.ts::original` requires a framed Content event.version2 for protocol3; existing accepted raw Legacy F uses protocol2. The .08I coverage audit records this dispatch gap. | Independently specify compatible original wire→durable producer/consumer mapping; proposed C21.2.19 compatibility audit. | Real raw-on3 receive/decode/apply/restart/history/prefix tests without casting it to Content; Cloud6/6. | Blocks a complete frozen Resolution2 reader claim until supported or independently resolved in the compatibility contract. |
 | Cover references and verified encrypted blob material | PARTIAL. Native Cover crypto/retention/runtime is accepted C18 evidence; browser `importedMetadataApply.ts::metadataProofFor` rejects non-null cover references with `cover_material_unavailable`. Coverless browser owners are accepted. | Browser retained authenticated Cover material, exact reference ownership/limits and lifecycle contract; proposed C21.2.19 Cover prerequisite audit. | Genuine encrypted blob retention/read/revoke/restart plus Metadata/source/CAS/ACK tests; Cloud6/6 and applicable SQLite filters. | Blocks full browser Metadata/Cover coverage; .18 remains coverless. |

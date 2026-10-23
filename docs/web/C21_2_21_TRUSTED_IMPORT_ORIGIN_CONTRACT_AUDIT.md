@@ -1,5 +1,18 @@
 # C21.2.21 — trusted import-origin evidence contract audit
 
+**C21.2.22 feasibility qualification:** .21 remains AUDIT COMPLETE, but its
+complete-server-replay recommendation is not sufficient evidence of the current
+browser's transport/source access. Real PostgreSQL/API probes confirm v3
+preserves older Legacy Resolution ciphertext; v2 pull is unavailable after
+mode3 cutover. A fresh browser's current raw Legacy-on3 F owner path rejects,
+and v3 pull rejects all pages once Content exists unless the device declares
+the full ordinary1/Resolution2 reader contract. The current browser cannot
+truthfully declare it (`declarationAllowed=false`, C21.2.08 NOT CLOSED).
+Consequently C21.2.22 stopped before production edits / NOT LOCAL COMPLETE.
+The conditional “provably permitted” matrix below remains a proposed contract,
+not a statement that those existing API/device prerequisites are satisfied.
+See [the demonstrated .22 boundaries and proposed prerequisite](C21_2_22_AUTHENTICATED_HISTORY_FEASIBILITY_STOP.md).
+
 Starting branch `6.0`, clean local HEAD, fetched `origin/6.0`, and remote
 `refs/heads/6.0` matched `37ae64429eae378f65f80413d6c2a0dabaffa10f`.
 C21.2.18 remains **REMOTELY ACCEPTED**, Cloud `39850013638`, SUCCESS6/6;
