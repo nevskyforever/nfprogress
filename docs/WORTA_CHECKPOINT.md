@@ -1,5 +1,53 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-23 — C21.2.20 private Legacy-F Metadata genesis: implementation STOP
+
+**IMPLEMENTATION STOP / NOT LOCAL COMPLETE.** Clean branch `6.0`, local HEAD,
+fetched `origin/6.0`, and remote branch all matched
+`865dad2df8371cb2a9bb6d5e890f49a31ee686ce`. Protected engine/game_data bytecode
+hashes match the existing checkpoint. C21.2.18 remains **REMOTELY ACCEPTED** at
+`8df51fbe37624324a5b0831daf6da2f1d0a55ecd`, Cloud `39850013638`, SUCCESS6/6;
+C21.2.19 remains **AUDIT COMPLETE**, docs-only.
+
+The mandatory .20 original-import prerequisite is not proved by accepted durable
+records. `projectBindings.importRemote()` shape-checks and stores a supplied
+descriptor; it does not authenticate the caller DTO. `accountRegistry.reconcile`
+authenticates a current registry response, then replaces the binding's high-water
+and keeps its authority only in a runtime WeakMap. The original authenticated
+import response/origin is not retained. F's AEAD-bound dependency digest commits
+local inventory, but no original import snapshot/provenance is present, and the
+frozen contract prohibits guessing historical snapshots or reinterpreting their
+digests to force support. Account identity and full-inventory CAS do not supply
+the missing origin. This triggers the task's explicit sections3/12 STOP.
+
+C21.2.19's four-strategy genuine-owner fixture remains valid evidence of a
+representable Legacy-F no-head history and post-create replay/prefix; its
+high-water0 came from a fixture-supplied descriptor. It did not independently
+establish trusted original-import provenance. No production code, private
+prepare/commit mode, owner transition, K route, cursor, wire, schema, workflow,
+or accepted test was changed. `unsupported_create_baseline` stays intact.
+
+Checks:55 existing binding/registry/migration cases plus3 removed temporary
+origin probes PASS58/58 in1.05s; original .11 boundary PASS13/13 in11.16s;
+existing no-head negative PASS1 selected case in1.34s (45 unselected by CLI name
+filter, no disabled tests). Total72 PASS,0 failures. New implementation
+typecheck/build/harness/Chromium/crash/race/Content-ID0/ID1 checks NOT RUN because
+the authority prerequisite failed before coding. Full details, evidence limits
+and the smallest prerequisite are in
+[the C21.2.20 STOP section](web/C21_2_19_POST_F_METADATA_NO_HEAD_CREATE_BASELINE_AUDIT.md#c21220--implementation-stop-original-import-provenance-is-unproven).
+Final `git diff --check` PASS; two documentation files only; temporary probe
+removed and both protected bytecode hashes unchanged. The prior checkpoint is
+byte-identical outside this .20 record and the two relevant Metadata gate rows.
+
+Propose **C21.2.21 — trusted import-origin and no-genesis evidence contract
+audit**, before any renewed create implementation; no new proof/migration/server
+contract is invented here. No next stage started. CI workload remains unchanged;
+Cloud/SQLite NOT EXPECTED for this docs-only update; no Actions polling. C21/C21.2
+IN PROGRESS; C21.2.08 NOT CLOSED; C21.1.06 NOT LOCAL COMPLETE; C21.2.11 historically
+PARTIALLY RESOLVED, not CLOSED. Web89.36%, `ready=false`, registration CLOSED,
+PUBLIC RELEASE BLOCKED. VPS, landing, permanent CI/CD policy and all release
+gates remain preserved.
+
 ## 2026-10-23 — C21.2.19 post-F Metadata no-head/create baseline audit
 
 Starting branch `6.0`, clean HEAD and `origin/6.0`:
@@ -476,10 +524,10 @@ new SHA and SQLite checks only when the actual changed-path filters require them
 
 | Requirement | Status and exact existing evidence | Blocking dependency / next proposed numbered stage | Required local and remote acceptance | Closure / release effect |
 |---|---|---|---|---|
-| Post-F Metadata update/delete and original .11 historical-delete STOP | PARTIAL. .17 handoff and .18 explicit `v10MixedRecovery.ts::bindPostFMetadataRecovery` / `privateMetadataPrefix.ts` are independently REMOTELY ACCEPTED; `postFMetadataBoundary.spec.ts` preserves the old real M/E/D counterexample and default K STOP. | Create/no-head implementation remains proposed C21.2.20 after the C21.2.19 baseline audit. | Local F2/F3 × four strategies, ID0/ID1, separate genuine owner/cursor commits and native restart/races PASS; .18 Cloud `39850013638` SUCCESS6/6. | Bounded update/delete problem accepted; .11 cannot close completely while other required cohorts remain unsupported. |
+| Post-F Metadata update/delete and original .11 historical-delete STOP | PARTIAL. .17 handoff and .18 explicit `v10MixedRecovery.ts::bindPostFMetadataRecovery` / `privateMetadataPrefix.ts` are independently REMOTELY ACCEPTED; `postFMetadataBoundary.spec.ts` preserves the old real M/E/D counterexample and default K STOP. | Create/no-head C21.2.20 stopped at trusted import provenance; C21.2.21 contract audit is proposed. | Local F2/F3 × four strategies, ID0/ID1, separate genuine owner/cursor commits and native restart/races PASS; .18 Cloud `39850013638` SUCCESS6/6. | Bounded update/delete problem accepted; .11 cannot close completely while other required cohorts remain unsupported. |
 | Complete Note reader/capability, C21.2.08 | PARTIAL. F/H/O/G/Q/J/K accepted dormant bounded readers; `noteReaderReadiness.ts` always returns ready/declarationAllowed/writerAuthorized=false. Frozen server predicate is in `backend/app/cloud/services.py::content_note_reader_ready`; no partial capability exists. | Complete supported lifecycle, production dispatch, all-device gate; proposed C21.2.19 reader-readiness scope after its dependencies. | Full lifecycle matrix, truthful server gate and real registered-device tests; fresh Cloud6/6 before any declaration. | Blocks .08/C21 closure and release readiness; decoder support alone is insufficient. |
 | C21.1.06 protected-apply completion and remaining Web entity families | PARTIAL. Original .06 audit is still NOT LOCAL COMPLETE. Its lineage prerequisite now exists in `projectBindings.ts`, `initialNoteCapture.ts`, `bootstrapCompletion.ts`; bounded Metadata/Note/Stage/StageOrder apply and prefix were independently accepted in .07–.30. `persistence.ts::BrowserPersistenceSession` exposes those owners, while Document/Map/Progress/Game/Account native runtimes in `frontend/src/cloud/*Runtime.ts` still use Tauri/SQLite infrastructure. | Reconcile the original all-family claim with actual browser adapters/dependencies/cover material; proposed C21.2.19 family-coverage audit before a scoped implementation. | Family-by-family browser producer/consumer, projection/conflict/orphan/replay/prefix/ACK evidence; Cloud6/6 and relevant SQLite filters. | Blocks full C21 Web synchronization; existing native C18 acceptance remains accepted. |
-| Metadata create / legitimate no-head post-F baseline | PARTIAL. C21.2.19 demonstrated a genuine remote-high-water-0 imported Legacy-F protocol2 baseline for all four F strategies and an encrypted Metadata3 genesis; ordinary imported owner apply and post-state private replay/prefix authenticate. The full .17 pre-state route still returns `unsupported_create_baseline`. Content-F requires Metadata before F. | C21.2.20 — private Legacy-F no-head genesis admission and restart qualification; reject incomplete import high-water/history or any new schema/wire/proof prerequisite. | Existing five focused suites 218/218 plus temporary no-head probe4/4 PASS; implementation must add the combined full source/Content-ID0/ID1, negative, atomicity, restart and Cloud6/6 matrix. | Genuine Legacy-F create cohort exists, but no C21 private admission yet; .11 full closure remains blocked. |
+| Metadata create / legitimate no-head post-F baseline | BLOCKED at C21.2.20's mandatory original-import prerequisite / NOT LOCAL COMPLETE. C21.2.19's genuine-owner fixture proves Legacy-F representability and post-create replay/prefix for all four F strategies, but its supplied high-water0 descriptor does not prove trusted original import. Current binding/registry records do not retain that provenance; `unsupported_create_baseline` remains. Content-F requires Metadata before F. | C21.2.21 — trusted import-origin and no-genesis evidence contract audit. Do not invent a new proof, migration, server contract, or historical-digest interpretation inside .20. | .20 bounded checks72 PASS (69 existing,3 removed probes); .19 historical218+4 PASS retained. Private create's complete source/Content-ID0/ID1, negative, atomicity, physical restart and Cloud6/6 acceptance NOT RUN / still required after prerequisite repair. | No private create authorization or .20 functional acceptance; .11 full closure and C21 release remain blocked. |
 | Metadata transport2 compatibility | PARTIAL / explicit boundary. `encryptedSyncV2.ts::parseV2PullResponse` permits Note descriptors only; `syncDurability.ts` preserves that parser. Metadata3 works; both F protocols work. .17 tests reject Metadata2. | Decide the supported Web compatibility claim before any wire change; proposed C21.2.19 compatibility audit. | Explicit compatible-peer matrix and parser/gate tests; Cloud6/6 for implementation. | Blocks any claim of Metadata-on-v2 support; may remain an explicit unsupported optional compatibility scope if the release contract independently accepts v3-only Metadata. |
 | Raw Legacy Resolution carried on protocol3 | NOT IMPLEMENTED / end-to-end acceptance absent. `encryptedSyncV3.ts` admits a Note/resolution descriptor, but `resolutionPlanner.ts::original` requires a framed Content event.version2 for protocol3; existing accepted raw Legacy F uses protocol2. The .08I coverage audit records this dispatch gap. | Independently specify compatible original wire→durable producer/consumer mapping; proposed C21.2.19 compatibility audit. | Real raw-on3 receive/decode/apply/restart/history/prefix tests without casting it to Content; Cloud6/6. | Blocks a complete frozen Resolution2 reader claim until supported or independently resolved in the compatibility contract. |
 | Cover references and verified encrypted blob material | PARTIAL. Native Cover crypto/retention/runtime is accepted C18 evidence; browser `importedMetadataApply.ts::metadataProofFor` rejects non-null cover references with `cover_material_unavailable`. Coverless browser owners are accepted. | Browser retained authenticated Cover material, exact reference ownership/limits and lifecycle contract; proposed C21.2.19 Cover prerequisite audit. | Genuine encrypted blob retention/read/revoke/restart plus Metadata/source/CAS/ACK tests; Cloud6/6 and applicable SQLite filters. | Blocks full browser Metadata/Cover coverage; .18 remains coverless. |

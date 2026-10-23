@@ -3,6 +3,11 @@
 **Status: AUDIT COMPLETE — genuine Legacy-F no-head cohort demonstrated; private
 create admission remains unsupported. No production implementation.**
 
+**C21.2.20 qualification:** IMPLEMENTATION STOP / NOT LOCAL COMPLETE. The later
+section below distinguishes the genuine-owner fixture from proof of a trusted
+original import. Existing durable import provenance does not satisfy .20's
+mandatory admission prerequisite; `unsupported_create_baseline` remains intact.
+
 Baseline branch `6.0`, starting HEAD and `origin/6.0`:
 `3d5b5b3dc64c9fd1152530c90e09eb052960bc6b` (clean). The audit changed no
 production TypeScript, Rust, Python, backend, workflow, schema, wire, or crypto
@@ -215,3 +220,121 @@ No stage weight or completion credit is added by this audit.
 For this docs-only commit, Cloud and SQLite are **NOT EXPECTED** under current
 path filters (`docs/web/**` is not selected). No workflow was triggered or
 polled.
+
+## C21.2.20 — implementation STOP: original import provenance is unproven
+
+Starting branch `6.0`, clean HEAD, fetched `origin/6.0`, and remote
+`refs/heads/6.0` all matched
+`865dad2df8371cb2a9bb6d5e890f49a31ee686ce`. Protected engine/game_data bytecode
+SHA-256 values match the checkpoint. C21.2.18 remains independently REMOTELY
+ACCEPTED at `8df51fbe37624324a5b0831daf6da2f1d0a55ecd`, Cloud `39850013638`
+SUCCESS6/6. C21.2.19 remains AUDIT COMPLETE, docs-only.
+
+**Decision: IMPLEMENTATION STOP / NOT LOCAL COMPLETE.** Sections3 and12 of the
+C21.2.20 task require the original trusted import origin/high-water to be proved
+from actual durable evidence, and prohibit inventing a new assertion or record.
+Inspection and focused probes found no accepted durable proof of that origin.
+No new private pre-state mode, owner plan, atomic create, K dispatch, or cursor
+authority was implemented. The existing create guard remains unchanged.
+
+### What existing records prove, and what they do not
+
+| Existing component | Proven fact | Missing prerequisite for .20 |
+| --- | --- | --- |
+| [projectBindings.ts](../../frontend/src/platform/web/projectBindings.ts), `BrowserRemoteProjectImport`, `importRemote`, `validateBrowserProjectBinding` | Persists a shape-checked supplied project/bootstrap/active/high-water descriptor into an account/device-scoped binding. Repeated import preserves the existing binding. | The method expressly does not authenticate a caller DTO. It receives no authenticated registry capability and retains no original registry response, authenticated import receipt, or independently verifiable original-import record. |
+| [accountRegistry.ts](../../frontend/src/platform/web/accountRegistry.ts), `reconcile`, `targets`, `proofs` | Performs an authenticated current registry GET, checks identity/bootstrap/state and monotonic high-water, and CAS-updates current bindings. | Reconciliation replaces `remote_high_water` with the current account cursor. Its private registry token lives only in a WeakMap; no original registry response or import-origin token is persisted for restart. |
+| [resolutionPlanner.ts](../../frontend/src/platform/web/resolutionPlanner.ts), actual F apply evidence | AEAD-binds F's identity, parent/source snapshots and immutable `dependency_digest`; that digest commits the then-observed owner/binding inventory. | The encrypted evidence does not contain the original imported binding snapshot or authenticated registry provenance. F authenticates its accepted Note/source contract, not who supplied the import descriptor. |
+| [resolutionAuthentication.ts](../../frontend/src/platform/web/resolutionAuthentication.ts), Legacy F `dependencies` | Verifies current binding identity/bootstrap/active mode and all original F wire, parent, closure and source evidence. | It does not reproduce or certify the original import high-water. A matching current binding field is not an authenticated import-origin assertion. |
+| [persistence.ts](../../frontend/src/platform/web/persistence.ts), `syncTransaction`; [resolutionPlanner.ts](../../frontend/src/platform/web/resolutionPlanner.ts), complete inventory | Verifies actual native account/device identity and includes all ten recovery stores. Complete dense inbox coverage can detect an omitted retained sequence or a prior Metadata row/proof without its owner. | Identity, complete inventory and CAS preserve the evidence available; they do not establish the provenance of the original import descriptor. |
+
+The current field is a remote high-water observation, not an immutable original
+import receipt. Under trusted monotone transitions a still-zero field is
+consistent with an original zero. That does not prove that its original writer
+obtained zero from an authenticated registry. A later nonzero observation also
+does not reveal whether the original import was zero or nonzero.
+
+An exact candidate opening of F's AEAD-bound dependency digest could at most
+establish which local binding/owner values were committed at F time, if the
+complete original input were independently supplied. It would still not prove
+that the import descriptor came from the authenticated registry. Hashing a
+guessed empty owner set/current binding is not a retained import receipt. The
+frozen [historical dependency contract](C21_HISTORICAL_METADATA_DEPENDENCY_CONTRACT.md)
+and [private handoff audit](C21_POST_F_METADATA_PRIVATE_HANDOFF_AUDIT.md) also
+explicitly prohibit guessing historical owner snapshots or reinterpreting their
+digests to force support. No new digest interpretation was introduced here.
+
+This does not establish that Legacy-F no-head history is impossible. C21.2.19's
+four-strategy genuine-owner reproduction remains valid as a data-model and
+post-state result. Its `imported()` setup calls `importRemote()` with a generated
+bootstrap and `remote_high_water:0`; it does not obtain or retain authenticated
+registry-import provenance. The .19 experiment therefore did not close the
+stricter durable-origin prerequisite now required by .20. Ordinary imported
+family-owner create success and later durable prefix qualification cannot supply
+that missing pre-state authority retroactively.
+
+### Executed evidence and preservation
+
+Three isolated temporary probes passed and were removed before commit:
+
+1. The actual `imported()` helper stored a high-water-0 binding while the registry
+   API was trapped; no registry request occurred and no import-origin proof field
+   appeared in the record.
+2. Actual authenticated-registry reconciliation advanced an imported binding
+   from0 to9. The resulting binding was byte-for-byte equal in value to a binding
+   imported directly at9 with the same scope/bootstrap. This demonstrates loss
+   of the original value in the binding record; it does not claim the complete
+   F/account histories of those two setups were identical.
+3. An actual Legacy F was committed by the existing Resolution owner with a
+   binding high-water7. A corruption diagnostic changed only the current field
+   to0. Existing F historical authentication still passed with original F
+   evidence unchanged. This was negative trust-boundary evidence, never a
+   positive admission fixture or proof that the private create guard can be
+   bypassed.
+
+The probes plus unchanged `projectBindings.spec.ts`, `accountRegistry.spec.ts`
+and `projectBindingsMigration.spec.ts` passed **58/58 in1.05s**:55 existing cases
+and3 temporary probes. The preserved C21.2.11
+`postFMetadataBoundary.spec.ts` passed **13/13 in11.16s**. The existing private
+handoff's no-head-create rejection passed **1 selected case in1.34s**;45 other
+cases were unselected by the CLI name filter. No test was disabled or given a
+skip, retry, timeout increase, or weaker assertion. Total executed: **72 PASS**,
+including3 removed probes,0 failures.
+
+Typecheck, production/harness builds, new create/Content ID0/ID1 acceptance,
+physical Chromium crashes/restarts, concurrency/revocation and new atomicity
+tests were **NOT RUN**: the mandatory authority precondition failed before any
+implementation. The historical .19 four-strategy probe and .17/.18 native
+results remain historical evidence; they are not new .20 functional acceptance.
+No .20 create operation was authorized or run. Genuine fixture/F construction
+used its existing writes and encryption, and the registry probe used a mocked
+authorized GET; none of this enabled ACK, capability PUT, upload, or readiness.
+
+No frontend or workflow change remains. The six mandatory Cloud jobs, all old
+coverage and40-minute budgets are unchanged; new CI workload and incremental
+browser runtime are0. No implementation headroom or functional acceptance is
+claimed. Cloud and SQLite are NOT EXPECTED for these documentation paths; no
+Actions polling or workflow dispatch is performed.
+
+### Smallest corrective prerequisite
+
+Propose **C21.2.21 — trusted import-origin and no-genesis evidence contract
+audit**. Define what existing accepted authority, if any, can prove the actual
+original import and its high-water across restart, and how it composes with
+complete sequence/F/H/source evidence. Distinguish a supplied descriptor,
+current registry observation, F-time local commitment, and original trusted
+import. If that requires a new provenance record, migration, server contract or
+cryptographic proof, specify it for explicit contract review before coding; do
+not add it as part of .20. No new wire/schema/proof design is selected here.
+
+Keep the private create route disabled pending that prerequisite and its own
+independent acceptance. Existing generic imported-owner genesis, .17/.18
+update/delete, H/O, separate prefix/replay and `commitMayHaveOccurred` behavior
+are preserved. Content-F still requires its original Metadata dependency;
+missing-head/previous-genesis, duplicate genesis, incomplete history, covers,
+Stage/StageOrder, own authorship and additional generations gain no authority.
+
+C21/C21.2 IN PROGRESS; C21.2.20 NOT LOCAL COMPLETE; C21.2.08 NOT CLOSED;
+C21.1.06 NOT LOCAL COMPLETE; C21.2.11 historically PARTIALLY RESOLVED, not CLOSED.
+Web89.36%, `ready=false`, registration CLOSED, PUBLIC RELEASE BLOCKED. VPS,
+landing, permanent CI/CD policy, all security/owner gates and roadmap weights
+are preserved. C21.2.21 is proposed only and is not started by this task.
