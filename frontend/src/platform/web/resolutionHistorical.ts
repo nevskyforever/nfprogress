@@ -1,4 +1,5 @@
 import type {MetadataHandoffInspection} from './historicalMetadataDependency'
+import {consumeHHistoryRequest,type HHistoryToken,type BrowserResolutionContinuationRuntime} from './resolutionContinuation'
 import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import {decryptObjectBytes,type AccountMasterKey} from '@/crypto'
 import {decodeBase64Url} from '@/api/base64url'
@@ -43,6 +44,13 @@ export interface HistoricalResolutionOutput {
 export async function authenticateContinuationHistory(s:BrowserSyncScope,v:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean){
  rejectLegacy3ResolutionRoots(v.history)
  const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)
+ return authenticateContinuationCore(s,v,amk,current,base,async(row,binding)=>prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row)))
+}
+/** H-only private owner composition. Generic H/G/Q/K/O readers retain T's guard. */
+export async function authenticateHContinuationHistory(token:HHistoryToken,owner:BrowserResolutionContinuationRuntime){
+ const {scope:s,inventory:v,amk,current}=consumeHHistoryRequest(token,owner)
+ const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)
+ if(base.resolutions!==1)bad() // This slice accepts one genuine first-generation F.
  return authenticateContinuationCore(s,v,amk,current,base,async(row,binding)=>prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row)))
 }
 /** Explicit retained-outcome composition only. Complete .13 Metadata authentication

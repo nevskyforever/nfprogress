@@ -9,7 +9,7 @@ import {BrowserLocalAuthority,type BrowserLocalAuthorityRuntime,type LocalSource
 import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
 import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot,MAX_PLANNER_INVENTORY_BYTES,MAX_PLANNER_ROWS} from './resolutionPlanner'
 import {boundResolutionJson,readFutureInboxRecord,type BrowserResolutionHead2} from './resolutionRecords'
-import {authenticateContinuationHistory,verifyContinuationSources,continuationDependencyView,sameResolutionValue as same,type HistoricalResolutionOutput} from './resolutionHistorical'
+import {authenticateContinuationHistory,authenticateHContinuationHistory,verifyContinuationSources,continuationDependencyView,sameResolutionValue as same,type HistoricalResolutionOutput} from './resolutionHistorical'
 import {snapshotBrowserSyncScope,validateBrowserInboxRecord,type BrowserSyncScope,type BrowserSyncTransaction,type BrowserInboxRecord} from './syncDurability'
 import {validateBrowserProjectBinding} from './projectBindings'
 import {openNoteTransport} from './noteTransport'
@@ -24,7 +24,17 @@ import type {BrowserNoteCandidate,BrowserNoteConflictGroup} from './noteHistoryR
 export interface ResolutionContinuationToken {readonly resolutionContinuation:unique symbol}
 interface Plan {owner:BrowserResolutionContinuationRuntime;scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;row:BrowserInboxRecord;current:()=>boolean;local:BrowserLocalAuthorityRuntime;plaintext:NoteSyncPlaintext;content:boolean;sourceToken:LocalSourceToken;source?:ProtectedNoteSourcePlan;candidate?:BrowserNoteCandidate;head?:BrowserResolutionHead2;group?:BrowserNoteConflictGroup;newGroup?:boolean;nextRow?:BrowserInboxRecord}
 const plans=new WeakMap<object,Plan>()
+export interface HHistoryToken {readonly hHistory:unique symbol}
+interface HHistoryRequest {owner:BrowserResolutionContinuationRuntime;scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;amk:AccountMasterKey;current:()=>boolean}
+const historyRequests=new WeakMap<object,HHistoryRequest>()
 function fail(code:'closed'|'corrupt_record'|'stale_source'|'unsupported_local_source'|'note_orphan'|'note_conflict_unproven'|'conflicting_record'|'source_limit'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
+/** Internal one-use handoff; no caller-supplied inventory, key or allow flag. */
+export function consumeHHistoryRequest(token:HHistoryToken,owner:BrowserResolutionContinuationRuntime){
+ const p=historyRequests.get(token)
+ if(!p||p.owner!==owner||!p.current())fail('closed')
+ historyRequests.delete(token)
+ return p
+}
 export function verifiedContinuationForLocal(token:ResolutionContinuationToken,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope){
  const p=plans.get(token);if(!p||p.local!==local||!same(p.scope,scope)||!p.current()||p.candidate)fail('closed')
  return{plaintext:p.plaintext,content:p.content,current:p.current}
@@ -72,12 +82,18 @@ export class BrowserResolutionContinuationRuntime {
   return{lease,current}
  }
  private load(s:BrowserSyncScope,current:()=>boolean){return this.transaction<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))}
+ async #history(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+  if(!v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2'))return authenticateContinuationHistory(s,v,amk,current)
+  const token=Object.freeze({}) as HHistoryToken
+  historyRequests.set(token,{owner:this,scope:s,inventory:v,amk,current})
+  try{return await authenticateHContinuationHistory(token,this)}finally{historyRequests.delete(token)}
+ }
 
  async prepare(input:BrowserSyncScope,sequence:number):Promise<ResolutionContinuationToken>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   const check=()=>{if(!current())fail('closed')},step=async<T>(p:Promise<T>)=>{const r=await p;check();return r}
   return lease.use(async amk=>{
-   const history=await step(authenticateContinuationHistory(s,v,amk,current)),sourceRoute=await step(verifyHSource(s,v,history,amk,current))
+   const history=await step(this.#history(s,v,amk,current)),sourceRoute=await step(verifyHSource(s,v,history,amk,current))
    const future=readFutureInboxRecord(v.rows.find((r:any)=>r.server_sequence===sequence),s)
    if(future.state!=='received'||future.server_sequence>v.cursor.pull_cursor)fail('conflicting_record')
    if(sourceRoute==='mixed'&&history.rows.some(r=>r.state==='received'&&r.server_sequence<sequence))fail('note_orphan')
@@ -142,7 +158,7 @@ export class BrowserResolutionContinuationRuntime {
     for(const values of [predicted.rows,predicted.out,predicted.receipts,predicted.bindings,predicted.owners,predicted.history,predicted.intents,predicted.projects,predicted.localNotes,predicted.checkpoints]){
      if(values.length>MAX_PLANNER_ROWS)fail('source_limit');for(const value of values){try{boundResolutionJson(value,remaining)}catch{fail('source_limit')}const bytes=new TextEncoder().encode(JSON.stringify(value));try{remaining-=bytes.length+2;if(remaining<0)fail('source_limit')}finally{bytes.fill(0)}}
     }
-    const final=await step(authenticateContinuationHistory(s,predicted,amk,current));await step(verifyHSource(s,predicted,final,amk,current,sourceRoute))
+    const final=await step(this.#history(s,predicted,amk,current));await step(verifyHSource(s,predicted,final,amk,current,sourceRoute))
     p.candidate=candidate;p.head=nextHead;p.group=group;p.nextRow=nextRow
     if(!same(await step(this.load(s,current)),v))fail('stale_source')
     return token
@@ -170,13 +186,13 @@ export class BrowserResolutionContinuationRuntime {
  }
  async history(input:BrowserSyncScope){
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
-  const result=await lease.use(async amk=>{const h=await authenticateContinuationHistory(s,v,amk,current);await verifyHSource(s,v,h,amk,current);return{readOnly:true as const,resolutions:h.resolutions.size,ordinary:h.opened.size,closedGroups:h.groups.filter(g=>g.effective==='resolved').length}})
+  const result=await lease.use(async amk=>{const h=await this.#history(s,v,amk,current);await verifyHSource(s,v,h,amk,current);return{readOnly:true as const,resolutions:h.resolutions.size,ordinary:h.opened.size,closedGroups:h.groups.filter(g=>g.effective==='resolved').length}})
   if(!current()||!same(await this.load(s,current),v))fail('stale_source');return result
  }
  async reconcile(input:BrowserSyncScope,sequence:number):Promise<'already_applied'>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   await lease.use(async amk=>{
-   const h=await authenticateContinuationHistory(s,v,amk,current);await verifyHSource(s,v,h,amk,current)
+   const h=await this.#history(s,v,amk,current);await verifyHSource(s,v,h,amk,current)
    const row=h.rows.find(r=>r.server_sequence===sequence),c=row&&h.dag.events.get(row.event_id)
    if(!row||!['note_proven','content_note_proven','note_conflict_preserved','content_note_conflict_preserved'].includes(row.state)||!c||c.record_kind!=='candidate')fail()
    let parent=c.header.parent_event_id

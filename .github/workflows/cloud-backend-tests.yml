@@ -592,6 +592,33 @@ jobs:
       - name: Verify dormant v10 ordinary continuation and historical readers
         working-directory: frontend
         run: node scripts/browser-resolution-continuation-acceptance.mjs http://127.0.0.1:5174
+      # T Cloud39940501426 Frontend admin27m59s. U local unit+native <1m;
+      # budget3m plus5m reserve =>35m59s, below the unchanged40m limit.
+      - name: Verify isolated Legacy3 H authority and negative boundaries
+        working-directory: frontend
+        run: npm test -- --run src/platform/web/legacy3Continuation.spec.ts --maxWorkers=1
+      - name: Verify Legacy3 H continuation and pinned old-T rejection
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import os, subprocess, tempfile
+          from pathlib import Path
+          baseline_sha = 'a5c83fadd04be6db7b45e6e5eb5854b922a38e76'
+          subprocess.run(['git', 'fetch', '--no-tags', 'origin', baseline_sha], check=True)
+          with tempfile.TemporaryDirectory(prefix='c21-old-t-h-', dir=os.environ['RUNNER_TEMP']) as directory:
+              old = Path(directory)
+              with tempfile.TemporaryFile() as archive:
+                  subprocess.run(['git', '-C', '..', 'archive', baseline_sha, 'frontend'], stdout=archive, check=True)
+                  archive.seek(0)
+                  subprocess.run(['tar', '-x', '-C', directory], stdin=archive, check=True)
+              (old / 'frontend/node_modules').symlink_to(Path.cwd() / 'node_modules', target_is_directory=True)
+              subprocess.run(['node_modules/.bin/vite', 'build', '--config', 'scripts/vite.persistence-acceptance.config.ts'], cwd=old / 'frontend', check=True)
+              bundle = old / 'frontend/.c21-persistence-dist'
+              (bundle / 'baseline.sha').write_text(baseline_sha + '\n')
+              subprocess.run(['node', 'scripts/browser-resolution-continuation-acceptance.mjs', 'http://127.0.0.1:5174', '--legacy3'], env=dict(os.environ, C21_OLD_T_BUNDLE=str(bundle)), check=True)
+          PYCODE
       - name: Verify isolated v10 historical Resolution prefix and local commit
         working-directory: frontend
         run: node scripts/browser-resolution-prefix-acceptance.mjs http://127.0.0.1:5174
