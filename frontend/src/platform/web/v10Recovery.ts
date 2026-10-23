@@ -9,7 +9,7 @@ import {BrowserPersistenceError} from './persistence'
 import {BrowserLocalAuthority} from './localAuthority'
 import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
 import {BrowserSyncDurability,snapshotBrowserSyncScope,type BrowserSyncScope,type BrowserSyncTransaction} from './syncDurability'
-import {readFutureInboxRecord,resolutionSame as same} from './resolutionRecords'
+import {rejectLegacy3ResolutionRoots,readFutureInboxRecord,resolutionSame as same} from './resolutionRecords'
 import {inspectResolutionDag} from './resolutionDag'
 import {BrowserResolutionPlanner,ResolutionPlannerError,resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {BrowserResolutionContinuation} from './resolutionContinuation'
@@ -86,6 +86,7 @@ export class BrowserV10Recovery {
      // inbox keys/index ownership. Always restart at zero; no caller offset can
      // hide an earlier pending event or persisted gap after a crash.
      const pending=await step(transport.listReceived(s,200)),loaded=await load();v=loaded
+     rejectLegacy3ResolutionRoots(v.history)
      inspectResolutionDag(s,v.history) // Unknown/dangling future history never becomes an idle success.
      const rows=v.rows.map(r=>readFutureInboxRecord(r,s)),missing=gap(v,s),row=pending[0]
      if(missing!==null&&missing<=v.cursor.proven_prefix)fail()

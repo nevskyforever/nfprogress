@@ -11,6 +11,20 @@ export const MAX_RESOLUTION_EVIDENCE_BYTES = 64 * 1024 * 1024
 export const MAX_RESOLUTION_RECORD_BYTES = 128 * 1024 * 1024
 export function resolutionBad(): never { throw new BrowserPersistenceError('corrupt_record') }
 export const resolutionSame = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b)
+export type ResolutionTransportKind = 'legacy_resolution_v2' | 'content_note_resolution_v2'
+/** Descriptor selects one permitted codec. A failed decoder never tries another. */
+export function resolutionTransportKind(protocol: number, operation: unknown): ResolutionTransportKind {
+  if ((protocol === 2 || protocol === 3) && operation === 'resolution') return 'legacy_resolution_v2'
+  if (protocol === 3 && operation === 'event') return 'content_note_resolution_v2'
+  return resolutionBad()
+}
+/** T admits the new root only to F/J. Shared higher-level readers stay bounded. */
+export function rejectLegacy3ResolutionRoots(history: readonly unknown[]): void {
+  if (history.some(value => {
+    const r = value as Partial<BrowserResolution4> | null
+    return r?.record_kind === 'resolution' && r.protocol_version === 3 && r.transport_kind === 'legacy_resolution_v2'
+  })) resolutionBad()
+}
 type Strategy = NoteSyncResolutionV2['resolution']['strategy']
 interface HistoryIdentity { account_id: string; device_id: string; project_id: string; note_id: string; bootstrap_id: string; record_kind: string; record_id: string }
 export interface BrowserResolution4 extends HistoryIdentity {
@@ -93,7 +107,7 @@ export function validateResolution4(value: unknown, s: BrowserSyncScope, bootstr
   exact(value, [...H,'event_id','source_device_id','protocol_version','transport_kind','server_sequence','header','wire_item','wire_digest','payload_digest','dependency_digest','remote_group_id','remote_generation','local_group_id','local_generation','group_digest','parent_event_ids','strategy','result_operation','retained_note_id','evidence_envelope','record_digest'])
   const r = value as BrowserResolution4; identity(r, s, bootstrap)
   if (r.record_version !== 4 || r.record_kind !== 'resolution' || r.record_id !== r.event_id || !canonicalNoteUuid(r.event_id) || !canonicalNoteUuid(r.source_device_id) || !localSafe(r.server_sequence, 1) || !canonicalNoteUuid(r.remote_group_id) || !canonicalNoteUuid(r.local_group_id) || !localSafe(r.remote_generation, 1) || !localSafe(r.local_generation, 1)) resolutionBad()
-  if (!(r.protocol_version === 2 && r.transport_kind === 'legacy_resolution_v2' || r.protocol_version === 3 && r.transport_kind === 'content_note_resolution_v2')) resolutionBad()
+  if (!(r.protocol_version === 2 && r.transport_kind === 'legacy_resolution_v2' || r.protocol_version === 3 && ['legacy_resolution_v2','content_note_resolution_v2'].includes(r.transport_kind))) resolutionBad()
   const h = validateResolutionHeader(r.header); resolutionIds(r.parent_event_ids)
   if (h.event_id !== r.event_id || h.project_id !== r.project_id || h.entity_id !== r.note_id || !resolutionSame(r.parent_event_ids, [h.parent_event_id, ...h.additional_parent_event_ids])) resolutionBad()
   if (!['choose_version','manual_merge','delete','keep_both'].includes(r.strategy) || !['upsert','delete'].includes(r.result_operation) || ['manual_merge','keep_both'].includes(r.strategy) && r.result_operation !== 'upsert' || r.strategy === 'delete' && r.result_operation !== 'delete') resolutionBad()
@@ -102,7 +116,7 @@ export function validateResolution4(value: unknown, s: BrowserSyncScope, bootstr
   validateResolutionEnvelope(r.evidence_envelope); boundResolutionJson(r)
   const row = validateBrowserInboxRecord({record_version:1,state:'received',account_id:s.accountId,device_id:s.deviceId,event_id:r.event_id,server_sequence:r.server_sequence,protocol_version:r.protocol_version,wire_item:r.wire_item},s)
   const e = JSON.parse(row.wire_item).event
-  if (e.device_id !== r.source_device_id || e.project_id !== r.project_id || e.entity_id !== r.note_id || e.entity_type !== 'note' || e.operation !== (r.protocol_version === 3 ? 'event' : 'resolution') || e.revision !== h.revision || e.deleted_at !== null) resolutionBad()
+  if (e.device_id !== r.source_device_id || e.project_id !== r.project_id || e.entity_id !== r.note_id || e.entity_type !== 'note' || resolutionTransportKind(r.protocol_version,e.operation) !== r.transport_kind || e.revision !== h.revision || e.deleted_at !== null) resolutionBad()
   if (canonicalizeSyncTimestamp(e.updated_at) !== h.updated_at) resolutionBad()
   return r
 }
@@ -126,7 +140,8 @@ export function validateResolutionProof1(value: unknown,s:BrowserSyncScope,boots
   if(p.record_version!==1||p.owner_kind!=='note_resolution'||p.outcome!=='applied'||p.account_id!==s.accountId||!canonicalNoteUuid(p.bootstrap_id)||bootstrap!==undefined&&p.bootstrap_id!==bootstrap||![2,3].includes(p.protocol_version)||!localSafe(p.server_sequence,1))resolutionBad()
   const h=validateResolutionHeader(p.header),r=p.reference
   exact(r,['event_id','device_id','server_sequence','project_id','entity_id','entity_type','operation','revision','updated_at','deleted_at'])
-  if(!canonicalNoteUuid(r.device_id)||r.event_id!==h.event_id||r.server_sequence!==p.server_sequence||r.project_id!==h.project_id||r.entity_id!==h.entity_id||r.entity_type!=='note'||r.operation!==(p.protocol_version===3?'event':'resolution')||r.revision!==h.revision||r.deleted_at!==null||canonicalizeSyncTimestamp(r.updated_at)!==h.updated_at)resolutionBad()
+  resolutionTransportKind(p.protocol_version,r.operation)
+  if(!canonicalNoteUuid(r.device_id)||r.event_id!==h.event_id||r.server_sequence!==p.server_sequence||r.project_id!==h.project_id||r.entity_id!==h.entity_id||r.entity_type!=='note'||r.revision!==h.revision||r.deleted_at!==null||canonicalizeSyncTimestamp(r.updated_at)!==h.updated_at)resolutionBad()
   hashes(p.wire_digest,p.payload_digest,p.dependency_digest,p.resolution_digest,p.transition_digest,p.outcome_digest)
   exact(p.output_digests,['original','retained']); hashes(p.output_digests.original);if(p.output_digests.retained!==null)hashes(p.output_digests.retained)
   return p

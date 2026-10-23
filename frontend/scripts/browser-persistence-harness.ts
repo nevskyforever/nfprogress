@@ -59,9 +59,15 @@ function contentIntentFixture(session: Awaited<ReturnType<typeof persistence.ope
   return new BrowserContentNoteIntents(transaction,session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys)
 }
 // Explicit test-only planner construction. Normal persistence composition stays unchanged.
-function resolutionPlannerFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
+function resolutionPlannerFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, loseCompletion=false) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
- return new BrowserResolutionPlanner((...args)=>internal.syncTransaction(...args),session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
+ const transaction:BrowserSyncTransaction=async(...args)=>{
+  const value=await internal.syncTransaction(...args)
+  // Harness-only lost completion signal AFTER the native transaction commits.
+  if(loseCompletion&&args[2]==='readwrite')throw Error('DISPOSABLE_LOST_COMPLETION')
+  return value
+ }
+ return new BrowserResolutionPlanner(transaction,session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
 function resolutionContinuationFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}

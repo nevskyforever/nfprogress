@@ -11,6 +11,16 @@ async function fixture(...args:Parameters<typeof transportFixture>){
  return{...f,transport:create(),create}
 }
 
+it('F2 exact join authenticates accepted H descendants and current source after pull advancement',async()=>{
+ const f=await fixture('keep_both',2),row=f.received,page=JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[JSON.parse(row.wire_item)],next_cursor:f.sequence,has_more:false}),before=f.before()
+ expect((before.cursors[0] as any).pull_cursor).toBeGreaterThan(f.sequence)
+ expect(await f.transport.joinRetainedF2(scope,f.sequence-1,page,row.event_id)).toMatchObject({matched:true,retainedProtocol:2,commitAuthorized:false,ackAuthorized:false})
+ expect(f.before()).toEqual(before)
+ const child=f.f.db.inbox.find((r:any)=>r.server_sequence===f.children[0]) as any
+ child.note_proof.outcome_digest='0'.repeat(64)
+ const corrupt=f.before();await expect(f.transport.joinRetainedF2(scope,f.sequence-1,page,row.event_id)).rejects.toThrow();expect(f.before()).toEqual(corrupt)
+})
+
 it('reproduces both old transport failures after genuine F/H/G, without fabricated applied records',async()=>{
  const f=await transportFixture(),before=f.before()
  expect(f.received).toMatchObject({record_version:10,state:'note_resolution_proven'})

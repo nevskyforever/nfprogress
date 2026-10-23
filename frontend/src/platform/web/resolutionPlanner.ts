@@ -17,7 +17,7 @@ import {validateNoteHistorySet,type BrowserNoteCandidate,type BrowserNoteConflic
 import {validateNoteIntentRecord} from './noteIntentRecords'
 import {validateBrowserV9State} from './indexedDbV9Migration'
 import {inspectResolutionDag} from './resolutionDag'
-import {boundResolutionJson,resolutionIdentity,MAX_RESOLUTION_EVIDENCE_BYTES,readFutureInboxRecord,type BrowserResolution4,type BrowserResolutionHead2,type BrowserGroupTransition2,type BrowserResolutionInbox10,type BrowserResolutionProof1} from './resolutionRecords'
+import {resolutionTransportKind,type ResolutionTransportKind,boundResolutionJson,resolutionIdentity,MAX_RESOLUTION_EVIDENCE_BYTES,readFutureInboxRecord,type BrowserResolution4,type BrowserResolutionHead2,type BrowserGroupTransition2,type BrowserResolutionInbox10,type BrowserResolutionProof1} from './resolutionRecords'
 import {authenticateResolutionHistory,resolutionBytesDigest} from './resolutionAuthentication'
 import {canonical} from '@/cloud/projectMetadataCodec'
 import {noteProofDigest} from './legacyNoteApply'
@@ -51,7 +51,7 @@ const stores=resolutionInventoryStores
 type Inventory=ResolutionInventorySnapshot
 export interface ResolutionPlannerToken {readonly resolutionPlannerToken:unique symbol}
 export interface ResolutionPlanStatus {readonly readOnly:true;readonly commitAuthorized:false;readonly ackAuthorized:false;readonly parentCount:number;readonly strategy:NoteSyncResolutionV2['resolution']['strategy']}
-interface Plan {owner:BrowserResolutionPlannerRuntime;scope:BrowserSyncScope;sequence:number;inventory:Inventory;source:LocalSourceToken;current:()=>boolean;resolution:NoteSyncResolutionV2;group:BrowserNoteConflictGroup;parents:Map<string,NoteSyncPlaintext>;status:ResolutionPlanStatus;lease:AuthoritativeKeyContextLease}
+interface Plan {owner:BrowserResolutionPlannerRuntime;scope:BrowserSyncScope;sequence:number;inventory:Inventory;source:LocalSourceToken;current:()=>boolean;resolution:NoteSyncResolutionV2;transportKind:ResolutionTransportKind;group:BrowserNoteConflictGroup;parents:Map<string,NoteSyncPlaintext>;status:ResolutionPlanStatus;lease:AuthoritativeKeyContextLease}
 const plans=new WeakMap<object,Plan>()
 const wireNote=(n:NoteSyncRecord|NoteSyncTombstone|Record<string,unknown>)=>{const v={...n};delete(v as Record<string,unknown>).revision;return v}
 const route=(n:NoteSyncRecord|NoteSyncTombstone)=>[n.project_id,n.stage_id,n.source_type,n.source_map_id,n.source_node_id,n.content_format]
@@ -103,12 +103,13 @@ export class BrowserResolutionPlannerRuntime {
  private async original(s:BrowserSyncScope,row:BrowserInboxRecord,amk:AccountMasterKey,check:()=>void){
   if(row.state!=='received')fail('invalid_resolution')
   const wire=JSON.parse(row.wire_item),e=wire.event
-  if(e.entity_type!=='note'||e.deleted_at!==null||e.device_id===s.deviceId||!(row.protocol_version===2&&e.operation==='resolution'||row.protocol_version===3&&e.operation==='event')||wire.object.crypto_version!==1||wire.object.aad_version!==1)fail('invalid_resolution')
+  if(e.entity_type!=='note'||e.deleted_at!==null||e.device_id===s.deviceId||!((row.protocol_version===2||row.protocol_version===3)&&e.operation==='resolution'||row.protocol_version===3&&e.operation==='event')||wire.object.crypto_version!==1||wire.object.aad_version!==1)fail('invalid_resolution')
   const nonce=decodeBase64Url(wire.object.nonce),ciphertext=decodeBase64Url(wire.object.ciphertext);let bytes:Uint8Array|undefined
   try{
    bytes=await decryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:e.project_id,entityId:e.entity_id,entityType:'note'},{...wire.object,nonce,ciphertext});check()
+   const transportKind=resolutionTransportKind(row.protocol_version,e.operation)
    let resolution:NoteSyncResolutionV2,content:ContentNoteEvent|undefined
-   if(row.protocol_version===3){content=unframeContentNote(bytes);if(content.event.version!==2||content.account_id!==s.canonicalUserId||content.device_id!==e.device_id)fail('invalid_resolution');resolution=content.event}
+   if(transportKind==='content_note_resolution_v2'){content=unframeContentNote(bytes);if(content.event.version!==2||content.account_id!==s.canonicalUserId||content.device_id!==e.device_id)fail('invalid_resolution');resolution=content.event}
    else resolution=decodeNoteSyncResolutionV2(bytes)
    const h=resolution.header
    if(h.event_id!==row.event_id||h.event_id!==e.event_id||h.project_id!==e.project_id||h.entity_id!==e.entity_id||h.revision!==e.revision||h.updated_at!==canonicalizeSyncTimestamp(e.updated_at))fail('invalid_resolution')
@@ -116,15 +117,15 @@ export class BrowserResolutionPlannerRuntime {
    for(const n of outputs){
     assertContentNoteRoute(n)
     if('content'in n){let title=0,body=0;for(const _ of n.title)if(++title>500)fail('resource_limit');for(const _ of n.content)if(++body>300000)fail('resource_limit')}
-    if(row.protocol_version===2&&(n.stage_id!==null||n.content_format!=='html'))fail('source_incompatible')
+    if(transportKind==='legacy_resolution_v2'&&(n.stage_id!==null||n.content_format!=='html'))fail('source_incompatible')
     const source='deleted_at'in n?{state:'tombstone' as const,note:n,revision:0}:{state:'live' as const,note:{...n,revision:0}}
-    try{(row.protocol_version===3?validateContentLocalNote:validateLocalNote)(source,h.project_id);const b=localCanonicalBytes({local_format:1,kind:'note',account_id:s.accountId,device_id:s.deviceId,project_id:h.project_id,note_id:n.id,source_revision:1,source});try{if(b.length>MAX_LOCAL_SOURCE_BYTES)fail('resource_limit')}finally{b.fill(0)}}catch(e){if(e instanceof ResolutionPlannerError)throw e;fail('source_incompatible')}
+    try{(transportKind==='content_note_resolution_v2'?validateContentLocalNote:validateLocalNote)(source,h.project_id);const b=localCanonicalBytes({local_format:1,kind:'note',account_id:s.accountId,device_id:s.deviceId,project_id:h.project_id,note_id:n.id,source_revision:1,source});try{if(b.length>MAX_LOCAL_SOURCE_BYTES)fail('resource_limit')}finally{b.fill(0)}}catch(e){if(e instanceof ResolutionPlannerError)throw e;fail('source_incompatible')}
    }
-   return{resolution,content}
+   return{resolution,content,transportKind}
   }finally{nonce.fill(0);ciphertext.fill(0);bytes?.fill(0)}
  }
  private async dependencies(s:BrowserSyncScope,row:BrowserInboxRecord,content:ContentNoteEvent|undefined,v:Inventory,amk:AccountMasterKey,step:<T>(p:Promise<T>)=>Promise<T>,current:()=>boolean){
-  if(!content)return // Protocol2 does not acquire invented Content dependencies.
+  if(!content)return // Raw Legacy does not acquire invented Content dependencies.
   const d=content.dependencies,h=content.event.header,b=v.bindings.map(b=>validateBrowserProjectBinding(b,s)).find(b=>b.project_id===h.project_id)
   if(!b||b.mode!=='import_remote'||b.phase!=='captured'||b.remote_state!=='active'||d.bootstrap_id!==b.bootstrap_id)fail('dependency_unavailable')
   const rawHead=v.owners.find((x:any)=>x.owner_kind==='project_metadata'&&x.owner_id===h.project_id)
@@ -169,7 +170,7 @@ export class BrowserResolutionPlannerRuntime {
    if(!row||row.server_sequence>v.cursor.pull_cursor)fail('invalid_resolution')
    if(new Set(rows.map(r=>r.event_id)).size!==rows.length||new Set(rows.map(r=>r.server_sequence)).size!==rows.length)fail('invalid_resolution')
    return await step(lease.use(async amk=>{
-    const {resolution,content}=await step(this.original(s,row,amk,check)),h=resolution.header,ids=resolution.resolution.resolved_event_ids
+    const {resolution,content,transportKind}=await step(this.original(s,row,amk,check)),h=resolution.header,ids=resolution.resolution.resolved_event_ids
     const binding=v.bindings.map(b=>validateBrowserProjectBinding(b,s)).find(b=>b.project_id===h.project_id)
     if(!binding)fail('missing_bootstrap')
     if(binding.remote_state!=='active'||!(binding.mode==='import_remote'&&binding.phase==='captured'||binding.mode==='upload_existing'&&binding.phase==='completing'))fail('missing_bootstrap')
@@ -228,10 +229,10 @@ export class BrowserResolutionPlannerRuntime {
      if(e.entity_id===decision.retained_note.id){
       const p=await step(openNoteTransport(s,amk,r.protocol_version,r.wire_item,['upsert','delete'].includes(e.operation)?'legacy':'content_note_v1'))
       if(p.plaintext.header.parent_event_id===h.event_id&&p.plaintext.header.revision===h.revision+1&&same(route(p.plaintext.note),route(decision.retained_note))&&e.project_id===h.project_id)futureChildren.add(raw as object)
-     }else if((r.protocol_version===2&&e.operation==='resolution')||(r.protocol_version===3&&e.operation==='event')){
+     }else if(((r.protocol_version===2||r.protocol_version===3)&&e.operation==='resolution')||(r.protocol_version===3&&e.operation==='event')){
       // Only Resolution wrappers reserve a proposed second output. Ordinary rows
       // cannot be treated as failed Resolution decryption/fallback.
-      if(r.protocol_version===3){const nonce=decodeBase64Url(w.object.nonce),ciphertext=decodeBase64Url(w.object.ciphertext);let bytes:Uint8Array|undefined
+      if(e.operation==='event'){const nonce=decodeBase64Url(w.object.nonce),ciphertext=decodeBase64Url(w.object.ciphertext);let bytes:Uint8Array|undefined
        try{bytes=await step(decryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:e.project_id,entityId:e.entity_id,entityType:'note'},{...w.object,nonce,ciphertext}));const c=unframeContentNote(bytes);if(c.account_id!==s.canonicalUserId||c.device_id!==e.device_id||c.event.header.event_id!==e.event_id)fail('invalid_resolution');if(c.event.version===2&&c.event.resolution.strategy==='keep_both')reservedClones.set(e.event_id,c.event.resolution.retained_note.id)}finally{nonce.fill(0);ciphertext.fill(0);bytes?.fill(0)}
       }else{const r2=await step(this.original(s,r,amk,check));if(r2.resolution.resolution.strategy==='keep_both')reservedClones.set(e.event_id,r2.resolution.resolution.retained_note.id)}
      }
@@ -253,7 +254,7 @@ export class BrowserResolutionPlannerRuntime {
     await step(this.local.assertSnapshot(s,snapshot.token))
     if(!same(await step(this.load(s,current)),v))fail('stale_inventory')
     const status=Object.freeze({readOnly:true as const,commitAuthorized:false as const,ackAuthorized:false as const,parentCount:parents.length,strategy:decision.strategy}),token=Object.freeze({}) as ResolutionPlannerToken
-    plans.set(token,{owner:this,scope:s,sequence,inventory:v,source:snapshot.token,current,resolution,group,parents:opened,status,lease})
+    plans.set(token,{owner:this,scope:s,sequence,inventory:v,source:snapshot.token,current,resolution,transportKind,group,parents:opened,status,lease})
     return{token,status}
    }))
   }catch(e){if(e instanceof ResolutionPlannerError)throw e;if(e instanceof BrowserPersistenceError&&['closed','account_mismatch'].includes(e.code))fail('lifecycle_invalid');fail('invalid_resolution')}
@@ -280,7 +281,7 @@ const applications=new WeakMap<object,ApplyPreparation>()
 export function verifiedResolutionForLocal(token:ResolutionApplyToken,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope){
  const p=applications.get(token)
  if(!p||p.local!==local||!same(p.plan.scope,scope)||!p.plan.current())fail('lifecycle_invalid')
- return {resolution:p.plan.resolution,protocol:p.plan.inventory.rows.map(r=>readFutureInboxRecord(r,scope)).find(r=>r.server_sequence===p.plan.sequence)!.protocol_version,current:p.plan.current}
+ return {resolution:p.plan.resolution,transportKind:p.plan.transportKind,current:p.plan.current}
 }
 const recordDigest=async(value:unknown,field='record_digest')=>{const copy={...value as Record<string,unknown>};delete copy[field];return noteProofDigest(copy)}
 
@@ -310,8 +311,8 @@ export class BrowserResolutionApplyRuntime {
     const group=p.group,head=v.history.find((r:any)=>r.record_kind==='head'&&r.project_id===h.project_id&&r.note_id===h.entity_id) as BrowserNoteHead
     try{
      frame=await decryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:h.project_id,entityId:h.entity_id,entityType:'note'},{...wire.object,nonce,ciphertext});check()
-     const content=row.protocol_version===3?unframeContentNote(frame):undefined
-     const r:BrowserResolution4={record_version:4,record_kind:'resolution',record_id:h.event_id,account_id:s.accountId,device_id:s.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:group.bootstrap_id,event_id:h.event_id,source_device_id:wire.event.device_id,protocol_version:row.protocol_version,transport_kind:row.protocol_version===2?'legacy_resolution_v2':'content_note_resolution_v2',server_sequence:p.sequence,header:h,wire_item:row.wire_item,wire_digest:await digest({protocol_version:row.protocol_version,item:wire}),payload_digest:await digest(resolution),dependency_digest:await digest({scope:s,bootstrap_id:group.bootstrap_id,project_id:h.project_id,note_id:h.entity_id,event_id:h.event_id,transport:row,dependencies:content?.dependencies??null,owners:v.owners,bindings:v.bindings}),remote_group_id:d.conflict_group_id,remote_generation:d.conflict_generation,local_group_id:group.group_id,local_generation:group.conflict_generation,group_digest:await digest(group),parent_event_ids:d.resolved_event_ids,strategy:d.strategy,result_operation:resolution.result.operation,retained_note_id:d.strategy==='keep_both'?d.retained_note.id:null,evidence_envelope:source.project.envelope,record_digest:''}
+     const content=p.transportKind==='content_note_resolution_v2'?unframeContentNote(frame):undefined
+     const r:BrowserResolution4={record_version:4,record_kind:'resolution',record_id:h.event_id,account_id:s.accountId,device_id:s.deviceId,project_id:h.project_id,note_id:h.entity_id,bootstrap_id:group.bootstrap_id,event_id:h.event_id,source_device_id:wire.event.device_id,protocol_version:row.protocol_version,transport_kind:p.transportKind,server_sequence:p.sequence,header:h,wire_item:row.wire_item,wire_digest:await digest({protocol_version:row.protocol_version,item:wire}),payload_digest:await digest(resolution),dependency_digest:await digest({scope:s,bootstrap_id:group.bootstrap_id,project_id:h.project_id,note_id:h.entity_id,event_id:h.event_id,transport:row,dependencies:content?.dependencies??null,owners:v.owners,bindings:v.bindings}),remote_group_id:d.conflict_group_id,remote_generation:d.conflict_generation,local_group_id:group.group_id,local_generation:group.conflict_generation,group_digest:await digest(group),parent_event_ids:d.resolved_event_ids,strategy:d.strategy,result_operation:resolution.result.operation,retained_note_id:d.strategy==='keep_both'?d.retained_note.id:null,evidence_envelope:source.project.envelope,record_digest:''}
      const parents=[]
      for(const id of r.parent_event_ids){
       const c=v.history.find((r:any)=>r.record_kind==='candidate'&&r.event_id===id) as BrowserNoteCandidate,m=group.members.find(m=>m.event_id===id)!,local=m.source==='local_unsealed'

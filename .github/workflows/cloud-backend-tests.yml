@@ -564,6 +564,31 @@ jobs:
       - name: Verify dormant browser Resolution atomic apply and restart
         working-directory: frontend
         run: node scripts/browser-resolution-apply-acceptance.mjs http://127.0.0.1:5174
+      - name: Verify Legacy3 owner and pinned old-v10 rejection
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import os, subprocess, tempfile
+          from pathlib import Path
+          baseline_sha = '2320549e1c2e4ef3cc87bd91ee109c8e9bb7ebc6'
+          subprocess.run(['git', 'fetch', '--no-tags', 'origin', baseline_sha], check=True)
+          with tempfile.TemporaryDirectory(prefix='c21-old-v10-', dir=os.environ['RUNNER_TEMP']) as directory:
+              old = Path(directory)
+              with tempfile.TemporaryFile() as archive:
+                  subprocess.run(['git', '-C', '..', 'archive', baseline_sha, 'frontend'], stdout=archive, check=True)
+                  archive.seek(0)
+                  subprocess.run(['tar', '-x', '-C', directory], stdin=archive, check=True)
+              (old / 'frontend/node_modules').symlink_to(Path.cwd() / 'node_modules', target_is_directory=True)
+              subprocess.run(['node_modules/.bin/vite', 'build', '--config', 'scripts/vite.persistence-acceptance.config.ts'], cwd=old / 'frontend', check=True)
+              bundle = old / 'frontend/.c21-persistence-dist'
+              (bundle / 'baseline.sha').write_text(baseline_sha + '\n')
+              subprocess.run(['node', 'scripts/browser-resolution-apply-acceptance.mjs', 'http://127.0.0.1:5174', '--legacy-v3'], env=dict(os.environ, C21_OLD_V10_BUNDLE=str(bundle)), check=True)
+          PYCODE
+      - name: Verify isolated Legacy3 identity and consumer barriers
+        working-directory: frontend
+        run: npm test -- --run src/platform/web/legacyV3Resolution.spec.ts --maxWorkers=1
       - name: Verify dormant v10 ordinary continuation and historical readers
         working-directory: frontend
         run: node scripts/browser-resolution-continuation-acceptance.mjs http://127.0.0.1:5174

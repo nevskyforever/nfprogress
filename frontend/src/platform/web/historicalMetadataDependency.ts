@@ -12,7 +12,7 @@ import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInv
 import {snapshotBrowserSyncScope,validateBrowserStoredUploadPair,type BrowserSyncScope} from './syncDurability'
 import type {BrowserSyncTransaction} from './syncDurability'
 import {inspectResolutionDag} from './resolutionDag'
-import {resolutionIdentity,readFutureInboxRecord,readFutureHistoryRecord,resolutionSame as same,MAX_RESOLUTION_EVIDENCE_BYTES,boundResolutionJson,type BrowserResolution4} from './resolutionRecords'
+import {rejectLegacy3ResolutionRoots,resolutionIdentity,readFutureInboxRecord,readFutureHistoryRecord,resolutionSame as same,MAX_RESOLUTION_EVIDENCE_BYTES,boundResolutionJson,type BrowserResolution4} from './resolutionRecords'
 import {openHistoricalJson,MAX_CONTINUATION_MATERIAL_BYTES} from './resolutionHistorical'
 import {resolutionBytesDigest} from './resolutionAuthentication'
 import {openHistoryCandidate} from './noteHistory'
@@ -109,6 +109,7 @@ async function verify(s:BrowserSyncScope,v:ResolutionInventorySnapshot,eventId:s
  let remaining=MAX_CONTINUATION_MATERIAL_BYTES
  const retain=(value:unknown)=>{try{boundResolutionJson(value,remaining)}catch{reject('resource_limit')}const bytes=new TextEncoder().encode(JSON.stringify(value));try{remaining-=bytes.length;if(remaining<0)reject('resource_limit')}finally{bytes.fill(0)}}
  const unique=(values:unknown[])=>{if(new Set(values.map(a=>JSON.stringify(a))).size!==values.length)reject()}
+ rejectLegacy3ResolutionRoots(v.history)
  const rows=v.rows.map(a=>readFutureInboxRecord(a,s)).sort((a,b)=>a.server_sequence-b.server_sequence),dag=inspectResolutionDag(s,v.history)
  unique(rows.map(r=>r.event_id));unique(rows.map(r=>r.server_sequence))
  if(rows.some((r,i)=>r.server_sequence!==i+1)||rows.length!==v.cursor.pull_cursor)reject('missing_sequence')

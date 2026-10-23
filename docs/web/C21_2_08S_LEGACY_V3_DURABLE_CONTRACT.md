@@ -1,5 +1,10 @@
 # C21.2.08S — Legacy-v3 durable identity contract
 
+**Subsequent owner decision, C21.2.08T:** the owner explicitly authorized
+Option A for the bounded implementation described here. S remains a completed
+design stage; its original outcome below is historical, not implementation
+acceptance. See [T's implementation and acceptance record](C21_2_08T_LEGACY_V3_DURABLE_OWNER.md).
+
 **DESIGN COMPLETE / RECOMMENDED CONTRACT, NOT OWNER-APPROVED FOR IMPLEMENTATION.**
 Baseline: clean branch `6.0`, HEAD, `origin/6.0` and actual remote ref all
 `b5bd63be42225a2df17f282211deec39b64c5d4f`. Documentation only; no producer,

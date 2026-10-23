@@ -1084,11 +1084,20 @@ record_kind, record_id; each new history variant adds record_version as specifie
 
 | Proposed record | Exact fields beyond H and record_version; invariants |
 |---|---|
-| Resolution4 in legacyNoteHistory | record_version=4; record_kind='resolution'; record_id=event_id; event_id, source_device_id, protocol_version, transport_kind, server_sequence, header, wire_item, wire_digest, payload_digest, dependency_digest, remote_group_id, remote_generation, local_group_id, local_generation, group_digest, parent_event_ids, strategy, result_operation, retained_note_id, evidence_envelope, record_digest. transport_kind is 'content_note_resolution_v2' (protocol3) or 'legacy_resolution_v2' (protocol2); header is exact frozen Resolution2 header. retained_note_id is null except keep_both. One immutable applied event, not candidate2/3; event index remains unique. |
+| Resolution4 in legacyNoteHistory | record_version=4; record_kind='resolution'; record_id=event_id; event_id, source_device_id, protocol_version, transport_kind, server_sequence, header, wire_item, wire_digest, payload_digest, dependency_digest, remote_group_id, remote_generation, local_group_id, local_generation, group_digest, parent_event_ids, strategy, result_operation, retained_note_id, evidence_envelope, record_digest. transport_kind is 'content_note_resolution_v2' (protocol3 / original operation event) or 'legacy_resolution_v2' (protocol2 or protocol3 / original operation resolution, owner-authorized C21.2.08T amendment); all other tuples reject. header is exact frozen Resolution2 header. retained_note_id is null except keep_both. One immutable applied event, not candidate2/3; event index remains unique. |
 | Head2 in legacyNoteHistory | record_version=2; record_kind='head'; record_id='head'; head_revision, linear_head_event_id, tip_event_ids, node_ref. node_ref is exactly {kind:'candidate',event_id} or {kind:'resolution_result',resolution_event_id,result_role,resolution_digest}; role is 'original' or 'retained'. No top-level event_id, so no event-index collision. Replace only this mutable head key with exact previous-head CAS and head_revision+1; preserve the previous head in encrypted Resolution evidence. |
 | GroupTransition2 in legacyNoteHistory | record_version=2; record_kind='group_transition'; record_id=group_id; group_id, from_generation, from_digest, resolution_event_id, resolution_digest, resolved_parent_ids, effective_lifecycle='resolved', record_digest. One append-only closure per group; freeze original group1 bytes at this generation. It is invalid without authenticated Resolution4. Do not rewrite group1.lifecycle or delete it. |
 | ResolutionProof1 inside inbox10 | proof record_version=1, owner_kind='note_resolution', outcome='applied'; account_id, bootstrap_id, protocol_version, reference, server_sequence, header, wire_digest, payload_digest, dependency_digest, resolution_digest, transition_digest, output_digests, outcome_digest. reference is exact original transport descriptor; output_digests is exactly {original:string,retained:string|null}, hashing the encrypted output records. No plaintext Note. |
 | Inbox10 in inbox | Existing retained wire fields unchanged; record_version=10; state='note_resolution_proven'; resolution_proof=ResolutionProof1. The new version is unrelated to database version10 and cannot reuse inbox9/P2. |
+
+C21.2.08T explicitly authorizes Option A from
+[C21.2.08S](C21_2_08S_LEGACY_V3_DURABLE_CONTRACT.md): raw Legacy received on3
+retains protocol3, original descriptor/ciphertext and unknown submitting transport;
+wrapper digest is null. Record/proof versions, DB10 and digest algorithms remain
+unchanged; old F2/Content3 evidence is never rewritten. The bounded implementation
+and consumer rejection barriers are recorded in
+[C21.2.08T](C21_2_08T_LEGACY_V3_DURABLE_OWNER.md). This amendment adds no H/G/Q/K/O,
+private Metadata, prefix/ACK or capability authority for the new root.
 
 Resolution4.evidence_envelope decrypts to an exact inner schema:
 `resolution_format=1, kind='resolution_apply', identity, authenticated_payload,
@@ -1096,7 +1105,7 @@ parents, group_snapshot, head_before, source_before, source_after`.
 Identity is all public Resolution4 fields except evidence_envelope/record_digest;
 it is compared exactly, not trusted from the outer row. authenticated_payload is
 exactly `{wire_frame_digest,wrapper_payload_digest,resolution_payload_digest}`: original
-AEAD plaintext digest, canonical wrapper digest (null on protocol2), and frozen
+AEAD plaintext digest, canonical wrapper digest (null for Legacy on either received protocol), and frozen
 Resolution digest. Original retained ciphertext preserves the exact bytes and must
 be reopened and compared; hashes do not replace that payload. parents is the ordered array of exactly
 `{event_id,revision,operation,history_digest,inbox_digest,publication_source,

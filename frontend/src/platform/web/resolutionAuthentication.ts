@@ -25,7 +25,7 @@ import { proveStageReferenceCoverage } from './stageOrderRecords'
 import type { BrowserPrefixInventory } from './provenPrefixRecords'
 import type { BrowserNoteCandidate, BrowserNoteConflictGroup } from './noteHistoryRecords'
 import { inspectResolutionDag } from './resolutionDag'
-import { resolutionBad as bad, resolutionSame as same, resolutionIdentity, readFutureInboxRecord, readFutureHistoryRecord, boundResolutionJson, MAX_RESOLUTION_EVIDENCE_BYTES, type BrowserResolution4 } from './resolutionRecords'
+import { rejectLegacy3ResolutionRoots, resolutionBad as bad, resolutionSame as same, resolutionIdentity, readFutureInboxRecord, readFutureHistoryRecord, boundResolutionJson, MAX_RESOLUTION_EVIDENCE_BYTES, type BrowserResolution4 } from './resolutionRecords'
 
 export interface ResolutionInventory extends BrowserPrefixInventory { history: unknown[] }
 interface ParentWitness { event_id:string; revision:number; operation:'upsert'|'delete'; history_digest:string; inbox_digest:string; publication_source:'remote'|'remote_applied'|'local_accepted'; server_sequence:number; local_mutation_generation:number|null; frozen_version_digest:string|null; snapshot_digest:string }
@@ -101,6 +101,7 @@ export async function authenticateResolutionHistory(scope:BrowserSyncScope,input
 /** Isolated terminal-delete reader only: full original F checks with the fresh
  * complete .13 internal dependency semantics; no live prerequisite is minted. */
 export async function authenticateTerminalMetadataResolutions(scope:BrowserSyncScope,input:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+  rejectLegacy3ResolutionRoots(input.history)
   return authenticateResolutionHistoryCore(scope,input,amk,current,16*1024*1024,async(s,_r,_content,v,key,live)=>{
     await authenticateTerminalMetadataInventory(s,v as ResolutionInventorySnapshot,key,live)
   })
@@ -108,6 +109,7 @@ export async function authenticateTerminalMetadataResolutions(scope:BrowserSyncS
 
 /** Private Metadata prerequisite only; does not mint a live Note prerequisite. */
 export async function authenticateMetadataHandoffResolutions(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,mode:MetadataHandoffInspection){
+ rejectLegacy3ResolutionRoots(v.history)
  return authenticateResolutionHistoryCore(s,v,amk,current,16*1024*1024,async()=>authenticateMetadataHandoffInventory(s,v,amk,current,mode))
 }
 
@@ -133,13 +135,13 @@ async function authenticateResolutionHistoryCore(scope:BrowserSyncScope,input:Re
     if(r.source_device_id===s.deviceId)bad() // No own Resolution author/self-echo authority exists in this slice.
     if(await digestRecord(r)!==r.record_digest)bad()
     const row=rows.find(row=>row.event_id===r.event_id)
-    if(!row||row.state!=='note_resolution_proven'||row.wire_item!==r.wire_item||row.server_sequence!==r.server_sequence)bad()
+    if(!row||row.state!=='note_resolution_proven'||row.wire_item!==r.wire_item||row.server_sequence!==r.server_sequence||row.protocol_version!==r.protocol_version)bad()
     const wire=JSON.parse(r.wire_item)
     if(await noteProofDigest({protocol_version:r.protocol_version,item:wire})!==r.wire_digest)bad()
     const bytes=await openBytes(s,r.project_id,r.note_id,'note',wire.object,amk,current)
     let resolution:NoteSyncResolutionV2,content:ContentNoteEvent|undefined,frameDigest:string
     try{frameDigest=await resolutionBytesDigest(bytes);check(current)
-      if(r.protocol_version===3){content=unframeContentNote(bytes);if(content.event.version!==2||content.account_id!==s.canonicalUserId||content.device_id!==r.source_device_id)bad();resolution=content.event}
+      if(r.transport_kind==='content_note_resolution_v2'){content=unframeContentNote(bytes);if(content.event.version!==2||content.account_id!==s.canonicalUserId||content.device_id!==r.source_device_id)bad();resolution=content.event}
       else {resolution=decodeNoteSyncResolutionV2(bytes);if(!legacyEligible(resolution.result.note)||resolution.resolution.strategy==='keep_both'&&!legacyEligible(resolution.resolution.retained_note))bad()}
     }finally{bytes.fill(0)}
     if(!same(resolution.header,r.header)||resolution.resolution.conflict_group_id!==r.remote_group_id||resolution.resolution.conflict_generation!==r.remote_generation||resolution.resolution.strategy!==r.strategy||resolution.result.operation!==r.result_operation||(resolution.resolution.strategy==='keep_both'?resolution.resolution.retained_note.id:null)!==r.retained_note_id||await noteProofDigest(resolution)!==r.payload_digest)bad()
@@ -213,7 +215,7 @@ async function authenticateResolutionHistoryCore(scope:BrowserSyncScope,input:Re
     if(old.source_revision>before.source_revision||!working||!before.member_ids.includes(old.note_id)||!same(wireNote(oldSource.note),working.note))bad()
     const original=group.members.find(m=>m.source!=='remote')!
     if(priorHead.linear_head_event_id!==original.event_id)bad()
-    for(const raw of e.source_after.notes){const note=validateLocalNoteRecord(raw,s,r.project_id),source=await openSource(s,note,r.protocol_version===3,amk,current),expected=note.note_id===r.note_id?resolution.result.note:decision.strategy==='keep_both'&&note.note_id===r.retained_note_id?decision.retained_note:undefined
+    for(const raw of e.source_after.notes){const note=validateLocalNoteRecord(raw,s,r.project_id),source=await openSource(s,note,r.transport_kind==='content_note_resolution_v2',amk,current),expected=note.note_id===r.note_id?resolution.result.note:decision.strategy==='keep_both'&&note.note_id===r.retained_note_id?decision.retained_note:undefined
       if(!expected||note.source_revision!==after.source_revision||note.note_revision!==0||!same(wireNote(source.note),expected))bad()
     }
     const transition=dag.history.find(h=>h.record_kind==='group_transition'&&h.group_id===r.local_group_id&&h.project_id===r.project_id&&h.note_id===r.note_id)

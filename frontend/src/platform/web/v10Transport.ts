@@ -1,15 +1,20 @@
 import type {NormalUserAuthRuntime} from '@/auth/userAuth'
 import type {AuthoritativeAccountBinding} from '@/auth/accountBinding'
 import type {RuntimeKeyContext} from '@/auth/keyContext'
+import type {AccountMasterKey} from '@/crypto'
 import {BrowserPersistenceError} from './persistence'
 import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
 import {snapshotBrowserSyncScope,validateBrowserInboundPage,validateBrowserStoredUploadPair,immutableWireIdentity as identity,type BrowserSyncScope,type BrowserSyncTransaction,type BrowserReceivedInboxRecord} from './syncDurability'
-import {readFutureInboxRecord,resolutionSame as same} from './resolutionRecords'
+import {readFutureInboxRecord,resolutionSame as same,type ResolutionReference} from './resolutionRecords'
 import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {authenticateResolutionHistory} from './resolutionAuthentication'
-import {MAX_CONTINUATION_MATERIAL_BYTES} from './resolutionHistorical'
+import {authenticateContinuationHistory,verifyContinuationSources,MAX_CONTINUATION_MATERIAL_BYTES} from './resolutionHistorical'
 
 export interface V10PageReplayResult {committed_cursor:number;new_events:0;replayed_events:number;has_more:boolean}
+export interface RetainedF2JoinResult {
+ readonly readOnly:true;readonly matched:true;readonly eventId:string;readonly serverSequence:number
+ readonly receivedProtocol:3;readonly retainedProtocol:2;readonly commitAuthorized:false;readonly ackAuthorized:false
+}
 
 function fail(code:'closed'|'corrupt_record'|'stale_source'|'stale_cursor'|'conflicting_record'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
 const safe=(n:number)=>Number.isSafeInteger(n)&&n>=0
@@ -25,7 +30,7 @@ export class BrowserV10Transport {
 export class BrowserV10TransportRuntime {
  constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice){}
 
- private async inspect<T>(s:BrowserSyncScope,schedule:(tx:IDBTransaction,v:ResolutionInventorySnapshot,current:()=>boolean,result:(v:T)=>void,abort:(e:unknown)=>void)=>void):Promise<T>{
+ private async inspect<T>(s:BrowserSyncScope,schedule:(tx:IDBTransaction,v:ResolutionInventorySnapshot,current:()=>boolean,result:(v:T)=>void,abort:(e:unknown)=>void)=>void,verify?:(v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean)=>Promise<void>):Promise<T>{
   const initial=this.auth.requireContext(),{context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
   const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
   if(!lease||lease.authEpoch!==context.authEpoch||lease.localAccountId!==s.accountId||lease.canonicalUserId!==s.canonicalUserId||context.userId!==s.canonicalUserId||!current())fail('closed')
@@ -46,6 +51,7 @@ export class BrowserV10TransportRuntime {
    // historical reader outside IDB, including original AEAD, closure and proof
    // digests. This returns NO G certificate, current-source or prefix grant.
    if(rows.some(row=>row.record_version===10)||v.history.some(raw=>(raw as {record_kind:string}).record_kind==='resolution'))await lease.use(amk=>authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES))
+   if(verify)await lease.use(amk=>verify(v,amk,current))
    if(!current())fail('closed')
    const output=await transaction<T>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,now=>{
     try{if(!current())fail('closed');if(!same(now,v))fail('stale_source');schedule(tx,v,current,result,abort)}catch(e){abort(e)}
@@ -53,6 +59,25 @@ export class BrowserV10TransportRuntime {
    if(!current())fail('closed')
    return output
   }finally{activeAbort=undefined;unAuth();unKey()}
+ }
+
+ /** Separate exact existing-device join. It preserves F2's original transport
+  * identity and is neither interval replay nor a new applied/prefix grant. */
+ async joinRetainedF2(input:BrowserSyncScope,since:number,rawPage:string,eventId:string):Promise<RetainedF2JoinResult>{
+  const s=snapshotBrowserSyncScope(input)
+  if(!safe(since))fail()
+  const page=validateBrowserInboundPage(rawPage,since,s),item=page.items.find(i=>i.event.event_id===eventId)
+  const reference=item?.event as Partial<ResolutionReference>|undefined
+  if(page.protocol_version!==3||!item||reference?.entity_type!=='note'||reference.operation!=='resolution')fail('conflicting_record')
+  return this.inspect<RetainedF2JoinResult>(s,(_tx,_v,_current,result)=>result(Object.freeze({readOnly:true,matched:true,eventId,serverSequence:item.event.server_sequence!,receivedProtocol:3,retainedProtocol:2,commitAuthorized:false,ackAuthorized:false})),async(v,amk,current)=>{
+   const rows=v.rows.map(r=>readFutureInboxRecord(r,s)).sort((a,b)=>a.server_sequence-b.server_sequence)
+   if(rows.length!==v.cursor.pull_cursor||rows.some((r,i)=>r.server_sequence!==i+1))fail()
+   const row=rows.find(r=>r.event_id===eventId)
+   if(!row||row.state!=='note_resolution_proven'||row.protocol_version!==2||row.server_sequence!==item.event.server_sequence||!same(JSON.parse(row.wire_item),item))fail('conflicting_record')
+   const history=await authenticateContinuationHistory(s,v,amk,current),root=history.resolutions.get(eventId)
+   if(!root||root.record.protocol_version!==2||root.record.transport_kind!=='legacy_resolution_v2'||root.record.wire_item!==row.wire_item)fail('conflicting_record')
+   await verifyContinuationSources(s,v,history,amk,current)
+  })
  }
 
  /** No arbitrary older-page replay after later pull advancement. No cursor put,

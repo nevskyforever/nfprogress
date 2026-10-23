@@ -8,7 +8,7 @@ import {unframeContentNote} from '@/cloud/contentNoteCodec'
 import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {BrowserPersistenceError} from './persistence'
 import {authenticateResolutionHistory,authenticateTerminalMetadataResolutions,authenticateMetadataHandoffResolutions,type ResolutionInventory} from './resolutionAuthentication'
-import {boundResolutionJson,readFutureInboxRecord,type BrowserResolution4} from './resolutionRecords'
+import {rejectLegacy3ResolutionRoots,boundResolutionJson,readFutureInboxRecord,type BrowserResolution4} from './resolutionRecords'
 import {openHistoryCandidate} from './noteHistory'
 import {openFrozenLocalVersion,unsealedPlaintext} from './noteUnsealedVersion'
 import {noteProofDigest,noteOutcomeDigest,verifyStoredNoteProof} from './legacyNoteApply'
@@ -41,6 +41,7 @@ export interface HistoricalResolutionOutput {
 }
 /** Isolated future-v10 historical adapters, never an apply/prefix certificate. */
 export async function authenticateContinuationHistory(s:BrowserSyncScope,v:ResolutionInventory,amk:AccountMasterKey,current:()=>boolean){
+ rejectLegacy3ResolutionRoots(v.history)
  const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)
  return authenticateContinuationCore(s,v,amk,current,base,async(row,binding)=>prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row)))
 }
@@ -75,7 +76,7 @@ async function authenticateContinuationCore(s:BrowserSyncScope,v:ResolutionInven
   try{const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);e=JSON.parse(text);if(canonical(e)!==text)bad()}finally{bytes.fill(0)}
   const wire=JSON.parse(r.wire_item);bytes=await openHistoricalJson(s,r.project_id,r.note_id,'note',wire.object,amk,current)
   let payload:NoteSyncResolutionV2
-  try{if(r.protocol_version===2)payload=decodeNoteSyncResolutionV2(bytes);else{const wrapper=unframeContentNote(bytes);if(wrapper.event.version!==2)bad();payload=wrapper.event}}finally{bytes.fill(0)}
+  try{if(r.transport_kind==='legacy_resolution_v2')payload=decodeNoteSyncResolutionV2(bytes);else{const wrapper=unframeContentNote(bytes);if(wrapper.event.version!==2)bad();payload=wrapper.event}}finally{bytes.fill(0)}
   bytes=await openHistoricalJson(s,r.project_id,r.project_id,'project_metadata',e.source_after.project.envelope,amk,current)
   let project:LocalProjectPayload
   try{project=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes))}finally{bytes.fill(0)}

@@ -352,7 +352,7 @@ export class BrowserLocalAuthorityRuntime {
       const outputs=[authority.resolution.result.note,...(decision.strategy==='keep_both'?[decision.retained_note]:[])]
       if(!opened.notes.some(n=>n.note.id===original))fail('missing_local_source')
       if(decision.strategy==='keep_both'&&(decision.retained_note.id===original||opened.notes.some(n=>n.note.id===decision.retained_note.id)))fail('conflicting_record')
-      const admit=authority.protocol===3?validateContentLocalNote:validateLocalNote
+      const admit=authority.transportKind==='content_note_resolution_v2'?validateContentLocalNote:validateLocalNote
       const sources=outputs.map(note=>admit('deleted_at'in note?{state:'tombstone',note,revision:0}:{state:'live',note:{...note,revision:0}},p.project.project_id))
       for(const n of sources){const i=opened.notes.findIndex(old=>old.note.id===n.note.id);if(i<0)opened.notes.push(n);else opened.notes[i]=n}
       if(opened.notes.length>MAX_LOCAL_NOTES)fail('source_limit')
