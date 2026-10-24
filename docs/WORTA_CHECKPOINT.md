@@ -1,5 +1,33 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-24 — C21.2.08W-CI1 authenticated ciphertext test correction
+
+**Local test correction published; independent Cloud acceptance pending.** CI run
+40079162004 on the original W SHA
+`b6c8bc0b10ac25e735fb8c93729fe3ba03bd2670` had five of six mandatory jobs pass;
+Frontend admin failed one assertion in `resolutionReaders.spec.ts` (`authenticated
+ciphertext rejection`). Both evidence-envelope and original wire ciphertext cases
+used `'A' + original.slice(1)`. Randomized ciphertext already beginning with `A`
+made that assignment a no-op, allowing genuine authentication to succeed.
+
+The focused test now flips the first character between valid base64url `A` and
+`B`, asserts the result differs, and checks both `A`-starting and other valid
+starting characters. The actual evidence-envelope and original-wire ciphertext
+mutations still pass through `authenticateResolutionHistory`, which rejects them;
+the full persisted database snapshot remains equal after rejection. No production
+authentication or CI job behavior changed. `resolutionReaders.spec.ts` passed
+58/58; related F2/Legacy3 suites passed 166/166; mixed-prefix reader tests and
+five focused randomized-fixture repetitions are recorded in the CI1 implementation
+record.
+The frontend path selects all six mandatory Cloud jobs; SQLite is not selected.
+Fresh Cloud 6/6 on the correction SHA is pending; no Actions polling follows push.
+
+W remains PARTIAL: bounded G local complete, remote acceptance pending; Q
+IMPLEMENTATION STOP; T/U REMOTELY ACCEPTED; V AUDIT COMPLETE; C21.2.08 NOT CLOSED;
+C21.2.11 PARTIALLY RESOLVED; Web89.36%, `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED and
+PUBLIC RELEASE BLOCKED. C22/C23/PF6.0/RC and other release gates are unchanged.
+
 ## 2026-10-24 — C21.2.08W bounded Legacy3 G prefix and Q source-authority STOP
 
 **PARTIAL — bounded G locally accepted; Q IMPLEMENTATION STOP. W is NOT LOCAL

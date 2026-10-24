@@ -242,6 +242,39 @@ game_data `8bd116c0b5b284f4f4b80551d10199e20d3c4546fe8caac22c07ff2973d568d2`.
 All prior checkpoint headings and the complete T/V historical sections are
 preserved. No UI/help/localization behavior changes in this dormant owner slice.
 
+## C21.2.08W-CI1 — nondeterministic authenticated-ciphertext test correction
+
+The original W SHA `b6c8bc0b10ac25e735fb8c93729fe3ba03bd2670` was checked by
+Cloud run40079162004: five of six mandatory jobs succeeded; Frontend admin failed
+one `resolutionReaders.spec.ts` assertion. The evidence-envelope (`ciphertext`)
+and original encrypted wire (`wire`) cases both replaced the first character with
+`A` unconditionally. Because AEAD ciphertext is randomized, a value already
+starting with `A` was unchanged and could authenticate correctly. This is a test
+mutation defect; no production authentication defect was observed.
+
+`tamperCiphertext` now changes an initial `A` to `B`, otherwise to `A`, asserts
+the output differs, and the helper test covers both an `A`-starting and another
+valid base64url prefix. Both real ciphertext cases still call
+`authenticateResolutionHistory` and assert rejection plus exact persisted
+database-snapshot equality. No production, encryption, protocol, or workflow
+behavior changed. No neighboring equivalent no-op mutation remains in the
+resolution reader specs.
+
+Acceptance after correction: `resolutionReaders.spec.ts`58/58; related
+`legacyV3Resolution.spec.ts` and `legacy3Continuation.spec.ts`166/166;
+`resolutionMixedPrefix.spec.ts`71/71; five repeated focused runs each passed both
+authenticator rejection cases and the deterministic A/non-A helper check (15
+assertions per run, 75 total). Typecheck PASS. Filtered repetition runs select
+three cases; their other cases are excluded by Vitest's name filter, with no
+test skips added to the suite. `docs/WORTA_CHECKPOINT.md` records the same result.
+The correction is published separately; independent Cloud 6/6 on its SHA remains
+pending, and no Actions polling follows push.
+
+W remains PARTIAL: bounded G LOCAL COMPLETE with remote acceptance pending; Q
+IMPLEMENTATION STOP; T/U REMOTELY ACCEPTED; V AUDIT COMPLETE; C21.2.08 NOT CLOSED.
+Web89.36%, `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+registration CLOSED and PUBLIC RELEASE BLOCKED. All other release gates remain.
+
 ## Preserved project gates
 
 C21/C21.2 IN PROGRESS; .08 NOT CLOSED; T/U REMOTELY ACCEPTED; V AUDIT COMPLETE;

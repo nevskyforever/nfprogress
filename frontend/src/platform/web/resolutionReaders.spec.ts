@@ -9,6 +9,20 @@ import { validateNoteHistoryRecord,validateNoteHistorySet } from './noteHistoryR
 import { validateBrowserInboxRecord } from './syncDurability'
 let sample:Awaited<ReturnType<typeof resolutionFixture>>
 beforeAll(async()=>{sample=await resolutionFixture()})
+function tamperCiphertext(original:string){
+ if(!original.length)throw new Error('Empty test ciphertext')
+ const tampered=(original[0]==='A'?'B':'A')+original.slice(1)
+ expect(tampered).not.toBe(original)
+ return tampered
+}
+it('ciphertext tampering always changes a valid base64url character',()=>{
+ for(const original of ['Aabc_012-','zabc_012-']){
+  const tampered=tamperCiphertext(original)
+  expect(tampered).not.toBe(original)
+  expect(tampered).toMatch(/^[A-Za-z0-9_-]+$/)
+  expect(tampered.slice(1)).toBe(original.slice(1))
+ }
+})
 it.each(['choose_version','manual_merge','delete','keep_both'] as const)('genuine encrypted %s evidence and original wire authenticate read-only',async strategy=>{
  const f=await resolutionFixture(strategy),old=structuredClone(f.f.db),inventory=structuredClone(f.inventory)
  const result=await authenticateResolutionHistory(scope,f.inventory,amk,()=>true)
@@ -31,8 +45,8 @@ it('v9 validators remain closed to v10 variants; old records round-trip unchange
 })
 it.each(['ciphertext','key','wire','account','device','bootstrap','digest','inner','source','parent-witness','closure','circular-proof'] as const)('authenticated %s rejection',async kind=>{
  const f=await resolutionFixture(),old=structuredClone(f.f.db)
- if(kind==='ciphertext')f.r.evidence_envelope.ciphertext='A'+f.r.evidence_envelope.ciphertext.slice(1)
- if(kind==='wire'){const w=JSON.parse(f.r.wire_item);w.object.ciphertext='A'+w.object.ciphertext.slice(1);f.r.wire_item=JSON.stringify(w)}
+ if(kind==='ciphertext')f.r.evidence_envelope.ciphertext=tamperCiphertext(f.r.evidence_envelope.ciphertext)
+ if(kind==='wire'){const w=JSON.parse(f.r.wire_item);w.object.ciphertext=tamperCiphertext(w.object.ciphertext);f.r.wire_item=JSON.stringify(w)}
  if(kind==='digest')f.r.payload_digest='0'.repeat(64)
  if(kind==='bootstrap')f.r.bootstrap_id=crypto.randomUUID()
  if(['inner','source','parent-witness','circular-proof'].includes(kind)){
