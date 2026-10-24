@@ -1,5 +1,15 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-24 — owner priority: Web + cloud sync first
+
+The owner-authorized MVP priority is now a restricted, usable desktop↔Web
+encrypted-writing flow, followed by separate private and public release decisions.
+This changes execution priority only: it does not change C21 reader declarations,
+security, CI, VPS, backup/restore, roadmap scoring, C22/C23/PF6.0/RC or release
+gates. Web remains 89.36%, readiness false, registration CLOSED and public release
+BLOCKED. See [WORTA 6.0 MVP](WORTA_6_0_MVP.md) for the acceptance boundary and
+smallest implementation path.
+
 ## 2026-10-24 — C21.2.08Y Legacy3 independent O owner and Q mixed prefix
 
 **LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING.** Y starts from exact baseline
