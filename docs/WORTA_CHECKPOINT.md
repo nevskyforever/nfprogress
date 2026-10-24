@@ -1,13 +1,48 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-24 — C21.2.08V Legacy3 G/Q historical-prefix contract audit
+
+**AUDIT COMPLETE — DOCUMENTATION ONLY.** V began from clean branch `6.0`, exact
+HEAD/origin/remote `22b68493daf304c219bed14f0d8598d65fcc1ee8`. C21.2.08U is
+independently **REMOTELY ACCEPTED** on that exact SHA: [Cloud40015205669](https://github.com/nevskyforever/nfprogress/actions/runs/40015205669),
+attempt 2, SUCCESS 6/6. Complete-project passed in31m29s; its first attempt was
+cancelled at the 40-minute limit. Frontend admin passed in35m38s. C21.2.08T
+remains independently **REMOTELY ACCEPTED**, Cloud39940501426 SUCCESS6/6.
+
+V confirms T accepts Legacy3 F and U accepts bounded Legacy3 H, while G and Q
+still reject the root through `authenticateContinuationHistory`; no Legacy3 G/Q
+prefix result or advancement is currently authorized. The contract specifies
+separate private G/Q owner-scoped grants over a shared strict authenticated-history
+core, preserves Q mixed-source ordering and forbids fallback. Existing durable
+proofs suffice on current evidence; no schema, migration, backend, wire or crypto
+change is proposed. The full 20-case matrix, consumer boundaries, native/old-U test
+plan and CI capacity prerequisite are in the [V audit](web/C21_2_08V_LEGACY3_GQ_PREFIX_CONTRACT_AUDIT.md).
+
+CI headroom is not safe to assume: Frontend admin used35m38s of40m; complete-project
+used31m29s on attempt2 after a prior 40m cancellation. W must begin with a CI
+partition/capacity review before placing the focused native G/Q suite. No code,
+test, workflow or durable data was changed in V. Documentation paths do not match
+Cloud/SQLite workflow filters; Actions were not polled.
+
+C21/C21.2 IN PROGRESS; .08 NOT CLOSED; .08R historical IMPLEMENTATION STOP;
+.08S DESIGN COMPLETE; .08T/.08U REMOTELY ACCEPTED; .11 PARTIALLY RESOLVED;
+C21.1.06 NOT LOCAL COMPLETE; .18 REMOTELY ACCEPTED; .19/.21/.23 AUDIT COMPLETE;
+.20/.22 historical IMPLEMENTATION STOP. Web89.36%, ready=false,
+declarationAllowed=false, writerAuthorized=false, registration CLOSED,
+PUBLIC RELEASE BLOCKED. VPS/landing, permanent CI/CD policy and all
+C22/C23/PF6.0/RC security and release gates remain mandatory and unchanged.
+
 ## 2026-10-23 — C21.2.08U Legacy3 H historical continuation
 
-**LOCAL COMPLETE / REMOTE ACCEPTANCE PENDING.** Clean branch `6.0`, baseline
-HEAD/origin/actual remote `a5c83fadd04be6db7b45e6e5eb5854b922a38e76`.
-C21.2.08T is independently **REMOTELY ACCEPTED** on that exact SHA:
+**REMOTELY ACCEPTED.** Implementation SHA `22b68493daf304c219bed14f0d8598d65fcc1ee8`;
+[Cloud40015205669](https://github.com/nevskyforever/nfprogress/actions/runs/40015205669),
+attempt2, SUCCESS6/6. Complete-project31m29s. Its first attempt was cancelled at
+the 40-minute timeout; this remains historical evidence. No implementation-code
+repair was required. The original U local report below remains historical; its
+former pending-acceptance wording is superseded by this independently verified
+remote result. C21.2.08T remains independently REMOTELY ACCEPTED on the same SHA:
 [Cloud39940501426](https://github.com/nevskyforever/nfprogress/actions/runs/39940501426),
-SUCCESS6/6, first attempt. The original T local report below is preserved as
-historical evidence; its former pending/blocked-H wording describes that revision.
+SUCCESS6/6, first attempt.
 
 The existing dormant H owner now authenticates one genuine first-generation
 received3 / `legacy_resolution_v2` / original `resolution` root, with null wrapper
@@ -861,11 +896,11 @@ new SHA and SQLite checks only when the actual changed-path filters require them
 | Requirement | Status and exact existing evidence | Blocking dependency / next proposed numbered stage | Required local and remote acceptance | Closure / release effect |
 |---|---|---|---|---|
 | Post-F Metadata update/delete and original .11 historical-delete STOP | PARTIAL. .17 handoff and .18 explicit `v10MixedRecovery.ts::bindPostFMetadataRecovery` / `privateMetadataPrefix.ts` are independently REMOTELY ACCEPTED; `postFMetadataBoundary.spec.ts` preserves the old real M/E/D counterexample and default K STOP. | Create/no-head .20 stopped at trusted import provenance; .22 stopped at complete-history browser access / raw Legacy-on3 compatibility. .23 contract audit proposed. | Local F2/F3 × four strategies, ID0/ID1, separate genuine owner/cursor commits and native restart/races PASS; .18 Cloud `39850013638` SUCCESS6/6. | Bounded update/delete problem accepted; .11 cannot close completely while other required cohorts remain unsupported. |
-| Complete Note reader/capability, C21.2.08 | PARTIAL. F/H/O/G/Q/J/K accepted dormant bounded readers; readiness always returns ready/declarationAllowed/writerAuthorized=false. Frozen all-device Note predicate and account-wide v3 Note gate remain. .08T F/J REMOTELY ACCEPTED; .08U bounded Legacy3 H LOCAL COMPLETE / remote acceptance pending. | H original/retained Legacy2/Content3 continuations authenticate genuine received3 Legacy roots; G/Q/K/O/private new-root routes still reject. Proposed separately authorized .08V prefix contract/audit; complete reader/lifecycle/all-device gates remain. | U96 focused cases, F/H/J and downstream regressions, native atomic/restart/replay,8 actual old-T rejection/recovery copies. Independent Cloud6/6 on U SHA remains required before remote acceptance. | Blocks .08/C21 closure and release readiness. No partial declaration is valid. |
+| Complete Note reader/capability, C21.2.08 | PARTIAL. F/H/O/G/Q/J/K accepted dormant bounded readers; readiness always returns ready/declarationAllowed/writerAuthorized=false. Frozen all-device Note predicate and account-wide v3 Note gate remain. .08T F/J REMOTELY ACCEPTED; .08U bounded Legacy3 H REMOTELY ACCEPTED, Cloud40015205669 SUCCESS6/6. | H original/retained Legacy2/Content3 continuations authenticate genuine received3 Legacy roots; G/Q/K/O/private new-root routes still reject. .08V contract audit complete; G/Q Legacy3 remain blocked pending separately authorized .08W implementation after CI partition/capacity review. Complete reader/lifecycle/all-device gates remain. | U96 focused cases, F/H/J and downstream regressions, native atomic/restart/replay,8 actual old-T rejection/recovery copies. Independent Cloud40015205669 attempt2 SUCCESS6/6 on U SHA; U is REMOTELY ACCEPTED. | Blocks .08/C21 closure and release readiness. No partial declaration is valid. |
 | C21.1.06 protected-apply completion and remaining Web entity families | PARTIAL. Original .06 audit is still NOT LOCAL COMPLETE. Its lineage prerequisite now exists in `projectBindings.ts`, `initialNoteCapture.ts`, `bootstrapCompletion.ts`; bounded Metadata/Note/Stage/StageOrder apply and prefix were independently accepted in .07–.30. `persistence.ts::BrowserPersistenceSession` exposes those owners, while Document/Map/Progress/Game/Account native runtimes in `frontend/src/cloud/*Runtime.ts` still use Tauri/SQLite infrastructure. | Reconcile the original all-family claim with actual browser adapters/dependencies/cover material; proposed C21.2.19 family-coverage audit before a scoped implementation. | Family-by-family browser producer/consumer, projection/conflict/orphan/replay/prefix/ACK evidence; Cloud6/6 and relevant SQLite filters. | Blocks full C21 Web synchronization; existing native C18 acceptance remains accepted. |
-| Metadata create / legitimate no-head post-F baseline | BLOCKED / .22 historical IMPLEMENTATION STOP. Original import provenance and full-account Content history gates remain unresolved. `unsupported_create_baseline` remains; Content-F requires Metadata before F. | .08R historical STOP; .08S DESIGN COMPLETE; .08T F/J REMOTELY ACCEPTED (Cloud39940501426); .08U bounded H locally complete, remote pending. G/Q/K/O/private Legacy3 authority still rejects. Complete and independently accept .08 before retrying create. | Original .22 feasibility/.23 audit evidence preserved. U accepts only the bounded H prerequisite; Metadata create/Content-ID0/ID1/source/owner/cursor/atomicity/native/Cloud acceptance remains required after complete prerequisite repair. | No .22 local completion or create authorization; .11 full closure and C21 release remain blocked. |
+| Metadata create / legitimate no-head post-F baseline | BLOCKED / .22 historical IMPLEMENTATION STOP. Original import provenance and full-account Content history gates remain unresolved. `unsupported_create_baseline` remains; Content-F requires Metadata before F. | .08R historical STOP; .08S DESIGN COMPLETE; .08T F/J REMOTELY ACCEPTED (Cloud39940501426); .08U bounded H REMOTELY ACCEPTED. G/Q/K/O/private Legacy3 authority still rejects. Complete and independently accept .08 before retrying create. | Original .22 feasibility/.23 audit evidence preserved. U is REMOTELY ACCEPTED for bounded H only; Metadata create/Content-ID0/ID1/source/owner/cursor/atomicity/native/Cloud acceptance remains required after complete prerequisite repair. | No .22 local completion or create authorization; .11 full closure and C21 release remain blocked. |
 | Metadata transport2 compatibility | PARTIAL / explicit boundary. `encryptedSyncV2.ts::parseV2PullResponse` permits Note descriptors only; `syncDurability.ts` preserves that parser. Metadata3 works; both F protocols work. .17 tests reject Metadata2. | Decide the supported Web compatibility claim before any wire change; proposed C21.2.19 compatibility audit. | Explicit compatible-peer matrix and parser/gate tests; Cloud6/6 for implementation. | Blocks any claim of Metadata-on-v2 support; may remain an explicit unsupported optional compatibility scope if the release contract independently accepts v3-only Metadata. |
-| Raw Legacy Resolution carried on protocol3 | .08T REMOTELY ACCEPTED on a5c83fadd04be6db7b45e6e5eb5854b922a38e76, Cloud39940501426 SUCCESS6/6 first attempt: dormant F/J and exact retained-F2 join. .08U bounded H LOCAL COMPLETE / remote pending, preserving genuine transport/source/roles. | .08S DESIGN COMPLETE; .08R STOP remains historical. G/Q/K/O/mixed/private barriers persist. Proposed .08V bounded prefix audit only after separate authorization; no schema/backend/wire/crypto change. | Four strategies, Legacy2/Content3 original/retained H descendants,96 new cases, native CAS/34 rollbacks/restart/replay,8 actual old-T copies reject/recover. Original T old232 F and F2/Content3 acceptance preserved. | Complete frozen Resolution2 reader, fresh complete history, capability and Metadata create remain blocked. |
+| Raw Legacy Resolution carried on protocol3 | .08T REMOTELY ACCEPTED on a5c83fadd04be6db7b45e6e5eb5854b922a38e76, Cloud39940501426 SUCCESS6/6 first attempt: dormant F/J and exact retained-F2 join. .08U bounded H REMOTELY ACCEPTED, preserving genuine transport/source/roles. | .08S DESIGN COMPLETE; .08R STOP remains historical. G/Q/K/O/mixed/private barriers persist. .08V bounded prefix audit complete; .08W must begin with CI partition/capacity review before any G/Q implementation. No schema/backend/wire/crypto change is proposed. | Four strategies, Legacy2/Content3 original/retained H descendants,96 new cases, native CAS/34 rollbacks/restart/replay,8 actual old-T copies reject/recover. Original T old232 F and F2/Content3 acceptance preserved. | Complete frozen Resolution2 reader, fresh complete history, capability and Metadata create remain blocked. |
 | Cover references and verified encrypted blob material | PARTIAL. Native Cover crypto/retention/runtime is accepted C18 evidence; browser `importedMetadataApply.ts::metadataProofFor` rejects non-null cover references with `cover_material_unavailable`. Coverless browser owners are accepted. | Browser retained authenticated Cover material, exact reference ownership/limits and lifecycle contract; proposed C21.2.19 Cover prerequisite audit. | Genuine encrypted blob retention/read/revoke/restart plus Metadata/source/CAS/ACK tests; Cloud6/6 and applicable SQLite filters. | Blocks full browser Metadata/Cover coverage; .18 remains coverless. |
 | Post-F Stage/StageOrder dependencies and history | PARTIAL. `stageApply.ts`, `stageOrderApply.ts`, stage-prefix specs and .1.22/.1.23 acceptance cover bounded pre-F owners/prefix. Mixed K and private Metadata authentication reject these families. | Full-v10 owner/source/dependency/history contract, exact child manifests and historical references; proposed C21.2.19 structural-routing audit. | Genuine Stage/StageOrder owners after F, dependency order/delete/replay/full-account races; Cloud6/6 and relevant SQLite checks. | Blocks full mixed Web family coverage/C21 closure; not part of .18. |
 | Content writer, sealing, publication, upload, receipt and self-echo | PARTIAL. `contentNoteIntents.ts` implements accepted dormant source/I2 capture (.07); `contentAuthorityRecords.ts`, authentication/migration modules implement I2/C3/R2/S2 formats and readers (.06). `noteIntents.ts` seals Legacy intents; the Content producer is absent from `BrowserPersistenceSession`. Native `ContentNoteRuntime` has these operations through Tauri, not browser ownership. | Complete reader/capability prerequisite, private Content sealer and genuine producer/consumer ownership; proposed C21.2.19 outbound prerequisite audit per existing outbound design (planning labels remain historical). | Original source→I2→sealed candidate→outbox→raw receipt→self-echo, immutable retries/crashes and real server gate; Cloud6/6. | Blocks full browser Content synchronization/.08/C21 closure and release readiness. |
