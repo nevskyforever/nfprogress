@@ -1,5 +1,52 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-24 — C21.2.08X Legacy3 O/Q contract audit
+
+**AUDIT COMPLETE — documentation only.** Baseline branch `6.0`, HEAD and
+`origin/6.0` matched `dc5cad87e9bf07b6d529e702ecdeaad988d3a5cf`; worktree clean and
+protected Python bytecode unchanged. GitHub Cloud run40116362152 attempt1 matches
+that SHA and has SUCCESS6/6 mandatory jobs. Bounded Legacy3 G is now
+**REMOTELY ACCEPTED**. The earlier run40079162004 remains recorded as its original
+5/6 failure; CI1 fixed only its nondeterministic test mutation.
+
+The O stop is precisely the generic `authenticateContinuationHistory()` and
+`validateMixedSourceInventory()` Legacy3 root guard in `v10OrdinaryApply.ts`.
+The existing dormant O checks already define a safe bounded shape: one real
+remote ordinary Note event in the F root project, active `import_remote/captured`
+bootstrap, Legacy2 project/HTML rules or framed Content3 with actual dependencies,
+global identity uniqueness, null-parent/revision-1 creates, and updates/deletes
+only from an authenticated single-tip peer Head1. O cannot edit F original or
+retained Head2 roles. Its atomic writes reuse encrypted local project/Note,
+Candidate, Head1, and existing inbox proof records.
+
+The recommended bounded Y composition gives O and Q distinct one-use private
+owner/runtime/scope/inventory/key/lifecycle requests. O authenticates F/H and the
+complete mixed source fold before its existing exact O checks. Q independently
+authenticates F, H and applied O history, checks Metadata/Stage/StageOrder owners,
+sequence and source-revision order, membership, conflicts and full inventory CAS,
+then reuses its own ephemeral prefix certificate and the native cursor-only
+commit. Neither generic reader guards nor G grants are shared with O/Q; Q failure
+is terminal and never falls back to G. No new durable proof, migration, backend,
+wire or cryptographic change is needed for same-F-project O/Q.
+
+X identifies one deferred scope: a second project's ordinary Note history has no
+F-anchored complete source-revision fold in this cohort. Its Note rows stay
+unqualified pending a separate authenticated-source-witness contract. Other
+project Metadata/Stage/StageOrder rows remain handled by their existing owners.
+Actual CI1 durations support blocking Y tests in Foundation (8m unit envelope)
+and Content-action (8m native envelope), each with at least5m reserve; no new
+suite goes to Frontend admin or complete-project. Overrun requires separate
+capacity design; no seventh job or timeout change is proposed. See
+[.08X O/Q contract audit](web/C21_2_08X_LEGACY3_O_Q_CONTRACT_AUDIT.md) for the
+full decision matrix, old-W compatibility boundary, native plan, and CI math.
+
+Status remains C21/C21.2 IN PROGRESS; .08 NOT CLOSED; W PARTIAL; G REMOTELY
+ACCEPTED; Q IMPLEMENTATION STOP; T/U REMOTELY ACCEPTED; V AUDIT COMPLETE;
+.11 PARTIALLY RESOLVED; C21.1.06 NOT LOCAL COMPLETE. Web89.36%,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, registration
+CLOSED and PUBLIC RELEASE BLOCKED. No O/Q implementation, activation, or next
+stage started. C22/C23/PF6.0/RC, VPS, landing and all other release gates remain.
+
 ## 2026-10-24 — C21.2.08W-CI1 authenticated ciphertext test correction
 
 **Local test correction published; independent Cloud acceptance pending.** CI run
