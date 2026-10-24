@@ -349,11 +349,11 @@ jobs:
         working-directory: frontend
         run: npm test -- --run src/platform/web/postFMetadataRecovery.spec.ts src/platform/web/privateMetadataPrefix.spec.ts --maxWorkers=1
 
-      # W capacity gate: foundation16m28s +8m new unit envelope +5m reserve <40m.
-      - name: Verify isolated Legacy3 G prefix authority and Q prerequisite
+      # Y capacity gate: foundation20m07s +8m O/Q unit envelope +5m reserve <40m.
+      - name: Verify isolated Legacy3 G and independent O/Q authorities
         if: matrix.shard == 'foundation'
         working-directory: frontend
-        run: npm test -- --run src/platform/web/legacy3Prefix.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/legacy3Prefix.spec.ts src/platform/web/legacy3OrdinaryPrefix.spec.ts --maxWorkers=1
 
       - name: Install pinned Chromium for historical Metadata acceptance
         if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
@@ -405,6 +405,31 @@ jobs:
               bundle = old / 'frontend/.c21-persistence-dist'
               (bundle / 'baseline.sha').write_text(baseline_sha + '\n')
               subprocess.run(['node', 'scripts/browser-resolution-prefix-acceptance.mjs', 'http://127.0.0.1:5174', '--legacy3-prefix'], env=dict(os.environ, C21_OLD_U_BUNDLE=str(bundle)), check=True)
+          PYCODE
+
+      # Y capacity gate: content-action22m35s +8m O/Q native envelope +5m reserve <40m.
+      - name: Verify Legacy3 O apply, Q cursor commit and pinned old-W rejection
+        if: matrix.shard == 'content-action'
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import os, subprocess, tempfile
+          from pathlib import Path
+          baseline_sha = 'dc5cad87e9bf07b6d529e702ecdeaad988d3a5cf'
+          subprocess.run(['git', 'fetch', '--no-tags', 'origin', baseline_sha], check=True)
+          with tempfile.TemporaryDirectory(prefix='c21-old-w-oq-', dir=os.environ['RUNNER_TEMP']) as directory:
+              old = Path(directory)
+              with tempfile.TemporaryFile() as archive:
+                  subprocess.run(['git', '-C', '..', 'archive', baseline_sha, 'frontend'], stdout=archive, check=True)
+                  archive.seek(0)
+                  subprocess.run(['tar', '-x', '-C', directory], stdin=archive, check=True)
+              (old / 'frontend/node_modules').symlink_to(Path.cwd() / 'node_modules', target_is_directory=True)
+              subprocess.run(['node_modules/.bin/vite', 'build', '--config', 'scripts/vite.persistence-acceptance.config.ts'], cwd=old / 'frontend', check=True)
+              bundle = old / 'frontend/.c21-persistence-dist'
+              (bundle / 'baseline.sha').write_text(baseline_sha + '\n')
+              subprocess.run(['node', 'scripts/browser-resolution-prefix-acceptance.mjs', 'http://127.0.0.1:5174', '--legacy3-oq'], env=dict(os.environ, C21_OLD_W_BUNDLE=str(bundle)), check=True)
           PYCODE
 
       - name: Verify read-only historical Metadata dependency and disk reopen

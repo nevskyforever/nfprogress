@@ -87,9 +87,10 @@ function noteReaderReadinessFixture(session: Awaited<ReturnType<typeof persisten
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
  return new BrowserNoteReaderReadiness((...args)=>internal.syncTransaction(...args),()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
-function mixedResolutionPrefixFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
+function mixedResolutionPrefixFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, loseCompletion=false) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
- return new BrowserResolutionPrefix((...args)=>internal.syncTransaction(...args),()=>internal.active).bindMixedSources(meta.auth,meta.bindings,meta.keys,device)
+ const transaction:BrowserSyncTransaction=async(...args)=>{const value=await internal.syncTransaction(...args);if(loseCompletion&&args[2]==='readwrite')throw Error('DISPOSABLE_Q_LOST_COMPLETION');return value}
+ return new BrowserResolutionPrefix(transaction,()=>internal.active).bindMixedSources(meta.auth,meta.bindings,meta.keys,device)
 }
 function v10TransportFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
@@ -103,9 +104,10 @@ function mixedV10RecoveryFixture(session: Awaited<ReturnType<typeof persistence.
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
  return new BrowserV10Recovery((...args)=>internal.syncTransaction(...args),session.localSource,()=>internal.active).bindMixedSources(meta.auth,meta.bindings,meta.keys,device)
 }
-function v10OrdinaryOwnerFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
+function v10OrdinaryOwnerFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, loseCompletion=false) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
- return new BrowserV10OrdinaryApply((...args)=>internal.syncTransaction(...args),session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
+ const transaction:BrowserSyncTransaction=async(...args)=>{const value=await internal.syncTransaction(...args);if(loseCompletion&&args[2]==='readwrite')throw Error('DISPOSABLE_O_LOST_COMPLETION');return value}
+ return new BrowserV10OrdinaryApply(transaction,session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
 function mixedSourceWitnessFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, beforeSecondRead?:()=>Promise<void>) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean};let reads=0

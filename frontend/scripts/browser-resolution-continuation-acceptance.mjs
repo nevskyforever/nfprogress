@@ -31,13 +31,13 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
     const id=options.id??d.note,project='planner-project',stamp='2026-10-20T00:00:00.000000Z',peer='44444444-4444-4444-8444-444444444444',cursor=(await nativeRows('cursors'))[0],binding=(await nativeRows('projectBindings'))[0],mh=(await nativeRows('ownerHeads')).find(h=>h.owner_kind==='project_metadata')
     const local=session.localSource.bind(meta.auth,meta.bindings,meta.keys),snapshot=await local.readSnapshot(s,project)
     let source;await local.withDecryptedSnapshot(s,snapshot.token,async opened=>{source=opened.notes.find(n=>n.note.id===id)})
-    const deleted=options.deleted??(d.strategy==='delete'),parent=options.parent??d.event_id,revision=options.revision??4
-    const ordinary=source.state==='live'?{...source.note}:{id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',title:'AUTHENTIC_SUCCESSOR',content:'AUTHENTIC_SUCCESSOR',checklist:[],color:'default',pinned:false,archived:false,sort_order:0,tags:[],created_at:stamp,updated_at:stamp,metadata:{}}
+    const deleted=options.deleted??(d.strategy==='delete'),parent=options.parent===undefined?d.event_id:options.parent,revision=options.revision??4
+    const ordinary=source?.state==='live'?{...source.note}:{id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',title:'AUTHENTIC_SUCCESSOR',content:'AUTHENTIC_SUCCESSOR',checklist:[],color:'default',pinned:false,archived:false,sort_order:0,tags:[],created_at:stamp,updated_at:stamp,metadata:{}}
     delete ordinary.revision;ordinary.content='ACTUAL_PROTECTED_PEER_CHILD '+crypto.randomUUID();ordinary.updated_at=stamp
     const note=deleted?{id,project_id:project,stage_id:ordinary.stage_id,source_type:ordinary.source_type,source_map_id:ordinary.source_map_id,source_node_id:ordinary.source_node_id,content_format:ordinary.content_format,deleted_at:stamp}:ordinary
     const header={event_id:crypto.randomUUID(),project_id:project,entity_id:id,entity_type:'note',operation:deleted?'delete':'upsert',revision,updated_at:stamp,deleted_at:deleted?stamp:null},plain=c21.createNoteSyncPlaintext(header,parent,note).plaintext
     const wrapper={version:1,account_id:s.canonicalUserId,device_id:peer,dependencies:{bootstrap_id:binding.bootstrap_id,metadata_event_id:mh.tip_event_ids[0],stage_event_ids:[]},event:plain}
-    const frame=d.protocol===2?c21.encodeNoteSyncPlaintext(plain):c21.readerFrame({id:8,version:1,event:wrapper},true),event={...header,operation:d.protocol===2?header.operation:'event',deleted_at:d.protocol===2?header.deleted_at:null,device_id:peer,server_sequence:cursor.pull_cursor+1}
+    const frame=d.protocol===2?c21.encodeNoteSyncPlaintext(plain):c21.readerFrame({id:8,version:1,event:wrapper},options.compressed??true),event={...header,operation:d.protocol===2?header.operation:'event',deleted_at:d.protocol===2?header.deleted_at:null,device_id:peer,server_sequence:cursor.pull_cursor+1}
     const object=await meta.keys.leaseForAccount(s.accountId).use(async amk=>{const encrypted=await c21.encryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:project,entityId:id,entityType:'note'},frame);try{return{crypto_version:1,aad_version:1,nonce:c21.encodeBase64Url(encrypted.nonce),ciphertext:c21.encodeBase64Url(encrypted.ciphertext)}}finally{encrypted.nonce.fill(0);encrypted.ciphertext.fill(0)}})
     try{await session.sync.commitInboundPage(s,cursor.pull_cursor,JSON.stringify({protocol_version:d.protocol,encrypted_sync_version:d.protocol,items:[{event,object}],next_cursor:event.server_sequence,has_more:false}))}finally{frame.fill(0)}
     return{sequence:event.server_sequence,event_id:event.event_id,id,deleted,content:ordinary.content}
@@ -194,7 +194,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
    const retained=await page.evaluate(d=>receiveContinuation(d,{id:d.retained_note}),decisions)
    assert.equal(await page.evaluate(c=>continuation.apply(s,c.sequence),retained),'applied');continuations++;descendants.push(retained);continued=retained
   }
-  if(strategy==='manual_merge'){
+  if(strategy==='manual_merge'&&!options.oq){
    const fork=await page.evaluate(d=>receiveContinuation(d),decisions)
    if(legacy3)await injectHFaults(fork.sequence,true)
    assert.equal(await page.evaluate(c=>continuation.apply(s,c.sequence),fork),'conflict_preserved');continuations++;descendants.push({...fork,conflict:true})

@@ -4,7 +4,9 @@ import {canonical} from '@/cloud/projectMetadataCodec'
 import {canonicalizeSyncTimestamp} from '@/cloud/syncTimestamp'
 import {decodeBase64Url} from '@/api/base64url'
 import {BrowserPersistenceError} from './persistence'
-import {authenticateContinuationHistory,authenticateTerminalMetadataContinuations,authenticateMetadataHandoffContinuations,verifyContinuationSources,openHistoricalJson,sameResolutionValue as same} from './resolutionHistorical'
+import {authenticateContinuationHistory,authenticateOContinuationHistory,authenticateQContinuationHistory,authenticateTerminalMetadataContinuations,authenticateMetadataHandoffContinuations,verifyContinuationSources,openHistoricalJson,sameResolutionValue as same} from './resolutionHistorical'
+import type {OHistoryToken,BrowserV10OrdinaryApplyRuntime} from './v10OrdinaryApply'
+import type {QHistoryToken,BrowserResolutionPrefixRuntime} from './resolutionPrefix'
 import {validateLocalProjectRecord,validateLocalNoteRecord,validateLocalProject,validatePersistedLocalNote,assertContentNoteRoute,localExact,MAX_LOCAL_NOTES,type LocalProjectPayload,type LocalNoteRecord} from './localAuthorityRecords'
 import {openBrowserCanonicalObject} from './canonicalReaders'
 import {openNoteTransport} from './noteTransport'
@@ -44,6 +46,21 @@ export function validateMixedContinuationInventory(s:BrowserSyncScope,v:Resoluti
  * retain null projections; G must leave their incoming sequences unqualified. */
 export function validateMixedPrefixInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
  return validateInventory(s,v,amk,current,true)
+}
+/** Legacy3 O/Q enter the strict fold only through their one-use owner requests. */
+export async function validateLegacy3OMixedSourceInventory(token:OHistoryToken,owner:BrowserV10OrdinaryApplyRuntime){
+ const request=await authenticateOContinuationHistory(token,owner)
+ await validateAuthenticatedInventory(request.scope,request.inventory,request.amk,request.current,false,request.history)
+ return request.history
+}
+/** H has already consumed its own private Legacy3 request before entering here. */
+export function validateLegacy3HMixedContinuationInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,h:Awaited<ReturnType<typeof authenticateContinuationHistory>>){
+ return validateAuthenticatedInventory(s,v,amk,current,true,h)
+}
+export async function validateLegacy3QMixedPrefixInventory(token:QHistoryToken,owner:BrowserResolutionPrefixRuntime){
+ const request=await authenticateQContinuationHistory(token,owner)
+ await validateAuthenticatedInventory(request.scope,request.inventory,request.amk,request.current,true,request.history)
+ return request.history
 }
 async function validateInventory(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean,preserveHConflicts:boolean){
  const check=()=>{if(!current())throw new BrowserPersistenceError('closed')}

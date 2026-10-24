@@ -1,6 +1,7 @@
 import type {NormalUserAuthRuntime} from '@/auth/userAuth'
 import type {AuthoritativeAccountBinding} from '@/auth/accountBinding'
 import type {RuntimeKeyContext} from '@/auth/keyContext'
+import type {AccountMasterKey} from '@/crypto'
 import type {NoteSyncPlaintext} from '@/cloud/noteSyncCodec'
 import {BrowserPersistenceError} from './persistence'
 import {BrowserLocalAuthority,type BrowserLocalAuthorityRuntime,type ProtectedNoteSourcePlan,scheduleProtectedNoteApply} from './localAuthority'
@@ -8,7 +9,7 @@ import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistrat
 import {resolutionInventoryStores,scheduleResolutionInventory,ResolutionPlannerError,type ResolutionInventorySnapshot,MAX_PLANNER_INVENTORY_BYTES,MAX_PLANNER_ROWS} from './resolutionPlanner'
 import {boundResolutionJson,readFutureInboxRecord} from './resolutionRecords'
 import {authenticateContinuationHistory,continuationDependencyView,sameResolutionValue as same} from './resolutionHistorical'
-import {validateMixedSourceInventory,MixedSourceWitnessError} from './mixedSourceValidation'
+import {validateMixedSourceInventory,validateLegacy3OMixedSourceInventory,MixedSourceWitnessError} from './mixedSourceValidation'
 import {snapshotBrowserSyncScope,validateBrowserInboxRecord,type BrowserSyncScope,type BrowserSyncTransaction,type BrowserInboxRecord} from './syncDurability'
 import {validateBrowserProjectBinding} from './projectBindings'
 import {openNoteTransport} from './noteTransport'
@@ -21,6 +22,9 @@ import {assertContentNoteRoute} from './localAuthorityRecords'
 import type {BrowserNoteCandidate,BrowserNoteHead} from './noteHistoryRecords'
 
 export interface V10OrdinaryToken {readonly v10Ordinary:unique symbol}
+export interface OHistoryToken {readonly oHistory:unique symbol}
+interface OHistoryRequest {owner:BrowserV10OrdinaryApplyRuntime;scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;amk:AccountMasterKey;current:()=>boolean}
+const historyRequests=new WeakMap<object,OHistoryRequest>()
 interface Plan {
  owner:BrowserV10OrdinaryApplyRuntime;local:BrowserLocalAuthorityRuntime;scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;
  row:BrowserInboxRecord;plaintext:NoteSyncPlaintext;content:boolean;current:()=>boolean;handoff:boolean;
@@ -28,6 +32,13 @@ interface Plan {
 }
 const plans=new WeakMap<object,Plan>()
 function fail(code:'closed'|'corrupt_record'|'stale_source'|'unsupported_local_source'|'note_orphan'|'note_conflict_unproven'|'conflicting_record'|'source_limit'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
+/** Internal one-use O handoff. It never accepts caller-owned history or an allow flag. */
+export function consumeOHistoryRequest(token:OHistoryToken,owner:BrowserV10OrdinaryApplyRuntime){
+ const p=historyRequests.get(token)
+ if(!p||p.owner!==owner||!p.current())fail('closed')
+ historyRequests.delete(token)
+ return p
+}
 /** Internal opaque handoff, never a read-only diagnostic/counts or plaintext DTO. */
 export function verifiedV10OrdinaryForLocal(token:V10OrdinaryToken,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope){
  const p=plans.get(token)
@@ -36,6 +47,7 @@ export function verifiedV10OrdinaryForLocal(token:V10OrdinaryToken,local:Browser
  return{plaintext:structuredClone(p.plaintext),content:p.content,current:p.current}
 }
 const route=(n:NoteSyncPlaintext['note'])=>[n.id,n.project_id,n.stage_id,n.source_type,n.source_map_id,n.source_node_id,n.content_format]
+const orderedNotes=<T extends {note_id:string}>(notes:readonly T[])=>[...notes].sort((a,b)=>a.note_id.localeCompare(b.note_id))
 function bounded(v:ResolutionInventorySnapshot){
  let remaining=MAX_PLANNER_INVENTORY_BYTES
  for(const values of [v.rows,v.out,v.receipts,v.bindings,v.owners,v.history,v.intents,v.projects,v.localNotes,v.checkpoints]){
@@ -63,6 +75,15 @@ export class BrowserV10OrdinaryApplyRuntime {
   return{lease,current}
  }
  private load(s:BrowserSyncScope,current:()=>boolean){return this.transaction<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))}
+ private async history(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+  if(!v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2')){
+   await validateMixedSourceInventory(s,v,amk,current)
+   return authenticateContinuationHistory(s,v,amk,current)
+  }
+  const token=Object.freeze({}) as OHistoryToken
+  historyRequests.set(token,{owner:this,scope:s,inventory:v,amk,current})
+  try{return await validateLegacy3OMixedSourceInventory(token,this)}finally{historyRequests.delete(token)}
+ }
  private async sanitized<T>(run:()=>Promise<T>):Promise<T>{
   try{return await run()}catch(e){
    if(e instanceof BrowserPersistenceError||e instanceof MixedSourceWitnessError)throw e
@@ -76,8 +97,7 @@ export class BrowserV10OrdinaryApplyRuntime {
   const step=async<T>(promise:Promise<T>)=>{const value=await promise;if(!current())fail('closed');return value}
   return lease.use(async amk=>{
    // A fresh owner-owned complete pre-state check; N.inspect is never consumed.
-   await step(validateMixedSourceInventory(s,v,amk,current))
-   const h=await step(authenticateContinuationHistory(s,v,amk,current)),root=[...h.resolutions.values()][0]!
+   const h=await step(this.history(s,v,amk,current)),root=[...h.resolutions.values()][0]!
    const future=readFutureInboxRecord(v.rows.find((r:any)=>r.server_sequence===sequence),s)
    if(future.state!=='received'||sequence<=root.record.server_sequence||sequence>v.cursor.pull_cursor)fail('conflicting_record')
    // Manual retry must start with the earliest received event of ANY family.
@@ -95,7 +115,7 @@ export class BrowserV10OrdinaryApplyRuntime {
    const head=h.dag.history.find(r=>r.record_kind==='head'&&r.project_id===e.project_id&&r.note_id===e.entity_id)
    if(head&&(head.record_kind!=='head'||head.record_version!==1||head.tip_event_ids.length!==1))fail('note_conflict_unproven')
    const source=await step(this.local.readSnapshot(s,e.project_id))
-   if(!same(source.project,v.projects.find((p:any)=>p.project_id===e.project_id))||!same(source.notes,v.localNotes.filter((n:any)=>n.project_id===e.project_id)))fail('stale_source')
+   if(!same(source.project,v.projects.find((p:any)=>p.project_id===e.project_id))||!same(orderedNotes(source.notes),orderedNotes(v.localNotes.filter((n:any)=>n.project_id===e.project_id) as Array<{note_id:string}>)))fail('stale_source')
    const old=source.notes.find(n=>n.note_id===e.entity_id)
    if(plaintext.mutation==='create'){
     if(header.parent_event_id!==null||header.revision!==1||head||own.length||old||v.localNotes.some((n:any)=>n.note_id===e.entity_id)||h.dag.history.some(r=>r.note_id===e.entity_id||r.record_kind==='resolution'&&r.retained_note_id===e.entity_id))fail('conflicting_record')
@@ -124,7 +144,7 @@ export class BrowserV10OrdinaryApplyRuntime {
     const nextHead=nextNoteHead(s,binding,[...own,candidate],header.event_id,head as BrowserNoteHead|undefined)
     const predicted:ResolutionInventorySnapshot={...v,history:[...v.history.filter((r:any)=>!(r.record_kind==='head'&&r.project_id===e.project_id&&r.note_id===e.entity_id)),candidate,nextHead],rows:v.rows.map(r=>same(r,row)?nextRow:r),projects:v.projects.map((r:any)=>r.project_id===e.project_id?prepared.project:r),localNotes:[...v.localNotes.filter((n:any)=>!(n.project_id===e.project_id&&n.note_id===e.entity_id)),prepared.note]}
     bounded(predicted)
-    await step(validateMixedSourceInventory(s,predicted,amk,current))
+    await step(this.history(s,predicted,amk,current))
     p.candidate=candidate;p.head=nextHead;p.nextRow=nextRow
     if(!same(await step(this.load(s,current)),v))fail('stale_source')
     return token
@@ -159,8 +179,7 @@ export class BrowserV10OrdinaryApplyRuntime {
  async reconcile(input:BrowserSyncScope,sequence:number):Promise<'already_applied'>{return this.sanitized(async()=>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   await lease.use(async amk=>{
-   await validateMixedSourceInventory(s,v,amk,current)
-   const h=await authenticateContinuationHistory(s,v,amk,current),root=[...h.resolutions.values()][0]!,row=h.rows.find(r=>r.server_sequence===sequence),c=row&&h.dag.events.get(row.event_id)
+   const h=await this.history(s,v,amk,current),root=[...h.resolutions.values()][0]!,row=h.rows.find(r=>r.server_sequence===sequence),c=row&&h.dag.events.get(row.event_id)
    if(!row||!['note_proven','content_note_proven'].includes(row.state)||!c||c.record_kind!=='candidate'||c.origin!=='peer'||!c.projection||c.project_id!==root.record.project_id||[root.record.note_id,root.record.retained_note_id].includes(c.note_id)||sequence<=root.record.server_sequence)fail('unsupported_local_source')
   })
   if(!current()||!same(await this.load(s,current),v))fail('stale_source')

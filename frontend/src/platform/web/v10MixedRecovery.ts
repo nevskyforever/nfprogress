@@ -10,7 +10,6 @@ import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistrat
 import {snapshotBrowserSyncScope,type BrowserSyncScope,type BrowserSyncTransaction} from './syncDurability'
 import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {readFutureInboxRecord,resolutionSame as same} from './resolutionRecords'
-import {authenticateContinuationHistory} from './resolutionHistorical'
 import {MixedSourceWitnessError} from './mixedSourceValidation'
 import {BrowserV10Transport} from './v10Transport'
 import {BrowserResolutionContinuation} from './resolutionContinuation'
@@ -71,19 +70,19 @@ export function bindMixedV10Recovery(tx:BrowserSyncTransaction,local:BrowserLoca
     const missing=rows.findIndex((r,i)=>r.server_sequence!==i+1),gap=missing>=0?missing+1:rows.length<v.cursor.pull_cursor?rows.length+1:null
     if(gap!==null&&gap<=v.cursor.proven_prefix)fail()
     if(gap!==null){block(gap,'missing_sequence','incomplete_account_inventory');noCertificate=true;break}
-    const history=await step(lease.use(amk=>authenticateContinuationHistory(s,v,amk,live)))
-    if(history.resolutions.size!==1){
-     block(row?.server_sequence??1,'unsupported_generation',history.resolutions.size?'additional_resolution':'accepted_F_required');noCertificate=true;break
-    }
-    const root=[...history.resolutions.values()][0]!
-    // Q authenticates the full current source. Its calculation is not permission
-    // to apply, acknowledge or declare readiness; each actual owner prepares anew.
+    // Q authenticates the full current source and pins the same complete inventory.
+    // The closure may inspect the root identity only after that succeeds; neither
+    // the root nor Q's certificate is exposed as apply authority.
     let certificate
     try{certificate=await step(g.prepare(s))}catch(error){
      check();if(!witnessBarrier(error,row?.server_sequence??v.cursor.proven_prefix+1))throw error
      if(row&&JSON.parse(row.wire_item).event.device_id===s.deviceId)block(row.server_sequence,'unsupported_route','own_authorship_or_self_echo')
      noCertificate=true;break
     }
+    if(!same(await load(),v))fail('stale_source')
+    const roots=v.history.filter((record:any)=>record.record_kind==='resolution') as Array<{project_id:string;note_id:string;retained_note_id:string|null}>
+    if(roots.length!==1){block(row?.server_sequence??1,'unsupported_generation',roots.length?'additional_resolution':'accepted_F_required');noCertificate=true;break}
+    const root=roots[0]!
     const prefix=await step(g.calculate(certificate)),barrier=prefix.first_blocking_sequence===null?undefined:rows.find(r=>r.server_sequence===prefix.first_blocking_sequence)
     if(barrier&&barrier.state!=='received'){
      block(barrier.server_sequence,['note_conflict_preserved','content_note_conflict_preserved'].includes(barrier.state)?'unresolved_fork':'unqualified_family','persisted_unqualified_evidence');break
@@ -109,8 +108,8 @@ export function bindMixedV10Recovery(tx:BrowserSyncTransaction,local:BrowserLoca
      }finally{nonce.fill(0);ciphertext.fill(0)}
     }))
     if(!value){block(row.server_sequence,'unsupported_generation','additional_resolution');break}
-    if(e.project_id!==root.record.project_id){block(row.server_sequence,'unsupported_route','unrelated_project_writer');break}
-    const role=[root.record.note_id,root.record.retained_note_id].includes(value.header.entity_id)
+    if(e.project_id!==root.project_id){block(row.server_sequence,'unsupported_route','unrelated_project_writer');break}
+    const role=[root.note_id,root.retained_note_id].includes(value.header.entity_id)
     // Project/root identity determines the owner, never a guessed Head1/Head2 or
     // an unsuccessful H attempt followed by O. Owners enforce their own ancestry.
     const route=role?'continuation':row.protocol_version===2?'legacy':'content'

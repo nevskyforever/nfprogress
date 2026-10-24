@@ -29,7 +29,7 @@ for(const protocol of [2,3] as const)for(const compressed of protocol===2?[false
  const commit=await f.g.prepareCommit(certificate);expect(await f.g.commit(commit)).toBe('advanced');expect(await f.g.commit(commit)).toBe('already_proven')
  const expected=structuredClone(before);(expected.cursors[0] as any).proven_prefix=child.sequence;expect(f.before()).toEqual(expected)
  expect(await f.g.commit(await f.g.prepareCommit(await f.g.prepare(scope)))).toBe('no_progress')
- await expect(f.q.prepare(scope)).rejects.toThrow();expect(f.before()).toEqual(expected)
+ const q=await f.q.calculate(await f.q.prepare(scope));expect(q).toMatchObject({candidate_proven_prefix:child.sequence,first_blocking_sequence:null});expect(f.before()).toEqual(expected)
 })
 it('reauthenticates a later H outcome after committed G prefix',async()=>{
  const f=await setup();await f.g.commit(await f.g.prepareCommit(await f.g.prepare(scope)))
@@ -115,10 +115,11 @@ it('transaction failure retains all stores and actual retry succeeds',async()=>{
  const g=f.create(tx);await expect(g.commit(await g.prepareCommit(await g.prepare(scope)))).rejects.toThrow();expect(f.before()).toEqual(before)
  expect(await f.g.commit(await f.g.prepareCommit(await f.g.prepare(scope)))).toBe('advanced')
 })
-it('Q retains the O/source-authority prerequisite',async()=>{
+it('O supplies genuine same-project source evidence that Q reauthenticates',async()=>{
  const f=await setup(),child=await f.receive({id:'independent',parent:null,revision:1,protocol:3}),before=f.before()
  const o=new BrowserV10OrdinaryApply(f.f.transaction,f.f.localOwner,()=>true).bind(f.f.auth,f.f.bindings as never,f.f.keys as never,f.device)
- await expect(o.apply(scope,child.sequence)).rejects.toThrow();await expect(f.q.prepare(scope)).rejects.toThrow();expect(f.before()).toEqual(before)
+ expect(await o.apply(scope,child.sequence)).toBe('applied');const applied=f.before();expect(applied).not.toEqual(before)
+ expect(await f.q.calculate(await f.q.prepare(scope))).toMatchObject({candidate_proven_prefix:child.sequence,first_blocking_sequence:null,counts:{content:1,resolution:1}});expect(f.before()).toEqual(applied)
 })
 
 for(const family of ['stage','stage_order','other'] as const)it(`missing actual ${family} owner blocks the earliest account event`,async()=>{
@@ -133,9 +134,10 @@ it('a genuine additional received Resolution remains unqualified',async()=>{
  const before=f.before();expect(await result(f)).toMatchObject({candidate_proven_prefix:f.sequence,first_blocking_sequence:sequence,blocker:'unproven_family'});expect(f.before()).toEqual(before)
 })
 
-it('a caller cannot turn a Q runtime into the private G entry with a public flag',async()=>{
- const f=await setup(),before=f.before();Object.assign(f.q,{mixedSources:false,allowLegacy3:true})
- await expect(f.q.prepare(scope)).rejects.toThrow();expect(f.before()).toEqual(before)
+it('a caller flag cannot turn default G into the private Q entry',async()=>{
+ const f=await setup(),child=await f.receive({id:'independent',parent:null,revision:1,protocol:3}),o=new BrowserV10OrdinaryApply(f.f.transaction,f.f.localOwner,()=>true).bind(f.f.auth,f.f.bindings as never,f.f.keys as never,f.device)
+ await o.apply(scope,child.sequence);const before=f.before();Object.assign(f.g,{mixedSources:true,allowLegacy3:true})
+ await expect(f.g.prepare(scope)).rejects.toThrow();expect(await f.q.calculate(await f.q.prepare(scope))).toMatchObject({candidate_proven_prefix:child.sequence});expect(f.before()).toEqual(before)
 })
 it('successful Legacy3 G remains negative-only reader readiness',async()=>{
  const f=await setup(),{BrowserNoteReaderReadiness}=await import('./noteReaderReadiness'),before=f.before()

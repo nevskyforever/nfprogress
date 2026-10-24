@@ -137,14 +137,15 @@ for(const mutation of ['source','binding','metadata','cursor','history','inbox',
  if(mutation==='device')vi.spyOn(f.f.auth,'isCurrent').mockReturnValue(false)
  const before=f.before();await expect(applier.commit(token)).rejects.toThrow();expect(f.before()).toEqual(before)
 })
-it('W admits independent read-only G while raw3 stays blocked in Q/K/O and mixed/private authority',async()=>{
+it('Y admits independent read-only Q while raw3 stays blocked in K/O and mixed/private authority',async()=>{
  const {f,apply}=await setup();await apply();const d=f.f,before=f.before(),args=[d.auth,d.bindings as never,d.keys as never,f.device] as const
  const h=new BrowserResolutionContinuation(d.transaction,d.localOwner,()=>true).bind(...args)
  const g=new BrowserResolutionPrefix(d.transaction,()=>true),k=new BrowserV10Recovery(d.transaction,d.localOwner,()=>true)
  const o=new BrowserV10OrdinaryApply(d.transaction,d.localOwner,()=>true).bind(...args)
  expect(await h.history(scope)).toMatchObject({readOnly:true,resolutions:1})
  const gp=g.bind(...args);expect(await gp.calculate(await gp.prepare(scope))).toMatchObject({readOnly:true,ackAuthorized:false,counts:{resolution:1}})
- for(const action of [()=>g.bindMixedSources(...args).prepare(scope),()=>k.bind(...args).run(scope),()=>k.bindMixedSources(...args).run(scope),()=>k.bindPostFMetadata(...args).run(scope),()=>o.apply(scope,f.sequence),()=>new BrowserMixedSourceWitness(d.transaction,()=>true).bind(...args).inspect(scope),()=>bindPrivateMetadataPrefix(d.transaction,()=>true,...args).prepare(scope)])await expect(action()).rejects.toThrow()
+ const q=g.bindMixedSources(...args);expect(await q.calculate(await q.prepare(scope))).toMatchObject({readOnly:true,ackAuthorized:false,counts:{resolution:1}})
+ for(const action of [()=>k.bind(...args).run(scope),()=>k.bindPostFMetadata(...args).run(scope),()=>o.apply(scope,f.sequence),()=>new BrowserMixedSourceWitness(d.transaction,()=>true).bind(...args).inspect(scope),()=>bindPrivateMetadataPrefix(d.transaction,()=>true,...args).prepare(scope)])await expect(action()).rejects.toThrow()
  await expect(authenticateTerminalMetadataResolutions(scope,inventory(f),amk,()=>true)).rejects.toThrow()
  await expect(authenticateMetadataHandoffResolutions(scope,inventory(f),amk,()=>true,{kind:'durable'})).rejects.toThrow()
  expect(f.before()).toEqual(before)

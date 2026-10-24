@@ -1,6 +1,7 @@
 import type {MetadataHandoffInspection} from './historicalMetadataDependency'
 import {consumeHHistoryRequest,type HHistoryToken,type BrowserResolutionContinuationRuntime} from './resolutionContinuation'
-import {consumeGHistoryRequest,type GHistoryToken,type BrowserResolutionPrefixRuntime} from './resolutionPrefix'
+import {consumeGHistoryRequest,consumeQHistoryRequest,type GHistoryToken,type QHistoryToken,type BrowserResolutionPrefixRuntime} from './resolutionPrefix'
+import {consumeOHistoryRequest,type OHistoryToken,type BrowserV10OrdinaryApplyRuntime} from './v10OrdinaryApply'
 import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import {decryptObjectBytes,type AccountMasterKey} from '@/crypto'
 import {decodeBase64Url} from '@/api/base64url'
@@ -54,6 +55,16 @@ export async function authenticateHContinuationHistory(token:HHistoryToken,owner
 /** G-only composition. H requests, Q/default readers and diagnostics cannot enter. */
 export async function authenticateGContinuationHistory(token:GHistoryToken,owner:BrowserResolutionPrefixRuntime){
  return authenticateOwnedContinuationHistory(consumeGHistoryRequest(token,owner))
+}
+/** O-only composition. It authenticates history but grants no source write. */
+export async function authenticateOContinuationHistory(token:OHistoryToken,owner:BrowserV10OrdinaryApplyRuntime){
+ const request=consumeOHistoryRequest(token,owner)
+ return{...request,history:await authenticateOwnedContinuationHistory(request)}
+}
+/** Q-only composition. It authenticates history but grants no cursor write. */
+export async function authenticateQContinuationHistory(token:QHistoryToken,owner:BrowserResolutionPrefixRuntime){
+ const request=consumeQHistoryRequest(token,owner)
+ return{...request,history:await authenticateOwnedContinuationHistory(request)}
 }
 async function authenticateOwnedContinuationHistory({scope:s,inventory:v,amk,current}:{scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;amk:AccountMasterKey;current:()=>boolean}){
  const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)

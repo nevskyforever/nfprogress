@@ -8,7 +8,7 @@ import {snapshotBrowserSyncScope,validateBrowserSyncCursor,type BrowserSyncScope
 import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {readFutureInboxRecord} from './resolutionRecords'
 import {authenticateContinuationHistory,authenticateGContinuationHistory,verifyContinuationSources,sameResolutionValue as same} from './resolutionHistorical'
-import {validateMixedPrefixInventory,MixedSourceWitnessError} from './mixedSourceValidation'
+import {validateMixedPrefixInventory,validateLegacy3QMixedPrefixInventory,MixedSourceWitnessError} from './mixedSourceValidation'
 import {prepareMetadataPrefix,verifiedMetadataSequences,type VerifiedMetadataPrefix} from './metadataPrefixProof'
 import {prepareStagePrefix,stageSequences,type VerifiedStagePrefix} from './stageApply'
 import {prepareStageOrderPrefix,stageOrderSequences,type VerifiedStageOrderPrefix} from './stageOrderApply'
@@ -33,15 +33,25 @@ interface Certificate {
 }
 interface CommitPlan {owner:BrowserResolutionPrefixRuntime;certificate:Certificate;result:ResolutionPrefixResult}
 const certificates=new WeakMap<object,Certificate>(),commits=new WeakMap<object,CommitPlan>()
+const qRuntimes=new WeakSet<BrowserResolutionPrefixRuntime>()
 export interface GHistoryToken {readonly gHistory:unique symbol}
+export interface QHistoryToken {readonly qHistory:unique symbol}
 interface GHistoryRequest {owner:BrowserResolutionPrefixRuntime;scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;amk:AccountMasterKey;current:()=>boolean}
 const historyRequests=new WeakMap<object,GHistoryRequest>()
+const qHistoryRequests=new WeakMap<object,GHistoryRequest>()
 function fail(code:'closed'|'corrupt_record'|'stale_source'|'unsupported_local_source'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
 /** Internal one-use G handoff; only the runtime's JavaScript-private entry mints. */
 export function consumeGHistoryRequest(token:GHistoryToken,owner:BrowserResolutionPrefixRuntime){
  const p=historyRequests.get(token)
  if(!p||p.owner!==owner||!p.current())fail('closed')
  historyRequests.delete(token)
+ return p
+}
+/** Separate one-use Q handoff. G/H/O requests cannot enter this map. */
+export function consumeQHistoryRequest(token:QHistoryToken,owner:BrowserResolutionPrefixRuntime){
+ const p=qHistoryRequests.get(token)
+ if(!p||p.owner!==owner||!p.current())fail('closed')
+ qHistoryRequests.delete(token)
  return p
 }
 // Module-private, rather than a TypeScript-private instance method which would
@@ -83,11 +93,10 @@ export class BrowserResolutionPrefix {
  constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean){}
  bind(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPrefixRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device)}
  /** Explicit isolated Q entry. K keeps bind() and cannot inherit this admission. */
- bindMixedSources(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPrefixRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device,true)}
+ bindMixedSources(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){const runtime=new BrowserResolutionPrefixRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device);qRuntimes.add(runtime);return runtime}
 }
 export class BrowserResolutionPrefixRuntime {
- readonly #mixedSources:boolean
- constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice,mixedSources=false){this.#mixedSources=mixedSources}
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice){}
  private async guard(s:BrowserSyncScope){
   const initial=this.auth.requireContext(),{context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
   const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
@@ -96,12 +105,16 @@ export class BrowserResolutionPrefixRuntime {
  }
  private load(s:BrowserSyncScope,current:()=>boolean){return this.transaction<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))}
  async #history(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
-  // Q retains the generic rejection until its own mixed source authority is
-  // independently accepted. It can never borrow this default-G request.
-  if(this.#mixedSources||!v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2'))return authenticateContinuationHistory(s,v,amk,current)
+  const legacy3=v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2')
+  if(qRuntimes.has(this)&&legacy3){
+   const token=Object.freeze({}) as QHistoryToken
+   qHistoryRequests.set(token,{owner:this,scope:s,inventory:v,amk,current})
+   try{return{history:await validateLegacy3QMixedPrefixInventory(token,this),qValidated:true}}finally{qHistoryRequests.delete(token)}
+  }
+  if(!legacy3)return{history:await authenticateContinuationHistory(s,v,amk,current),qValidated:false}
   const token=Object.freeze({}) as GHistoryToken
   historyRequests.set(token,{owner:this,scope:s,inventory:v,amk,current})
-  try{return await authenticateGContinuationHistory(token,this)}finally{historyRequests.delete(token)}
+  try{return{history:await authenticateGContinuationHistory(token,this),qValidated:false}}finally{historyRequests.delete(token)}
  }
 
  async prepare(input:BrowserSyncScope):Promise<VerifiedResolutionPrefix>{
@@ -109,16 +122,16 @@ export class BrowserResolutionPrefixRuntime {
   const p=await lease.use(async amk=>{
    // Reuse accepted H crypto/closure/DAG authentication. Its
    // public readOnly diagnostics are deliberately NOT accepted as a capability.
-   const h=await this.#history(s,v,amk,current)
+   const authenticated=await this.#history(s,v,amk,current),h=authenticated.history
    // Select from authenticated evidence, never by catching a verification error.
    // F/H-only histories keep their accepted ordering and missing-sequence rules.
    const needsMixed=[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
     c.record_kind==='candidate'&&c.project_id===root.record.project_id&&![root.record.note_id,root.record.retained_note_id].includes(c.note_id)&&
     ((h.rows.find(r=>r.event_id===c.event_id)?.server_sequence??0)>root.record.server_sequence||(c.projection?.source_revision??0)>root.project.source_revision)))
-   if(needsMixed&&!this.#mixedSources&&[...h.resolutions.values()].some(root=>root.record.protocol_version===3&&root.record.transport_kind==='legacy_resolution_v2'))fail('unsupported_local_source')
-   const mixed=this.#mixedSources&&needsMixed
+   if(needsMixed&&!qRuntimes.has(this)&&[...h.resolutions.values()].some(root=>root.record.protocol_version===3&&root.record.transport_kind==='legacy_resolution_v2'))fail('unsupported_local_source')
+   const mixed=qRuntimes.has(this)&&needsMixed
    if(mixed){
-    try{await validateMixedPrefixInventory(s,v,amk,current)}catch(e){
+    if(!authenticated.qValidated)try{await validateMixedPrefixInventory(s,v,amk,current)}catch(e){
      if(e instanceof BrowserPersistenceError||e instanceof MixedSourceWitnessError)throw e
      fail() // No plaintext decoder errors and no historical fallback.
     }
@@ -156,6 +169,10 @@ export class BrowserResolutionPrefixRuntime {
     if(!['note_proven','note_conflict_preserved','content_note_proven','content_note_conflict_preserved'].includes(row.state))continue
     const candidate=h.dag.events.get(row.event_id)
     if(!candidate||candidate.record_kind!=='candidate'||!h.opened.has(row.event_id))fail()
+    // Y has a complete R0/source-revision fold only for the accepted F project.
+    // Authenticated ordinary Note evidence from another project remains present
+    // in account order but cannot qualify under this Q certificate.
+    if(authenticated.qValidated&&!projects.has(candidate.project_id))continue
     if(row.state==='note_conflict_preserved'||row.state==='content_note_conflict_preserved'){
      const proof=row.state==='note_conflict_preserved'?row.note_conflict_proof:row.content_note_conflict_proof
      const group=h.groups.find(g=>g.group.project_id===candidate.project_id&&g.group.note_id===candidate.note_id&&g.group.group_id===proof.group_id)

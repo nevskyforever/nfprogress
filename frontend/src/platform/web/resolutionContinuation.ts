@@ -1,5 +1,5 @@
 import type {AccountMasterKey} from '@/crypto'
-import {validateMixedContinuationInventory,MixedSourceWitnessError} from './mixedSourceValidation'
+import {validateMixedContinuationInventory,validateLegacy3HMixedContinuationInventory,MixedSourceWitnessError} from './mixedSourceValidation'
 import type {NormalUserAuthRuntime} from '@/auth/userAuth'
 import type {AuthoritativeAccountBinding} from '@/auth/accountBinding'
 import type {RuntimeKeyContext} from '@/auth/keyContext'
@@ -44,7 +44,7 @@ type AuthenticatedHistory=Awaited<ReturnType<typeof authenticateContinuationHist
 /** Select ONLY from fully authenticated evidence, before source verification.
  * Never try the old verifier after a failed mixed check. A post-F independent
  * outcome (including unsupported ownership/forks) cannot borrow H-only authority. */
-async function verifyHSource(s:BrowserSyncScope,v:ResolutionInventorySnapshot,h:AuthenticatedHistory,amk:AccountMasterKey,current:()=>boolean,expected?:SourceRoute):Promise<SourceRoute>{
+async function verifyHSource(s:BrowserSyncScope,v:ResolutionInventorySnapshot,h:AuthenticatedHistory,amk:AccountMasterKey,current:()=>boolean,expected?:SourceRoute,mixedValidated=false):Promise<SourceRoute>{
  // Retained post-F sequences cannot disappear and turn a mixed state into an
  // apparent historical-only one. Pre-F historical admission stays unchanged.
  const ordered=[...h.rows].sort((a,b)=>a.server_sequence-b.server_sequence)
@@ -60,7 +60,10 @@ async function verifyHSource(s:BrowserSyncScope,v:ResolutionInventorySnapshot,h:
  if(expected&&selected!==expected)fail('unsupported_local_source')
  if(selected==='historical')await verifyContinuationSources(s,v,h,amk,current)
  else{
-  try{await validateMixedContinuationInventory(s,v,amk,current)}catch(e){
+  try{
+   if(mixedValidated)await validateLegacy3HMixedContinuationInventory(s,v,amk,current,h)
+   else await validateMixedContinuationInventory(s,v,amk,current)
+  }catch(e){
    if(e instanceof BrowserPersistenceError||e instanceof MixedSourceWitnessError)throw e
    fail('corrupt_record') // Decoder/parser errors never expose source plaintext.
   }
@@ -68,6 +71,7 @@ async function verifyHSource(s:BrowserSyncScope,v:ResolutionInventorySnapshot,h:
  return selected
 }
 const route=(n:NoteSyncPlaintext['note'])=>[n.id,n.project_id,n.stage_id,n.source_type,n.source_map_id,n.source_node_id,n.content_format]
+const orderedNotes=<T extends {note_id:string}>(notes:readonly T[])=>[...notes].sort((a,b)=>a.note_id.localeCompare(b.note_id))
 /** Explicit isolated v10 entry. Absent from production persistence/editor/schedulers. */
 export class BrowserResolutionContinuation {
  constructor(private readonly transaction:BrowserSyncTransaction,private readonly local:BrowserLocalAuthority,private readonly current:()=>boolean){}
@@ -83,17 +87,17 @@ export class BrowserResolutionContinuationRuntime {
  }
  private load(s:BrowserSyncScope,current:()=>boolean){return this.transaction<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))}
  async #history(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
-  if(!v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2'))return authenticateContinuationHistory(s,v,amk,current)
+  if(!v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2'))return{history:await authenticateContinuationHistory(s,v,amk,current),mixedValidated:false}
   const token=Object.freeze({}) as HHistoryToken
   historyRequests.set(token,{owner:this,scope:s,inventory:v,amk,current})
-  try{return await authenticateHContinuationHistory(token,this)}finally{historyRequests.delete(token)}
+  try{return{history:await authenticateHContinuationHistory(token,this),mixedValidated:true}}finally{historyRequests.delete(token)}
  }
 
  async prepare(input:BrowserSyncScope,sequence:number):Promise<ResolutionContinuationToken>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   const check=()=>{if(!current())fail('closed')},step=async<T>(p:Promise<T>)=>{const r=await p;check();return r}
   return lease.use(async amk=>{
-   const history=await step(this.#history(s,v,amk,current)),sourceRoute=await step(verifyHSource(s,v,history,amk,current))
+   const authenticated=await step(this.#history(s,v,amk,current)),history=authenticated.history,sourceRoute=await step(verifyHSource(s,v,history,amk,current,undefined,authenticated.mixedValidated))
    const future=readFutureInboxRecord(v.rows.find((r:any)=>r.server_sequence===sequence),s)
    if(future.state!=='received'||future.server_sequence>v.cursor.pull_cursor)fail('conflicting_record')
    if(sourceRoute==='mixed'&&history.rows.some(r=>r.state==='received'&&r.server_sequence<sequence))fail('note_orphan')
@@ -121,7 +125,7 @@ export class BrowserResolutionContinuationRuntime {
    if('deleted_at'in parentNote&&plaintext.mutation!=='delete')fail('unsupported_local_source') // No implicit resurrection.
    if((v.intents as any[]).some(i=>i.project_id===h.project_id&&i.note_id===h.entity_id))fail('unsupported_local_source')
    const source=await step(this.local.readSnapshot(s,h.project_id))
-   if(!same(source.project,v.projects.find((p:any)=>p.project_id===h.project_id))||!same(source.notes,v.localNotes.filter((n:any)=>n.project_id===h.project_id)))fail('stale_source')
+   if(!same(source.project,v.projects.find((p:any)=>p.project_id===h.project_id))||!same(orderedNotes(source.notes),orderedNotes(v.localNotes.filter((n:any)=>n.project_id===h.project_id) as Array<{note_id:string}>)))fail('stale_source')
    const open=history.groups.find(g=>g.effective==='open'&&g.group.project_id===h.project_id&&g.group.note_id===h.entity_id)?.group
    const linear=history.dag.events.get(head.linear_head_event_id)
    const sibling=linear?.record_kind==='candidate'&&linear.header.parent_event_id===h.parent_event_id&&linear.header.revision===h.revision
@@ -158,7 +162,7 @@ export class BrowserResolutionContinuationRuntime {
     for(const values of [predicted.rows,predicted.out,predicted.receipts,predicted.bindings,predicted.owners,predicted.history,predicted.intents,predicted.projects,predicted.localNotes,predicted.checkpoints]){
      if(values.length>MAX_PLANNER_ROWS)fail('source_limit');for(const value of values){try{boundResolutionJson(value,remaining)}catch{fail('source_limit')}const bytes=new TextEncoder().encode(JSON.stringify(value));try{remaining-=bytes.length+2;if(remaining<0)fail('source_limit')}finally{bytes.fill(0)}}
     }
-    const final=await step(this.#history(s,predicted,amk,current));await step(verifyHSource(s,predicted,final,amk,current,sourceRoute))
+    const final=await step(this.#history(s,predicted,amk,current));await step(verifyHSource(s,predicted,final.history,amk,current,sourceRoute,final.mixedValidated))
     p.candidate=candidate;p.head=nextHead;p.group=group;p.nextRow=nextRow
     if(!same(await step(this.load(s,current)),v))fail('stale_source')
     return token
@@ -186,13 +190,13 @@ export class BrowserResolutionContinuationRuntime {
  }
  async history(input:BrowserSyncScope){
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
-  const result=await lease.use(async amk=>{const h=await this.#history(s,v,amk,current);await verifyHSource(s,v,h,amk,current);return{readOnly:true as const,resolutions:h.resolutions.size,ordinary:h.opened.size,closedGroups:h.groups.filter(g=>g.effective==='resolved').length}})
+  const result=await lease.use(async amk=>{const value=await this.#history(s,v,amk,current),h=value.history;await verifyHSource(s,v,h,amk,current,undefined,value.mixedValidated);return{readOnly:true as const,resolutions:h.resolutions.size,ordinary:h.opened.size,closedGroups:h.groups.filter(g=>g.effective==='resolved').length}})
   if(!current()||!same(await this.load(s,current),v))fail('stale_source');return result
  }
  async reconcile(input:BrowserSyncScope,sequence:number):Promise<'already_applied'>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   await lease.use(async amk=>{
-   const h=await this.#history(s,v,amk,current);await verifyHSource(s,v,h,amk,current)
+   const value=await this.#history(s,v,amk,current),h=value.history;await verifyHSource(s,v,h,amk,current,undefined,value.mixedValidated)
    const row=h.rows.find(r=>r.server_sequence===sequence),c=row&&h.dag.events.get(row.event_id)
    if(!row||!['note_proven','content_note_proven','note_conflict_preserved','content_note_conflict_preserved'].includes(row.state)||!c||c.record_kind!=='candidate')fail()
    let parent=c.header.parent_event_id
