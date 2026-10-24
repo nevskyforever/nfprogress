@@ -62,7 +62,8 @@ it('no exported generic flag, invented token or another owner can request Legacy
 it('successful H diagnostics cannot authorize G/Q/K/O/private Metadata',async()=>{
  const f=await setup(),d=f.f,child=await f.receive({protocol:3});await f.runtime.apply(scope,child.sequence)
  const result=await f.runtime.history(scope),before=f.before(),args=[d.auth,d.bindings as never,d.keys as never,f.device] as const,g=new BrowserResolutionPrefix(d.transaction,()=>true),k=new BrowserV10Recovery(d.transaction,d.localOwner,()=>true)
- for(const action of [()=>g.bind(...args).prepare(scope),()=>g.bindMixedSources(...args).prepare(scope),()=>k.bind(...args).run(scope),()=>k.bindMixedSources(...args).run(scope),()=>k.bindPostFMetadata(...args).run(scope),()=>new BrowserV10OrdinaryApply(d.transaction,d.localOwner,()=>true).bind(...args).apply(scope,child.sequence),()=>bindPrivateMetadataPrefix(d.transaction,()=>true,...args).prepare(scope),()=>g.bind(...args).calculate(result as never),()=>d.proven.prepare(scope)])await expect(action()).rejects.toThrow()
+ const gp=g.bind(...args);expect(await gp.calculate(await gp.prepare(scope))).toMatchObject({readOnly:true,ackAuthorized:false,counts:{resolution:1}})
+ for(const action of [()=>g.bindMixedSources(...args).prepare(scope),()=>k.bind(...args).run(scope),()=>k.bindMixedSources(...args).run(scope),()=>k.bindPostFMetadata(...args).run(scope),()=>new BrowserV10OrdinaryApply(d.transaction,d.localOwner,()=>true).bind(...args).apply(scope,child.sequence),()=>bindPrivateMetadataPrefix(d.transaction,()=>true,...args).prepare(scope),()=>g.bind(...args).calculate(result as never),()=>d.proven.prepare(scope)])await expect(action()).rejects.toThrow()
  await expect(authenticateTerminalMetadataResolutions(scope,inventory(f),amk,()=>true)).rejects.toThrow();await expect(authenticateMetadataHandoffResolutions(scope,inventory(f),amk,()=>true,{kind:'durable'})).rejects.toThrow()
  expect(f.before()).toEqual(before)
 })

@@ -78,9 +78,10 @@ function resolutionContinuationFixture(session: Awaited<ReturnType<typeof persis
  }
  return new BrowserResolutionContinuation(transaction,session.localSource,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
-function resolutionPrefixFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
+function resolutionPrefixFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice, loseCompletion=false) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}
- return new BrowserResolutionPrefix((...args)=>internal.syncTransaction(...args),()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
+ const transaction:BrowserSyncTransaction=async(...args)=>{const value=await internal.syncTransaction(...args);if(loseCompletion&&args[2]==='readwrite')throw Error('DISPOSABLE_G_LOST_COMPLETION');return value}
+ return new BrowserResolutionPrefix(transaction,()=>internal.active).bind(meta.auth,meta.bindings,meta.keys,device)
 }
 function noteReaderReadinessFixture(session: Awaited<ReturnType<typeof persistence.openBrowserPersistence>>, meta: Awaited<ReturnType<typeof metadataFixture>>, device: VerifiedBrowserDevice) {
  const internal=session as unknown as {syncTransaction:BrowserSyncTransaction;active:boolean}

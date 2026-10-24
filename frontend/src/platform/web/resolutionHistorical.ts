@@ -1,5 +1,6 @@
 import type {MetadataHandoffInspection} from './historicalMetadataDependency'
 import {consumeHHistoryRequest,type HHistoryToken,type BrowserResolutionContinuationRuntime} from './resolutionContinuation'
+import {consumeGHistoryRequest,type GHistoryToken,type BrowserResolutionPrefixRuntime} from './resolutionPrefix'
 import type {ResolutionInventorySnapshot} from './resolutionPlanner'
 import {decryptObjectBytes,type AccountMasterKey} from '@/crypto'
 import {decodeBase64Url} from '@/api/base64url'
@@ -46,9 +47,15 @@ export async function authenticateContinuationHistory(s:BrowserSyncScope,v:Resol
  const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)
  return authenticateContinuationCore(s,v,amk,current,base,async(row,binding)=>prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row)))
 }
-/** H-only private owner composition. Generic H/G/Q/K/O readers retain T's guard. */
+/** H-only private owner composition. Generic readers retain T's guard. */
 export async function authenticateHContinuationHistory(token:HHistoryToken,owner:BrowserResolutionContinuationRuntime){
- const {scope:s,inventory:v,amk,current}=consumeHHistoryRequest(token,owner)
+ return authenticateOwnedContinuationHistory(consumeHHistoryRequest(token,owner))
+}
+/** G-only composition. H requests, Q/default readers and diagnostics cannot enter. */
+export async function authenticateGContinuationHistory(token:GHistoryToken,owner:BrowserResolutionPrefixRuntime){
+ return authenticateOwnedContinuationHistory(consumeGHistoryRequest(token,owner))
+}
+async function authenticateOwnedContinuationHistory({scope:s,inventory:v,amk,current}:{scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;amk:AccountMasterKey;current:()=>boolean}){
  const base=await authenticateResolutionHistory(s,v,amk,current,MAX_CONTINUATION_MATERIAL_BYTES)
  if(base.resolutions!==1)bad() // This slice accepts one genuine first-generation F.
  return authenticateContinuationCore(s,v,amk,current,base,async(row,binding)=>prepareNotePrerequisite(s,validateBrowserInboxRecord(row,s),binding,amk,current,undefined,continuationDependencyView(v,row)))

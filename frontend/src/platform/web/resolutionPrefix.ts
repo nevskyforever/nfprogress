@@ -1,12 +1,13 @@
 import type {NormalUserAuthRuntime} from '@/auth/userAuth'
 import type {AuthoritativeAccountBinding} from '@/auth/accountBinding'
 import type {RuntimeKeyContext} from '@/auth/keyContext'
+import type {AccountMasterKey} from '@/crypto'
 import {BrowserPersistenceError} from './persistence'
 import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
 import {snapshotBrowserSyncScope,validateBrowserSyncCursor,type BrowserSyncScope,type BrowserSyncTransaction} from './syncDurability'
 import {resolutionInventoryStores,scheduleResolutionInventory,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {readFutureInboxRecord} from './resolutionRecords'
-import {authenticateContinuationHistory,verifyContinuationSources,sameResolutionValue as same} from './resolutionHistorical'
+import {authenticateContinuationHistory,authenticateGContinuationHistory,verifyContinuationSources,sameResolutionValue as same} from './resolutionHistorical'
 import {validateMixedPrefixInventory,MixedSourceWitnessError} from './mixedSourceValidation'
 import {prepareMetadataPrefix,verifiedMetadataSequences,type VerifiedMetadataPrefix} from './metadataPrefixProof'
 import {prepareStagePrefix,stageSequences,type VerifiedStagePrefix} from './stageApply'
@@ -32,7 +33,17 @@ interface Certificate {
 }
 interface CommitPlan {owner:BrowserResolutionPrefixRuntime;certificate:Certificate;result:ResolutionPrefixResult}
 const certificates=new WeakMap<object,Certificate>(),commits=new WeakMap<object,CommitPlan>()
+export interface GHistoryToken {readonly gHistory:unique symbol}
+interface GHistoryRequest {owner:BrowserResolutionPrefixRuntime;scope:BrowserSyncScope;inventory:ResolutionInventorySnapshot;amk:AccountMasterKey;current:()=>boolean}
+const historyRequests=new WeakMap<object,GHistoryRequest>()
 function fail(code:'closed'|'corrupt_record'|'stale_source'|'unsupported_local_source'='corrupt_record'):never{throw new BrowserPersistenceError(code)}
+/** Internal one-use G handoff; only the runtime's JavaScript-private entry mints. */
+export function consumeGHistoryRequest(token:GHistoryToken,owner:BrowserResolutionPrefixRuntime){
+ const p=historyRequests.get(token)
+ if(!p||p.owner!==owner||!p.current())fail('closed')
+ historyRequests.delete(token)
+ return p
+}
 // Module-private, rather than a TypeScript-private instance method which would
 // still expose the mutable capability state to JavaScript callers.
 function certificateFor(owner:BrowserResolutionPrefixRuntime,token:VerifiedResolutionPrefix):Certificate {
@@ -75,7 +86,8 @@ export class BrowserResolutionPrefix {
  bindMixedSources(auth:NormalUserAuthRuntime,bindings:AuthoritativeAccountBinding,keys:RuntimeKeyContext,device:VerifiedBrowserDevice){return new BrowserResolutionPrefixRuntime(this.transaction,this.profileCurrent,auth,bindings,keys,device,true)}
 }
 export class BrowserResolutionPrefixRuntime {
- constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice,private readonly mixedSources=false){}
+ readonly #mixedSources:boolean
+ constructor(private readonly transaction:BrowserSyncTransaction,private readonly profileCurrent:()=>boolean,private readonly auth:NormalUserAuthRuntime,private readonly bindings:AuthoritativeAccountBinding,private readonly keys:RuntimeKeyContext,private readonly device:VerifiedBrowserDevice,mixedSources=false){this.#mixedSources=mixedSources}
  private async guard(s:BrowserSyncScope){
   const initial=this.auth.requireContext(),{context}=await this.bindings.ensureForCurrentUser(s.accountId),lease=this.keys.leaseForAccount(s.accountId)
   const current=()=>this.profileCurrent()&&this.auth.isCurrent(initial)&&this.auth.isCurrent(context)&&!!lease?.isCurrent()&&currentBrowserDevice(this.device,s,this.auth)
@@ -83,18 +95,28 @@ export class BrowserResolutionPrefixRuntime {
   return{lease,current}
  }
  private load(s:BrowserSyncScope,current:()=>boolean){return this.transaction<ResolutionInventorySnapshot>(s,resolutionInventoryStores,'readonly',(tx,result,abort)=>scheduleResolutionInventory(tx,s,current,result,abort))}
+ async #history(s:BrowserSyncScope,v:ResolutionInventorySnapshot,amk:AccountMasterKey,current:()=>boolean){
+  // Q retains the generic rejection until its own mixed source authority is
+  // independently accepted. It can never borrow this default-G request.
+  if(this.#mixedSources||!v.history.some((r:any)=>r.record_kind==='resolution'&&r.protocol_version===3&&r.transport_kind==='legacy_resolution_v2'))return authenticateContinuationHistory(s,v,amk,current)
+  const token=Object.freeze({}) as GHistoryToken
+  historyRequests.set(token,{owner:this,scope:s,inventory:v,amk,current})
+  try{return await authenticateGContinuationHistory(token,this)}finally{historyRequests.delete(token)}
+ }
 
  async prepare(input:BrowserSyncScope):Promise<VerifiedResolutionPrefix>{
   const s=snapshotBrowserSyncScope(input),{lease,current}=await this.guard(s),v=await this.load(s,current)
   const p=await lease.use(async amk=>{
    // Reuse accepted H crypto/closure/DAG authentication. Its
    // public readOnly diagnostics are deliberately NOT accepted as a capability.
-   const h=await authenticateContinuationHistory(s,v,amk,current)
+   const h=await this.#history(s,v,amk,current)
    // Select from authenticated evidence, never by catching a verification error.
    // F/H-only histories keep their accepted ordering and missing-sequence rules.
-   const mixed=this.mixedSources&&[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
+   const needsMixed=[...h.resolutions.values()].some(root=>[...h.dag.events.values()].some(c=>
     c.record_kind==='candidate'&&c.project_id===root.record.project_id&&![root.record.note_id,root.record.retained_note_id].includes(c.note_id)&&
     ((h.rows.find(r=>r.event_id===c.event_id)?.server_sequence??0)>root.record.server_sequence||(c.projection?.source_revision??0)>root.project.source_revision)))
+   if(needsMixed&&!this.#mixedSources&&[...h.resolutions.values()].some(root=>root.record.protocol_version===3&&root.record.transport_kind==='legacy_resolution_v2'))fail('unsupported_local_source')
+   const mixed=this.#mixedSources&&needsMixed
    if(mixed){
     try{await validateMixedPrefixInventory(s,v,amk,current)}catch(e){
      if(e instanceof BrowserPersistenceError||e instanceof MixedSourceWitnessError)throw e

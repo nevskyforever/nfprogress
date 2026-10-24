@@ -18,12 +18,12 @@ import {orderRow} from './stageOrder.testFixture'
 import {BrowserStageOrderApply} from './stageOrderApply'
 /** Actual receive owner, preserving original raw ciphertext and descriptor. */
 export async function receiveLegacyResolutionOn3(f:Awaited<ReturnType<typeof plannerFixture>>){
- const original=f.received
+ const original=f.received,sequence=original.server_sequence
  if(original.protocol_version!==2||JSON.parse(original.wire_item).event.operation!=='resolution')throw Error('genuine raw Legacy fixture required')
  f.f.db.inbox=f.f.db.inbox.filter((r:any)=>r.event_id!==original.event_id)
- ;(f.f.db.cursors[0] as any).pull_cursor=f.sequence-1
- const rawPage=JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[JSON.parse(original.wire_item)],next_cursor:f.sequence,has_more:false})
- await f.f.sync.commitInboundPage(scope,f.sequence-1,rawPage)
+ ;(f.f.db.cursors[0] as any).pull_cursor=sequence-1
+ const rawPage=JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[JSON.parse(original.wire_item)],next_cursor:sequence,has_more:false})
+ await f.f.sync.commitInboundPage(scope,sequence-1,rawPage)
  return rawPage
 }
 export async function plannerFixture(strategy:NoteSyncResolutionV2['resolution']['strategy']='choose_version',count=2,local=false,legacy=false,route?:{stage?:boolean;format?:'html'|'plain';compressed?:boolean;order?:boolean;mixed?:boolean;mixedInventory?:boolean}){

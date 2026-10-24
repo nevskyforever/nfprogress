@@ -5,12 +5,13 @@ import {join} from 'node:path'
 import {chromium} from '@playwright/test'
 import {pathToFileURL} from 'node:url'
 // G reuses this exact genuine F -> transport -> H producer/restart acceptance.
-// The standalone H entry still executes every existing assertion unchanged.
-export async function runResolutionContinuationAcceptance(onHistorical){
+// Standalone H retains its H/old-T acceptance; W supersedes its current-G barrier.
+export async function runResolutionContinuationAcceptance(onHistorical,options={}){
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
 assert.equal(new URL(origin).hostname,'127.0.0.1')
-const legacy3=process.argv.includes('--legacy3'),oldBundle=process.env.C21_OLD_T_BUNDLE
-if(legacy3){assert.equal(onHistorical,undefined);assert.ok(oldBundle);assert.equal((await readFile(join(oldBundle,'baseline.sha'),'utf8')).trim(),'a5c83fadd04be6db7b45e6e5eb5854b922a38e76')}
+const legacy3=options.legacy3??process.argv.includes('--legacy3'),prefixMode=!!options.prefix
+let oldBundle=process.env.C21_OLD_T_BUNDLE
+if(legacy3&&!prefixMode){assert.equal(onHistorical,undefined);assert.ok(oldBundle);assert.equal((await readFile(join(oldBundle,'baseline.sha'),'utf8')).trim(),'a5c83fadd04be6db7b45e6e5eb5854b922a38e76')}
 const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents']
 const errors=[],network=[];let context,page,scope,decisions,registrations=0,faults=0,applied=0,continuations=0,continuationFaults=0,historicalReopens=0,oldReaders=0,uncertain=0,preparedProcessStops=0,hCAS=0,forkFaults=0
 const snapshot=()=>page.evaluate(async names=>Object.fromEntries(await Promise.all(names.map(async n=>[n,await nativeRows(n)]))),names)
@@ -153,6 +154,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   assert.deepEqual(await snapshot(),after);assert.equal(network.length,bookmark)
 
 
+  if(options.onRoot)await options.onRoot({page,snapshot,decisions})
   const child=await page.evaluate(d=>receiveContinuation(d),decisions),received=await snapshot()
   const injectHFaults=async(sequence,conflict=false)=>{
    const stable=await snapshot(),limit=conflict?3:4
@@ -225,7 +227,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   assert.equal(await page.evaluate(async sequence=>{try{await applier.reconcile(s,sequence);return false}catch{return true}},decisions.sequence),true)
   assert.equal(await page.evaluate(async()=>{try{await session.proven.bind(meta.auth,meta.bindings,meta.keys).prepare(s);return false}catch{return true}}),true)
   assert.deepEqual(await snapshot(),progressed)
-  if(legacy3){
+  if(legacy3&&!prefixMode){
    await context.close();copy=await mkdtemp(join(tmpdir(),'c21-old-t-H-copy-'));await cp(directory,copy,{recursive:true});activeDirectory=copy;old=true
    await launch();await bind();assert.deepEqual(await snapshot(),progressed)
    const oldBookmark=network.length
@@ -240,10 +242,16 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
    for(const d of descendants)assert.equal(await page.evaluate(sequence=>continuation.reconcile(s,sequence),d.sequence),'already_applied')
    assert.deepEqual(await snapshot(),progressed)
    const barrierBookmark=network.length
-   const blocked=await page.evaluate(async()=>{try{await prefix.prepare(s);return false}catch{return true}})
-   assert.equal(blocked,true);assert.deepEqual(await snapshot(),progressed);assert.equal(network.length,barrierBookmark)
+   const calculated=await page.evaluate(async()=>prefix.calculate(await prefix.prepare(s)))
+   assert.equal(calculated.counts.resolution,1);assert.equal(calculated.ackAuthorized,false);assert.deepEqual(await snapshot(),progressed);assert.equal(network.length,barrierBookmark)
   }
-  if(onHistorical)await onHistorical({get page(){return page},snapshot,scope,decisions,descendants,progressed,bind,restart:async()=>{await context.close();await launch();await bind()}})
+  if(onHistorical)await onHistorical({get page(){return page},snapshot,scope,decisions,descendants,progressed,bind,restart:async()=>{await context.close();await launch();await bind()},withOldBundle:async(bundle,verifyOld,recover)=>{
+   await context.close();copy=await mkdtemp(join(tmpdir(),'c21-old-u-G-copy-'));await cp(directory,copy,{recursive:true});activeDirectory=copy;old=true
+   const previous=oldBundle;oldBundle=bundle
+   await launch();await bind();await verifyOld()
+   await context.close();old=false;await launch();await bind();await recover()
+   await context.close();await rm(copy,{recursive:true,force:true});copy=undefined;activeDirectory=directory;oldBundle=previous;await launch();await bind()
+  }})
   // No push/ACK occurred before restart either (registration is external setup).
   assert.equal(network.length,registrations)
  }finally{await context?.close();await rm(directory,{recursive:true,force:true});if(copy)await rm(copy,{recursive:true,force:true})}

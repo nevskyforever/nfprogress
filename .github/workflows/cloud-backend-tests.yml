@@ -349,18 +349,24 @@ jobs:
         working-directory: frontend
         run: npm test -- --run src/platform/web/postFMetadataRecovery.spec.ts src/platform/web/privateMetadataPrefix.spec.ts --maxWorkers=1
 
+      # W capacity gate: foundation16m28s +8m new unit envelope +5m reserve <40m.
+      - name: Verify isolated Legacy3 G prefix authority and Q prerequisite
+        if: matrix.shard == 'foundation'
+        working-directory: frontend
+        run: npm test -- --run src/platform/web/legacy3Prefix.spec.ts --maxWorkers=1
+
       - name: Install pinned Chromium for historical Metadata acceptance
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
       - name: Build historical Metadata acceptance harness
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
         working-directory: frontend
         run: npx vite build --config scripts/vite.persistence-acceptance.config.ts
 
       - name: Start historical Metadata acceptance preview
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
         shell: bash
         working-directory: frontend
         run: |
@@ -374,6 +380,32 @@ jobs:
           done
           cat "$RUNNER_TEMP/c21-historical-metadata-preview.log"
           exit 1
+
+      # W capacity gate: content-action14m49s +12m native/setup envelope +5m reserve <40m.
+      # Only setup is shared; every original acceptance retains its original shard.
+      - name: Verify Legacy3 G cursor-only commit, restart and pinned old-U rejection
+        if: matrix.shard == 'content-action'
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYCODE'
+          import os, subprocess, tempfile
+          from pathlib import Path
+          baseline_sha = '22b68493daf304c219bed14f0d8598d65fcc1ee8'
+          subprocess.run(['git', 'fetch', '--no-tags', 'origin', baseline_sha], check=True)
+          with tempfile.TemporaryDirectory(prefix='c21-old-u-g-', dir=os.environ['RUNNER_TEMP']) as directory:
+              old = Path(directory)
+              with tempfile.TemporaryFile() as archive:
+                  subprocess.run(['git', '-C', '..', 'archive', baseline_sha, 'frontend'], stdout=archive, check=True)
+                  archive.seek(0)
+                  subprocess.run(['tar', '-x', '-C', directory], stdin=archive, check=True)
+              (old / 'frontend/node_modules').symlink_to(Path.cwd() / 'node_modules', target_is_directory=True)
+              subprocess.run(['node_modules/.bin/vite', 'build', '--config', 'scripts/vite.persistence-acceptance.config.ts'], cwd=old / 'frontend', check=True)
+              bundle = old / 'frontend/.c21-persistence-dist'
+              (bundle / 'baseline.sha').write_text(baseline_sha + '\n')
+              subprocess.run(['node', 'scripts/browser-resolution-prefix-acceptance.mjs', 'http://127.0.0.1:5174', '--legacy3-prefix'], env=dict(os.environ, C21_OLD_U_BUNDLE=str(bundle)), check=True)
+          PYCODE
 
       - name: Verify read-only historical Metadata dependency and disk reopen
         if: matrix.shard == 'complete-project'
