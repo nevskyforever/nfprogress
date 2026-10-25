@@ -38,6 +38,44 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — MVP6.0.10 checkpoint merge / isolated VPS restore drill
+
+Starting `6.0` and `origin/6.0`: `5b87250dad98b4fb6e46237ef1aee22d91429b42`,
+clean. The previously accepted model-economy docs commit
+`5e9aab5168a714336d12e1183feb0907708398ef` was cherry-picked without conflict;
+the policy above is now part of `6.0`.
+
+The existing SpaceWeb staging service was inactive and disabled before the
+drill. A fresh current-state PostgreSQL dump and matched blob archive were
+captured in the root-only directory
+`/var/lib/worta/staging/tmp/mvp610-restore-20261025T202011Z`; the earlier
+MVP6.0.09 pre-migration archive was checksum-verified and left untouched. The
+current `worta_stage` database had 18 tables at Alembic head
+`private_invitations`, zero users/invitations/projects/blob metadata, and
+registration `closed`. Its separate temporary restore matched all 18 table row
+counts and the 102-constraint/29-index/154-column structural inventories.
+Synthetic database readback passed and its fixture was removed from the restore
+target.
+
+The actual encrypted-blob root and its archive were empty. A separate
+synthetic opaque-byte fixture using the installed blob-store implementation
+passed repeated restore, SHA-256 verification, missing/corrupt refusal and
+recovery. No key or real client data was used. The temporary restore database
+and synthetic harness were cleaned after recording evidence; the matched
+current-state backup and empty restored-blob directory remain in the private
+VPS evidence directory. The original staging DB/blob roots were not changed or
+switched. SSH, PostgreSQL and Caddy remained active; no ports or service
+configuration changed. Full hashes and exact scope are in
+[`MVP6_0_10_RESTORE_DRILL.md`](infra/MVP6_0_10_RESTORE_DRILL.md).
+
+This does **not** close C23: no approved off-host destination or real blob
+backup was available, and paired-client key recovery was not exercised. C21
+reader/writer acceptance and C22 security review remain open. Tester access
+stays closed, registration CLOSED, Note reader/writer/ACK disabled, Web remains
+**89.36%**, and PUBLIC RELEASE BLOCKED. Next minimum stage: obtain owner approval
+for an independent backup destination and perform a C23 matched restore with
+the approved client-recovery procedure, after C21/C22 acceptance.
+
 ## 2026-10-25 — MVP6.0.07 VPS access / isolated staging / restore readiness
 
 **READ-ONLY VPS AUDIT SUCCESS / LOCAL RESTORE PREFLIGHT PASS / NO DEPLOYMENT.**

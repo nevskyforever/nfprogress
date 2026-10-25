@@ -446,6 +446,43 @@ testing. Public registration remains CLOSED and official Web progress remains
 **89.36%**. The docs-only publication is not expected to trigger automatic
 GitHub Actions under current path filters; this is a static expectation.
 
+## MVP6.0.10 — isolated staging restore drill (2026-10-26)
+
+The accepted Codex model-economy policy from commit
+`5e9aab5168a714336d12e1183feb0907708398ef` was cherry-picked into `6.0` as a
+docs-only checkpoint change. The resulting policy is in
+[`WORTA_CHECKPOINT.md`](WORTA_CHECKPOINT.md).
+
+With the existing `worta-staging.service` stopped and disabled, a matched
+PostgreSQL custom dump and blob archive were captured under a new root-only
+MVP6.0.10 evidence directory. The pre-existing MVP6.0.09 dump was hash-checked
+and left untouched; it represents the older empty pre-migration state. The
+current migrated `worta_stage` database was restored into a separate temporary
+database. Its Alembic head, all 18 table row counts, 102 constraints, 29 indexes,
+154 columns, CLOSED registration mode, and zero users/invitations/projects/blob
+rows matched the source. A synthetic database value was read back and removed
+only in the restored target.
+
+The actual staging blob root contained zero files. A separate harness using the
+installed, repository-matching blob-store module restored 256 opaque synthetic
+bytes repeatedly, rejected missing and corrupted copies, and recovered from
+the fixture archive. It stored no encryption key and is not a real client/E2EE
+restore. The temporary restore database and harness files were cleaned after
+the evidence was recorded; the matched current DB/blob archives and empty blob
+restore copy remain on the VPS in a private evidence directory. No off-host
+backup destination was approved or used. The active staging database was not
+modified or switched; SSH, PostgreSQL, and Caddy remained active, and no public
+network service was opened.
+
+MVP6.0.10 is a technical rehearsal, **not C23 acceptance**. C23 still requires
+an approved independent backup destination and retention/RPO/RTO, off-host
+matched DB plus actual encrypted blobs, and paired-client recovery with the
+existing keys. C21 reader/writer acceptance and C22 security review remain
+open. The staging service stays stopped; tester access stays closed, public
+registration stays CLOSED, Web remains **89.36%**, and public release remains
+blocked. Full details and hashes are in
+[`MVP6_0_10_RESTORE_DRILL.md`](infra/MVP6_0_10_RESTORE_DRILL.md).
+
 ## Acceptance checklist — restricted MVP
 
 - [ ] Existing authorized account signs in on desktop and browser; both unlock
