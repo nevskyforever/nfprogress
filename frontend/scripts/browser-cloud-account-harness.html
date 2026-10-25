@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Browser cloud account acceptance</title></head>
+<body>
+<script type="module">
+import { BrowserCloudAccountSession } from '../src/platform/web/cloudAccountSession.ts'
+import { NormalUserAuthRuntime } from '../src/auth/userAuth.ts'
+import { generateAccountMasterKey, wrapAmkWithPassphrase } from '../src/crypto/index.ts'
+import { encodeBase64Url } from '../src/api/base64url.ts'
+
+const users = {
+  one: '11111111-1111-4111-8111-111111111111',
+  two: '22222222-2222-4222-8222-222222222222',
+}
+const harness = {
+  records: {},
+  failCrypto: false,
+  pauseCrypto: false,
+  resumeCrypto: null,
+  async createRecords() {
+    for (const name of Object.keys(users)) {
+      const amk = await generateAccountMasterKey()
+      try {
+        const wrapped = await wrapAmkWithPassphrase(amk, 'encryption-password')
+        this.records[name] = {
+          provisioned: true,
+          password: {
+            crypto_version: wrapped.crypto_version,
+            wrapping_version: wrapped.wrapping_version,
+            kdf: { ...wrapped.kdf, salt: encodeBase64Url(wrapped.kdf.salt) },
+            nonce: encodeBase64Url(wrapped.nonce),
+            ciphertext: encodeBase64Url(wrapped.ciphertext),
+          },
+          recovery: null,
+        }
+      } finally { amk.fill(0) }
+    }
+    return structuredClone(this.records)
+  },
+  realSession() { return new BrowserCloudAccountSession() },
+  session() {
+    const auth = new NormalUserAuthRuntime({
+      async login(name, password) {
+        if (!(name in users) || password !== 'account-password') throw Error('synthetic_login_rejected')
+        return { access_token: `synthetic-access-${name}`, refresh_token: `synthetic-refresh-${name}`, access_expires_in: 60 }
+      },
+      async me(token) {
+        const name = token.slice('synthetic-access-'.length)
+        return { id: users[name], username: name, email: `${name}@example.test`, email_verified: true, role: 'user', status: 'active', created_at: '2026-01-01T00:00:00Z' }
+      },
+      async logout() {},
+      async refresh() { throw Error('refresh_not_used') },
+    })
+    return new BrowserCloudAccountSession({
+      auth,
+      cryptoTransport: { get: async token => {
+        if (harness.pauseCrypto) await new Promise(resolve => { harness.resumeCrypto = resolve })
+        if (harness.failCrypto) throw Error('synthetic_network_failure')
+        return harness.records[token.slice('synthetic-access-'.length)]
+      } },
+    })
+  },
+  async rows(store) {
+    const request = indexedDB.open('worta-web')
+    const db = await new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error) })
+    try {
+      return await new Promise((resolve, reject) => {
+        const read = db.transaction(store).objectStore(store).getAll()
+        read.onsuccess = () => resolve(read.result)
+        read.onerror = () => reject(read.error)
+      })
+    } finally { db.close() }
+  },
+}
+window.harness = harness
+</script>
+</body>
+</html>

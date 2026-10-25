@@ -84,6 +84,10 @@ describe('SettingsPage', () => {
   })
 
   it('shows platform-editable controls only and persists a backend-authoritative patch', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue({
+      ...webSettings,
+      capabilities: { ...webSettings.capabilities, developer_mode_available: true },
+    })
     const wrapper = mount(SettingsPage, {
       global: {
         plugins: [createPinia()],
@@ -102,6 +106,8 @@ describe('SettingsPage', () => {
     expect(wrapper.find('#settings-written-today').exists()).toBe(true)
     expect(wrapper.find('#settings-notification-time').exists()).toBe(true)
     expect(wrapper.find('#settings-motion').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="browser-cloud-account"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="browser-cloud-account"]').text()).toContain('Синхронизация отключена')
     expect(wrapper.text()).toContain('Автор: nevskyforever / nfproject')
     await wrapper.get('#settings-game-mode').setValue(true)
     await wrapper.get('#settings-notification-time').setValue(20)
@@ -135,6 +141,7 @@ describe('SettingsPage', () => {
     await flushPromises()
 
     expect(wrapper.find('#settings-background-sync').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="browser-cloud-account"]').exists()).toBe(false)
     expect(wrapper.find('#settings-check-updates').exists()).toBe(true)
     expect(wrapper.text()).toContain('Подписанные обновления проверяются автоматически')
   })
@@ -178,6 +185,7 @@ describe('SettingsPage', () => {
 
     expect(wrapper.text()).toContain('Версия nfprogress 5.3.9')
     expect(wrapper.text()).not.toContain('Версия nfprogress 5.0')
+    expect(wrapper.find('[data-testid="browser-cloud-account"]').exists()).toBe(false)
   })
 
   it('shows an unknown marker when runtime version is unavailable', async () => {

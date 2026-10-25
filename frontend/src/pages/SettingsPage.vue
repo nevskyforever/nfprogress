@@ -15,6 +15,7 @@ import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
 import DeveloperModeDialog from '@/components/developer/DeveloperModeDialog.vue'
 import CloudSyncSettingsCard from '@/components/settings/CloudSyncSettingsCard.vue'
+import BrowserCloudAccountCard from '@/components/settings/BrowserCloudAccountCard.vue'
 import DiagnosticsCard from '@/components/settings/DiagnosticsCard.vue'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
@@ -23,7 +24,7 @@ import { useMotionStore, type MotionPreference } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
 import { useUpdaterStore } from '@/stores/updater'
-import { supportsUpdateChecks } from '@/platform/runtime'
+import { currentPlatform, supportsUpdateChecks } from '@/platform/runtime'
 import type {
   FrontendMotion,
   FrontendTheme,
@@ -89,6 +90,8 @@ const form = reactive<SettingsForm>({
 
 const editable = computed(() => new Set<SettingKey>(response.value?.editable_keys ?? []))
 const isDesktop = computed(() => response.value?.platform === 'desktop')
+const isTestWeb = computed(() => import.meta.env.DEV && currentPlatform() === 'web'
+  && response.value?.platform === 'web' && response.value.capabilities.developer_mode_available === true)
 const updaterAvailable = computed(() => isDesktop.value && supportsUpdateChecks())
 const developerAvailable = computed(
   () => response.value?.capabilities.developer_mode_available === true,
@@ -258,6 +261,7 @@ onBeforeUnmount(() => controller.abort())
 
           <div class="settings-groups">
             <CloudSyncSettingsCard v-if="isDesktop" />
+            <BrowserCloudAccountCard v-if="isTestWeb" />
             <DiagnosticsCard v-if="isDesktop" />
 
             <section class="settings-card" aria-labelledby="appearance-settings-title">

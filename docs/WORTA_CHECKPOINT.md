@@ -1,5 +1,32 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-25 — MVP6.0.02 browser E2EE account session
+
+**LOCAL COMPLETE / REMOTE CI PENDING.** Starting `6.0` and `origin/6.0` matched
+`ad3351a9d8205e1cba7731e4a829bf4386061bc7`, with a clean worktree. A
+development Web settings card now composes normal-user HTTP login, existing
+account-crypto lookup, the accepted IndexedDB identity/binding and writer lock,
+and the existing client-side AMK unwrap. It supports authenticated, unlocked,
+locked and error states; lock/logout release the writer and invalidate leases.
+The card requires Vite development mode plus the backend's developer-mode Web
+capability. It does not connect the plaintext compatibility Web bootstrap to
+encrypted Note storage or enable Note actions.
+
+Local evidence: real persistent Chromium profile PASS (1.31s) with controlled
+synthetic HTTP responses, genuine AMK unwrap, wrong-password rejection,
+second-tab writer contention, full profile restart identity reuse, account
+isolation, stale response/logout, unavailable Web Locks, corrupt IndexedDB
+refusal without deletion, and no Note/capability/ACK calls. Five focused test
+files passed 24/24 (6.00s); typecheck and production build passed (16.02s);
+affected ESLint and diff checks passed. See
+[MVP6.0.02 plan/status](WORTA_6_0_MVP.md). Cloud is selected by the
+`frontend/src/**` workflow filter; no Actions polling was performed. The
+independent C21.2.08Y acceptance requirement remains separate.
+
+Web89.36%, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED and PUBLIC RELEASE BLOCKED.
+C21/C21.2, C22/C23/PF6.0/RC, VPS/landing and every release gate remain.
+
 ## 2026-10-24 — owner priority: Web + cloud sync first
 
 The owner-authorized MVP priority is now a restricted, usable desktop↔Web
