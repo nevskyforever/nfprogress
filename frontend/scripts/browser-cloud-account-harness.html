@@ -2,8 +2,12 @@
 <html lang="en">
 <head><meta charset="UTF-8"><title>Browser cloud account acceptance</title></head>
 <body>
+<div id="app"></div>
 <script type="module">
+import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import { BrowserCloudAccountSession } from '../src/platform/web/cloudAccountSession.ts'
+import BrowserCloudAccountCard from '../src/components/settings/BrowserCloudAccountCard.vue'
 import { NormalUserAuthRuntime } from '../src/auth/userAuth.ts'
 import { generateAccountMasterKey, wrapAmkWithPassphrase } from '../src/crypto/index.ts'
 import { encodeBase64Url } from '../src/api/base64url.ts'
@@ -14,6 +18,7 @@ const users = {
 }
 const harness = {
   records: {},
+  cardApp: null,
   failCrypto: false,
   pauseCrypto: false,
   resumeCrypto: null,
@@ -38,6 +43,13 @@ const harness = {
     return structuredClone(this.records)
   },
   realSession() { return new BrowserCloudAccountSession() },
+  mountAccountCard() {
+    this.cardApp?.unmount()
+    this.cardApp = createApp(BrowserCloudAccountCard)
+    this.cardApp.use(createPinia())
+    this.cardApp.mount(document.querySelector('#app'))
+  },
+  unmountAccountCard() { this.cardApp?.unmount(); this.cardApp = null },
   session() {
     const auth = new NormalUserAuthRuntime({
       async login(name, password) {

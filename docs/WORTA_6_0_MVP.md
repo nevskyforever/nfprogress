@@ -3,16 +3,19 @@
 **Owner priority:** restricted Web + desktop encrypted writing; frozen C21 reader,
 security, backup/restore, CI, and public-release gates remain.
 
-**Current practical browser milestone: MVP6.0.11.** A development Web account
-session now composes normal-user login, existing account-key lookup, durable
-IndexedDB account/device identity, exact binding, and client-side AMK unlock.
-It supports lock, logout and same-profile reopen. MVP6.0.11 additionally composes
-that unlocked session with the pre-existing C21 local authority for encrypted
-IndexedDB project/Note source records. A real Chromium acceptance verified
-ciphertext-only persistence across profile restart, account separation, lock
-revocation and cross-tab storage exclusion. This is an internal development
-composition: the Vue writing flow still uses the plaintext compatibility API and
-does not read or write these encrypted local Note records. Web Note sync remains
+**Current practical browser milestone: MVP6.0.12.** The development Web account
+session composes normal-user login, account-key lookup, durable IndexedDB
+account/device identity, exact binding, and client-side AMK unlock. After unlock,
+the explicitly separate encrypted workspace can create one local project and
+create, read, edit, and autosave Notes through the existing C21
+`BrowserLocalAuthority`. Ciphertext stays in the existing account-scoped
+IndexedDB schema and survives a persistent-profile restart. The workspace is
+shown only in the approved Web developer profile; it is labelled local-only and
+does not import compatibility projects. Lock/logout removes the editor.
+Chromium acceptance covered wrong and correct unlock, a second-tab writer lock,
+close during a save, damaged-record preservation and lock revocation. The
+ordinary compatibility editor remains a separate plaintext-API path; no
+automatic import or fallback connects it to this workspace. Web Note sync remains
 disabled. The account card still requires a Vite development build and a Web
 backend that reports developer mode.
 
@@ -50,8 +53,8 @@ requires every registered device to truthfully satisfy the frozen Note predicate
 | Area | Existing tested component | Connected working user flow |
 | --- | --- | --- |
 | Desktop Notes | Native SQLite Notes and durable encrypted sync capture/seal/upload/pull/apply/ACK owners; bounded restart/conflict evidence | Desktop cloud session is Tauri-only; no accepted real backend + Web + desktop writing round trip |
-| Browser writing | Vue Web runtime and plaintext compatibility repositories; C21 local authority now seals project/Note source data into account-scoped IndexedDB using the unlocked AMK | Encrypted local repository is not yet wired to the user-facing editor; current Web writing still uses plaintext compatibility storage |
-| Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock now supplies a guarded scope to the existing local encrypted source | No production Web bootstrap, user-facing encrypted local Note flow, or browser cloud sync; lock/logout invalidates retained repository handles |
+| Browser writing | Separate developer-only encrypted workspace backed by C21 local authority and IndexedDB; create/read/edit/autosave local project Notes after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and is not synced |
+| Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock supplies a guarded scope to the MVP6.0.12 local encrypted editor | No production Web bootstrap or browser cloud sync; lock/logout invalidates retained repository handles |
 | Private account access | Existing administrator role checks and MVP6.0.03 invite issuance/acceptance, revocation and expiry have local PostgreSQL/browser evidence | No production backend deployment, live invitation delivery or owner-authorized tester onboarding |
 | Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
 | Note readers | Bounded F/H/G/Q/J/K/O owners and ordinary Legacy/Content readers have local evidence; Y is published, remote acceptance pending | No full v10 production dispatch/replay/recovery path; readiness is deliberately negative |
@@ -66,7 +69,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | User goal | Already works | Missing | Exact blocker | Next action |
 | --- | --- | --- | --- | --- |
 | Desktop local writing | Existing Tauri editor and SQLite | MVP smoke evidence on selected build | No MVP-specific baseline evidence in current records | Record exact build/profile and local-save restart result |
-| Browser local encrypted project/Note storage | MVP6.0.11 session-scoped composition with existing C21 local authority; encrypted IndexedDB rows, reopen, account separation and lock revocation passed Chromium acceptance | User-facing Web editor wiring and explicit treatment of existing compatibility data | Current Vue repositories still use the plaintext compatibility API; the internal encrypted repository is not a user-available feature | Wire a local-only Web editor flow to the repository without activating cloud writer/reader or deleting/migrating unknown records |
+| Browser local encrypted project/Note storage | MVP6.0.12 developer-only local editor uses C21 authority for create/read/edit/autosave; ciphertext survives persistent-profile restart and lock/logout revokes access | Deliberate compatibility-data migration/import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Keep the two modes explicit; complete C21 truthful reader/writer gate before any sync flow |
 | Account login and encryption | Backend auth, desktop key owners and MVP6.0.02 development Web login/unlock | Production Web bootstrap and sync composition | `cloudSession` remains Tauri-only; test Web card runs behind the development boundary | Keep account session isolated; connect durable Note path only after reader acceptance |
 | Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim and admin status/revocation | Deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed; invite link cannot be issued to real testers yet | Review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
 | Browser cloud upload and inbound apply | Encrypted APIs and bounded browser reader/apply owners | Production routing, complete reader lifecycle | Note gate requires all six fields; production dispatch/replay and histories incomplete | Implement the next accepted C21.2.08 reader slice; keep declaration off |
@@ -525,6 +528,50 @@ reader/writer gates and production dispatch/replay, then C22 review and C23
 paired-client restore acceptance. Registration remains CLOSED, Web remains
 **89.36%**, `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
 and PUBLIC RELEASE BLOCKED.
+
+## MVP6.0.12 — Web editor over local encrypted workspace (2026-10-26)
+
+The existing Web settings account card now exposes a separate encrypted local
+workspace only after successful unlock and only in the pre-existing Web
+developer profile. It creates one explicitly named local test project and lets
+the user create, read, edit, autosave, pin/archive, color, and tombstone-delete
+its Notes through the C21 `BrowserLocalAuthority`. The existing IndexedDB schema,
+scope, encryption, account binding, and browser writer lock are reused. A save is
+reported complete only after its source operation and subsequent authenticated
+decryption/readback finish. A failed autosave stays visible and its close action
+retries the write instead of discarding the edit. Lock/logout closes the
+workspace. Damaged rows remain stored and produce an error.
+
+This workspace does not connect to or import from the ordinary compatibility
+editor, which continues to use the legacy plaintext API. There is no automatic
+migration, mixed repository, hidden fallback, cloud Note upload, ACK, reader
+declaration, or Mac↔Web synchronization. Workspace records contain ciphertext;
+the visible editor necessarily holds the current note plaintext in memory only
+while unlocked. No plaintext note, password, or decrypted AMK is written to
+IndexedDB or localStorage by this flow.
+
+Focused Vue tests, typecheck, production build, and targeted ESLint passed. Real
+Chromium with a persistent profile verified account login, wrong/correct AMK
+unlock, creation/edit/autosave, restart and re-open, two-tab writer exclusion,
+second-account isolation in the same profile, close during an in-flight save
+(the recovered row was complete and consistent), lock revocation, damaged
+ciphertext preservation, and absence of plaintext or secret material in
+persistent stores. API traffic was limited to the pre-existing
+login, account, crypto, and logout routes. This remains a developer-only local
+feature, not cloud sync. Web remains **89.36%**, registration CLOSED,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, and PUBLIC
+RELEASE BLOCKED.
+
+The repository localization test was also run and still fails on 27 pre-existing
+untranslated catalog keys per target language (the baseline contains 47 such
+keys). The new workspace strings and generated locale files were separately
+verified in all six supported languages; unrelated old catalog gaps were not
+expanded into this stage.
+
+The smallest next synchronization step is to continue the already-frozen C21
+truthful Note reader/writer gate and production dispatch/replay work with all
+declaration, writer authorization, and ACK disabled. Mac↔Web sync still also
+requires C22 security review and C23 paired-client backup/restore acceptance.
 
 ## Acceptance checklist — restricted MVP
 

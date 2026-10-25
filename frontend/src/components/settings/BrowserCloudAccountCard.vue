@@ -8,6 +8,7 @@ import { BrowserCloudAccountSession } from '@/platform/web/cloudAccountSession'
 import { BrowserPersistenceError } from '@/platform/web/persistence'
 import { useLocaleStore } from '@/stores/locale'
 import type { SupportedLanguage } from '@/types/api'
+import BrowserEncryptedWorkspace from './BrowserEncryptedWorkspace.vue'
 
 const copy: Record<SupportedLanguage, { unlocked: string; badPassword: string; writerBusy: string; storageUnavailable: string }> = {
   ru: { unlocked: 'Ключ шифрования разблокирован.', badPassword: 'Не удалось разблокировать ключ. Проверьте пароль шифрования.', writerBusy: 'Другая вкладка использует защищённое хранилище. Закройте её и повторите попытку.', storageUnavailable: 'Защищённое хранилище браузера недоступно.' },
@@ -29,6 +30,7 @@ const encryptionPasswordInput = ref<HTMLInputElement | null>(null)
 const connectedUsername = ref<string | null>(null)
 const busy = ref(false)
 const error = ref<string | null>(null)
+const workspaceOpen = ref(false)
 
 function refresh(): void {
   status.value = session.status
@@ -52,6 +54,7 @@ function safeError(value: unknown, action: 'login' | 'unlock'): string {
 
 async function act(action: 'login' | 'unlock' | 'lock' | 'logout', operation: () => Promise<unknown>): Promise<void> {
   if (busy.value) return
+  if (action === 'lock' || action === 'logout') workspaceOpen.value = false
   busy.value = true
   error.value = null
   try { await operation() }
@@ -111,8 +114,12 @@ onBeforeUnmount(() => {
         <button class="nf-button" type="submit" :disabled="busy">{{ t('Разблокировать') }}</button>
       </form>
       <button v-if="status === 'unlocked'" class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="lock">{{ t('Заблокировать ключ') }}</button>
+      <button v-if="status === 'unlocked'" class="nf-button" type="button" :disabled="busy" @click="workspaceOpen = !workspaceOpen">
+        {{ workspaceOpen ? t('Закрыть рабочее пространство') : t('Открыть зашифрованное локальное пространство') }}
+      </button>
       <button class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="logout">{{ t('Выйти из аккаунта') }}</button>
     </div>
+    <BrowserEncryptedWorkspace v-if="status === 'unlocked' && workspaceOpen" :session="session" @close="workspaceOpen = false" />
   </section>
 </template>
 

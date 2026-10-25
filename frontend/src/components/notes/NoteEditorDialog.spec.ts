@@ -1,11 +1,13 @@
 import { createPinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { noteFixture } from '@/test/noteFixtures'
 
 import NoteEditorDialog from './NoteEditorDialog.vue'
+
+afterEach(() => vi.useRealTimers())
 
 let presentDeferredModal: (() => void) | undefined
 let mountDeferredModalContent: (() => void) | undefined
@@ -102,5 +104,72 @@ describe('NoteEditorDialog', () => {
     expect(wrapper.emitted('close')).toHaveLength(1)
     expect(wrapper.emitted('dismissed')).toHaveLength(1)
     expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('debounces encrypted-workspace autosave and emits the full note patch', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(NoteEditorDialog, {
+      props: { open: true, note: noteFixture(), autosave: true },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonModal: DeferredIonModal,
+          IonContent: { template: '<div><slot /></div>' },
+          IonHeader: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+        },
+      },
+    })
+    mountDeferredModalContent?.()
+    await flushPromises()
+    presentDeferredModal?.()
+    await flushPromises()
+    await wrapper.get('input[name="title"]').setValue('Autosaved title')
+    const editor = wrapper.get('.note-content-editor')
+    editor.element.innerHTML = '<p>Autosaved body</p>'
+    await editor.trigger('input')
+    await flushPromises()
+    expect(wrapper.emitted('autosave')).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+    expect(wrapper.emitted('autosave')?.[0]).toEqual([
+      'note-id',
+      expect.objectContaining({ title: 'Autosaved title', content: '<p>Autosaved body</p>' }),
+    ])
+    expect(wrapper.emitted('autosaveStatus')?.map(([status]) => status)).toEqual(['pending', 'pending', 'saving'])
+    wrapper.unmount()
+  })
+
+  it('keeps failed autosave edits open and retries before closing', async () => {
+    vi.useFakeTimers()
+    const wrapper = mount(NoteEditorDialog, {
+      props: { open: true, note: noteFixture(), autosave: true },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonModal: DeferredIonModal,
+          IonContent: { template: '<div><slot /></div>' },
+          IonHeader: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+        },
+      },
+    })
+    mountDeferredModalContent?.()
+    await flushPromises()
+    presentDeferredModal?.()
+    await flushPromises()
+    await wrapper.get('input[name="title"]').setValue('Retry this title')
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+    expect(wrapper.emitted('autosave')).toHaveLength(1)
+
+    await wrapper.setProps({ autosaveStatus: 'error' })
+    expect(wrapper.get('.note-form__autosave').text()).toBe('Не удалось сохранить изменения.')
+    await wrapper.get('button[aria-label="Закрыть"]').trigger('click')
+    expect(wrapper.emitted('autosave')).toHaveLength(2)
+    expect(wrapper.emitted('close')).toBeUndefined()
+    wrapper.unmount()
   })
 })

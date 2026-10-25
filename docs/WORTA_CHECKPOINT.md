@@ -38,6 +38,58 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — MVP6.0.12 Web editor over local encrypted workspace
+
+Accepted precondition supplied by the owner: MVP6.0.11 Cloud run
+`40231866841`, 6/6 SUCCESS. Starting `6.0` and `origin/6.0` were
+`0eea9b6eea551d4cadce111cf78a8498542319ef`, clean. No Actions were queried.
+
+The existing Web developer account card now offers a separate local encrypted
+workspace after successful unlock. It reuses C21 `BrowserLocalAuthority`, its
+IndexedDB schema, account/device scope, AMK lease and cross-tab writer lock. The
+workspace creates one reserved local test project and supports Note create,
+read, edit, autosave, pin/archive, color and tombstone delete. It keeps a
+write-success message behind completion of the local repository mutation and
+readback. Failed autosave stays visible, and closing retries the write instead
+of discarding the edit. Lock/logout closes the workspace; a corrupt Note remains
+stored and is surfaced as an error. It is available only under the existing Web
+developer profile and is clearly labelled local-only.
+
+The legacy compatibility editor and API remain separate. No data is imported,
+copied, deleted or silently routed between repositories, and encrypted errors
+do not fall back to plaintext. The feature does not write plaintext, passwords,
+or decrypted AMK to persistent browser storage. The visible editor necessarily
+holds the current Note plaintext in memory while unlocked. Chromium persistent
+profile acceptance covered login, wrong/correct unlock, workspace project/Note
+creation and editing, autosave, profile restart/reopen, close during an
+in-flight write with a complete recovered row, lock revocation, second-tab
+writer exclusion, a second account in the same profile seeing no first-account
+project, corrupt ciphertext preservation, and raw IndexedDB plaintext checks.
+Only existing login/account/crypto/logout routes were called; no Note
+upload, ACK, writer activation, reader declaration or sync request occurred.
+
+Checks: focused Vue specs **9 passed** across `NoteEditorDialog`,
+`BrowserEncryptedWorkspace`, and `BrowserCloudAccountCard`; TypeScript typecheck
+passed; targeted ESLint passed for changed Vue/TS/acceptance source (the HTML
+harness is not covered by ESLint configuration); Chromium acceptance passed.
+Production Vite build passed with existing large-chunk and ineffective-dynamic-
+import warnings. New workspace strings were added to canonical translation
+overrides and generated locale exports for Russian, English, Spanish, German,
+French and Brazilian Portuguese; export consistency and six-language key checks
+passed. `tests/test_localization.py` was run but remains red on pre-existing
+catalog gaps: 27 untranslated historical strings per target language remain
+(the baseline has 47). The new workspace strings are present in every locale;
+no unrelated catalog translations were edited to mask that baseline debt.
+
+The legacy editor remains on its plaintext compatibility API; the new encrypted
+workspace is not synchronized. Web stays **89.36%**, registration CLOSED,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, and PUBLIC
+RELEASE BLOCKED. C21 truthful reader/writer acceptance and production
+dispatch/replay remain the first sync blockers; C22 security review and C23
+paired-client backup/restore acceptance remain mandatory. The smallest next
+step is the next frozen C21 reader-gate slice, keeping declaration, writer and
+ACK disabled.
+
 ## 2026-10-26 — MVP6.0.11 Web encrypted local Note persistence
 
 Starting `6.0` and `origin/6.0`: `aec2318192531630c5860475adcc367eb3c174a6`,

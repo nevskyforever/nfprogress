@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue'
 import { addOutline, closeOutline, trashOutline } from 'ionicons/icons'
 
@@ -13,10 +13,14 @@ const props = withDefaults(
     note: ProjectNote | null
     submitting?: boolean
     apiError?: string | null
+    autosave?: boolean
+    autosaveStatus?: 'idle' | 'pending' | 'saving' | 'saved' | 'error'
   }>(),
   {
     submitting: false,
     apiError: null,
+    autosave: false,
+    autosaveStatus: 'idle',
   },
 )
 
@@ -24,6 +28,8 @@ const emit = defineEmits<{
   close: []
   dismissed: []
   submit: [noteId: string, patch: ProjectNotePatch]
+  autosave: [noteId: string, patch: ProjectNotePatch]
+  autosaveStatus: [status: 'pending' | 'saving']
 }>()
 
 const locale = useLocaleStore()
@@ -37,6 +43,39 @@ const form = reactive({
   color: 'default',
   checklist: [] as NoteChecklistItem[],
 })
+let autosaveTimer: ReturnType<typeof setTimeout> | undefined
+let lastAutosaveSignature = ''
+
+function signature(): string {
+  return JSON.stringify([form.title, form.content, form.tags, form.color, form.checklist])
+}
+
+function createPatch(): ProjectNotePatch {
+  const patch: ProjectNotePatch = {
+    title: form.title,
+    content: form.content,
+    tags: normalizedTags(),
+    color: form.color,
+  }
+  if (props.note?.source_type === 'project') patch.checklist = form.checklist.filter((item) => item.text.trim())
+  return patch
+}
+
+function clearAutosave(): void {
+  if (autosaveTimer) clearTimeout(autosaveTimer)
+  autosaveTimer = undefined
+}
+
+function flushAutosave(): boolean {
+  if (!props.autosave || !props.note || !editorReady.value) return false
+  const current = signature()
+  if (current === lastAutosaveSignature && props.autosaveStatus !== 'error') return false
+  clearAutosave()
+  lastAutosaveSignature = current
+  emit('autosaveStatus', 'saving')
+  emit('autosave', props.note.id, createPatch())
+  return true
+}
 
 function reset(): void {
   const note = props.note
@@ -56,6 +95,7 @@ async function hydrateEditor(): Promise<void> {
   if (props.note.source_type === 'mindmap' || props.note.content_format === 'plain') editor.textContent = form.content
   else editor.innerHTML = form.content
   editorReady.value = true
+  lastAutosaveSignature = signature()
   editor.focus()
 }
 
@@ -81,20 +121,15 @@ function normalizedTags(): string[] {
 
 function submit(): void {
   if (!props.note || props.submitting || !editorReady.value) return
-  const patch: ProjectNotePatch = {
-    title: form.title,
-    content: form.content,
-    tags: normalizedTags(),
-    color: form.color,
-  }
-  if (props.note.source_type === 'project') {
-    patch.checklist = form.checklist.filter((item) => item.text.trim())
-  }
-  emit('submit', props.note.id, patch)
+  clearAutosave()
+  emit('submit', props.note.id, createPatch())
 }
 
 function requestClose(): void {
-  if (!props.submitting) emit('close')
+  if (props.submitting) return
+  if (flushAutosave()) return
+  clearAutosave()
+  emit('close')
 }
 
 function handleDismiss(): void {
@@ -104,17 +139,41 @@ function handleDismiss(): void {
 }
 
 watch([() => props.open, () => props.note?.id], ([open]) => {
+  clearAutosave()
   if (open) reset()
   else editorReady.value = false
 }, { immediate: true })
+
+watch(signature, () => {
+  if (!props.autosave || !props.open || !props.note || !editorReady.value || props.submitting) return
+  const current = signature()
+  if (current === lastAutosaveSignature) return
+  clearAutosave()
+  emit('autosaveStatus', 'pending')
+  autosaveTimer = setTimeout(() => {
+    autosaveTimer = undefined
+    if (!props.open || !props.note || !editorReady.value || props.submitting) return
+    const next = signature()
+    if (next === lastAutosaveSignature) return
+    lastAutosaveSignature = next
+    emit('autosaveStatus', 'saving')
+    emit('autosave', props.note.id, createPatch())
+  }, 700)
+})
+
+watch(() => props.submitting, (submitting) => {
+  if (submitting && props.autosave) clearAutosave()
+})
+
+onBeforeUnmount(clearAutosave)
 </script>
 
 <template>
   <IonModal
     :is-open="open"
     css-class="note-editor-modal"
-    :backdrop-dismiss="!submitting"
-    :keyboard-close="!submitting"
+    :backdrop-dismiss="!submitting && autosaveStatus !== 'pending' && autosaveStatus !== 'saving' && autosaveStatus !== 'error'"
+    :keyboard-close="!submitting && autosaveStatus !== 'pending' && autosaveStatus !== 'saving' && autosaveStatus !== 'error'"
     @did-present="hydrateEditor"
     @did-dismiss="handleDismiss"
   >
@@ -137,6 +196,13 @@ watch([() => props.open, () => props.note?.id], ([open]) => {
     <IonContent class="note-dialog__content">
       <form class="note-form" @submit.prevent="submit">
         <div v-if="apiError" class="note-form__error" role="alert">{{ apiError }}</div>
+        <p v-if="autosave" class="note-form__autosave" role="status" aria-live="polite">
+          <template v-if="autosaveStatus === 'pending'">{{ t('Есть несохранённые изменения.') }}</template>
+          <template v-else-if="autosaveStatus === 'saving'">{{ t('Сохраняем…') }}</template>
+          <template v-else-if="autosaveStatus === 'saved'">{{ t('Изменения сохранены.') }}</template>
+          <template v-else-if="autosaveStatus === 'error'">{{ t('Не удалось сохранить изменения.') }}</template>
+          <template v-else>{{ t('Изменения сохраняются автоматически.') }}</template>
+        </p>
 
         <label class="note-field" for="note-title">
           <span>{{ t('Название') }}</span>
@@ -349,6 +415,8 @@ watch([() => props.open, () => props.note?.id], ([open]) => {
   background: color-mix(in srgb, var(--nf-color-danger) 12%, transparent);
   color: var(--nf-color-danger);
 }
+
+.note-form__autosave { margin: 0; color: var(--nf-color-text-muted); font-size: 0.875rem; }
 
 .note-form__actions {
   display: flex;
