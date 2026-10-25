@@ -10575,3 +10575,39 @@ expectation from static workflow review, not a checked remote result.
 The user authorized one commit and push to `origin/6.0`; no Actions polling.
 MVP Web progress remains **89.36%**. C21/C22/C23, truthful reader/writer
 gates, CLOSED registration and all public-release gates remain unchanged.
+
+## MVP6.0.09 — first loopback backend deployment (2026-10-25–26)
+
+Starting `6.0`/`origin/6.0` SHA and installed backend source:
+`f3f0e59b682e680a7cbc1cdc33a2793ef23e311b`. The owner supplied
+independent MVP6.0.07 Cloud run `40215702912`, 6/6 SUCCESS; Codex did not
+query Actions. Exact VPS changes, artifact hashes, smoke checks and rollback
+are in [MVP6.0.09 deployment protocol](infra/MVP6_0_09_FIRST_LOOPBACK_DEPLOYMENT.md).
+
+On the isolated SpaceWeb staging target, the 39 hash-locked production wheels
+and exact source were installed in separate app/venv paths. The initially
+empty `worta_stage` DB and empty blob inventory were saved on and off host
+before the explicit Alembic upgrade. Only this DB reached the
+`private_invitations` head. Temporary migration grants were revoked and the
+migration role disabled for login; runtime has no database/schema CREATE.
+The registered systemd unit is disabled, ran as `worta_stage` for local checks
+on `127.0.0.1:8000` with one worker and memory/task bounds, and was **stopped**
+afterwards. Port 8000 is closed.
+
+Local VPS smoke: `/health` and `/ready` 200, public registration policy
+`closed`, synthetic registration 403 `registration_closed`, anonymous cloud
+and admin routes 401, legacy `/api/projects` 404, three WORTA hosts via
+loopback Caddy 404, and ten sequential health/readiness requests passed.
+No users, invitations or blob/data files were created. Backend unit peak
+memory was 134,012,928 bytes. Final available RAM 663,584,768 bytes, root
+disk free 6,683,832,320 bytes, no swap. SSH/PostgreSQL/Caddy remain active;
+PostgreSQL/Caddy bind loopback and UFW still admits only SSH. No public TLS,
+DNS, SMTP, admin or tester access was activated. Restore and client recovery
+remain untested.
+
+This is **technical loopback installation only**, not closed user acceptance
+or production readiness. C21/C22/C23, truthful reader/writer gates, CLOSED
+public registration and all release gates remain. Official Web progress stays
+**89.36%**. A docs-only push is not expected to trigger automatic GitHub
+Actions under current path filters; that is a static expectation, not a
+queried remote result.

@@ -390,24 +390,61 @@ listener was changed during this preflight.
 
 ## VPS readiness and staging boundary
 
-Latest VPS status is **isolated infrastructure prepared / deployment blocked**
-(2026-10-25; MVP6.0.08 SSH SUCCESS): Ubuntu 24.04, Python 3.13.17,
-PostgreSQL 16.15 and Caddy 2.6.2. The new empty WORTA staging DB/peer role
-and private state root exist. PostgreSQL remains loopback-only with TCP
-rejected; Caddy serves closed 404s on loopback `127.0.0.1:8080`. Available
-RAM is about 648 MiB with no swap; free root disk is about 6.48 GiB. The
-backend bundle and production dependencies remain uninstalled; the systemd
-template is inactive and no WORTA service or HTTPS site is active. Public
-80/443 are not listening; apex/www remain on their existing hosting.
-Provider snapshots are reported active, but restore is unverified.
+Latest VPS status is **backend installed, loopback smoke passed, service
+stopped / user deployment blocked** (2026-10-26; MVP6.0.09): Ubuntu 24.04,
+Python 3.13.17, PostgreSQL 16.15 and Caddy 2.6.2. The isolated WORTA
+staging DB has reached the `private_invitations` Alembic head. Production
+dependencies are installed in a separate venv and the backend was tested on
+`127.0.0.1:8000`; its systemd unit remains disabled and is now stopped.
+PostgreSQL stays loopback-only, Caddy serves closed 404s on loopback
+`127.0.0.1:8080`, and no public 80/443 listener exists. Final available
+RAM was about 633 MiB, no swap; free root disk about 6.22 GiB. Provider
+snapshots are reported active, but restore is unverified.
 MVP6.0.05 cloud isolation and CLI config, and MVP6.0.06 pool/Argon2 limits,
-have owner-reported Cloud acceptance. MVP6.0.07 independent Cloud acceptance
-remains pending. The local dump/blob restore drill and inactive Caddy staging
-example do not satisfy C21/C22/C23 or native VPS service limits. Before any
-backend install or migration, review C21/C22 boundaries, migration-only DB
-rights, service RAM/task limits and a matched rollback. C23 client recovery
-must pass before tester data. Keep registration CLOSED, reader/writer gates
-off and access restricted; do not open public listeners in this stage.
+have owner-reported Cloud acceptance. The owner supplied independent
+MVP6.0.07 Cloud run `40215702912`, 6/6 SUCCESS. MVP6.0.09 used a matched
+pre-migration DB dump and empty blob inventory, temporary migration-only
+rights, and measured one loopback worker. The local dump/blob restore drill
+and inactive Caddy staging example do not satisfy C21/C22/C23 or live
+restore acceptance. C23 client recovery must pass before tester data. Keep
+registration CLOSED, reader/writer gates off and access restricted.
+
+## MVP6.0.09 — first loopback backend deployment (2026-10-25–26)
+
+Starting source and installed backend SHA:
+`f3f0e59b682e680a7cbc1cdc33a2793ef23e311b`. Owner-supplied MVP6.0.07
+independent Cloud acceptance: run `40215702912`, 6/6 SUCCESS. Codex did not
+poll Actions. The bounded deployment and exact rollback evidence are recorded
+in [MVP6.0.09 first loopback deployment](infra/MVP6_0_09_FIRST_LOOPBACK_DEPLOYMENT.md).
+
+The backend and 39 hash-locked production dependencies were installed from
+the verified bundle into an isolated staging app and venv. An empty
+`worta_stage` PostgreSQL database was dumped before the explicit Alembic
+upgrade; the dump and empty blob inventory are also retained off-host.
+The database reached the single `private_invitations` head. Temporary
+migration rights were revoked; the migration role is NOLOGIN. The ordinary
+runtime role has no database/schema CREATE and can only read the CLOSED
+registration policy. No other database or HBA configuration was changed.
+
+The disabled, single-worker systemd unit was started only for local technical
+checks. `/health` and `/ready` returned 200; the registration policy was
+CLOSED and a synthetic registration returned 403 without creating a user.
+Anonymous cloud and admin requests returned 401, legacy `/api/projects`
+returned 404, and all three WORTA Host headers to loopback Caddy returned
+404. Ten sequential local health/readiness requests passed. The database
+still has zero users and invitations, and the isolated data/blob roots remain
+empty. Backend cgroup peak was 134,012,928 bytes; final available host RAM
+after stopping it was 663,584,768 bytes and root disk free 6,683,832,320
+bytes. This is a bounded technical smoke, not load or client acceptance.
+
+The staging service was **stopped** after the checks and remains **disabled**;
+port 8000 is closed. SSH, PostgreSQL and Caddy remain active, with only SSH
+allowed inbound by UFW. No public HTTPS, DNS, SMTP, admin, tester account,
+invitation, sync activation or provider restore was performed. C21/C22/C23,
+reader/writer authorization and C23 recovery remain gates for closed user
+testing. Public registration remains CLOSED and official Web progress remains
+**89.36%**. The docs-only publication is not expected to trigger automatic
+GitHub Actions under current path filters; this is a static expectation.
 
 ## Acceptance checklist — restricted MVP
 
