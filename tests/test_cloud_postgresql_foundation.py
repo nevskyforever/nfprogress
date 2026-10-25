@@ -13,7 +13,8 @@ from sqlalchemy.exc import OperationalError
 
 from backend.app.config import RuntimeConfig
 from backend.app.db import CloudDatabase, DatabaseReadiness
-from backend.app.db.database import POSTGRESQL_CONNECT_TIMEOUT_SECONDS
+from backend.app.db.database import (POSTGRESQL_CONNECT_TIMEOUT_SECONDS,
+    POSTGRESQL_MAX_OVERFLOW, POSTGRESQL_POOL_SIZE, POSTGRESQL_POOL_TIMEOUT_SECONDS)
 from backend.app.main import create_app
 
 
@@ -66,6 +67,9 @@ def test_cloud_database_reuses_one_engine_and_disposes_it(monkeypatch):
     create_engine_mock.assert_called_once_with(
         DATABASE_URL,
         pool_pre_ping=True,
+        pool_size=POSTGRESQL_POOL_SIZE,
+        max_overflow=POSTGRESQL_MAX_OVERFLOW,
+        pool_timeout=POSTGRESQL_POOL_TIMEOUT_SECONDS,
         connect_args={'connect_timeout': POSTGRESQL_CONNECT_TIMEOUT_SECONDS},
     )
     database.dispose()

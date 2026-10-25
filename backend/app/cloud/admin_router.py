@@ -4,11 +4,11 @@ from urllib.parse import quote
 from uuid import UUID
 
 from sqlalchemy import func, select
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_admin, get_email_sender
-from .email import EmailSender, NullEmailSender, OutgoingEmail
+from .email import EmailDeliveryError, EmailSender, NullEmailSender, OutgoingEmail
 from .invitations import InvitationError, PrivateInvitationService, invitation_status
 from .models import GlobalLimits, RegistrationSettings, User
 from .repositories import ReservedUsernameRepository, UserLimitOverridesRepository, UserRepository
@@ -44,7 +44,7 @@ def _invitation_response(row, user: User) -> AdminInvitationResponse:
 
 
 @router.post('/invitations', response_model=AdminInvitationResponse, status_code=201)
-def create_invitation(payload: AdminInvitationCreateRequest, background: BackgroundTasks,
+def create_invitation(payload: AdminInvitationCreateRequest,
         request: Request, admin: AuthenticatedUser = Depends(get_current_admin),
         session: Session = Depends(get_cloud_session),
         sender: EmailSender = Depends(get_email_sender)) -> AdminInvitationResponse:
@@ -58,10 +58,14 @@ def create_invitation(payload: AdminInvitationCreateRequest, background: Backgro
     except InvitationError as error:
         raise HTTPException(error.status_code, detail={'code': error.code}) from None
     link = f"{base.rstrip('/')}/invite#token={quote(raw, safe='')}"
-    background.add_task(sender.send, OutgoingEmail(payload.email, 'Приглашение в WORTA',
-        f'Администратор пригласил вас в закрытое тестирование WORTA.\n'
-        f'Создайте свой пароль по ссылке: {link}\n'
-        'Ссылка действует 72 часа и используется один раз.'))
+    try:
+        sender.send(OutgoingEmail(payload.email, 'Приглашение в WORTA',
+            f'Администратор пригласил вас в закрытое тестирование WORTA.\n'
+            f'Создайте свой пароль по ссылке: {link}\n'
+            'Ссылка действует 72 часа и используется один раз.'))
+    except EmailDeliveryError:
+        service.revoke(session, row.id)
+        raise HTTPException(503, detail={'code': 'invitation_delivery_unavailable'}) from None
     user = session.get(User, row.user_id)
     return _invitation_response(row, user)
 

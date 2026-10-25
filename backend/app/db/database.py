@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 
 POSTGRESQL_CONNECT_TIMEOUT_SECONDS = 5
+POSTGRESQL_POOL_SIZE = 2
+POSTGRESQL_MAX_OVERFLOW = 0
+POSTGRESQL_POOL_TIMEOUT_SECONDS = 3
 
 
 class DatabaseNotConfiguredError(RuntimeError):
@@ -33,7 +36,12 @@ class CloudDatabase:
         self._engine: Engine | None = None
         self._session_factory: sessionmaker[Session] | None = None
         if database_url is not None:
-            engine_options = {'pool_pre_ping': True}
+            engine_options = {
+                'pool_pre_ping': True,
+                'pool_size': POSTGRESQL_POOL_SIZE,
+                'max_overflow': POSTGRESQL_MAX_OVERFLOW,
+                'pool_timeout': POSTGRESQL_POOL_TIMEOUT_SECONDS,
+            }
             if database_url.startswith('postgresql+psycopg://'):
                 engine_options['connect_args'] = {
                     'connect_timeout': POSTGRESQL_CONNECT_TIMEOUT_SECONDS,

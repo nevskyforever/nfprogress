@@ -78,6 +78,17 @@ class RuntimeConfig:
             raise ValueError('NFPROGRESS_AUTH_SECRET is required in production.')
         if self.auth_secret is not None and len(self.auth_secret) < 32:
             raise ValueError('NFPROGRESS_AUTH_SECRET must contain at least 32 characters.')
+        if self.public_web_url is not None:
+            try:
+                public_url = urlsplit(self.public_web_url)
+                public_port = public_url.port
+            except ValueError:
+                raise ValueError('NFPROGRESS_PUBLIC_WEB_URL must be an HTTPS origin.') from None
+            if (public_url.scheme != 'https' or not public_url.hostname
+                    or public_url.username is not None or public_url.password is not None
+                    or public_url.query or public_url.fragment
+                    or (public_port is not None and not 1 <= public_port <= 65535)):
+                raise ValueError('NFPROGRESS_PUBLIC_WEB_URL must be an HTTPS origin.')
         smtp_values = (self.smtp_host, self.smtp_port, self.smtp_username,
                        self.smtp_password, self.smtp_from_email, self.smtp_security)
         if any(value is not None for value in smtp_values):
@@ -87,7 +98,7 @@ class RuntimeConfig:
                 raise ValueError('NFPROGRESS_SMTP_SECURITY must be starttls or implicit_tls.')
             if self.smtp_port is None or not 1 <= self.smtp_port <= 65535:
                 raise ValueError('NFPROGRESS_SMTP_PORT must be a valid TCP port.')
-            if self.public_web_url is None or urlsplit(self.public_web_url).scheme != 'https':
+            if self.public_web_url is None:
                 raise ValueError('NFPROGRESS_PUBLIC_WEB_URL must use HTTPS when SMTP is enabled.')
 
     @staticmethod

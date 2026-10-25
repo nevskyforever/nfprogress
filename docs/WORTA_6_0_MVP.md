@@ -20,7 +20,8 @@ labels its status as closed testing and explains future invitation-only access
 without publishing a registration form. It does not assert that the test Web
 backend is deployed or that Note synchronization is ready.
 The owner reports independent Cloud acceptance for MVP6.0.02
-(`40180686691`, 6/6 SUCCESS) and MVP6.0.03 (`40183219901`, 6/6 SUCCESS).
+(`40180686691`, 6/6 SUCCESS), MVP6.0.03 (`40183219901`, 6/6 SUCCESS),
+and MVP6.0.05 (`40206456558`, 6/6 SUCCESS).
 MVP6.0.04 did not query GitHub Actions.
 
 ## Exact MVP
@@ -67,7 +68,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | Restart and retry | Durable local stores, idempotent receipts and restart tests | Cross-client/backend interruption proof | No production-shaped end-to-end run | Inject lost reply/offline/reopen and verify exact replay |
 | Minimum conflict safety | Keep-both and atomic conflict owners in bounded tests | User-visible Web/desktop conflict recovery round trip | Production composition and real client evidence absent | Preserve both versions or stop; never overwrite silently |
 | Note reader gate | Server predicate and negative-only readiness | Truthful full cohort declaration | Legacy v3/F2 join, complete route/replay/recovery and lifecycle evidence remain incomplete | Resolve the historical reader-gate dependency; no capability bypass |
-| VPS backend and PostgreSQL | Closed VPS services and prepared bundle are historically reported; MVP6.0.05 isolates production cloud routes and preserves CLI configuration locally | Bounded pool/Argon2, CI acceptance, fresh host audit, isolated DB/role and backend install | C21/C22/C23 and resource/restore evidence remain; host state is unverified | Finish gates and reviewed native preflight before isolated staging install |
+| VPS backend and PostgreSQL | Closed VPS services and prepared bundle are historically reported; MVP6.0.05 cloud isolation/CLI configuration passed owner-reported CI; MVP6.0.06 adds local pool/Argon2 limits | Independent CI for .06, fresh host audit, isolated DB/role and backend install | C21/C22/C23 and host resource/restore evidence remain; host state is unverified | Finish gates and reviewed native preflight before isolated staging install |
 | Real E2E acceptance | Component suites and disposable PostgreSQL CI | Real HTTPS/production-shaped clients and backend run | Backend not deployed; HTTPS/DNS inactive; no accepted connected run | First loopback-only restricted staging after all gates |
 | Backup/restore | Provider snapshot service reported active; backup design recorded | Verified independent DB+blob restore drill | Technical restore not tested | Complete isolated restore drill before staging user data |
 | Core UI defects | No reproducible MVP P0/P1 UI defect is identified in inspected current records | User-reported/reproducible issue list | No issue evidence in these records; avoid inventing bugs | Capture repros during first end-to-end smoke and triage by impact |
@@ -126,6 +127,42 @@ is not deferrable: restricted sync stays blocked until the predicate is met.
    interruption, conflict retention and restore before considering any external
    test access.
 
+## MVP6.0.06 — resource limits and invitation delivery (2026-10-25)
+
+**Local implementation; independent Cloud CI pending.** `CloudDatabase` now caps
+each backend process at two pooled PostgreSQL connections, zero overflow, a
+three-second pool wait and a five-second connect timeout. Request sessions still
+close on all outcomes; pool exhaustion yields a sanitized 503 and recovery is
+tested after connections return. The intended small-VPS profile uses **one
+backend worker**, so the application connection budget is two; PostgreSQL,
+Alembic and other processes need their own separate capacity allowance.
+
+Server password Argon2id remains `PasswordHash.recommended()` with unchanged
+hash format and verification. A process-wide semaphore permits one concurrent
+Argon2 operation with a two-second bounded wait; overload returns a sanitized
+503 with `Retry-After`. The dummy verification hash is shared rather than
+recomputed for every service instance. This does not change client AMK/E2EE
+key derivation or user-key unlock. The server process memory and worker count
+must still be measured and constrained at service deployment.
+
+SMTP STARTTLS and implicit TLS use the existing ten-second socket timeout and
+TLS context. An SMTP failure now raises a sanitized delivery error. The private
+admin invitation route waits for SMTP transport acceptance; on a reported
+failure it revokes the committed token and returns 503, allowing a safe reissue.
+This is **transport acceptance, not mailbox delivery proof**; a response lost
+after SMTP acceptance may leave a revoked link in a mailbox. Invitation links
+use a validated HTTPS URL without credentials, query or fragment; existing
+72-hour expiry, single use, revocation, username/email separation, admin role
+checks and CLOSED public registration remain in force. Only controlled SMTP
+and disposable PostgreSQL tests ran; no real email or invitation was sent.
+
+Staging remains **blocked** by C21 truthful reader/writer acceptance, C22
+security, C23 consistent DB/blob restore and client recovery, a fresh read-only
+VPS audit, isolated staging DB/role and roots, measured host RAM/connection
+headroom and service limits, a private HTTPS `/invite` application, and an
+owner-authorized SMTP delivery smoke check. No VPS, production database,
+account, Caddy, DNS, release gate or Web progress changed. Web remains 89.36%.
+
 ## MVP6.0.05 — backend security and runtime configuration (2026-10-25)
 
 **LOCAL IMPLEMENTATION / CLOUD CI PENDING / VPS UNCHANGED.** The production Web
@@ -151,12 +188,12 @@ contract changed. Local tests cover the actual CLI listener, route inventory,
 OpenAPI, no-plaintext-store construction, CLI configuration and profile rejection,
 plus disposable PostgreSQL login/admin and legacy compatibility. The exact test
 counts and SHA are recorded in the checkpoint. This closes the two **code P0**
-findings from MVP6.0.04 locally; independent CI acceptance remains pending.
+findings from MVP6.0.04; the owner reports Cloud run `40206456558` 6/6 SUCCESS.
 
-Staging is still **blocked** by C21 truthful reader/writer acceptance, C22
-security, C23 DB/blob restore, explicit resource limits, isolated host DB/role,
-private HTTPS invitation frontend, reliable SMTP delivery and a fresh read-only
-VPS preflight. Registration stays CLOSED; reader declaration, ACK and E2EE gates
+At the .05 baseline, staging remained **blocked** by C21 truthful reader/writer
+acceptance, C22 security, C23 DB/blob restore, resource limits, isolated host
+DB/role, private HTTPS invitation frontend, reliable SMTP delivery and a fresh
+read-only VPS preflight. Registration stays CLOSED; reader declaration, ACK and E2EE gates
 remain unchanged. No backend was deployed.
 
 ## MVP6.0.04 — safe staging preflight (2026-10-25; historical baseline)
@@ -252,9 +289,11 @@ HTTPS site, DNS/ACME, or public 80/443 listeners are recorded. Apex/www remain o
 the existing hosting. Provider snapshots are reported active, but restore is
 unverified.
 MVP6.0.05 resolves the legacy `/api`/PickleRepository boundary and CLI
-RuntimeConfig preservation in local code, pending independent CI. Before even
-loopback staging, establish separate data/blob roots, bounded PostgreSQL pool and
-Argon2 concurrency, C21 reader acceptance, C22 security and C23 restore evidence.
+RuntimeConfig preservation, with owner-reported Cloud CI acceptance. MVP6.0.06
+adds bounded PostgreSQL pool and Argon2 concurrency in local code, pending its
+own CI. Before even loopback staging, establish separate data/blob roots,
+measured host/service resource limits, C21 reader acceptance, C22 security and
+C23 restore evidence.
 Then perform a fresh read-only host preflight and approved isolated install. Keep
 test registration closed and test access allowlisted. Earliest safe staging step:
 review/complete those prerequisites and prepare the restricted acceptance profile;

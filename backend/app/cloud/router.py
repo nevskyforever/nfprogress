@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
                             get_cloud_session, get_current_user, get_email_sender)
-from .email import EmailSender, OutgoingEmail
+from .email import EmailDeliveryError, EmailSender, OutgoingEmail
 from .invitations import InvitationError, PrivateInvitationService
 from .schemas import (AccountLimitsResponse, AccountResponse, CurrentUserCryptoResponse,
                       InitialCryptoProvisioningRequest, InvitationAcceptRequest, LoginRequest,
@@ -82,7 +82,12 @@ def _trusted_link(request: Request, path: str, token: str) -> str | None:
 
 
 def _send(sender: EmailSender, message: OutgoingEmail) -> None:
-    sender.send(message)
+    try:
+        sender.send(message)
+    except EmailDeliveryError:
+        # Public recovery endpoints retain their non-enumerating accepted response.
+        # SmtpEmailSender already logged a sanitized failure.
+        return
 
 
 @router.get('/auth/registration')

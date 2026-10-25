@@ -10,7 +10,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.email import OutgoingEmail, SmtpEmailSender
+from backend.app.cloud.email import EmailDeliveryError, OutgoingEmail, SmtpEmailSender
 from backend.app.cloud.models import (AuthRefreshToken, AuthSession,
                                       EmailVerificationToken, PasswordResetToken,
                                       User)
@@ -86,10 +86,16 @@ def test_smtp_modes_config_redaction_and_trusted_links(monkeypatch, caplog, clou
     with pytest.raises(ValueError): RuntimeConfig(smtp_host='smtp.example.test')
     with pytest.raises(ValueError): RuntimeConfig(public_web_url='http://bad.test', smtp_host='x', smtp_port=25,
         smtp_username='u', smtp_password='secret', smtp_from_email='a@b.test', smtp_security='plaintext')
+    for unsafe_url in ('https:', 'https://user:secret@example.test',
+                       'https://example.test/#token=secret'):
+        with pytest.raises(ValueError) as error:
+            RuntimeConfig(public_web_url=unsafe_url)
+        assert 'secret' not in str(error.value)
     failure_client = Mock(); failure_client.__enter__ = Mock(return_value=failure_client); failure_client.__exit__ = Mock(return_value=False)
     failure_client.login.side_effect = OSError('smtp-secret must not leak')
-    monkeypatch.setattr('backend.app.cloud.email.smtplib.SMTP_SSL', Mock(return_value=failure_client))
-    SmtpEmailSender(config).send(OutgoingEmail('to@example.test', 'Subject', 'ev1.secret'))
+    monkeypatch.setattr('backend.app.cloud.email.smtplib.SMTP', Mock(return_value=failure_client))
+    with pytest.raises(EmailDeliveryError, match='SMTP delivery failed'):
+        SmtpEmailSender(config).send(OutgoingEmail('to@example.test', 'Subject', 'ev1.secret'))
     assert 'smtp-secret' not in caplog.text and 'ev1.secret' not in caplog.text
 
     client, engine = cloud_client; create_user(engine)
@@ -97,6 +103,26 @@ def test_smtp_modes_config_redaction_and_trusted_links(monkeypatch, caplog, clou
     client.post('/api/v1/account/email/verification/request', headers={
         'Authorization': f'Bearer {access}', 'Host': 'attacker.test', 'X-Forwarded-Host': 'attacker.test'})
     assert 'https://app.example.test/verify-email?' in client.app.state.email_sender.messages[-1].body
+
+
+@pytest.mark.parametrize('security,factory', [
+    ('implicit_tls', 'SMTP_SSL'), ('starttls', 'SMTP'),
+])
+def test_smtp_transport_failure_is_sanitized_for_both_tls_modes(
+        monkeypatch, caplog, security, factory):
+    config = RuntimeConfig(public_web_url='https://trusted.example.test',
+        smtp_host='smtp.example.test', smtp_port=465, smtp_username='mailer',
+        smtp_password='smtp-secret', smtp_from_email='no-reply@example.test',
+        smtp_security=security)
+    smtp = Mock()
+    smtp.__enter__ = Mock(return_value=smtp)
+    smtp.__exit__ = Mock(return_value=False)
+    smtp.send_message.side_effect = OSError('smtp-secret and iv1.secret')
+    monkeypatch.setattr(f'backend.app.cloud.email.smtplib.{factory}', Mock(return_value=smtp))
+    with pytest.raises(EmailDeliveryError) as error:
+        SmtpEmailSender(config).send(OutgoingEmail('to@example.test', 'Invitation', 'iv1.secret'))
+    assert 'smtp-secret' not in str(error.value) + caplog.text
+    assert 'iv1.secret' not in str(error.value) + caplog.text
 
 
 def test_verification_valid_status_email_binding_and_all_invalid_states(migrated_database):

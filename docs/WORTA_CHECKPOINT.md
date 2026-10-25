@@ -1,5 +1,58 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-25 — MVP6.0.06 resource limits / invitation delivery
+
+**LOCAL IMPLEMENTATION / CLOUD CI PENDING / VPS UNCHANGED.** Starting `6.0`
+and `origin/6.0`: `752635a751679b533a21f5da84a852a48cced444`, clean
+worktree. Owner-supplied independent MVP6.0.05 Cloud run `40206456558`:
+**6/6 SUCCESS**; Codex did not query Actions. No production deployment,
+PostgreSQL role/database, administrator, real tester invitation, real SMTP
+delivery, DNS, Caddy, firewall, migration, schema or reader/writer/E2EE change.
+
+Confirmed in code and focused local tests:
+
+- SQLAlchemy pool per backend process: **size 2, overflow 0, wait 3 seconds**;
+  psycopg connect timeout remains 5 seconds. Request sessions close after
+  success/failure; exhaustion returns sanitized `database_capacity_unavailable`
+  503, readiness becomes unavailable, and requests recover after connections
+  return. The recommended small-VPS service profile uses one worker, hence at
+  most two app pool connections; migrations and other clients require separate
+  PostgreSQL headroom. Actual host RAM, worker/service limits and connection
+  budget are **not measured** here.
+- Existing `PasswordHash.recommended()` Argon2id parameters and stored hashes
+  remain unchanged. One shared dummy hash avoids repeated startup hashing;
+  process-wide concurrency is **1**, bounded wait **2 seconds**. Saturation
+  returns sanitized `password_capacity_unavailable` 503 with `Retry-After: 2`;
+  hashing and login recover afterward. The limit is per process, so a
+  one-worker deployment and measured service RAM ceiling remain required.
+  Client AMK, E2EE, unlock and key derivation are untouched.
+- STARTTLS and implicit TLS keep certificate validation and ten-second SMTP
+  timeout. Controlled transport failures raise a sanitized error without
+  credential/token logging. Admin invitation issuance waits for SMTP transport
+  acceptance; a failed attempt revokes the token and returns 503, so a retry
+  creates a new token. HTTPS invitation origin rejects missing host,
+  credentials, query and fragment. Existing 72-hour expiry, single use,
+  revocation, separate username/email, server admin check and CLOSED public
+  registration remain. SMTP acceptance does not prove mailbox receipt; no
+  real mail was sent. Public recovery email requests preserve their
+  non-enumerating responses when background SMTP fails.
+
+Focused disposable PostgreSQL, auth, invitation, SMTP, resource, production
+boundary and CLI RuntimeConfig checks: **66 passed, 0 skipped** (final command
+recorded after rerun). Python syntax/import and `git diff --check` are also
+checked. The Docker PostgreSQL16 test container is removed after validation.
+Expected workflow: **Cloud backend tests**; its curated PostgreSQL job includes
+the new resource suite. GitHub Actions is not polled or awaited.
+
+Staging remains **BLOCKED**: **P0** C21 truthful reader/writer acceptance, C22
+security, C23 consistent DB/blob restore and client recovery; **P1** fresh
+read-only VPS inventory, separate least-privilege staging DB/role and roots,
+measured RAM/service and PostgreSQL connection limits, private HTTPS `/invite`
+frontend, and owner-authorized SMTP smoke delivery. Next: complete those gates
+and fresh host capacity/security preflight before requesting an isolated
+staging install. Web **89.36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`; registration CLOSED, PUBLIC RELEASE BLOCKED.
+
 ## 2026-10-25 — MVP6.0.05 backend security / RuntimeConfig hardening
 
 **LOCAL COMPLETE / CLOUD CI PENDING / VPS UNCHANGED.** Starting `6.0` and

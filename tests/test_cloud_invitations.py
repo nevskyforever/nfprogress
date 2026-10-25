@@ -9,7 +9,8 @@ from alembic.config import Config as AlembicConfig
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.email import NullEmailSender
+from backend.app.cloud.email import (EmailDeliveryError, NullEmailSender, OutgoingEmail,
+                                     RecordingEmailSender)
 from backend.app.cloud.models import AdminInvitation, RegistrationSettings, User
 from backend.app.cloud.tokens import utc_now
 from test_cloud_auth import cloud_client, create_user, login, migrated_database
@@ -126,6 +127,33 @@ def test_invitation_requires_email_delivery_without_creating_an_account(cloud_cl
     assert response.status_code == 503
     with Session(engine) as session:
         assert session.scalar(select(User).where(User.username_normalized == 'nodelivery')) is None
+
+
+def test_failed_invitation_delivery_revokes_token_and_allows_retry(cloud_client, caplog):
+    client, engine = cloud_client
+    headers = _admin(client, engine)
+
+    class FailingSender:
+        def send(self, message: OutgoingEmail) -> None:
+            raise EmailDeliveryError('SMTP delivery failed.')
+
+    client.app.state.email_sender = FailingSender()
+    payload = {'username': 'DeliveryRetry', 'email': 'retry@example.com'}
+    response = client.post('/api/v1/admin/invitations', headers=headers, json=payload)
+    assert response.status_code == 503
+    assert response.json()['detail']['code'] == 'invitation_delivery_unavailable'
+    with Session(engine) as session:
+        user = session.scalar(select(User).where(User.username_normalized == 'deliveryretry'))
+        row = session.scalar(select(AdminInvitation).where(AdminInvitation.user_id == user.id))
+        assert user.status == 'pending' and row.revoked_at is not None and row.used_at is None
+        assert row.expires_at - row.created_at == timedelta(hours=72)
+    assert 'iv1.' not in response.text and 'iv1.' not in caplog.text
+    client.app.state.email_sender = RecordingEmailSender()
+    retry = client.post('/api/v1/admin/invitations', headers=headers, json=payload)
+    assert retry.status_code == 201 and retry.json()['status'] == 'pending'
+    assert client.app.state.email_sender.messages[-1].body.startswith(
+        'Администратор пригласил вас в закрытое тестирование WORTA.')
+    assert 'https://app.example.test/invite#token=iv1.' in client.app.state.email_sender.messages[-1].body
 
 
 def test_populated_invitation_history_blocks_downgrade(cloud_client, monkeypatch):

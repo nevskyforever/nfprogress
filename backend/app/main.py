@@ -37,6 +37,7 @@ from .cloud.sync_v2_router import router as cloud_sync_v2_router
 from .cloud.sync_v3_router import router as cloud_sync_v3_router
 from .cloud.encrypted_blobs_router import router as cloud_encrypted_blobs_router
 from .cloud.email import email_sender_from_config
+from .cloud.passwords import PasswordCapacityError
 from .routers import content, documents, game, integrations, notes, projects
 
 
@@ -229,6 +230,11 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
             status_code=error.status_code,
             content={'detail': {'code': error.code, 'message': error.message}},
         )
+
+    @app.exception_handler(PasswordCapacityError)
+    async def handle_password_capacity(_request: Request, _error: PasswordCapacityError):
+        return JSONResponse(status_code=503, headers={'Retry-After': '2'},
+            content={'detail': {'code': 'password_capacity_unavailable'}})
 
     @app.exception_handler(RequestValidationError)
     async def handle_request_validation(

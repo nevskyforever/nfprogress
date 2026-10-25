@@ -14,6 +14,10 @@ _LOGGER = logging.getLogger(__name__)
 SMTP_TIMEOUT_SECONDS = 10
 
 
+class EmailDeliveryError(RuntimeError):
+    """SMTP did not confirm acceptance of the message."""
+
+
 @dataclass(frozen=True, slots=True)
 class OutgoingEmail:
     recipient: str
@@ -42,13 +46,13 @@ class SmtpEmailSender:
         self._security = config.smtp_security
 
     def send(self, message: OutgoingEmail) -> None:
-        email = EmailMessage()
-        email['From'] = f'{self._from_name} <{self._from_email}>'
-        email['To'] = message.recipient
-        email['Subject'] = message.subject
-        email.set_content(message.body)
-        context = ssl.create_default_context()
         try:
+            email = EmailMessage()
+            email['From'] = f'{self._from_name} <{self._from_email}>'
+            email['To'] = message.recipient
+            email['Subject'] = message.subject
+            email.set_content(message.body)
+            context = ssl.create_default_context()
             if self._security == 'implicit_tls':
                 with smtplib.SMTP_SSL(self._host, self._port, timeout=SMTP_TIMEOUT_SECONDS,
                                       context=context) as client:
@@ -59,8 +63,9 @@ class SmtpEmailSender:
                     client.starttls(context=context)
                     client.login(self._username, self._password)
                     client.send_message(email)
-        except (OSError, smtplib.SMTPException):
+        except (OSError, ValueError, smtplib.SMTPException):
             _LOGGER.warning('SMTP delivery failed.')
+            raise EmailDeliveryError('SMTP delivery failed.') from None
 
 
 class RecordingEmailSender:

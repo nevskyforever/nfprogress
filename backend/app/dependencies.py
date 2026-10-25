@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.orm import Session
 
 from .db import CloudDatabase
@@ -30,7 +31,11 @@ def get_services(request: Request) -> Services:
 def get_cloud_session(request: Request) -> Generator[Session, None, None]:
     """Future cloud-route dependency; legacy routes deliberately do not use it."""
     database: CloudDatabase = request.app.state.cloud_database
-    yield from database.session_scope()
+    try:
+        yield from database.session_scope()
+    except PoolTimeoutError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={'code': 'database_capacity_unavailable'}) from None
 
 
 @dataclass(frozen=True, slots=True)
