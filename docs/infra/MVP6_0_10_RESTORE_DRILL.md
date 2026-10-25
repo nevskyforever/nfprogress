@@ -1,7 +1,9 @@
 # MVP6.0.10 — isolated staging restore drill
 
-**Date:** 2026-10-26 (Samara)  
-**Repository baseline:** `5b87250dad98b4fb6e46237ef1aee22d91429b42`  
+**Date:** 2026-10-26 (Samara)
+
+**Repository baseline:** `5b87250dad98b4fb6e46237ef1aee22d91429b42`
+
 **VPS scope:** existing SpaceWeb staging only; no install, service start, network exposure, or live-database switch.
 
 ## Outcome
