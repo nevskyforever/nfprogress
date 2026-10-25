@@ -10534,3 +10534,44 @@ Resolution, но пока не умеет безопасно применить 
 нужно реализовать и проверить browser Resolution apply либо согласовать отдельный
 честный capability contract на сервере. Official progress остаётся 84.0%, C21/C21.2
 IN PROGRESS, ready=false.
+
+## MVP6.0.08 — isolated VPS staging provisioning (2026-10-25)
+
+Starting `6.0`/`origin/6.0` SHA:
+`b7b1906a46e642a796ed4eae992d4287d084074a`, clean checkout. The owner
+reports MVP6.0.06 Cloud 6/6 SUCCESS; MVP6.0.07 independent Cloud acceptance
+is pending and was not queried by Codex. This stage provisioned only isolated,
+inactive server resources on SpaceWeb `195.208.60.94`. Full before/after
+inventory, permission checks and guarded rollback are recorded in
+[MVP6.0.08 staging provisioning](infra/MVP6_0_08_STAGING_PROVISIONING.md).
+
+SSH as the previously verified `worta-admin` succeeded. Ubuntu 24.04,
+PostgreSQL 16 and Caddy stayed active. A locked-shell `worta_stage` system
+account and peer-auth PostgreSQL role were created, with an empty dedicated
+`worta_stage` database. The role has no superuser/CREATEDB/CREATEROLE,
+CREATE/TEMP or schema CREATE rights and has a two-connection limit. No HBA
+change or database password was needed. Private application, data, encrypted
+blob, technical temporary and root-only configuration directories were
+prepared. An application secret was generated on the server and stored in a
+root-owned mode-0600 file, never in Git or logs. The inactive systemd
+[template](../deploy/vps/worta-staging.service.example) passed
+`systemd-analyze verify` but was not registered, enabled or started.
+
+Peer DB login succeeded; loopback TCP was rejected. PostgreSQL, Caddy and
+SSH remained active; Caddy returned 404 for the closed site hosts, UFW still
+allowed only SSH, and public 80/443/5432/8080 were not listening. Existing
+PostgreSQL, Caddy and SSH config hashes stayed identical. Final idle sample:
+679,927,808 bytes available RAM, 6,953,148,416 bytes free root disk, no
+swap. Loaded backend/Argon2 capacity is unmeasured. No backend, migrations,
+administrator, tester, invitation, DNS, public TLS or active Web endpoint was
+created. The systemd unit remains outside the active search path; the
+application role deliberately cannot run Alembic. Future migration rights
+require separate review after MVP6.0.07 acceptance.
+
+Expected push CI: **no automatic GitHub Actions** for this stage's
+`docs/WORTA_6_0_MVP.md`, `docs/WORTA_CHECKPOINT.md`, `docs/infra/**` and
+`deploy/vps/**` paths under the current workflow filters. This is an
+expectation from static workflow review, not a checked remote result.
+The user authorized one commit and push to `origin/6.0`; no Actions polling.
+MVP Web progress remains **89.36%**. C21/C22/C23, truthful reader/writer
+gates, CLOSED registration and all public-release gates remain unchanged.

@@ -1,0 +1,41 @@
+# Inactive staging template. Keep outside systemd's unit search paths until
+# MVP6.0.07 independent CI acceptance and a separate backend-install decision.
+[Unit]
+Description=WORTA isolated staging backend (inactive template)
+After=network.target postgresql@16-main.service
+Requires=postgresql@16-main.service
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=simple
+User=worta_stage
+Group=worta_stage
+WorkingDirectory=/opt/worta/staging/app
+EnvironmentFile=/etc/worta/staging.env
+Environment=PYTHONUNBUFFERED=1
+Environment=NFPROGRESS_ACCESS_LOG=0
+Environment=TMPDIR=/var/lib/worta/staging/tmp
+ExecStart=/opt/worta/staging/venv/bin/python -m backend.app --platform web --host 127.0.0.1 --port 8000 --log-level warning
+Restart=on-failure
+RestartSec=15s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/worta/staging
+MemoryHigh=320M
+MemoryMax=384M
+TasksMax=32
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target
