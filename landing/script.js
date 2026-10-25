@@ -3,7 +3,6 @@
   const themeButton = document.querySelector('.theme-toggle')
   const menuButton = document.querySelector('.menu-toggle')
   const navigation = document.querySelector('#primary-nav')
-  const accessNote = document.querySelector('#access-note')
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 
   function readTheme() {
@@ -65,18 +64,6 @@
       }
     })
   }
-
-  document.querySelectorAll('.access-action').forEach((button) => {
-    button.addEventListener('click', () => {
-      accessNote.textContent = button.dataset.access === 'register'
-        ? 'Регистрация пока закрыта. Объявление о запуске появится здесь.'
-        : 'Вход пока закрыт. Доступ откроется после запуска веб-версии.'
-      document.querySelector('#availability-title')?.focus({ preventScroll: true })
-      document.querySelector('#availability')?.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth' })
-      navigation?.classList.remove('menu-open')
-      menuButton?.setAttribute('aria-expanded', 'false')
-    })
-  })
 
   const downloadNote = document.querySelector('#download-note')
   const supportedPlatforms = new Set(['windows', 'macos-arm', 'macos-intel'])
