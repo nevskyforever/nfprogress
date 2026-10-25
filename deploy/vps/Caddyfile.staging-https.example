@@ -1,0 +1,83 @@
+# INACTIVE staging example. Never import into the live Caddyfile without owner
+# approval, reviewed tester/admin CIDRs, a reviewed Web build, and C21/C22 gates.
+# The documentation-only TEST-NET addresses below intentionally admit nobody.
+# The Web build and backend use the same origin: https://test.worta.ru.
+# Keep access logs disabled in the final effective proxy/service configuration;
+# invitation tokens are carried in URL fragments and never belong in queries.
+{
+	admin off
+}
+
+https://test.worta.ru {
+	@wrongHost not host test.worta.ru
+	@wrongMethod not method GET POST PUT PATCH DELETE HEAD OPTIONS
+	@ambiguous expression `{http.request.uri}.matches(r'(?i)^[^?]*(%25|%2e|%2f|%5c|%[01][0-9a-f]|%7f|%3b|%e2%88%95|%e2%81%84|%ef%bc%8f|;|//|\\|/\.\.?(/|\?|$))')`
+	@signup path /api/v1/auth/register /api/v1/auth/register/*
+	@adminApi path /api/v1/admin /api/v1/admin/*
+	@adminUi path /admin /admin/*
+	@cloud path /api/v1 /api/v1/* /api/v2/sync/encrypted /api/v2/sync/encrypted/* /api/v3/sync/encrypted /api/v3/sync/encrypted/*
+	@health path /health /ready
+	@legacy path /api /api/*
+	@adminClient remote_ip 192.0.2.10/32
+	@testers remote_ip 192.0.2.10/32 198.51.100.20/32
+
+	route {
+		handle @wrongHost {
+			respond "Not found" 404
+		}
+		handle @wrongMethod {
+			respond "Method not allowed" 405
+		}
+		handle @ambiguous {
+			respond "Not found" 404
+		}
+		handle @signup {
+			respond "Not found" 404
+		}
+		handle @adminApi {
+			handle @adminClient {
+				reverse_proxy 127.0.0.1:8000
+			}
+			handle {
+				respond "Not found" 404
+			}
+		}
+		handle @cloud {
+			handle @testers {
+				reverse_proxy 127.0.0.1:8000
+			}
+			handle {
+				respond "Not found" 404
+			}
+		}
+		handle @health {
+			handle @adminClient {
+				reverse_proxy 127.0.0.1:8000
+			}
+			handle {
+				respond "Not found" 404
+			}
+		}
+		handle @legacy {
+			respond "Not found" 404
+		}
+		handle @adminUi {
+			handle @adminClient {
+				root * /opt/worta/frontend/dist
+				try_files {path} /index.html
+				file_server
+			}
+			handle {
+				respond "Not found" 404
+			}
+		}
+		handle @testers {
+			root * /opt/worta/frontend/dist
+			try_files {path} /index.html
+			file_server
+		}
+		handle {
+			respond "Not found" 404
+		}
+	}
+}

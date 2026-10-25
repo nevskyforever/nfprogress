@@ -22,6 +22,7 @@ backend is deployed or that Note synchronization is ready.
 The owner reports independent Cloud acceptance for MVP6.0.02
 (`40180686691`, 6/6 SUCCESS), MVP6.0.03 (`40183219901`, 6/6 SUCCESS),
 and MVP6.0.05 (`40206456558`, 6/6 SUCCESS).
+The owner reports MVP6.0.06 Cloud `40212021756`, 6/6 SUCCESS.
 MVP6.0.04 did not query GitHub Actions.
 
 ## Exact MVP
@@ -68,9 +69,9 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | Restart and retry | Durable local stores, idempotent receipts and restart tests | Cross-client/backend interruption proof | No production-shaped end-to-end run | Inject lost reply/offline/reopen and verify exact replay |
 | Minimum conflict safety | Keep-both and atomic conflict owners in bounded tests | User-visible Web/desktop conflict recovery round trip | Production composition and real client evidence absent | Preserve both versions or stop; never overwrite silently |
 | Note reader gate | Server predicate and negative-only readiness | Truthful full cohort declaration | Legacy v3/F2 join, complete route/replay/recovery and lifecycle evidence remain incomplete | Resolve the historical reader-gate dependency; no capability bypass |
-| VPS backend and PostgreSQL | Closed VPS services and prepared bundle are historically reported; MVP6.0.05 cloud isolation/CLI configuration passed owner-reported CI; MVP6.0.06 adds local pool/Argon2 limits | Independent CI for .06, fresh host audit, isolated DB/role and backend install | C21/C22/C23 and host resource/restore evidence remain; host state is unverified | Finish gates and reviewed native preflight before isolated staging install |
+| VPS backend and PostgreSQL | Fresh MVP6.0.07 read-only SSH: PostgreSQL 16/Caddy active, loopback-only; .05/.06 owner-reported CI accepted; local non-superuser migration passes | VPS staging DB/role/HBA, backend install, native loaded RAM gate | C21/C22/C23 and real service/restore evidence remain; no backend installed | Review C21/C22 installation boundary, then request an isolated technical install; C23 before testers |
 | Real E2E acceptance | Component suites and disposable PostgreSQL CI | Real HTTPS/production-shaped clients and backend run | Backend not deployed; HTTPS/DNS inactive; no accepted connected run | First loopback-only restricted staging after all gates |
-| Backup/restore | Provider snapshot service reported active; backup design recorded | Verified independent DB+blob restore drill | Technical restore not tested | Complete isolated restore drill before staging user data |
+| Backup/restore | Reproducible **local** PostgreSQL dump plus opaque blob restore and failure checks pass; provider snapshot service reported active | VPS/off-host matched backup and restored-client C23 acceptance | Live backup integrity and RPO/RTO are not verified | Complete approved off-host restore drill before staging user data |
 | Core UI defects | No reproducible MVP P0/P1 UI defect is identified in inspected current records | User-reported/reproducible issue list | No issue evidence in these records; avoid inventing bugs | Capture repros during first end-to-end smoke and triage by impact |
 
 ## Prioritized backlog
@@ -127,9 +128,77 @@ is not deferrable: restricted sync stays blocked until the predicate is met.
    interruption, conflict retention and restore before considering any external
    test access.
 
+## MVP6.0.07 — isolated staging and restore readiness (2026-10-25)
+
+**Preflight only; deployment blocked.** Read-only SSH succeeded using the
+previously verified `worta-admin` account, explicit existing key and strict
+host-key checking. No SSH alias or new key was needed. On the VPS, Ubuntu
+24.04.5, WORTA Python 3.13.17, PostgreSQL 16.15 and Caddy 2.6.2 are present.
+The snapshot has 679,018,496 bytes available RAM (~647.6 MiB), zero swap and
+6,955,671,552 bytes available on root (~6.48 GiB). PostgreSQL and Caddy use
+about 18.2 and 7.2 MB service memory at idle. PostgreSQL allows 20 connections
+(3 reserved for superusers), currently 6 including the audit query; the
+MVP6.0.06 backend pool budget is 2 with no overflow and one intended worker.
+That is plausible connection headroom, **not proof of RAM capacity under native
+Argon2/sync load**. PostgreSQL listens on loopback; existing loopback HBA is
+`reject`. Caddy listens on loopback:8080 and returned 404 for the three closed
+site hosts. No WORTA database/role, backend unit, source/venv or state/env root
+exists on the VPS. No VPS configuration or data was changed.
+
+The new opt-in local [restore preflight script](../scripts/maintenance/run_cloud_restore_preflight.sh)
+starts a labeled, disposable PostgreSQL 16 container, creates a random
+non-superuser role and two isolated databases, applies Alembic head to the
+empty source, saves a `pg_dump` custom archive and a copy of synthetic opaque
+blob files, then restores into the separate target. It verifies schema version,
+record counts, hashes, production-shaped login/ready/CLOSED registration,
+cloud-only routing, and blob download. Missing and corrupted restored blobs
+return sanitized 503 without plaintext fallback; restoring the blob recovers
+access. The script removes its container, databases and role. This **local
+fixture is not C23**, an off-host VPS backup, or a paired-client restore.
+The Cloud backend workflow runs this bounded drill independently.
+
+The inactive [staging Caddy example](../deploy/vps/Caddyfile.staging-https.example)
+uses `https://test.worta.ru` as a separate same-origin Web/API endpoint, with
+documentation-only TEST-NET IP allowlists that admit no actual testers until
+replaced. It gates `/admin` and admin API to the administrator CIDR, permits
+only cloud API namespaces for approved tester CIDRs, blocks registration and
+legacy `/api`, serves `/invite` through the reviewed SPA artifact, and has no
+access-log directive. The final service must retain `--no-access-log` and the
+effective proxy logging policy must be reviewed for token secrecy. The template
+passed read-only `caddy adapt` on the installed
+VPS binary; it is **not active**. HTTPS certificates, open public ports, exact
+tester CIDRs, reviewed Web artifact, runtime origin, SMTP and service limits
+remain unproven. The landing at `worta.ru` was not changed.
+
+For an approved later **loopback-only technical** staging install, the owner
+must authorize that specific VPS change and approve the C21/C22 installation
+boundary while keeping reader declarations, writer and tester access off.
+The owner also selects tester/admin access CIDRs and an external backup
+destination/RPO/RTO, and provides trusted private SMTP/DNS/TLS decisions. The
+operator then creates a separate non-superuser `worta_stage` role and empty
+database, changes only a reviewed loopback HBA rule to SCRAM, configures one
+backend worker with the existing two-connection pool and measured memory/task
+limits, creates private data/blob roots, and applies migrations **only to that
+new database** after an approved backup. The frontend build must set
+`VITE_API_BASE_URL=https://test.worta.ru`; the backend uses only the corresponding
+allowed origin and `NFPROGRESS_PUBLIC_WEB_URL=https://test.worta.ru`. The
+existing `python -m backend.app.admin_cli create` is then run interactively on
+the trusted server terminal: the owner enters a unique username, separate email
+and password there. No credentials enter Codex, chat, Git or command arguments;
+the command refuses a second administrator. Test CLOSED registration, 401/403
+admin boundaries, HTTPS `/invite`, delivery to an owner-controlled mailbox,
+resource ceiling and consistent off-host DB/blob restore before admitting
+testers. C21 truthful reader/writer acceptance, C22 live security review and
+C23 restored-client acceptance remain required before tester data; the C23
+drill itself needs an isolated installed target. No real administrator or
+invitation was created in this stage.
+
+Staging remains **BLOCKED**; Web stays **89.36%** with C21/C22/C23, Note
+reader/writer/ACK/E2EE and public release gates unchanged.
+
 ## MVP6.0.06 — resource limits and invitation delivery (2026-10-25)
 
-**Local implementation; independent Cloud CI pending.** `CloudDatabase` now caps
+**Owner-reported Cloud acceptance: `40212021756`, 6/6 SUCCESS.** `CloudDatabase` now caps
 each backend process at two pooled PostgreSQL connections, zero overflow, a
 three-second pool wait and a five-second connect timeout. Request sessions still
 close on all outcomes; pool exhaustion yields a sanitized 503 and recovery is
@@ -279,25 +348,24 @@ listener was changed during this preflight.
 
 ## VPS readiness and staging boundary
 
-Latest recorded VPS status is **prepared / deployment blocked** (2026-10-22;
-MVP6.0.04 SSH verification did not connect): Ubuntu 24.04.5, Python 3.13.17,
-PostgreSQL 16.15 and Caddy are present. PostgreSQL is loopback-only with TCP
-rejected and no WORTA DB/role. Caddy serves closed 404s on loopback `127.0.0.1:8080`.
-The backend bundle and production dependency lock are prepared but not installed;
-the backend service is not deployed or running. No public certificates, active
-HTTPS site, DNS/ACME, or public 80/443 listeners are recorded. Apex/www remain on
-the existing hosting. Provider snapshots are reported active, but restore is
-unverified.
-MVP6.0.05 resolves the legacy `/api`/PickleRepository boundary and CLI
-RuntimeConfig preservation, with owner-reported Cloud CI acceptance. MVP6.0.06
-adds bounded PostgreSQL pool and Argon2 concurrency in local code, pending its
-own CI. Before even loopback staging, establish separate data/blob roots,
-measured host/service resource limits, C21 reader acceptance, C22 security and
-C23 restore evidence.
-Then perform a fresh read-only host preflight and approved isolated install. Keep
-test registration closed and test access allowlisted. Earliest safe staging step:
-review/complete those prerequisites and prepare the restricted acceptance profile;
-do not open DNS or public listeners for MVP staging.
+Latest read-only VPS status is **prepared / deployment blocked** (2026-10-25;
+MVP6.0.07 SSH SUCCESS): Ubuntu 24.04.5, Python 3.13.17, PostgreSQL 16.15
+and Caddy 2.6.2. PostgreSQL is loopback-only with TCP rejected and no WORTA
+DB/role; Caddy serves closed 404s on loopback `127.0.0.1:8080`. Available
+RAM is about 647.6 MiB with no swap; free root disk is about 6.48 GiB. The
+backend bundle and production dependency lock remain uninstalled, and no
+WORTA service, state root or active HTTPS site exists. Public 80/443 are not
+listening; apex/www remain on their existing hosting. Provider snapshots are
+reported active but restore is unverified. MVP6.0.05 cloud isolation and CLI
+config, and MVP6.0.06 pool/Argon2 limits, have owner-reported Cloud acceptance.
+The new local dump/blob restore drill and inactive Caddy staging example reduce
+preparation work but do not satisfy C21/C22/C23 or native VPS service limits.
+Before any approved isolated install, review separate data/blob roots,
+staging DB/role and loopback HBA, service RAM/task limits and C21/C22
+installation boundaries. C23 matched restore and client recovery require the
+isolated target and must pass before tester data. Keep registration CLOSED,
+reader/writer gates off and access restricted; do not open public listeners
+in this stage.
 
 ## Acceptance checklist — restricted MVP
 

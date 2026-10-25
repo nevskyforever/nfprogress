@@ -1,5 +1,86 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-25 — MVP6.0.07 VPS access / isolated staging / restore readiness
+
+**READ-ONLY VPS AUDIT SUCCESS / LOCAL RESTORE PREFLIGHT PASS / NO DEPLOYMENT.**
+Starting clean `6.0`/`origin/6.0`:
+`4ab3856c9c7d669e3917c29b7e2885c54ccf488f`. Owner-supplied independent
+MVP6.0.06 Cloud run `40212021756`: **6/6 SUCCESS**. GitHub Actions was not
+queried or awaited.
+
+The local `infra/vps-6.0` worktree at `ee2b6f7b18ae74d3a281799b000dcd56dbe1cbc2`
+records the previously successful explicit identity. `~/.ssh/config` has no
+VPS alias, but the existing `worta-admin` key and pinned host key remain
+available. A BatchMode/IdentitiesOnly/StrictHostKeyChecking read-only SSH
+connection **succeeded**; no key, SSH policy or access was changed. The
+snapshot on 2026-10-25 confirms Ubuntu 24.04.5, kernel 6.8.0-147,
+Python 3.13.17, PostgreSQL 16.15 and Caddy 2.6.2. Available RAM:
+**679,018,496 bytes (~647.6 MiB)** of 1,036,664,832 bytes total; swap 0.
+Available root disk: **6,955,671,552 bytes (~6.48 GiB)** of 10,480,742,400.
+PostgreSQL/Caddy service memory at idle: ~18.2/7.2 MB. PostgreSQL `16/main`
+is active, loopback-only on 5432, `max_connections=20`, 3 superuser-reserved,
+6 activity rows including the audit query, `shared_buffers=128MB` and
+`work_mem=4MB`. Its loopback TCP HBA method remains `reject`; no WORTA DB or
+role exists. Caddy is active only on loopback:8080; `api`, `app`, `test` Host
+probes each returned 404. SSH is the only public listener observed. WORTA
+backend unit and `/opt/worta/current`, `/opt/worta/venv`, `/var/lib/worta`,
+`/etc/worta` are absent. This is idle headroom, **not** a native one-worker
+Argon2/sync RAM or service-budget proof. No VPS file/configuration/DB/service,
+firewall, DNS, certificate or public port was changed.
+
+The opt-in `scripts/maintenance/run_cloud_restore_preflight.sh` creates a
+labeled local PostgreSQL16 Docker container on an ephemeral loopback port and
+removes it on exit. The focused test creates a random non-superuser role and
+two uniquely named DBs, runs Alembic from an empty database to
+`private_invitations`, creates only a synthetic test account/project and opaque
+cover bytes, captures a `pg_dump -Fc` archive plus a separate blob copy,
+restores into the second DB/blob root and checks archive/blob SHA-256,
+schema/version/counts, production-shaped login and `/ready`, CLOSED signup,
+absent legacy routes and admin 401. Missing and corrupt restored blobs return
+sanitized 503; replacing the original bytes recovers access. Both direct and
+one-command script runs **PASS (1/1 each, no skip)**. The script is wired as
+a bounded step in **Cloud backend tests**. Local role/DB cleanup and container
+removal were verified. This proves only the synthetic local fixture, **not C23**,
+off-host backup consistency, provider snapshot recovery or client key recovery.
+
+The inactive `deploy/vps/Caddyfile.staging-https.example` is a single
+`https://test.worta.ru` Web/API origin with documentation TEST-NET allowlists
+that admit no real tester. It gates admin UI/API to the admin CIDR, blocks
+public registration and legacy API, passes reviewed cloud routes to loopback,
+and serves `/invite` through an approved SPA build. No access-log directive or
+token-bearing query link is included. Read-only `caddy adapt` on the installed
+VPS binary **PASS**; the live Caddyfile was not touched. Real CIDRs, HTTPS
+certificate/80/443 approval, Web artifact, runtime origin, SMTP delivery and
+security review remain open. The landing `worta.ru` was untouched.
+
+Focused local admin CLI, invitation authorization and production cloud/legacy
+boundary tests **17/17 PASS** on a separate disposable PostgreSQL database.
+The one-time `python -m backend.app.admin_cli create` remains interactive,
+uses username and separate email, prompts for password without argv, checks
+the existing-admin guard under a PostgreSQL advisory lock, and was not run
+on VPS. No real administrator, invitation or email was created. Python syntax,
+shell syntax, Caddy adaptation, workflow YAML and diff checks are recorded
+before commit.
+
+**Still blocking a real staging launch for testers:** P0 C21 truthful
+reader/writer acceptance, C22 security review, C23 matched off-host DB/blob
+restore plus client recovery, and separate owner authorization for any VPS
+deployment. A loopback-only technical installation needs that authorization
+and a reviewed C21/C22 installation boundary; it grants no tester access or
+capability authority. C23's live drill follows on the isolated target before
+tester data.
+P1: create a least-privilege staging role/DB and reviewed loopback SCRAM HBA;
+install reviewed backend artifact and private state roots; measure native
+one-worker memory/Argon2, systemd task/RAM cap and PostgreSQL capacity; approve
+tester/admin CIDRs and HTTPS endpoint/TLS; configure private SMTP and verify
+delivery to an owner-controlled mailbox. The owner must provide those access
+and backup decisions without sending secrets through Codex/chat. Next minimal
+stage: review the C21/C22 installation profile and approve an **isolated
+loopback-only technical installation**, then perform native capacity, C22 live
+review and C23 off-host restore before HTTPS tester access. Official Web
+**89.36%**; registration CLOSED, Note writer/ACK and
+unproven capability declarations off; public release blocked.
+
 ## 2026-10-25 — MVP6.0.06 resource limits / invitation delivery
 
 **LOCAL IMPLEMENTATION / CLOUD CI PENDING / VPS UNCHANGED.** Starting `6.0`

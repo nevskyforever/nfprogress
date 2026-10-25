@@ -577,6 +577,9 @@ jobs:
             tests/test_c9_sqlite_sync.py \
             tests/test_api.py tests/test_c18_external_local_boundary.py tests/test_c18_compression_distribution.py
 
+      - name: Rehearse isolated PostgreSQL and encrypted blob restore
+        run: bash scripts/maintenance/run_cloud_restore_preflight.sh
+
   frontend-admin:
     name: Frontend admin
     runs-on: ubuntu-latest
