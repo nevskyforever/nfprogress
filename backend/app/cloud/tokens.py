@@ -15,6 +15,7 @@ ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)
 SESSION_LIFETIME = timedelta(days=30)
 EMAIL_VERIFICATION_TOKEN_LIFETIME = timedelta(hours=24)
 PASSWORD_RESET_TOKEN_LIFETIME = timedelta(hours=1)
+ADMIN_INVITATION_LIFETIME = timedelta(hours=72)
 JWT_ISSUER = 'nfprogress-cloud'
 JWT_AUDIENCE = 'nfprogress-api'
 JWT_ALGORITHM = 'HS256'
@@ -73,6 +74,9 @@ class TokenService:
 
     def issue_password_reset_token(self) -> tuple[uuid.UUID, str, str]:
         return self._issue_opaque_token('pr1')
+
+    def issue_admin_invitation_token(self) -> tuple[uuid.UUID, str, str]:
+        return self._issue_opaque_token('iv1')
 
     @staticmethod
     def _issue_opaque_token(prefix: str) -> tuple[uuid.UUID, str, str]:

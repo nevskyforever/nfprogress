@@ -6,6 +6,7 @@ const router = createRouter({
   routes: [
     { path: '/admin/login', name: 'admin-login', component: () => import('@/pages/AdminLoginPage.vue'), meta: { admin: true, title: 'Администрирование' } },
     { path: '/admin', name: 'admin', component: () => import('@/pages/AdminPage.vue'), meta: { admin: true, requiresAdmin: true, title: 'Администрирование' } },
+    { path: '/invite', name: 'invite', component: () => import('@/pages/InvitationPage.vue'), meta: { standalone: true, title: 'Приглашение' } },
     { path: '/', redirect: '/projects' },
     {
       path: '/projects',

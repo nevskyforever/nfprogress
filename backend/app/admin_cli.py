@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import getpass
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,9 +25,13 @@ def _create(_args: argparse.Namespace) -> int:
     engine = create_engine(RuntimeConfig.from_env().require_database_url())
     try:
         with Session(engine) as session:
-            AccountService().create_user(session, username=username, email=email, password=password,
-                role='admin', status='active').email_verified = True
-            session.commit()
+            with session.begin():
+                session.execute(text('SELECT pg_advisory_xact_lock(641258)'))
+                if session.scalar(select(func.count()).select_from(User).where(User.role == 'admin')):
+                    print('An administrator already exists; initial creation is unavailable.')
+                    return 2
+                AccountService().create_user(session, username=username, email=email, password=password,
+                    role='admin', status='active').email_verified = True
         print(f'Created active administrator {username}.')
         return 0
     except ValueError as error:

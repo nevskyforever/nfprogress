@@ -1320,6 +1320,8 @@ class AdminService:
             raise
 
     def update_registration(self, session: Session, *, mode: str | None, max_users: int | None | object) -> RegistrationSettings:
+        if mode is not None and mode != 'closed':
+            raise AdminOperationError('registration_locked', 'Public registration remains closed.', 409)
         session.commit()
         with session.begin():
             settings = self._settings.get(session, lock=True)

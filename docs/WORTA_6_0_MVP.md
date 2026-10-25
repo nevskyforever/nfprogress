@@ -10,6 +10,16 @@ It supports lock, logout and same-profile reopen. Web Note sync is still disable
 The card requires a Vite development build and a Web backend that reports
 developer mode; the normal Web bootstrap still uses the plaintext compatibility API.
 
+**MVP6.0.03 private access preparation.** The existing administrator authority
+now has a one-time interactive bootstrap guard and private, expiring, single-use
+email invitations for pending user accounts. Recipients set their own passwords.
+The invited-account path is separate from public `/auth/register`, which remains
+CLOSED. The additive PostgreSQL migration and backend are local code only; no
+production database or VPS service was changed. The `landing/worta` site now
+labels its status as closed testing and explains future invitation-only access
+without publishing a registration form. It does not assert that the test Web
+backend is deployed or that Note synchronization is ready.
+
 ## Exact MVP
 
 One existing authorized account can sign in on a Mac desktop client and in a
@@ -31,6 +41,7 @@ requires every registered device to truthfully satisfy the frozen Note predicate
 | Desktop Notes | Native SQLite Notes and durable encrypted sync capture/seal/upload/pull/apply/ACK owners; bounded restart/conflict evidence | Desktop cloud session is Tauri-only; no accepted real backend + Web + desktop writing round trip |
 | Browser writing | Vue Web runtime, HTTP compatibility repositories, browser-safe editor and browser IndexedDB persistence/migration substrate | Local Web API is plaintext compatibility storage; it is not encrypted offline project/Note persistence |
 | Account and keys | Cloud auth, device identity, E2EE provisioning/unlock, account binding and project bootstrap owners exist for desktop | MVP6.0.02 composes a development Web account/key session; browser Note/project sync and production Web connection remain absent |
+| Private account access | Existing administrator role checks and MVP6.0.03 invite issuance/acceptance, revocation and expiry have local PostgreSQL/browser evidence | No production backend deployment, live invitation delivery or owner-authorized tester onboarding |
 | Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
 | Note readers | Bounded F/H/G/Q/J/K/O owners and ordinary Legacy/Content readers have local evidence; Y is published, remote acceptance pending | No full v10 production dispatch/replay/recovery path; readiness is deliberately negative |
 | Project isolation | Per-account/project ownership and bootstrap contracts, encrypted envelopes, isolation tests | Two-project end-to-end desktop↔Web isolation has not been accepted against a real deployment |
@@ -46,6 +57,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | Desktop local writing | Existing Tauri editor and SQLite | MVP smoke evidence on selected build | No MVP-specific baseline evidence in current records | Record exact build/profile and local-save restart result |
 | Browser local encrypted project/Note storage | IndexedDB persistence and migration owners | Production Web repositories, account-key use, UI wiring | Web repositories still use HTTP compatibility APIs; no browser cloud runtime composition | Build one browser durable repository slice against existing contracts |
 | Account login and encryption | Backend auth, desktop key owners and MVP6.0.02 development Web login/unlock | Production Web bootstrap and sync composition | `cloudSession` remains Tauri-only; test Web card runs behind the development boundary | Keep account session isolated; connect durable Note path only after reader acceptance |
+| Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim and admin status/revocation | Deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed; invite link cannot be issued to real testers yet | Review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
 | Browser cloud upload and inbound apply | Encrypted APIs and bounded browser reader/apply owners | Production routing, complete reader lifecycle | Note gate requires all six fields; production dispatch/replay and histories incomplete | Implement the next accepted C21.2.08 reader slice; keep declaration off |
 | Desktop↔Web bidirectional Notes | Desktop production router and browser v10 slices | Connected durable writer/reader cycle in both clients | Browser client is not connected to the desktop-equivalent production sync runtime | After browser composition, prove one Note each direction |
 | Project isolation | Server ownership checks and local owner tests | Real account with two end-to-end projects | No accepted deployed E2E evidence | Include two project IDs in restricted staging acceptance |

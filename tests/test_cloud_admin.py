@@ -71,7 +71,8 @@ def test_admin_policy_limits_and_reservations(cloud_client):
     user_id = create_user(engine, username='Writer', email='writer@example.test')
     _admin(engine)
     headers = _headers(client)
-    assert client.patch('/api/v1/admin/registration', json={'mode': 'approval', 'max_users': 0}, headers=headers).json()['max_users'] == 0
+    assert client.patch('/api/v1/admin/registration', json={'mode': 'approval'}, headers=headers).status_code == 409
+    assert client.patch('/api/v1/admin/registration', json={'mode': 'closed', 'max_users': 0}, headers=headers).json()['max_users'] == 0
     assert client.patch('/api/v1/admin/limits', json={'max_cloud_projects': 0}, headers=headers).json() == {'max_cloud_projects': 0}
     assert client.patch(f'/api/v1/admin/users/{user_id}/limits', json={'max_cloud_projects_override': 7}, headers=headers).json()['effective_max_cloud_projects'] == 7
     assert client.patch(f'/api/v1/admin/users/{user_id}/limits', json={'max_cloud_projects_override': None}, headers=headers).json()['effective_max_cloud_projects'] == 0
@@ -127,11 +128,12 @@ def test_admin_cli_create_promote_restore_and_no_password_argv(migrated_database
         'NFPROGRESS_DATABASE_URL',
         migrated_database.url.render_as_string(hide_password=False),
     )
-    values = iter(['admin', 'admin-cli@example.test'])
-    passwords = iter(['x' * 15, 'x' * 15])
+    values = iter(['admin', 'admin-cli@example.test', 'another-admin', 'another@example.test'])
+    passwords = iter(['x' * 15] * 4)
     monkeypatch.setattr('builtins.input', lambda _prompt: next(values))
     monkeypatch.setattr('getpass.getpass', lambda _prompt: next(passwords))
     assert admin_cli.main(['create']) == 0
+    assert admin_cli.main(['create']) == 2
     with Session(migrated_database) as session:
         created = session.scalar(select(User).where(User.username_normalized == 'admin'))
         assert created is not None and created.role == 'admin' and created.status == 'active' and created.email_verified

@@ -46,7 +46,8 @@ async function bootstrap(): Promise<void> {
   await router.isReady()
   // Notes cloud sessions are desktop-only and deliberately do not share the
   // administrator route or the legacy document-sync timer.
-  if (currentPlatform() === 'tauri' && router.currentRoute.value.meta.admin !== true) {
+  if (currentPlatform() === 'tauri' && router.currentRoute.value.meta.admin !== true
+      && router.currentRoute.value.meta.standalone !== true) {
     useCloudSessionStore(pinia).initialize()
   }
   app.mount('#app')

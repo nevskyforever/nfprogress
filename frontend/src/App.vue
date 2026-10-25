@@ -35,7 +35,8 @@ const bootstrapState = ref<BootstrapState>('loading')
 const bootstrapError = ref<string | null>(null)
 let updateTimer: number | null = null
 const workspaceWindow = isWorkspaceWindow()
-const isAdminRoute = computed(() => router.currentRoute.value.path === '/admin' || router.currentRoute.value.path === '/admin/login')
+const isStandaloneRoute = computed(() => router.currentRoute.value.meta.admin === true
+  || router.currentRoute.value.meta.standalone === true)
 
 function startAutomaticUpdateChecks(): void {
   if (!supportsUpdateChecks() || updateTimer !== null) return
@@ -82,16 +83,16 @@ async function handleAgreementAccepted(settings: SettingsResponse): Promise<void
   startAutomaticUpdateChecks()
 }
 
-watch(isAdminRoute, (admin) => {
-  if (admin) {
+watch(isStandaloneRoute, (standalone) => {
+  if (standalone) {
     void locale.initialize()
   } else if (bootstrapState.value === 'loading') {
     void bootstrapApplication()
   }
-  if (!admin && currentPlatform() === 'tauri') cloudSession.initialize()
+  if (!standalone && currentPlatform() === 'tauri') cloudSession.initialize()
 }, { immediate: true })
 onAdminSessionInvalidated(() => {
-  if (isAdminRoute.value) void router.replace('/admin/login')
+  if (router.currentRoute.value.meta.admin === true) void router.replace('/admin/login')
 })
 onBeforeUnmount(() => {
   if (updateTimer !== null) window.clearInterval(updateTimer)
@@ -102,7 +103,7 @@ onBeforeUnmount(() => {
 
 <template>
   <IonApp>
-    <IonRouterOutlet v-if="isAdminRoute" />
+    <IonRouterOutlet v-if="isStandaloneRoute" />
     <div
       v-else-if="bootstrapState === 'loading'"
       class="application-bootstrap"

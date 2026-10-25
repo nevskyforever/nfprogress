@@ -5,6 +5,7 @@ export interface AdminUser { id: string; username: string; email: string; email_
 export interface AdminUsers { users: AdminUser[]; total: number; limit: number; offset: number }
 export interface RegistrationSettings { mode: 'open' | 'approval' | 'closed'; max_users: number | null; active_users: number }
 export interface ReservedUsername { username_normalized: string; created_at: string }
+export interface AdminInvitation { id: string; username: string; email: string; status: 'pending' | 'accepted' | 'revoked' | 'expired'; created_at: string; expires_at: string }
 export interface AccountMe { id: string; username: string; email: string; email_verified: boolean; role: string; status: string; created_at: string }
 
 let tokens: AdminTokens | null = null
@@ -84,6 +85,9 @@ export const adminSession = {
 
 export const adminApi = {
   users: (query = '') => authorized<AdminUsers>(`/api/v1/admin/users${query ? `?${query}` : ''}`),
+  invitations: () => authorized<AdminInvitation[]>('/api/v1/admin/invitations'),
+  issueInvitation: (username: string, email: string) => authorized<AdminInvitation>('/api/v1/admin/invitations', { method: 'POST', body: { username, email } }),
+  revokeInvitation: (id: string) => authorized<AdminInvitation>(`/api/v1/admin/invitations/${id}/revoke`, { method: 'POST' }),
   lifecycle: (id: string, action: 'approve' | 'reject' | 'block' | 'unblock') => authorized<AdminUser>(`/api/v1/admin/users/${id}/${action}`, { method: 'POST' }),
   revoke: (id: string) => authorized<{ code: string }>(`/api/v1/admin/users/${id}/sessions/revoke`, { method: 'POST' }),
   userLimit: (id: string, max_cloud_projects_override: number | null) => authorized(`/api/v1/admin/users/${id}/limits`, { method: 'PATCH', body: { max_cloud_projects_override } }),

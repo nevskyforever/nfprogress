@@ -87,7 +87,7 @@ def test_upgrade_populated_old_registry_safe_defaults_and_reversible_before_acti
     headers=_headers(login(client).json()['access_token']);device=str(uuid4())
     assert client.put(f'/api/v1/sync/devices/{device}',headers=headers).status_code==200
     config=Config(str(ROOT/'alembic.ini'))
-    assert ScriptDirectory.from_config(config).get_heads()==['c18_compression_readers']
+    assert ScriptDirectory.from_config(config).get_heads()==['private_invitations']
     command.downgrade(config,'c18_cover_readers')
     with engine.connect() as db:
         before=db.execute(text('SELECT user_id,device_id,last_ack_sequence FROM sync_devices')).all()

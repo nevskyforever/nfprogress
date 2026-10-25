@@ -98,6 +98,44 @@ class RegistrationRequest(BaseModel):
         return display_email
 
 
+class AdminInvitationCreateRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    username: str = Field(min_length=1, max_length=128)
+    email: str = Field(min_length=1, max_length=320)
+
+    @field_validator('username')
+    @classmethod
+    def username_must_not_be_whitespace(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError('Username must not be empty.')
+        return value
+
+    @field_validator('email')
+    @classmethod
+    def email_must_have_valid_syntax(cls, value: str) -> str:
+        display_email = value.strip()
+        try:
+            validate_email(display_email, check_deliverability=False)
+        except EmailNotValidError as error:
+            raise ValueError('Email must have valid syntax.') from error
+        return display_email
+
+
+class AdminInvitationResponse(BaseModel):
+    id: UUID
+    username: str
+    email: str
+    status: Literal['pending', 'accepted', 'revoked', 'expired']
+    created_at: datetime
+    expires_at: datetime
+
+
+class InvitationAcceptRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    token: str = Field(min_length=1, max_length=1024)
+    password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+
+
 class PublicVerificationRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
 

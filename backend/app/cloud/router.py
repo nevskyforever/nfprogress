@@ -9,8 +9,9 @@ from sqlalchemy.orm import Session
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
                             get_cloud_session, get_current_user, get_email_sender)
 from .email import EmailSender, OutgoingEmail
+from .invitations import InvitationError, PrivateInvitationService
 from .schemas import (AccountLimitsResponse, AccountResponse, CurrentUserCryptoResponse,
-                      InitialCryptoProvisioningRequest, LoginRequest,
+                      InitialCryptoProvisioningRequest, InvitationAcceptRequest, LoginRequest,
                       PasswordKdfDto, PasswordResetConfirmRequest, PasswordWrappedAmkDto,
                       PasswordResetRequest, PublicVerificationRequest,
                       RecoveryWrappedAmkDto, RefreshRequest, RegistrationRequest, TokenResponse,
@@ -123,6 +124,19 @@ def register(payload: RegistrationRequest, background: BackgroundTasks, request:
             background.add_task(_send, sender, OutgoingEmail(result.email, 'Подтверждение email',
                 f'Подтвердите email: {link}\nСсылка действует 24 часа. Если это были не вы, проигнорируйте письмо.'))
     return {'code': 'registration_request_accepted'}
+
+
+@router.post('/auth/invitations/accept')
+def accept_invitation(payload: InvitationAcceptRequest, request: Request,
+        session: Session = Depends(get_cloud_session)) -> dict[str, str]:
+    service = PrivateInvitationService(TokenService(request.app.state.runtime_config.require_auth_secret()))
+    try:
+        user = service.accept(session, raw_token=payload.token, password=payload.password)
+    except ValueError:
+        raise HTTPException(422, detail={'code': 'invalid_password'}) from None
+    except InvitationError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    return {'code': 'invitation_accepted', 'username': user.username}
 
 
 @router.post('/auth/login', response_model=TokenResponse)

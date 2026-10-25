@@ -1,5 +1,38 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-25 — MVP6.0.03 private provisioning and landing status
+
+**LOCAL APP COMPLETE / PRODUCTION BACKEND UNDEPLOYED.** The `6.0` baseline was
+`a1bf461f70ffa58930dd73c3213cdbfd09d27626`; `landing/worta` started at
+`89b0613001c0a6ae039ec5c44aef08a4c236495e`. Existing server role checks
+and admin UI remain the authority. The interactive server `admin_cli create`
+now refuses a second initial administrator. The existing admin panel creates a
+pending account with an undisclosed random password hash, issues a 72-hour
+single-use invitation to its email, lists status and revokes it. The invite
+page lets the recipient set a password; acceptance locks/rechecks the token,
+capacity and account before activation. Only a token hash is persisted; the
+secret is not returned by admin APIs. Public `/auth/register` and admin policy
+updates remain CLOSED. An additive migration was tested only on disposable
+PostgreSQL; production schema/data and VPS backend were not touched.
+
+Local evidence: 84 relevant PostgreSQL tests PASS (34.55s) on a temporary
+container, including admin authorization, token replay/revoke/expiry, capacity,
+delivery refusal, guarded migration downgrade and affected C18 head contracts.
+Three focused frontend
+files passed 8/8 (1.36s) with Node's localStorage test flag; typecheck/build
+and affected ESLint passed. Real Chromium passed the admin issue/list/revoke
+flow and the invitation URL-fragment/password flow with controlled synthetic
+API responses. The existing MVP6.0.02 implementation and its independent CI
+acceptance were not modified or declared accepted; no Actions polling occurred.
+
+Landing `c22135308bceefd9d5792b33828f20e55cdccca9` is pushed and published
+to `worta.ru`. Desktop/mobile Chromium, no-registration-form and no-secret checks
+passed; public HTTPS hashes match the reviewed `index.html` and `script.js`.
+The page says that invitation access follows backend preparation, not that
+production access is already open. No release gate or readiness changed:
+Web 89.36%, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED, PUBLIC RELEASE BLOCKED.
+
 ## 2026-10-25 — MVP6.0.02 browser E2EE account session
 
 **LOCAL COMPLETE / REMOTE CI PENDING.** Starting `6.0` and `origin/6.0` matched

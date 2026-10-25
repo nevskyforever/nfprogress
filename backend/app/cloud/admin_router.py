@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+from urllib.parse import quote
 from uuid import UUID
 
 from sqlalchemy import func, select
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
-from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_admin
+from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_admin, get_email_sender
+from .email import EmailSender, NullEmailSender, OutgoingEmail
+from .invitations import InvitationError, PrivateInvitationService, invitation_status
 from .models import GlobalLimits, RegistrationSettings, User
 from .repositories import ReservedUsernameRepository, UserLimitOverridesRepository, UserRepository
-from .schemas import (AdminLimitsPatch, AdminLimitsResponse, AdminRegistrationPatch,
+from .schemas import (AdminInvitationCreateRequest, AdminInvitationResponse,
+                      AdminLimitsPatch, AdminLimitsResponse, AdminRegistrationPatch,
                       AdminRegistrationResponse, AdminUserLimitPatch, AdminUserLimitResponse,
                       AdminUserResponse, AdminUsersResponse, ReservedUsernameRequest,
                       ReservedUsernameResponse)
 from .services import AdminOperationError, AdminService, LimitsService, _UNSET
+from .tokens import TokenService, utc_now
 
 router = APIRouter(prefix='/api/v1/admin', tags=['cloud administration'])
 
@@ -30,6 +35,55 @@ def _user_response(session: Session, user: User) -> AdminUserResponse:
         registration_mode_at_signup=user.registration_mode_at_signup, created_at=user.created_at,
         max_cloud_projects_override=(override.max_cloud_projects_override if override else None),
         effective_max_cloud_projects=effective)
+
+
+def _invitation_response(row, user: User) -> AdminInvitationResponse:
+    return AdminInvitationResponse(id=row.id, username=user.username, email=user.email,
+        status=invitation_status(row, utc_now()), created_at=row.created_at,
+        expires_at=row.expires_at)
+
+
+@router.post('/invitations', response_model=AdminInvitationResponse, status_code=201)
+def create_invitation(payload: AdminInvitationCreateRequest, background: BackgroundTasks,
+        request: Request, admin: AuthenticatedUser = Depends(get_current_admin),
+        session: Session = Depends(get_cloud_session),
+        sender: EmailSender = Depends(get_email_sender)) -> AdminInvitationResponse:
+    base = request.app.state.runtime_config.public_web_url
+    if base is None or isinstance(sender, NullEmailSender):
+        raise HTTPException(503, detail={'code': 'invitation_delivery_unavailable'})
+    service = PrivateInvitationService(TokenService(request.app.state.runtime_config.require_auth_secret()))
+    try:
+        row, raw = service.issue(session, admin_id=admin.user.id,
+            username=payload.username, email=payload.email)
+    except InvitationError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    link = f"{base.rstrip('/')}/invite#token={quote(raw, safe='')}"
+    background.add_task(sender.send, OutgoingEmail(payload.email, 'Приглашение в WORTA',
+        f'Администратор пригласил вас в закрытое тестирование WORTA.\n'
+        f'Создайте свой пароль по ссылке: {link}\n'
+        'Ссылка действует 72 часа и используется один раз.'))
+    user = session.get(User, row.user_id)
+    return _invitation_response(row, user)
+
+
+@router.get('/invitations', response_model=list[AdminInvitationResponse])
+def list_invitations(request: Request, limit: int = Query(100, ge=1, le=100),
+        _admin: AuthenticatedUser = Depends(get_current_admin),
+        session: Session = Depends(get_cloud_session)) -> list[AdminInvitationResponse]:
+    service = PrivateInvitationService(TokenService(request.app.state.runtime_config.require_auth_secret()))
+    return [_invitation_response(row, user) for row, user in service.list(session, limit=limit)]
+
+
+@router.post('/invitations/{invitation_id}/revoke', response_model=AdminInvitationResponse)
+def revoke_invitation(invitation_id: UUID, request: Request,
+        _admin: AuthenticatedUser = Depends(get_current_admin),
+        session: Session = Depends(get_cloud_session)) -> AdminInvitationResponse:
+    service = PrivateInvitationService(TokenService(request.app.state.runtime_config.require_auth_secret()))
+    try:
+        row = service.revoke(session, invitation_id)
+    except InvitationError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    return _invitation_response(row, session.get(User, row.user_id))
 
 
 @router.get('/users', response_model=AdminUsersResponse)
