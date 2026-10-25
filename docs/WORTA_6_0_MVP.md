@@ -67,7 +67,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | Restart and retry | Durable local stores, idempotent receipts and restart tests | Cross-client/backend interruption proof | No production-shaped end-to-end run | Inject lost reply/offline/reopen and verify exact replay |
 | Minimum conflict safety | Keep-both and atomic conflict owners in bounded tests | User-visible Web/desktop conflict recovery round trip | Production composition and real client evidence absent | Preserve both versions or stop; never overwrite silently |
 | Note reader gate | Server predicate and negative-only readiness | Truthful full cohort declaration | Legacy v3/F2 join, complete route/replay/recovery and lifecycle evidence remain incomplete | Resolve the historical reader-gate dependency; no capability bypass |
-| VPS backend and PostgreSQL | Closed VPS services; CPython 3.13 and hashed backend bundle prepared | Legacy API boundary, bounded pool/config, backend install and staged DB | C21/C22 and backend readiness blockers; WORTA schema/role absent | Finish C21/C22, then reviewed native preflight and isolated staging install |
+| VPS backend and PostgreSQL | Closed VPS services and prepared bundle are historically reported; MVP6.0.05 isolates production cloud routes and preserves CLI configuration locally | Bounded pool/Argon2, CI acceptance, fresh host audit, isolated DB/role and backend install | C21/C22/C23 and resource/restore evidence remain; host state is unverified | Finish gates and reviewed native preflight before isolated staging install |
 | Real E2E acceptance | Component suites and disposable PostgreSQL CI | Real HTTPS/production-shaped clients and backend run | Backend not deployed; HTTPS/DNS inactive; no accepted connected run | First loopback-only restricted staging after all gates |
 | Backup/restore | Provider snapshot service reported active; backup design recorded | Verified independent DB+blob restore drill | Technical restore not tested | Complete isolated restore drill before staging user data |
 | Core UI defects | No reproducible MVP P0/P1 UI defect is identified in inspected current records | User-reported/reproducible issue list | No issue evidence in these records; avoid inventing bugs | Capture repros during first end-to-end smoke and triage by impact |
@@ -126,7 +126,40 @@ is not deferrable: restricted sync stays blocked until the predicate is met.
    interruption, conflict retention and restore before considering any external
    test access.
 
-## MVP6.0.04 — safe staging preflight (2026-10-25)
+## MVP6.0.05 — backend security and runtime configuration (2026-10-25)
+
+**LOCAL IMPLEMENTATION / CLOUD CI PENDING / VPS UNCHANGED.** The production Web
+profile (`NFPROGRESS_ENV=production`, `NFPROGRESS_PLATFORM=web`) now constructs
+only the cloud backend. It does not instantiate `PickleRepository`, resolve a
+legacy data directory, run local SQLite cutovers, or register the plaintext
+`/api` routers. Those paths are absent both at runtime and from OpenAPI. Cloud
+auth, admin checks and registration policy use their existing PostgreSQL routes.
+Development Web and Desktop/Tauri retain the legacy API and its existing local
+session-token behavior. Production desktop requires its session token; unsupported
+production platform, production cloud developer mode, legacy session token and
+local-file access fail at configuration validation. The CLI rejects non-loopback
+legacy/development binds even with `--allow-remote`, and rejects production
+development-data options before copying local data.
+
+The CLI now derives its effective settings with `dataclasses.replace` from the
+validated environment configuration. SMTP host/port/credentials/TLS, HTTPS
+invitation URL, encrypted blob root, PostgreSQL URL, auth secret and origins reach
+the real ASGI app without appearing in diagnostics. Invalid SMTP/PostgreSQL
+ports are reported without echoing raw values; the session token and SMTP
+username are redacted from config representation. No migration or cloud authorization
+contract changed. Local tests cover the actual CLI listener, route inventory,
+OpenAPI, no-plaintext-store construction, CLI configuration and profile rejection,
+plus disposable PostgreSQL login/admin and legacy compatibility. The exact test
+counts and SHA are recorded in the checkpoint. This closes the two **code P0**
+findings from MVP6.0.04 locally; independent CI acceptance remains pending.
+
+Staging is still **blocked** by C21 truthful reader/writer acceptance, C22
+security, C23 DB/blob restore, explicit resource limits, isolated host DB/role,
+private HTTPS invitation frontend, reliable SMTP delivery and a fresh read-only
+VPS preflight. Registration stays CLOSED; reader declaration, ACK and E2EE gates
+remain unchanged. No backend was deployed.
+
+## MVP6.0.04 — safe staging preflight (2026-10-25; historical baseline)
 
 **Decision: STOP before deployment or account provisioning.** At baseline
 `d70d438ddcea45881a4e0f832c35c2c7dc22a74c`, the local repo and
@@ -218,8 +251,9 @@ the backend service is not deployed or running. No public certificates, active
 HTTPS site, DNS/ACME, or public 80/443 listeners are recorded. Apex/www remain on
 the existing hosting. Provider snapshots are reported active, but restore is
 unverified.
-Before even loopback staging, resolve the legacy `/api`/PickleRepository boundary,
-explicit RuntimeConfig and separate data/blob roots, bounded PostgreSQL pool and
+MVP6.0.05 resolves the legacy `/api`/PickleRepository boundary and CLI
+RuntimeConfig preservation in local code, pending independent CI. Before even
+loopback staging, establish separate data/blob roots, bounded PostgreSQL pool and
 Argon2 concurrency, C21 reader acceptance, C22 security and C23 restore evidence.
 Then perform a fresh read-only host preflight and approved isolated install. Keep
 test registration closed and test access allowlisted. Earliest safe staging step:

@@ -1,5 +1,47 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-25 — MVP6.0.05 backend security / RuntimeConfig hardening
+
+**LOCAL COMPLETE / CLOUD CI PENDING / VPS UNCHANGED.** Starting `6.0` and
+`origin/6.0` were `e31f0fc0f166add42cca0f26998db4cd2d5dc573` with a clean
+worktree. Production Web now constructs a cloud-only FastAPI app: no legacy
+`/api` routes or OpenAPI entries, no `PickleRepository`, no local plaintext
+directory lookup or SQLite cutover. An absent legacy session token cannot
+expose those routes. The existing PostgreSQL cloud auth/admin dependencies and
+CLOSED public-registration policy remain authoritative. Desktop/Tauri and local
+development Web retain legacy API behavior. Production desktop requires its
+session token; invalid production platform, cloud developer/local-file options,
+production dev-data and remote legacy/development binds fail before serving.
+
+The CLI now uses `dataclasses.replace` on validated `RuntimeConfig`, preserving
+SMTP/TLS credentials, HTTPS invite URL, cloud blob root, database URL, auth
+secret and origins. It does not grant Web local-file access. Invalid SMTP and
+PostgreSQL port diagnostics omit the raw value; session token and SMTP username
+are excluded from config representation. No migration, account, invitation, E2EE, reader,
+writer, ACK or capability gate was changed.
+
+Local evidence: Python syntax and `git diff --check` PASS. A real loopback
+`python -m backend.app` process served cloud routes while legacy paths returned
+404 and were absent from OpenAPI. Final no-DB boundary/development/foundation
+checks passed **27/27** (three DB-related cases deselected); final disposable
+PostgreSQL cloud auth/admin/invitation/registration checks passed **38/38**
+(four concurrency/race cases deselected). An earlier expanded legacy API, CLI,
+boundary and PostgreSQL foundation set passed **50/50**. These are overlapping
+test sets, not an additive total. The temporary PostgreSQL
+container is removed after verification. The expected workflow is **Cloud
+backend tests**, whose focused test list now includes the new production
+boundary suite. GitHub Actions was not queried or awaited; no remote acceptance
+is claimed.
+
+Two MVP6.0.04 **code P0** findings are resolved locally, pending independent
+CI. Staging remains blocked by C21 truthful reader readiness, C22 security,
+C23 DB/blob restore, bounded pool/Argon2 and service resources, isolated staging
+DB/role, private HTTPS invite frontend and monitored SMTP delivery, plus a fresh
+read-only VPS audit. VPS/DNS/Caddy/production DB were not touched. Web remains
+**89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED and PUBLIC RELEASE BLOCKED. See
+[MVP6.0.05](WORTA_6_0_MVP.md#mvp6005--backend-security-and-runtime-configuration-2026-10-25).
+
 ## 2026-10-25 — MVP6.0.04 staging readiness / safe preflight
 
 **PREFLIGHT STOP / NO DEPLOYMENT.** Starting `6.0` and fresh-fetched

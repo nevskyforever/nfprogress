@@ -18,13 +18,24 @@ DEFAULT_ORIGINS = (
 )
 
 RUNTIME_ENVIRONMENTS = frozenset({'development', 'test', 'production'})
+RUNTIME_PLATFORMS = frozenset({'web', 'desktop', 'ios', 'android'})
 POSTGRESQL_URL_SCHEME = 'postgresql+psycopg'
+
+
+def _smtp_port_from_env() -> int | None:
+    value = os.environ.get('NFPROGRESS_SMTP_PORT')
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise ValueError('NFPROGRESS_SMTP_PORT must be a valid TCP port.') from None
 
 
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
     data_dir: Path | None = None
-    session_token: str | None = None
+    session_token: str | None = field(default=None, repr=False)
     allowed_origins: tuple[str, ...] = DEFAULT_ORIGINS
     platform: str = 'web'
     allow_local_files: bool = False
@@ -35,7 +46,7 @@ class RuntimeConfig:
     public_web_url: str | None = None
     smtp_host: str | None = None
     smtp_port: int | None = None
-    smtp_username: str | None = None
+    smtp_username: str | None = field(default=None, repr=False)
     smtp_password: str | None = field(default=None, repr=False)
     smtp_from_email: str | None = None
     smtp_from_name: str | None = None
@@ -46,6 +57,17 @@ class RuntimeConfig:
         if self.environment not in RUNTIME_ENVIRONMENTS:
             allowed = ', '.join(sorted(RUNTIME_ENVIRONMENTS))
             raise ValueError(f'NFPROGRESS_ENV must be one of: {allowed}.')
+        if self.platform not in RUNTIME_PLATFORMS:
+            raise ValueError('NFPROGRESS_PLATFORM is not supported.')
+        if self.environment == 'production':
+            if self.platform not in {'web', 'desktop'}:
+                raise ValueError('Production requires the web or desktop platform.')
+            if self.platform == 'web' and (
+                self.session_token is not None or self.developer_mode or self.allow_local_files
+            ):
+                raise ValueError('Production cloud cannot enable legacy session or local-file options.')
+            if self.platform == 'desktop' and self.session_token is None:
+                raise ValueError('Production desktop requires NFPROGRESS_SESSION_TOKEN.')
         if self.database_url is not None:
             self._validate_database_url(self.database_url)
         if self.environment == 'production' and self.database_url is None:
@@ -72,10 +94,17 @@ class RuntimeConfig:
     def _validate_database_url(database_url: str) -> None:
         if not database_url.strip():
             raise ValueError('NFPROGRESS_DATABASE_URL must not be empty.')
-        if urlsplit(database_url).scheme != POSTGRESQL_URL_SCHEME:
+        try:
+            parsed = urlsplit(database_url)
+            port = parsed.port
+        except ValueError:
+            raise ValueError('NFPROGRESS_DATABASE_URL is invalid.') from None
+        if parsed.scheme != POSTGRESQL_URL_SCHEME:
             raise ValueError(
                 'NFPROGRESS_DATABASE_URL must use a PostgreSQL psycopg URL.',
             )
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError('NFPROGRESS_DATABASE_URL is invalid.')
 
     def require_database_url(self) -> str:
         """Return the configured cloud PostgreSQL URL without exposing it in errors."""
@@ -92,6 +121,10 @@ class RuntimeConfig:
     def email_delivery_configured(self) -> bool:
         """Whether production can send an actionable verification message."""
         return self.smtp_host is not None
+
+    @property
+    def cloud_only(self) -> bool:
+        return self.environment == 'production' and self.platform == 'web'
 
     @classmethod
     def from_env(cls) -> 'RuntimeConfig':
@@ -117,7 +150,7 @@ class RuntimeConfig:
             auth_secret=os.environ.get('NFPROGRESS_AUTH_SECRET') or None,
             public_web_url=os.environ.get('NFPROGRESS_PUBLIC_WEB_URL') or None,
             smtp_host=os.environ.get('NFPROGRESS_SMTP_HOST') or None,
-            smtp_port=int(os.environ['NFPROGRESS_SMTP_PORT']) if os.environ.get('NFPROGRESS_SMTP_PORT') else None,
+            smtp_port=_smtp_port_from_env(),
             smtp_username=os.environ.get('NFPROGRESS_SMTP_USERNAME') or None,
             smtp_password=os.environ.get('NFPROGRESS_SMTP_PASSWORD') or None,
             smtp_from_email=os.environ.get('NFPROGRESS_SMTP_FROM_EMAIL') or None,

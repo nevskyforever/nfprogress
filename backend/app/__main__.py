@@ -5,6 +5,7 @@ import ipaddress
 import os
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import uvicorn
@@ -101,8 +102,8 @@ def _parser() -> argparse.ArgumentParser:
         '--allow-remote',
         action='store_true',
         help=(
-            'Explicitly allow an unauthenticated non-loopback bind for a '
-            'deployment protected by an external HTTPS/authentication layer.'
+            'Allow a non-loopback bind only for production cloud behind '
+            'an external HTTPS layer.'
         ),
     )
     parser.add_argument('--log-level', default='info')
@@ -111,6 +112,9 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    environment = RuntimeConfig.from_env()
+    if environment.environment == 'production' and (args.dev_data or args.prepare_dev_data):
+        raise SystemExit('Development data options are unavailable in production.')
     if args.prepare_dev_data:
         if args.dev_data or args.data_dir is not None:
             raise SystemExit('--prepare-dev-data cannot be combined with --dev-data or --data-dir.')
@@ -122,7 +126,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.dev_data and args.data_dir is not None:
         raise SystemExit('--dev-data cannot be combined with --data-dir.')
-    environment = RuntimeConfig.from_env()
     developer_mode = args.dev_data or environment.developer_mode
     # The Tauri sidecar is packaged, so the legacy import-time check cannot
     # distinguish its explicitly requested development data from a release run.
@@ -130,21 +133,18 @@ def main(argv: list[str] | None = None) -> int:
     if developer_mode:
         engine.dev_mode = True
     platform = args.platform or environment.platform
-    session_token = environment.session_token
     try:
         loopback_host = ipaddress.ip_address(args.host).is_loopback
     except ValueError:
         loopback_host = args.host.casefold() == 'localhost'
-    if not loopback_host:
-        if session_token or platform == 'desktop':
-            raise SystemExit(
-                'A desktop session-token backend must listen on loopback only.',
-            )
-        if not args.allow_remote:
-            raise SystemExit(
-                'A non-loopback bind requires the explicit --allow-remote flag '
-                'and an external HTTPS/authentication layer.',
-            )
+    if not loopback_host and (
+        not args.allow_remote or environment.environment != 'production'
+        or platform != 'web' or environment.session_token is not None
+    ):
+        raise SystemExit(
+            'A non-loopback bind requires --allow-remote and a production cloud profile '
+            'behind an external HTTPS layer.',
+        )
     development_data_dir = None
     if args.dev_data:
         # Keep the new local clients aligned with the real stores without
@@ -155,16 +155,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             engine.refresh_test_data()
             development_data_dir = engine.get_test_data_dir()
-    config = RuntimeConfig(
+    config = replace(environment,
         data_dir=development_data_dir or args.data_dir or environment.data_dir,
-        session_token=session_token,
-        allowed_origins=environment.allowed_origins,
         platform=platform,
         allow_local_files=(platform == 'desktop'),
         developer_mode=developer_mode,
-        environment=environment.environment,
-        database_url=environment.database_url,
-        auth_secret=environment.auth_secret,
     )
     if args.parent_pid is not None:
         _start_parent_watchdog(args.parent_pid)

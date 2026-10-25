@@ -96,9 +96,7 @@ async def _desktop_sync_loop(services: Services) -> None:
         await asyncio.sleep(60)
 
 
-def create_app(config: RuntimeConfig | None = None) -> FastAPI:
-    runtime_config = config or RuntimeConfig.from_env()
-    cloud_database = CloudDatabase(runtime_config.database_url)
+def _legacy_services(runtime_config: RuntimeConfig) -> Services:
     data_dir = runtime_config.data_dir
     if data_dir is None:
         data_dir = (
@@ -161,7 +159,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         except Exception:
             _LOGGER.exception('Pending Game events could not be processed at startup.')
     project_service = ProjectService(repository, game_service=game_service)
-    services = Services(
+    return Services(
         repository=repository,
         projects=project_service,
         notes_class=ProjectNotesService,
@@ -183,10 +181,16 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         ),
     )
 
+
+def create_app(config: RuntimeConfig | None = None) -> FastAPI:
+    runtime_config = config or RuntimeConfig.from_env()
+    cloud_database = CloudDatabase(runtime_config.database_url)
+    services = None if runtime_config.cloud_only else _legacy_services(runtime_config)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         sync_task = None
-        if runtime_config.platform == 'desktop':
+        if runtime_config.platform == 'desktop' and services is not None:
             sync_task = asyncio.create_task(_desktop_sync_loop(services))
         try:
             yield
@@ -268,13 +272,14 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
             content={'status': 'not_ready', 'database': readiness.value},
         )
 
-    api_dependencies = [Depends(require_session)]
-    app.include_router(projects.router, prefix='/api', dependencies=api_dependencies)
-    app.include_router(notes.router, prefix='/api', dependencies=api_dependencies)
-    app.include_router(game.router, prefix='/api', dependencies=api_dependencies)
-    app.include_router(content.router, prefix='/api', dependencies=api_dependencies)
-    app.include_router(integrations.router, prefix='/api', dependencies=api_dependencies)
-    app.include_router(documents.router, prefix='/api', dependencies=api_dependencies)
+    if services is not None:
+        api_dependencies = [Depends(require_session)]
+        app.include_router(projects.router, prefix='/api', dependencies=api_dependencies)
+        app.include_router(notes.router, prefix='/api', dependencies=api_dependencies)
+        app.include_router(game.router, prefix='/api', dependencies=api_dependencies)
+        app.include_router(content.router, prefix='/api', dependencies=api_dependencies)
+        app.include_router(integrations.router, prefix='/api', dependencies=api_dependencies)
+        app.include_router(documents.router, prefix='/api', dependencies=api_dependencies)
     app.include_router(cloud_router)
     app.include_router(cloud_projects_router)
     app.include_router(cloud_sync_router)
