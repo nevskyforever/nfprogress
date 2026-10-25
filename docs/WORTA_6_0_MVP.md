@@ -670,6 +670,24 @@ owner. Web progress remains **89.36%**; `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
 PUBLIC RELEASE BLOCKED, and C21/C22/C23/PF6.0/RC gates remain mandatory.
 
+## C21.2.08Z2B1 — shared local Note source kernel (2026-10-26)
+
+The existing protected single-event Note path now computes its next local
+project membership, source revision and Note projection with one private pure
+`planPeerSourceTransition()` function. Legacy/Content, continuation and V10
+ordinary handoffs all use it through `preparePeerSource()`. Its inputs do not
+authorize writes: genuine owner/`LocalSourceToken` proofs, durable source CAS,
+account/key lifecycle and AEAD sealing remain required. No virtual B source,
+batch commit, Q composition or cloud sync was activated. Focused local Vitest,
+typecheck, build and changed-file ESLint passed; the implementation record is
+[`docs/web/C21_2_08Z2B1_LOCAL_SOURCE_KERNEL.md`](web/C21_2_08Z2B1_LOCAL_SOURCE_KERNEL.md).
+The next minimum slice is C21.2.08Z2B2: extract shared Legacy Note causal,
+candidate and proof planning from the durable one-event route for a future
+private virtual B inventory. Z2A's atomic replay contract and all release
+gates remain required. Web progress stays **89.36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED and
+PUBLIC RELEASE BLOCKED.
+
 ## Acceptance checklist — restricted MVP
 
 - [ ] Existing authorized account signs in on desktop and browser; both unlock

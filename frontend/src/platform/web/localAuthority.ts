@@ -31,6 +31,7 @@ export interface LocalSourceSnapshot {
 interface SourceProof { owner: BrowserLocalAuthority; scope: BrowserSyncScope; project: LocalProjectRecord; notes: LocalNoteRecord[]; current: () => boolean }
 interface Guard { lease: AuthoritativeKeyContextLease; current: () => boolean }
 interface Opened { project: LocalProjectPayload; notes: LocalNoteSource[] }
+interface PeerSourceTransition { project: LocalProjectPayload; note: LocalNoteSource; sourceRevision: number }
 const proofs = new WeakMap<object, SourceProof>()
 const same = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b)
 const noteRange = (s: BrowserSyncScope, p: string) => IDBKeyRange.bound([s.accountId, p], [s.accountId, p, []])
@@ -44,6 +45,31 @@ function proof(scope: BrowserSyncScope, token: LocalSourceToken): SourceProof {
   if (!p || !same(p.scope, scope)) fail('stale_source')
   if (!p.current()) fail('closed')
   return p
+}
+
+/** Pure local projection calculation. A caller must still prove its source and Note authority. */
+function planPeerSourceTransition(scope: BrowserSyncScope, opened: Opened, sourceRevision: number, incoming: NoteSyncPlaintext, content: boolean): PeerSourceTransition {
+  const before = opened.project
+  if (!localSafe(sourceRevision, 1) || sourceRevision === Number.MAX_SAFE_INTEGER) fail('source_limit')
+  if (before.local_format !== 1 || before.kind !== 'project' || before.account_id !== scope.accountId || before.device_id !== scope.deviceId
+    || !before.project || before.project_id !== before.project.id || before.source_revision !== sourceRevision || before.deleted_at !== null) fail('stale_source')
+  if (opened.notes.length > MAX_LOCAL_NOTES || !Array.isArray(before.member_ids) || before.member_ids.length > MAX_LOCAL_NOTES) fail('source_limit')
+  const project = validateLocalProject(before.project)
+  const notes = opened.notes.map(note => validatePersistedLocalNote(note, project.id))
+  const members = notes.map(note => note.note.id).sort(order)
+  if (!same(before.member_ids, members) || members.some((id, index) => index > 0 && id === members[index - 1])) fail('corrupt_record')
+  if (!incoming || !['create', 'update', 'delete'].includes(incoming.mutation) || incoming.header?.project_id !== project.id
+    || incoming.header.entity_id !== incoming.note?.id || incoming.note?.project_id !== project.id) fail('invalid_local_source')
+  // Native peer payload has local mutation revision 0; cloud revision stays in the Note proof.
+  const admit = content ? validateContentLocalNote : validateLocalNote
+  const note = admit(incoming.mutation === 'delete'
+    ? { state: 'tombstone', note: incoming.note, revision: 0 }
+    : { state: 'live', note: { ...incoming.note, revision: 0 } }, project.id)
+  const old = notes.findIndex(value => value.note.id === note.note.id)
+  if (old < 0) notes.push(note); else notes[old] = note
+  if (notes.length > MAX_LOCAL_NOTES) fail('source_limit')
+  const revision = sourceRevision + 1
+  return { project: { ...before, source_revision: revision, project, member_ids: notes.map(value => value.note.id).sort(order) }, note, sourceRevision: revision }
 }
 
 /** Future capture infrastructure: synchronous requests in its SAME source+outbox transaction. No raw put API. */
@@ -326,17 +352,14 @@ export class BrowserLocalAuthorityRuntime {
     check()
     if(p.project.source_revision===Number.MAX_SAFE_INTEGER)fail('source_limit')
     return guard.lease.use(async amk=>{
-      const opened=await this.open(scope,p.project,p.notes,amk),revision=p.project.source_revision+1
-      // Native peer payload has local mutation revision0; sync revision stays in Note proof.
-      const admit=content?validateContentLocalNote:validateLocalNote
-      const source=admit(incoming.mutation==='delete'?{state:'tombstone',note:incoming.note,revision:0}:{state:'live',note:{...incoming.note,revision:0}},p.project.project_id)
-      const old=opened.notes.findIndex(n=>n.note.id===source.note.id)
-      if(old<0)opened.notes.push(source);else opened.notes[old]=source
-      if(opened.notes.length>MAX_LOCAL_NOTES)fail('source_limit')
-      opened.project.source_revision=revision;opened.project.member_ids=opened.notes.map(n=>n.note.id).sort(order)
-      const project:LocalProjectRecord={...p.project,source_revision:revision,envelope:await this.seal(scope,p.project.project_id,'project',opened.project,amk)},note=await this.noteRow(scope,source,revision,amk)
+      const opened=await this.open(scope,p.project,p.notes,amk)
+      check()
+      const next=planPeerSourceTransition(scope,opened,p.project.source_revision,incoming,content)
+      const project:LocalProjectRecord={...p.project,source_revision:next.sourceRevision,envelope:await this.seal(scope,p.project.project_id,'project',next.project,amk)}
+      check()
+      const note=await this.noteRow(scope,next.note,next.sourceRevision,amk)
       check();const plan=Object.freeze({}) as ProtectedNoteSourcePlan
-      protectedChanges.set(plan,{scope,source:token,project,note,current:()=>guard.current()&&authorityCurrent()});return{token:plan,source_revision:revision,note,project}
+      protectedChanges.set(plan,{scope,source:token,project,note,current:()=>guard.current()&&authorityCurrent()});return{token:plan,source_revision:next.sourceRevision,note,project}
     })
   }
   async prepareProtectedResolutionApply(scope:BrowserSyncScope,token:LocalSourceToken,verified:ResolutionApplyToken){

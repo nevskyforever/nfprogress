@@ -38,6 +38,27 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — C21.2.08Z2B1 shared local source kernel
+
+**LOCAL IMPLEMENTATION COMPLETE; second-project replay remains pending.**
+`BrowserLocalAuthorityRuntime.preparePeerSource()` now uses one private pure
+`planPeerSourceTransition()` to check the opened project's identity, source
+revision and membership, validate the incoming Legacy2/Content3 local Note
+route, and compute the next project payload and Note source. The existing
+Legacy/Content, continuation and V10 ordinary owner paths all reach this
+kernel through their authenticated token handoffs. Durable source opening,
+auth/key lifecycle, AEAD sealing, size limits, protected plan minting and the
+single-event CAS/transaction remain with the existing owner. No virtual-source
+entry or B replay capability was added.
+
+Focused Vitest, typecheck, build and changed-file ESLint passed locally; see
+[`docs/web/C21_2_08Z2B1_LOCAL_SOURCE_KERNEL.md`](web/C21_2_08Z2B1_LOCAL_SOURCE_KERNEL.md)
+for checks and the remaining dependency. Next: C21.2.08Z2B2, extract the
+Legacy Note causal/candidate/proof planner for a private virtual inventory.
+The Z2 STOP and Z2A Decision A remain historical. Web stays **89.36%**,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+registration CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC gates remain.
+
 ## 2026-10-26 — C21.2.08Z2A atomic initial replay / Q contract
 
 **DESIGN DECISION A — BOUNDED ATOMIC REPLAY FEASIBLE; implementation pending.**
