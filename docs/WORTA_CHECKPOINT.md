@@ -38,6 +38,45 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — C21.2.08Z1 authoritative source baseline feasibility
+
+**DECISION A — EXISTING SOURCE SUFFICIENT, with strict full-replay eligibility.**
+Starting baseline `d9879b904e762f852d947bf595de2bfe6e00d4f2`; `6.0` was clean and
+matched `origin/6.0`. The Z DB10-only audit correctly found no second-project
+baseline in the current browser stores. Z1 additionally inspected the existing
+backend source: the active project bootstrap registry retains origin device,
+initial Note count/max sequence and current account cursor; authenticated
+encrypted pull supports `since=0`; the live account event log is queried in
+sequence order and has no application pruning path. Actual Note/Metadata
+ciphertext is opened and checked on the client, while dense account-sequence,
+bootstrap and cohort checks detect missing or substituted evidence.
+
+A fresh target can reconstruct a **device-local** B baseline: authenticate
+Metadata genesis; verify the exact initial Legacy2 Note create cohort against
+bootstrap count, max sequence and origin; initialize an empty local project at
+source revision 1; then apply the initial and subsequent Note events through
+their existing owners in server order. This derives the target's local source
+counter and cloud-synchronized membership; it does not claim to reproduce the
+origin's private local counter or unsent local-only Notes. The current code has
+no direct Metadata-to-`NativeLocalProject` converter; Z2 must define the
+restricted deterministic mapping and stop if project fields cannot be derived.
+No new witness format, schema or migration is required under the existing
+authenticated-server sequencing trust model. A malicious-server equivocation
+proof is outside that model.
+
+Next bounded slice: **C21.2.08Z2 — client-only authenticated second-project
+full-history replay and Q composition**, GPT-6 Luna / High. Re-fetch registry
+evidence after restart; import only into a clean target; fail closed for missing
+history, metadata genesis, inexact initial cohort, unsupported local project
+fields or conflicting local data. C21 truthful reader gate remains closed and
+all readiness/release states remain unchanged. The detailed chain and acceptance
+matrix are in
+[`docs/web/C21_2_08Z1_SOURCE_BASELINE_FEASIBILITY.md`](web/C21_2_08Z1_SOURCE_BASELINE_FEASIBILITY.md).
+
+MVP6.0.12 Cloud `40236767686` remains pending independent owner confirmation.
+The historical localization debt remains 27 untranslated catalog keys per
+target language (47 at that stage's baseline); no prior test result is rewritten.
+
 ## 2026-10-26 — C21.2.08Z cross-project Note source-witness contract audit
 
 **AUDIT COMPLETE — documentation only.** Starting baseline

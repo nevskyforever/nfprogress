@@ -606,6 +606,40 @@ truthful reader/writer gates, C22/C23/PF6.0/RC remain mandatory. MVP6.0.12's
 historical localization test debt remains 27 untranslated historical catalog
 keys per target language (47 at its baseline); no prior test result is changed.
 
+## C21.2.08Z1 — authoritative source baseline feasibility (2026-10-26)
+
+Z1 resolves the source-feasibility question as **A — EXISTING SOURCE
+SUFFICIENT**, with strict replay eligibility. The backend's active bootstrap
+registry provides origin device, initial Note count/max sequence and account
+cursor. The authenticated encrypted pull can replay the retained account event
+log from sequence zero; the live backend has no application event-pruning path.
+The client decrypts and authenticates Note and Metadata payloads, validates the
+exact initial Note cohort against the bootstrap descriptor, and checks dense
+account sequence through the registry cursor. The server remains the registry
+and ordering authority, not a plaintext source.
+
+The reconstructed source is device-local: start from an empty project at local
+source revision 1, then apply the genuine initial cohort and later Notes through
+the existing owners. This does not copy the source device's private source
+counter or unsent local-only Notes. No new witness format or database migration
+is required. Z's earlier DB10-only stop remains accurate for local stores alone;
+Z1 adds the backend replay source and supersedes that stop for the bounded
+eligible replay path.
+
+The next slice is **C21.2.08Z2 — client-only authenticated second-project
+full-history replay and Q composition**, GPT-6 Luna / High. It must re-fetch
+registry evidence after restart, define an exact Metadata-to-local-project
+mapping, use a clean import target, and stop without mutation if the initial
+cohort, Metadata genesis, retained event history, project fields or local data
+do not satisfy the contract. Its test matrix and exact producer/consumer chain
+are in
+[`docs/web/C21_2_08Z1_SOURCE_BASELINE_FEASIBILITY.md`](web/C21_2_08Z1_SOURCE_BASELINE_FEASIBILITY.md).
+
+MVP6.0.12 Cloud `40236767686` remains pending owner confirmation. Localization
+debt and historical results are unchanged. Web remains **89.36%**,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, registration
+CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC remain mandatory.
+
 ## Acceptance checklist — restricted MVP
 
 - [ ] Existing authorized account signs in on desktop and browser; both unlock
