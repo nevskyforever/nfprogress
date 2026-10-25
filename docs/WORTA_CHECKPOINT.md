@@ -38,6 +38,39 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — C21.2.08Z2A atomic initial replay / Q contract
+
+**DESIGN DECISION A — BOUNDED ATOMIC REPLAY FEASIBLE; implementation pending.**
+Starting clean `6.0` baseline `964d3632c81ad5d28d2384ee010c4c166050d118`
+matched `origin/6.0`. The owner-authorized check of MVP6.0.12 Cloud run
+`40236767686` confirmed all six mandatory jobs SUCCESS. This acceptance is
+recorded now; older entries saying it was pending remain historical. The
+previous Z2 STOP remains valid for the current per-event implementation.
+
+The selected contract prepares the complete B Note fold in memory after fresh
+bootstrap, full `since=0` account history, Metadata genesis, initial cohort and
+structural dependency authentication. It requires a clean imported B target,
+already retained dense ciphertext inbox and already applied Metadata/Stage/
+StageOrder dependencies. A private extraction of the existing Note planning
+kernel produces all source, candidate, head and inbox-proof rows. One bounded
+DB10 `readwrite` transaction then checks the full ten-store inventory and
+account/device identity and writes B `localProjects`, `localNotes`,
+`legacyNoteHistory` and `inbox` together. An abort leaves no partial B project;
+an ambiguous completed commit requires fresh authenticated reconciliation,
+never a blind retry. No IndexedDB migration, new wire/crypto format or backend
+change is required by the selected cohort.
+
+Only after complete durable reauthentication can a one-use private B source
+capability enter dormant Q. Q independently verifies A's F/H/O and B's own
+bootstrap-to-current fold, then may commit only `proven_prefix`. The exact
+eligibility, budgets, private interface, CAS inventory and future tests are in
+[`docs/web/C21_2_08Z2A_ATOMIC_REPLAY_CONTRACT.md`](web/C21_2_08Z2A_ATOMIC_REPLAY_CONTRACT.md).
+Z2A changes documentation only; no replay or Q support is implemented here.
+Web stays **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED, PUBLIC RELEASE BLOCKED; C21,
+C22/C23/PF6.0/RC gates remain mandatory. Next: C21.2.08Z2B, GPT-6 Luna / High,
+bounded dormant implementation and genuine-producer/browser acceptance.
+
 ## 2026-10-26 — C21.2.08Z1 authoritative source baseline feasibility
 
 **DECISION A — EXISTING SOURCE SUFFICIENT, with strict full-replay eligibility.**

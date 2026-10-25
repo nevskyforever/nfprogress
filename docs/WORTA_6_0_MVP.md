@@ -57,7 +57,7 @@ requires every registered device to truthfully satisfy the frozen Note predicate
 | Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock supplies a guarded scope to the MVP6.0.12 local encrypted editor | No production Web bootstrap or browser cloud sync; lock/logout invalidates retained repository handles |
 | Private account access | Existing administrator role checks and MVP6.0.03 invite issuance/acceptance, revocation and expiry have local PostgreSQL/browser evidence | No production backend deployment, live invitation delivery or owner-authorized tester onboarding |
 | Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
-| Note readers | Bounded F/H/G/Q/J/K/O owners and ordinary Legacy/Content readers have local evidence; Y is published, remote acceptance pending | No full v10 production dispatch/replay/recovery path; readiness is deliberately negative |
+| Note readers | Bounded F/H/G/Q/J/K/O owners and ordinary Legacy/Content readers have local evidence; Y is independently accepted and Z2A defines a second-project atomic replay contract | No implemented B atomic replay or full v10 production dispatch/replay/recovery path; readiness is deliberately negative |
 | Project isolation | Per-account/project ownership and bootstrap contracts, encrypted envelopes, isolation tests | Two-project end-to-end desktop↔Web isolation has not been accepted against a real deployment |
 | Recovery and conflicts | Durable outbox/inbox, atomic apply, replay, conflict preservation and backup/restore code/tests exist in bounded scopes | Full offline/retry/restart/conflict/backup-restore user workflow is not accepted across real clients and backend |
 Existing tests prove bounded components, not a connected product. `Run Web.sh`
@@ -639,6 +639,36 @@ MVP6.0.12 Cloud `40236767686` remains pending owner confirmation. Localization
 debt and historical results are unchanged. Web remains **89.36%**,
 `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, registration
 CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC remain mandatory.
+
+## C21.2.08Z2A — bounded atomic second-project replay contract (2026-10-26)
+
+MVP6.0.12 Cloud run `40236767686` was independently checked after the earlier
+Z/Z1 entries: all six mandatory jobs SUCCESS. Z2 stopped because the current
+local project initializer and inbound Note owner commit in separate
+transactions. **Z2A selects Decision A, an implementation-ready bounded atomic
+contract; it does not implement the import.** The historical Z2 STOP and earlier
+pending-CI statements remain records of their respective points in time.
+
+The eligible B import prepares from a fresh active bootstrap, a complete
+authenticated `since=0` account replay, supported coverless Metadata genesis,
+exact initial Legacy2 Note cohort, and already applied structural dependencies.
+Its private owner must use the existing Note crypto, causal, source and proof
+kernels to produce the complete B fold in memory. One DB10 transaction must CAS
+the full ten-store inventory and atomically write B's encrypted project/Notes,
+Note history and inbox proofs; it changes no cursor. A failed transaction leaves
+no partial B project. Reopen after a lost response requires full authenticated
+reconciliation. After a complete durable import, dormant Q can obtain a
+single-use private B source capability and independently check B alongside A's
+accepted F/H/O authority before a cursor-only `proven_prefix` commit.
+
+The restricted cohort, resource limits, exact stores, refusal cases and future
+acceptance matrix are specified in
+[`docs/web/C21_2_08Z2A_ATOMIC_REPLAY_CONTRACT.md`](web/C21_2_08Z2A_ATOMIC_REPLAY_CONTRACT.md).
+No IndexedDB migration, protocol or crypto format change is proposed. The next
+slice is C21.2.08Z2B, GPT-6 Luna / High, to implement and test the dormant
+owner. Web progress remains **89.36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
+PUBLIC RELEASE BLOCKED, and C21/C22/C23/PF6.0/RC gates remain mandatory.
 
 ## Acceptance checklist — restricted MVP
 
