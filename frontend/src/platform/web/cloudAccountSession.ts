@@ -4,9 +4,18 @@ import { KeyNotProvisionedError, RuntimeKeyContext, type AuthoritativeKeyContext
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import { currentPlatform } from '@/platform/runtime'
 import { BrowserPersistenceError, openBrowserPersistence } from './persistence'
+import type { BrowserLocalAuthorityRuntime } from './localAuthority'
+import type { BrowserSyncScope } from './syncDurability'
 
 type BrowserStorage = Awaited<ReturnType<typeof openBrowserPersistence>>
 type BrowserIdentity = { readonly local_account_id: string; readonly device_id: string }
+
+export interface BrowserLocalNoteRepository {
+  /** Account/device scope derived from the authenticated, unlocked Web session. */
+  readonly scope: BrowserSyncScope
+  /** Existing C21 encrypted local source. It has no cloud transport or Note writer. */
+  readonly source: Pick<BrowserLocalAuthorityRuntime, 'readSnapshot' | 'withDecryptedSnapshot' | 'assertSnapshot' | 'initializeProject' | 'createProject' | 'createNote' | 'updateNote' | 'tombstoneNote' | 'replaceProject' | 'deleteProject'>
+}
 
 export interface BrowserAccountSessionOptions {
   readonly auth?: NormalUserAuthRuntime
@@ -21,6 +30,7 @@ export class BrowserCloudAccountSession {
   private readonly openStorage: typeof openBrowserPersistence
   private readonly unsubscribe: () => void
   private storage: BrowserStorage | null = null
+  private bindings: AuthoritativeAccountBinding | null = null
   private keys: RuntimeKeyContext | null = null
   private identity: BrowserIdentity | null = null
   private controller: AbortController | null = null
@@ -64,6 +74,7 @@ export class BrowserCloudAccountSession {
     this.controller = null
     const keys = this.keys, storage = this.storage
     this.keys = null
+    this.bindings = null
     this.storage = null
     if (clearIdentity) { this.identity = null; this.everUnlocked = false }
     await Promise.all([keys?.dispose(), storage?.close()])
@@ -95,9 +106,11 @@ export class BrowserCloudAccountSession {
       if (this.identity && (this.identity.local_account_id !== identity.local_account_id || this.identity.device_id !== identity.device_id)) {
         throw new BrowserPersistenceError('account_mismatch')
       }
+      const bindings = new AuthoritativeAccountBinding(this.auth, storage)
       this.storage = storage
+      this.bindings = bindings
       this.identity = { local_account_id: identity.local_account_id, device_id: identity.device_id }
-      this.keys = new RuntimeKeyContext(this.auth, new AuthoritativeAccountBinding(this.auth, storage), this.cryptoTransport)
+      this.keys = new RuntimeKeyContext(this.auth, bindings, this.cryptoTransport)
     } catch (error) {
       await storage?.close()
       if (this.controller === controller) this.controller = null
@@ -133,6 +146,17 @@ export class BrowserCloudAccountSession {
     }
     this.everUnlocked = true
     return lease
+  }
+
+  /** Internal local-only composition. The returned source becomes unusable on lock/logout. */
+  localNoteRepository(): BrowserLocalNoteRepository {
+    this.assertWeb()
+    const context = this.auth.requireContext(), identity = this.identity
+    const storage = this.storage, bindings = this.bindings, keys = this.keys
+    const lease = identity && keys?.leaseForAccount(identity.local_account_id)
+    if (!identity || !storage || !bindings || !keys || !lease?.isCurrent()) throw new BrowserPersistenceError('closed')
+    const scope = Object.freeze({ canonicalUserId: context.userId, accountId: identity.local_account_id, deviceId: identity.device_id })
+    return Object.freeze({ scope, source: storage.localSource.bind(this.auth, bindings, keys) })
   }
 
   async lock(): Promise<void> {

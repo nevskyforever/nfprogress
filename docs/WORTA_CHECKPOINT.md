@@ -38,6 +38,38 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — MVP6.0.11 Web encrypted local Note persistence
+
+Starting `6.0` and `origin/6.0`: `aec2318192531630c5860475adcc367eb3c174a6`,
+clean. Reused the existing C21 browser IndexedDB schema and
+`BrowserLocalAuthority`; no new store, migration, cryptographic format, Note
+protocol, or sync capability was introduced. The development Web account
+session now has an internal `localNoteRepository()` composition that derives
+scope from the current authenticated account/device and requires an unlocked
+key lease. A retained repository handle is closed by lock/logout.
+
+Focused C21 tests: **37 passed** (`localAuthority.spec.ts`,
+`persistence.spec.ts`); TypeScript typecheck and production Vite build passed.
+Vite emitted non-blocking chunk-size and dynamic-import warnings.
+Targeted ESLint passed for the changed TypeScript and browser acceptance files.
+Real Chromium persistent-profile acceptance verified
+encrypted local Note persistence and reopen after browser restart, distinct
+account scopes even with the same project ID, lock revocation, and existing
+cross-tab writer exclusion. It checks that persisted rows contain ciphertext,
+not synthetic plaintext/password/key, and that only the pre-existing auth and
+account-crypto API routes were called. No Note writer, upload, ACK, reader
+declaration, sync, registration, backend or VPS was activated or changed.
+
+This is internal implementation only: the Vue writing flow remains on the
+plaintext compatibility repositories and users cannot yet create/read Notes
+through this encrypted local repository. It is browser-local, not synchronized.
+The smallest next product step is local-only editor composition with explicit
+handling for existing compatibility data. Before Mac↔Web sync, the frozen C21
+truthful reader/writer gate and production dispatch/replay must be completed,
+then C22 review and C23 paired-client restore acceptance. Web remains **89.36%**,
+registration CLOSED, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, and PUBLIC RELEASE BLOCKED.
+
 ## 2026-10-26 — MVP6.0.10 checkpoint merge / isolated VPS restore drill
 
 Starting `6.0` and `origin/6.0`: `5b87250dad98b4fb6e46237ef1aee22d91429b42`,
