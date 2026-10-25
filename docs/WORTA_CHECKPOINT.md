@@ -1,5 +1,42 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-25 — MVP6.0.04 staging readiness / safe preflight
+
+**PREFLIGHT STOP / NO DEPLOYMENT.** Starting `6.0` and fresh-fetched
+`origin/6.0` matched `d70d438ddcea45881a4e0f832c35c2c7dc22a74c`;
+working tree was clean. Owner-provided independent CI outcomes are MVP6.0.02
+Cloud `40180686691` and MVP6.0.03 Cloud `40183219901`, each 6/6 SUCCESS.
+GitHub Actions was not queried or awaited in this task.
+Only these two root `docs/` files change, so the current path filters do not
+select Cloud or SQLite jobs on this push; release workflows require manual
+dispatch or `main`. No new mandatory CI acceptance is claimed.
+
+The requested read-only SpaceWeb audit could not start: `worta-admin` was not
+resolvable in this execution environment and `~/.ssh/config` is absent. No
+server command completed; 2026-10-22 host versions/capacity/service state are
+historical reports, not newly confirmed facts. No backend, PostgreSQL DB/role,
+migration, admin account, DNS, firewall, Caddy or public port was changed.
+
+Code audit found **P0** staging blockers: the same app mounts legacy plaintext
+`/api` and cloud routes, while a missing legacy session token makes the legacy
+guard pass; the normal backend CLI reconstructs `RuntimeConfig` without SMTP,
+HTTPS invite URL and cloud blob root; C21's truthful Note reader gate, C22
+security acceptance and C23 DB/blob restore remain open. **P1**: explicit
+PostgreSQL pool/Argon2 concurrency and memory limits, isolated staging role/
+data paths, private HTTPS invitation frontend, monitored SMTP delivery, and a
+fresh VPS inventory are not evidenced. SMTP failures are currently swallowed
+after an invitation is committed, so an API 201 is not proof of delivery.
+Existing admin bootstrap, server-side role checks, single-use invitation claim,
+closed public registration and username-based login with separate email remain
+in place; no second administration path was added.
+
+Local checks: affected Python files compile; focused PostgreSQL foundation and
+backend-development tests pass **13/13** (two DB-dependent cases deselected).
+The reproducible gated install, smoke, backup and rollback sequence is recorded
+in [MVP6.0.04 safe preflight](WORTA_6_0_MVP.md#MVP6004--safe-staging-preflight-2026-10-25).
+Web remains **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED and PUBLIC RELEASE BLOCKED.
+
 ## 2026-10-25 — MVP6.0.03 private provisioning and landing status
 
 **LOCAL APP COMPLETE / PRODUCTION BACKEND UNDEPLOYED.** The `6.0` baseline was

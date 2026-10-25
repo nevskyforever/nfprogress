@@ -19,6 +19,9 @@ production database or VPS service was changed. The `landing/worta` site now
 labels its status as closed testing and explains future invitation-only access
 without publishing a registration form. It does not assert that the test Web
 backend is deployed or that Note synchronization is ready.
+The owner reports independent Cloud acceptance for MVP6.0.02
+(`40180686691`, 6/6 SUCCESS) and MVP6.0.03 (`40183219901`, 6/6 SUCCESS).
+MVP6.0.04 did not query GitHub Actions.
 
 ## Exact MVP
 
@@ -123,10 +126,91 @@ is not deferrable: restricted sync stays blocked until the predicate is met.
    interruption, conflict retention and restore before considering any external
    test access.
 
+## MVP6.0.04 — safe staging preflight (2026-10-25)
+
+**Decision: STOP before deployment or account provisioning.** At baseline
+`d70d438ddcea45881a4e0f832c35c2c7dc22a74c`, the local repo and
+`origin/6.0` matched. This is a code/document audit, not fresh VPS acceptance:
+the requested `worta-admin` alias did not resolve in this execution environment
+because `~/.ssh/config` is absent. No server commands completed. The host facts
+below remain the dated 2026-10-22 report until a read-only SSH preflight succeeds.
+
+| Priority | Boundary | Confirmed code state / staging consequence |
+| --- | --- | --- |
+| P0 | Legacy `/api` | `create_app()` mounts plaintext `PickleRepository` routes alongside cloud routes. `require_session()` allows requests when `NFPROGRESS_SESSION_TOKEN` is unset; the backend CLI rejects a non-loopback bind with a token. A cloud-capable staging process has no proved safe network path for this mixed API. Isolate/disable the legacy routes through a reviewed runtime boundary before any reachable staging listener. |
+| P0 | RuntimeConfig and invitations | `RuntimeConfig.from_env()` reads SMTP, `NFPROGRESS_PUBLIC_WEB_URL` and `NFPROGRESS_CLOUD_BLOB_DIR`, but `backend.app.__main__.main()` reconstructs a config without these fields. Its normal CLI launch therefore disables SMTP and blob storage, so invitation issuance returns 503. Repair config propagation and test the actual CLI entry point before installation. |
+| P0 | C21 reader gate | Bounded native/browser reader owners exist; the full six-field truthful declaration, production dispatch/replay and remaining histories are not accepted. Keep Note sync, writer authorization and declaration closed. |
+| P0 | C22 security | Server-side account/role/ownership checks and closed registration exist, with bounded tests. An independent staging security review of the mixed API, secrets, limits, TLS and service isolation is not accepted. Do not treat component authorization tests as C22 completion. |
+| P0 | C23 restore | Bounded client recovery code/tests and reported provider snapshots exist. An independent, consistent staging DB-plus-encrypted-blob backup restored into an empty target and verified with clients is not recorded. Do not admit real tester data until that drill passes. |
+| P1 | Resources and isolation | `CloudDatabase` uses SQLAlchemy's implicit pool defaults; there is no explicit pool/overflow budget or Argon2 concurrency limit in this runtime. A separate PostgreSQL role/database, dedicated legacy-data and blob roots, service RAM/process limits and connection budget are design requirements, not verified host state. |
+| P1 | Invitation delivery and HTTPS | SMTP TLS and complete env validation exist, but SMTP send failures are logged and swallowed after a pending invitation is committed; 201 cannot prove delivery. The invitation page is a Vue `/invite` route and `NFPROGRESS_PUBLIC_WEB_URL` must be HTTPS. The published landing is not an invitation application endpoint. Prove a private HTTPS frontend and monitored mail delivery before inviting testers. |
+| P1 | Live VPS state | The SSH alias was unavailable here. Versions, free RAM/disk, interface bindings, permissions, current services, PostgreSQL policy and Caddy status cannot be claimed fresh. |
+
+The one-time `backend.app.admin_cli create` path reads username/email with
+`input()` and password/confirmation with `getpass`, uses a PostgreSQL advisory
+transaction lock, and refuses creation if any admin exists. Admin API routes use
+server-side `get_current_admin`; public registration policy updates reject any
+mode other than CLOSED. Invitation acceptance locks and rechecks a token hash,
+expiry, revocation, account state and capacity. Login still selects by normalized
+**username**; `username` and `email` remain distinct unique fields. The admin
+bootstrap and invitation tests used disposable PostgreSQL in MVP6.0.03; this
+task created no real administrator or staging database.
+
+### Authorized deployment sequence after the P0 gates close
+
+1. Repeat a **read-only** `worta-admin` inventory: UTC/OS/Python/PostgreSQL/Caddy
+   versions, `pg_isready`, service states, RAM/swap/disk, interface/listening
+   addresses, and owner/mode of intended paths. Do not print environment files,
+   credentials, process environments or user data. Compare host capacity with a
+   measured single-worker Argon2 and DB pool budget. Record the exact SSH profile
+   and host fingerprint through the owner's trusted channel.
+2. Review the actual backend entry point and a cloud-only route boundary; prove
+   legacy `/api` unreachable, CLOSED public registration, admin 401/403 checks,
+   no broad CORS, and dedicated empty data/blob directories. Set a bounded DB
+   pool/overflow and authentication concurrency plus service memory/task limits.
+   Use a separate non-superuser staging DB/role; never reuse production data or
+   credentials. This task creates none of them.
+3. Review Alembic head and PostgreSQL 16 compatibility on a disposable database,
+   including the additive `private_invitations` migration and policy row. Before
+   any authorized migration, capture an independent consistent DB dump and
+   encrypted-blob snapshot with inventory/checksums. Do not use automatic
+   downgrade after invitations exist; its guard intentionally refuses data loss.
+4. Keep the backend bound to loopback with SSH tunnel access only. Configure a
+   private HTTPS app endpoint for `/invite` and server-generated links before
+   sending invitations; the existing public landing and DNS remain unchanged.
+   Provide `NFPROGRESS_ENV=production`, `NFPROGRESS_DATABASE_URL`,
+   `NFPROGRESS_AUTH_SECRET`, `NFPROGRESS_DATA_DIR`,
+   `NFPROGRESS_CLOUD_BLOB_DIR`, exact `NFPROGRESS_ALLOWED_ORIGINS`,
+   `NFPROGRESS_PUBLIC_WEB_URL`, and complete `NFPROGRESS_SMTP_HOST`,
+   `NFPROGRESS_SMTP_PORT`, `NFPROGRESS_SMTP_USERNAME`,
+   `NFPROGRESS_SMTP_PASSWORD`, `NFPROGRESS_SMTP_FROM_EMAIL`,
+   `NFPROGRESS_SMTP_SECURITY` values through a root-controlled environment file
+   (mode 0600), never Git, chat, command arguments or logs. Validate SMTP
+   delivery to an owner-controlled
+   mailbox and failure reporting without sending a real tester invitation.
+5. After owner authorization, run the existing `python -m backend.app.admin_cli
+   create` **interactively on the trusted server terminal** with the staging env
+   loaded locally. The owner types a unique username, separate email and strong
+   password directly into that terminal. No password is supplied to Codex. Verify
+   only role/status through an authorized session; no duplicate bootstrap.
+6. Run restricted smoke checks: `/ready`, unauthorized/admin access, CLOSED
+   registration, invitation issue/expiry/revoke/replay, username login, project
+   isolation, ciphertext-only storage, and negative reader/writer gates. Admit
+   no real users until C21/C22/C23 and paired-client acceptance authorize it.
+7. Rehearse restore into **another** disposable database/blob root and verify
+   counts, checksums, auth/session revocation assumptions and client recovery.
+   Rollback a bad rollout by stopping its isolated service, retaining evidence,
+   restoring the matched DB/blob snapshot into an empty isolated target and
+   restoring the prior reviewed backend image. Never overwrite the source or
+   downgrade populated invitation history in place.
+
+No backend, role, database, migration, account, DNS, firewall, Caddy or public
+listener was changed during this preflight.
+
 ## VPS readiness and staging boundary
 
-Latest recorded VPS status is **prepared / deployment blocked** (2026-10-22; not a
-fresh host check): Ubuntu 24.04.5, Python 3.13.17,
+Latest recorded VPS status is **prepared / deployment blocked** (2026-10-22;
+MVP6.0.04 SSH verification did not connect): Ubuntu 24.04.5, Python 3.13.17,
 PostgreSQL 16.15 and Caddy are present. PostgreSQL is loopback-only with TCP
 rejected and no WORTA DB/role. Caddy serves closed 404s on loopback `127.0.0.1:8080`.
 The backend bundle and production dependency lock are prepared but not installed;
