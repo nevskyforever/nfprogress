@@ -119,7 +119,8 @@ is not deferrable: restricted sync stays blocked until the predicate is met.
    name. A future authorized slice must strictly authenticate the v3 wrapper and
    original F2 proof without relabeling protocol or inventing a receipt. Missing
    or corrupt proof stops; restart and no-duplicate-write evidence is required.
-   C21.2.08Y still needs its independent Cloud acceptance; no gate is waived.
+   C21.2.08Y is independently accepted by the owner (Cloud `40122788774`, 6/6);
+   its scope is the bounded same-F-project O/Q cohort. No gate is waived.
 3. **Finish the smallest remaining Note-reader slices.** Production route
    dispatch, replay/received scan, dependency stop and only required supported
    lifecycle cases; retain full inventory checks. Each slice needs focused native
@@ -572,6 +573,38 @@ The smallest next synchronization step is to continue the already-frozen C21
 truthful Note reader/writer gate and production dispatch/replay work with all
 declaration, writer authorization, and ACK disabled. Mac↔Web sync still also
 requires C22 security review and C23 paired-client backup/restore acceptance.
+
+## C21.2.08Z — cross-project Note source-witness audit (2026-10-26)
+
+The owner independently accepted Y at implementation SHA
+`59352b36c5d923031f9191d073e1d9a39b07a8c1`, Cloud `40122788774`, 6/6 SUCCESS.
+That acceptance covers O/Q for Notes in the same project as the accepted F
+Resolution root. MVP6.0.12 Cloud `40236767686` is still pending owner acceptance.
+
+Z is a documentation-only audit; it found existing DB10 stores and proof
+versions insufficient to qualify ordinary Notes from a second project. An
+imported binding proves account/project/bootstrap and remote high-water, but not
+the project's initial source revision, member set/projections or complete
+bootstrap-to-current Note history on another device. The account inbox preserves
+wire events and global sequence, while source-revision apply evidence is local
+to the applying browser. F's R0 belongs only to F's project. Cross-project Note
+rows therefore remain unqualified; Metadata/Stage/StageOrder retain their
+existing owners and can only be handled under those owners.
+
+The next bounded slice is **C21.2.08Z1 — authenticated second-project
+source-baseline owner and replay feasibility**, GPT-6 Luna / High. First prove
+that an existing authoritative bootstrap/full-history source can supply the
+anchor. If not, stop before Q implementation and submit a durable witness
+protocol/schema for separate review and approval. Do not infer authority from
+current local rows, Note-local revisions, server sequence, or the F project's
+source evidence. The future test matrix and decision are in
+[`docs/web/C21_2_08Z_CROSS_PROJECT_NOTE_SOURCE_WITNESS_CONTRACT_AUDIT.md`](web/C21_2_08Z_CROSS_PROJECT_NOTE_SOURCE_WITNESS_CONTRACT_AUDIT.md).
+
+Web remains **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED and PUBLIC RELEASE BLOCKED. C21
+truthful reader/writer gates, C22/C23/PF6.0/RC remain mandatory. MVP6.0.12's
+historical localization test debt remains 27 untranslated historical catalog
+keys per target language (47 at its baseline); no prior test result is changed.
 
 ## Acceptance checklist — restricted MVP
 

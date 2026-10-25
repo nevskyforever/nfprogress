@@ -38,6 +38,41 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — C21.2.08Z cross-project Note source-witness contract audit
+
+**AUDIT COMPLETE — documentation only.** Starting baseline
+`e8d20b9fb463f6f4daadfcc3cfdc5a41e57a961e`, branch `6.0`; clean worktree and
+`HEAD == origin/6.0`. The owner independently accepted C21.2.08Y implementation
+SHA `59352b36c5d923031f9191d073e1d9a39b07a8c1`, Cloud run `40122788774`, 6/6
+SUCCESS. This accepts Y's bounded same-F-project O/Q cohort only. MVP6.0.12
+Cloud run `40236767686` remains pending independent owner confirmation. Actions
+were not queried.
+
+Z found that DB10, the twelve IndexedDB stores and current proof versions do not
+establish an imported second project's authentic starting `source_revision`,
+initial Note membership/projections, or complete bootstrap-to-current Note
+history on another device. `importRemote` binds project/bootstrap and remote
+high-water but has no source anchor; inbox server sequences are account-wide;
+local apply projections/proofs are browser-local. F's `source_after`/R0 is only
+authority for its own project. Therefore cross-project ordinary Note rows remain
+unqualified under Q; current local source and global sequence cannot substitute
+for the missing source witness.
+
+Decision: **IMPLEMENTATION STOP** for cross-project Q admission until an existing
+authoritative complete bootstrap/replay source is demonstrated, or a new durable
+source-witness protocol/schema is separately reviewed and approved. Next bounded
+slice: C21.2.08Z1 source-baseline owner and replay feasibility, GPT-6 Luna / High;
+do not implement Q admission before source authority is accepted. The audit and
+future acceptance matrix are in
+[`docs/web/C21_2_08Z_CROSS_PROJECT_NOTE_SOURCE_WITNESS_CONTRACT_AUDIT.md`](web/C21_2_08Z_CROSS_PROJECT_NOTE_SOURCE_WITNESS_CONTRACT_AUDIT.md).
+
+Official Web remains **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED, and PUBLIC RELEASE BLOCKED.
+C21 truthful reader gate, C22/C23/PF6.0/RC remain mandatory; no writer, ACK,
+declaration, sync, or production/readiness setting changed. MVP6.0.12's historical
+localization debt remains 27 untranslated catalog keys per target language (47
+at its baseline); its historical test result is not rewritten.
+
 ## 2026-10-26 — MVP6.0.12 Web editor over local encrypted workspace
 
 Accepted precondition supplied by the owner: MVP6.0.11 Cloud run
