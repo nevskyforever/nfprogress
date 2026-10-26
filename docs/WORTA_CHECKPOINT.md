@@ -11024,3 +11024,54 @@ Official Web progress remains **89.36%**; `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED and
 PUBLIC RELEASE BLOCKED. C21/C22/C23/PF6.0/RC and all reader/writer gates remain
 unchanged.
+
+## 2026-10-26 — MVP6.0.FASTTRACK.03 remove duplicate Chromium setup
+
+Starting `6.0`/`origin/6.0` SHA: `ed331f3740805433debaeccf6d26d34510851025`.
+Cloud run `40294292420` ended **5 SUCCESS / 1 CANCELLED**. On
+`complete-project`, historical Metadata browser acceptance, private Metadata
+atomic handoff/disk recovery (**8 profiles / 16 crashes**), and post-F
+Metadata browser acceptance (**8 profiles / 24 crashes**) all passed. The job
+was cancelled at the 40-minute limit while starting native bridge preparation,
+after slow native dependency setup (**25:44**) and Chromium installation
+(**9:47**). Later native/backend checks were not run in that job and are not
+counted as passed.
+
+The pinned Chromium install, harness build, and loopback preview now run only
+on `content-action`. The three completed-in-run Metadata browser acceptances
+move there, after the preview is ready, and each retains its original command
+and runs once. They use that job's local preview and installed Chromium; no
+artifacts or state are shared across runners. `complete-project` retains its
+native bridge preparation and PostgreSQL complete-project acceptance. The
+previous FASTTRACK.02 contract-suite placement remains: C21 recovery/historical
+Metadata Vitest on `foundation`, private Metadata prerequisite Vitest on
+`content-action`.
+
+Full-job estimates using run `40294292420` setup durations and the previously
+successful run `40277351544` for checks that were not reached: `complete-project`
+was at about 40:00 before bridge preparation; removing its Chromium install
+(9:47) and three browser checks (3:11) moves that point to about 27:02. Add
+bridge preparation (2:16) and PostgreSQL acceptance (5:37) for a projected
+**34:55 total**, about **5:05 reserve** to the 40-minute limit (within the
+35-minute target). `content-action` was about 22:30; the moved browser checks
+add 3:11, for **25:41 total**, about **14:19 reserve**. Its Chromium install
+and preview are already included in that job and are not added again.
+`foundation` took about 33 minutes in `40294292420`; this change adds nothing
+there, leaving about **7 minutes reserve**. Other mandatory jobs are unchanged.
+These are estimates from observed runs, not a guarantee against runner
+variance.
+
+The six mandatory jobs and their 40-minute limits remain. No checks were
+deleted, weakened or duplicated; toolchain and workflow path filters are
+unchanged. YAML parsing, matrix/condition/order checks, unique browser command
+checks and `git diff --check` passed locally. Independent acceptance of the
+resulting SHA remains pending; no post-push Actions result is claimed.
+
+The product target remains a full Web version with Desktop parity for
+Windows/macOS: projects, stages, text editors, Notes, maps, progress,
+statistics, Game Mode and existing user features, with offline storage and
+bidirectional E2EE synchronization. After independent CI acceptance, the next
+product slice remains the encrypted Web projects/stages repository connected
+to the existing Vue UI. Web progress stays **89.36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
+PUBLIC RELEASE BLOCKED and C21/C22/C23/PF6.0/RC gates remain unchanged.

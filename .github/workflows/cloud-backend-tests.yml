@@ -349,24 +349,24 @@ jobs:
         working-directory: frontend
         run: npm test -- --run src/platform/web/postFMetadataRecovery.spec.ts src/platform/web/privateMetadataPrefix.spec.ts --maxWorkers=1
 
-      # Y capacity gate: foundation20m07s +8m O/Q unit envelope +5m reserve <40m.
+      # FASTTRACK.03: foundation completed in about 33m in run 40294292420; keep its current load unchanged.
       - name: Verify isolated Legacy3 G and independent O/Q authorities
         if: matrix.shard == 'foundation'
         working-directory: frontend
         run: npm test -- --run src/platform/web/legacy3Prefix.spec.ts src/platform/web/legacy3OrdinaryPrefix.spec.ts --maxWorkers=1
 
       - name: Install pinned Chromium for historical Metadata acceptance
-        if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
+        if: matrix.shard == 'content-action'
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
       - name: Build historical Metadata acceptance harness
-        if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
+        if: matrix.shard == 'content-action'
         working-directory: frontend
         run: npx vite build --config scripts/vite.persistence-acceptance.config.ts
 
       - name: Start historical Metadata acceptance preview
-        if: matrix.shard == 'complete-project' || matrix.shard == 'content-action'
+        if: matrix.shard == 'content-action'
         shell: bash
         working-directory: frontend
         run: |
@@ -381,8 +381,7 @@ jobs:
           cat "$RUNNER_TEMP/c21-historical-metadata-preview.log"
           exit 1
 
-      # W capacity gate: content-action14m49s +12m native/setup envelope +5m reserve <40m.
-      # Only setup is shared; every original acceptance retains its original shard.
+      # FASTTRACK.03 estimate: content-action 22m30s observed + 3m11s moved browser checks = 25m41s.
       - name: Verify Legacy3 G cursor-only commit, restart and pinned old-U rejection
         if: matrix.shard == 'content-action'
         working-directory: frontend
@@ -407,7 +406,7 @@ jobs:
               subprocess.run(['node', 'scripts/browser-resolution-prefix-acceptance.mjs', 'http://127.0.0.1:5174', '--legacy3-prefix'], env=dict(os.environ, C21_OLD_U_BUNDLE=str(bundle)), check=True)
           PYCODE
 
-      # Y capacity gate: content-action22m35s +8m O/Q native envelope +5m reserve <40m.
+      # The moved Metadata browser checks reuse the Chromium install and preview above.
       - name: Verify Legacy3 O apply, Q cursor commit and pinned old-W rejection
         if: matrix.shard == 'content-action'
         working-directory: frontend
@@ -433,17 +432,17 @@ jobs:
           PYCODE
 
       - name: Verify read-only historical Metadata dependency and disk reopen
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'content-action'
         working-directory: frontend
         run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --historical-metadata --historical-content --historical-prefix
 
       - name: Verify private Metadata atomic handoff and disk recovery
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'content-action'
         working-directory: frontend
         run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --private-metadata
 
       - name: Verify post-F Metadata routing and separate historical cursor recovery
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'content-action'
         working-directory: frontend
         run: node scripts/browser-v10-ordinary-boundary-acceptance.mjs http://127.0.0.1:5174 --post-f-metadata
 
