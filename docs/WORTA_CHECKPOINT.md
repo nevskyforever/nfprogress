@@ -38,6 +38,24 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — C21.2.08Z2B2 shared Note causal planner slice
+
+**PARTIAL; atomic second-project replay remains blocked.** The owner independently
+accepted Z2B1 Cloud run `40242607000`, 6/6 SUCCESS. The authenticated
+single-event Legacy2/Content3 owner now uses private shared planning for causal
+head reconstruction, self-echo and clean peer parent/revision checks, and
+Candidate/Head/proof construction. These calculations can consume an
+owner-verified Note source image without performing a durable read per Note.
+They do not mint capabilities or commit writes. Real Content3 Metadata/Stage
+prerequisites, `ownerHeads` hook, local source authority, CAS and one-event
+transaction remain required. Focused tests and exact remaining work are in
+[`docs/web/C21_2_08Z2B2_CAUSAL_PLANNER_KERNEL.md`](web/C21_2_08Z2B2_CAUSAL_PLANNER_KERNEL.md).
+Conflict and historical planner extraction is still needed before Z2B3; the
+next minimum task is that bounded Z2B2 continuation, GPT-6 Sol / Medium.
+Web progress stays **89.36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, registration CLOSED and PUBLIC RELEASE BLOCKED.
+C21/C22/C23/PF6.0/RC gates remain unchanged.
+
 ## 2026-10-26 — C21.2.08Z2B1 shared local source kernel
 
 **LOCAL IMPLEMENTATION COMPLETE; second-project replay remains pending.**

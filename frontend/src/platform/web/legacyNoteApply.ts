@@ -23,6 +23,7 @@ import { immutableWireIdentity, readBrowserSyncCursor, snapshotBrowserSyncScope,
 import { BrowserLocalAuthority, assertLocalSourceInTransaction, scheduleProtectedNoteApply, type BrowserLocalAuthorityRuntime, type ProtectedNoteSourcePlan, type LocalSourceToken } from './localAuthority'
 import { validateBrowserNoteProof,validateBrowserNoteConflictProof,type BrowserNoteConflictProof, type BrowserNoteProof } from './noteApplyRecords'
 import { deriveInitialLegacyCohort } from './initialNoteCapture'
+import type { LocalNoteRecord } from './localAuthorityRecords'
 
 export interface VerifiedNoteCausalPlan {readonly verifiedNoteCausalPlan:unique symbol}
 /** Backward-compatible Legacy surface over the shared private causal plan. */
@@ -38,7 +39,7 @@ function historySort(rows:BrowserNoteHistoryRecord[]):BrowserNoteHistoryRecord[]
 function proofRow(row:BrowserInboxRecord,proof:NoteCausalOutcome){if(proof.owner_kind==='content_note')return proof.outcome==='applied'?{...row,record_version:7,state:'content_note_proven',content_note_proof:proof}:{...row,record_version:8,state:'content_note_conflict_preserved',content_note_conflict_proof:proof};if(proof.owner_kind!=='legacy_note')fail('corrupt_record');return proof.outcome==='conflict_preserved'?{...row,record_version:4,state:'note_conflict_preserved',note_conflict_proof:proof}:{...row,record_version:3,state:'note_proven',note_proof:proof}}
 function fail(code:BrowserPersistenceCode):never{throw new BrowserPersistenceError(code)}
 export async function noteProofDigest(value:unknown):Promise<string>{const bytes=new TextEncoder().encode(immutableWireIdentity(value));let digest:Uint8Array|undefined;try{digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));return Array.from(digest,b=>b.toString(16).padStart(2,'0')).join('')}finally{bytes.fill(0);digest?.fill(0)}}
-export async function noteOutcomeDigest(p:NoteCausalOutcome):Promise<string>{const {outcome_digest:_digest,...body}=p;return noteProofDigest(body)}
+export async function noteOutcomeDigest(p:NoteCausalOutcome):Promise<string>{const {outcome_digest:_digest,...body}=p;void _digest;return noteProofDigest(body)}
 export async function openRetainedNote(scope:BrowserSyncScope,amk:AccountMasterKey,row:BrowserInboxRecord):Promise<NoteSyncPlaintext>{
   return (await openNoteTransport(scope,amk,row.protocol_version,row.wire_item,'legacy')).plaintext
 }
@@ -52,6 +53,47 @@ function requireOwnReceipt(scope:BrowserSyncScope,inventory:Inventory,row:Browse
   if(device_id!==scope.deviceId||!outbound||!receipt)fail('self_echo_unavailable')
   const out=validateBrowserUploadPair(outbound,receipt,scope)
   if(out.state!=='accepted'||out.protocol_version!==row.protocol_version||(receipt as {server_sequence:number}).server_sequence!==server_sequence||!same(JSON.parse(out.raw_body).items[0],{event,object:raw.object}))fail('self_echo_unavailable')
+}
+/** Only an authenticated owner calls this with validated, opened history. It grants no write capability. */
+function planCausalHead(scope:BrowserSyncScope,binding:BrowserProjectBinding,records:BrowserNoteHistoryRecord[],candidates:BrowserNoteCandidate[],applied:BrowserInboxRecord[],outgoing:ReturnType<typeof validateBrowserStoredUploadPair>[]):BrowserNoteHead|undefined{
+ const retained=records.find((r):r is BrowserNoteHead=>r.record_kind==='head');if(retained||!candidates.length)return retained
+ const nativeHeads=[...applied.map(r=>({event:r.event_id,revision:r.state==='note_proven'?r.note_proof.header.revision:0})),...outgoing.map(r=>{const e=JSON.parse(r.raw_body).items[0].event;return{event:r.event_id,revision:e.revision}})],max=Math.max(...nativeHeads.map(r=>r.revision)),top=nativeHeads.filter(r=>r.revision===max)
+ if(!top.length||new Set(top.map(r=>r.event)).size!==1)fail('candidate_history_unavailable')
+ return nextNoteHead(scope,binding,candidates,top[0]!.event)
+}
+function verifyOwnCausalAdmission(scope:BrowserSyncScope,inventory:Inventory,row:BrowserInboxRecord,header:NoteSyncPlaintext['header'],linear:BrowserNoteCandidate|undefined,candidates:BrowserNoteCandidate[]):void{
+ requireOwnReceipt(scope,inventory,row)
+ if(!candidates.some(c=>c.event_id===header.event_id))fail('candidate_history_unavailable')
+ if(linear&&linear.header.revision===header.revision&&linear.event_id!==header.event_id)fail('note_conflict_unproven')
+}
+/** Causal test over an owner-verified source image; no durable reads or writes. */
+async function verifyCleanPeerCausality(header:NoteSyncPlaintext['header'],head:BrowserNoteHead|undefined,linear:BrowserNoteCandidate|undefined,candidates:BrowserNoteCandidate[],notes:readonly LocalNoteRecord[],outgoing:ReturnType<typeof validateBrowserStoredUploadPair>[],receipts:unknown[]):Promise<void>{
+ if(header.revision===1){if(head||candidates.length||notes.some(n=>n.note_id===header.entity_id))fail('note_conflict_unproven');return}
+ if(!linear||linear.header.revision<header.revision-1)fail('note_orphan')
+ if(linear.header.revision!==header.revision-1||linear.event_id!==header.parent_event_id)fail('note_conflict_unproven')
+ if(!linear.projection_digest)fail('candidate_history_unavailable')
+ const localRecord=notes.find(n=>n.note_id===header.entity_id)
+ if(!localRecord||await noteProofDigest(localRecord)!==linear.projection_digest)fail('note_conflict_unproven')
+ if(linear.origin!=='peer'){const out=outgoing.find(r=>r.event_id===linear.event_id),receipt=receipts.find(r=>(r as {event_id:string}).event_id===linear.event_id);if(!out||out.state!=='accepted'||!receipt)fail('candidate_history_unavailable')}
+}
+/** Plan only from the genuine source projection and authenticated transport certificate. */
+async function planCleanCandidateProof(scope:BrowserSyncScope,binding:BrowserProjectBinding,row:BrowserInboxRecord,item:unknown,plaintext:NoteSyncPlaintext,cleanProof:BrowserNoteProof|DormantNoteOutcome,projection:LocalNoteRecord|null,prerequisite:Awaited<ReturnType<typeof prepareNotePrerequisite>>|undefined,content:boolean,candidates:BrowserNoteCandidate[],groups:BrowserNoteConflictGroup[],versions:BrowserNoteLocalVersion[],head:BrowserNoteHead|undefined,records:BrowserNoteHistoryRecord[]):Promise<{proof:NoteCausalOutcome;historyNext:BrowserNoteHistoryRecord[];transportHook?:VerifiedNoteTransportCommit}>{
+ let proof:NoteCausalOutcome=cleanProof,transportHook:VerifiedNoteTransportCommit|undefined
+ if(projection){
+  cleanProof.local_note_digest=await noteProofDigest(projection)
+  let candidate:BrowserNoteCandidate
+  if(prerequisite){const transport=await prepareNoteTransportCommit(prerequisite.certificate,plaintext,projection);transportHook=transport.hook;candidate=transport.candidate;if(content)proof=await contentProofFor(scope,row,candidate,plaintext.mutation)}
+  else candidate=await makeHistoryCandidate(scope,binding,row.protocol_version,JSON.parse(row.wire_item).event.device_id,item,plaintext,'peer',projection)
+  const old=candidates.find(c=>c.event_id===candidate.event_id)
+  if(old){if(old.wire_item!==candidate.wire_item||!same(old.header,candidate.header)||old.source_device_id!==candidate.source_device_id||old.protocol_version!==candidate.protocol_version)fail('conflicting_record')}
+  else candidates.push(candidate)
+  head=nextNoteHead(scope,binding,candidates,plaintext.header.event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))
+ }
+ proof.outcome_digest=await noteOutcomeDigest(proof)
+ if(proof.owner_kind==='legacy_note')validateBrowserNoteProof(proof,scope)
+ const historyNext=historySort([...candidates,...groups,...versions,...(head?[head]:[])])
+ validateNoteHistorySet(scope,historyNext)
+ return{proof,historyNext,transportHook}
 }
 /** Internal capability reader: no DTO constructor. Only current authenticated prepare can expose plaintext to local authority. */
 export function verifiedLegacyNoteForLocal(token:VerifiedLegacyNotePlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):NoteSyncPlaintext {
@@ -86,7 +128,7 @@ export class BrowserLegacyNoteApplyRuntime {
     if(binding.remote_state!=='active'||!(binding.mode==='import_remote'&&binding.phase==='captured'||binding.mode==='upload_existing'&&binding.phase==='completing'))fail('ineligible_lineage')
     if(content&&(binding.mode!=='import_remote'||binding.phase!=='captured'))fail('ineligible_lineage')
     const cohort=binding.mode==='upload_existing'?deriveInitialLegacyCohort(scope,binding,inventory.out,inventory.receipts):null
-    const raw=JSON.parse(row.wire_item),reference=raw.event,{device_id:_source,server_sequence:_sequence,...event}=reference,item={event,object:raw.object}
+    const raw=JSON.parse(row.wire_item),reference=raw.event,{device_id:_source,server_sequence:_sequence,...event}=reference,item={event,object:raw.object};void _source;void _sequence
     return lease.use(async amk=>{
       await authenticateContentAuthorityInventory(scope,{history:inventory.allHistory,out:inventory.out,receipts:inventory.receipts,rows:inventory.rows,intents:inventory.intents},amk,current)
       // A claimed Note still permits authenticated historical read-only replay.
@@ -106,7 +148,7 @@ export class BrowserLegacyNoteApplyRuntime {
       }
       const applied=inventory.rows.filter(r=>r.state==='note_proven'&&r.note_proof.header.project_id===h.project_id&&r.note_proof.header.entity_id===h.entity_id)
       for(const prior of applied){if(prior.state!=='note_proven')fail('corrupt_record');await verifyStoredNoteProof(scope,amk,prior);if(prior.note_proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');if(prior.note_proof.outcome==='self_echo_applied'){requireOwnReceipt(scope,inventory,prior);if(!candidates.some(c=>c.event_id===prior.event_id))fail('candidate_history_unavailable');continue}
-        if(!candidates.some(c=>c.event_id===prior.event_id)){const wire=JSON.parse(prior.wire_item),{device_id:source,server_sequence:_seq,...e}=wire.event,opened=await openRetainedNote(scope,amk,prior);add(await makeHistoryCandidate(scope,binding,prior.protocol_version,source,{event:e,object:wire.object},opened,'peer',null,prior.note_proof.local_note_digest))}
+        if(!candidates.some(c=>c.event_id===prior.event_id)){const wire=JSON.parse(prior.wire_item),{device_id:source,server_sequence:_seq,...e}=wire.event,opened=await openRetainedNote(scope,amk,prior);void _seq;add(await makeHistoryCandidate(scope,binding,prior.protocol_version,source,{event:e,object:wire.object},opened,'peer',null,prior.note_proof.local_note_digest))}
       }
       let dependencyAnchor=prerequisite?.certificate
       let peerDependencyHook:VerifiedNoteTransportCommit|undefined
@@ -132,10 +174,7 @@ export class BrowserLegacyNoteApplyRuntime {
       }
       const outgoing=inventory.out.map(v=>validateBrowserStoredUploadPair(v,inventory.receipts.find(p=>(p as {event_id:string}).event_id===(v as {event_id:string}).event_id),scope)).filter(r=>{const e=JSON.parse(r.raw_body).items[0].event;return e.project_id===h.project_id&&e.entity_id===h.entity_id&&e.entity_type==='note'})
       if(outgoing.some(r=>!candidates.some(c=>c.event_id===r.event_id)))fail('candidate_history_unavailable')
-      let head=records.find((r):r is BrowserNoteHead=>r.record_kind==='head')
-      if(!head&&candidates.length){const nativeHeads=[...applied.map(r=>({event:r.event_id,revision:r.state==='note_proven'?r.note_proof.header.revision:0})),...outgoing.map(r=>{const e=JSON.parse(r.raw_body).items[0].event;return{event:r.event_id,revision:e.revision}})],max=Math.max(...nativeHeads.map(r=>r.revision)),top=nativeHeads.filter(r=>r.revision===max)
-        if(!top.length||new Set(top.map(r=>r.event)).size!==1)fail('candidate_history_unavailable');head=nextNoteHead(scope,binding,candidates,top[0]!.event)
-      }
+      let head=planCausalHead(scope,binding,records,candidates,applied,outgoing)
       if((dormant||content&&row.state!=='content_note_proven'&&row.state!=='content_note_conflict_preserved')&&candidates.some(c=>c.event_id===h.event_id))fail('conflicting_record') // One immutable event authority; no cross-route overwrite or synthetic replay proof.
       const wireDigest=await noteProofDigest({protocol_version:row.protocol_version,event:reference,object:raw.object})
       let proof:NoteCausalOutcome,replay=false
@@ -161,7 +200,7 @@ export class BrowserLegacyNoteApplyRuntime {
         if(!group||!member||member.source!=='remote'||member.server_sequence!==sequence||member.conflict_generation!==proof.conflict_generation||proof.bootstrap_id!==binding.bootstrap_id||proof.wire_digest!==wireDigest||!same(proof.header,h)||proof.mutation!==plaintext.mutation||await noteOutcomeDigest(proof)!==proof.outcome_digest)fail('corrupt_record');replay=true
       }else{
         const own=reference.device_id===scope.deviceId,linear=head&&candidates.find(c=>c.event_id===head!.linear_head_event_id)
-        if(own){requireOwnReceipt(scope,inventory,row);if(!candidates.some(c=>c.event_id===h.event_id))fail('candidate_history_unavailable');if(linear&&linear.header.revision===h.revision&&linear.event_id!==h.event_id)fail('note_conflict_unproven')}
+        if(own)verifyOwnCausalAdmission(scope,inventory,row,h,linear,candidates)
         if(linear){const prior=await openHistoryCandidate(scope,linear,amk)
           if(content&&['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((prior.note as unknown as Record<string,unknown>)[k],(plaintext.note as unknown as Record<string,unknown>)[k])))fail('unsupported_local_source')
           if(!content&&!dormant&&(prior.note.stage_id!==null||prior.note.content_format!=='html'))fail('unsupported_local_source')
@@ -175,7 +214,7 @@ export class BrowserLegacyNoteApplyRuntime {
           if(content&&open?.members.some(m=>m.source==='local_unsealed')){
             await verifyContentLocalAdmission(scope,open,records,amk,{out:inventory.out,receipts:inventory.receipts},inventory.intents,source.notes,plaintext)
           }else if(content&&localIntent){
-            if(!localPlain||plaintext.note.stage_id!==null||plaintext.note.content_format!=='html'||['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((localPlain.note as any)[k],(plaintext.note as any)[k])))fail('note_conflict_unproven')
+            if(!localPlain||plaintext.note.stage_id!==null||plaintext.note.content_format!=='html'||['id','project_id','stage_id','source_type','source_map_id','source_node_id','content_format'].some(k=>!same((localPlain.note as unknown as Record<string,unknown>)[k],(plaintext.note as unknown as Record<string,unknown>)[k])))fail('note_conflict_unproven')
           }
           const localSibling=!open&&localIntent&&h.revision>=2&&localIntent.revision===h.revision&&localIntent.parent_event_id===h.parent_event_id&&localIntent.event_id!==h.event_id&&candidates.some(c=>c.event_id===h.parent_event_id&&c.header.revision===h.revision-1)
           const sibling=!localIntent&&!open&&linear&&h.revision>=2&&linear.header.revision===h.revision&&linear.header.parent_event_id===h.parent_event_id
@@ -194,10 +233,7 @@ export class BrowserLegacyNoteApplyRuntime {
             preserve.members.push({version_id:`remote:${scope.accountId}:${h.event_id}`,event_id:h.event_id,source:'remote',server_sequence:sequence,conflict_generation:preserve.conflict_generation});preserve.members.sort((a,b)=>a.event_id<b.event_id?-1:1);preserve.tip_event_ids=preserve.members.map(m=>m.event_id)
           }else{
             if(localIntent)fail('note_conflict_unproven') // Native pending branch prevents clean apply, even its purported child.
-            if(h.revision===1){if(head||candidates.length||source.notes.some(n=>n.note_id===h.entity_id))fail('note_conflict_unproven')}
-            else{if(!linear||linear.header.revision<h.revision-1)fail('note_orphan');if(linear.header.revision!==h.revision-1||linear.event_id!==h.parent_event_id)fail('note_conflict_unproven');if(!linear.projection_digest)fail('candidate_history_unavailable');const localRecord=source.notes.find(n=>n.note_id===h.entity_id);if(!localRecord||await noteProofDigest(localRecord)!==linear.projection_digest)fail('note_conflict_unproven')
-              if(linear.origin!=='peer'){const out=outgoing.find(r=>r.event_id===linear.event_id),receipt=inventory.receipts.find(r=>(r as {event_id:string}).event_id===linear.event_id);if(!out||out.state!=='accepted'||!receipt)fail('candidate_history_unavailable')}
-            }
+            await verifyCleanPeerCausality(h,head,linear,candidates,source.notes,outgoing,inventory.receipts)
           }
         }
         if(dormant&&preserve)fail('note_conflict_unproven')
@@ -227,8 +263,10 @@ export class BrowserLegacyNoteApplyRuntime {
         }
         const cleanProof:BrowserNoteProof|DormantNoteOutcome={record_version:1,owner_kind:dormant||content?'dormant_note_prerequisite':'legacy_note',outcome:own?'self_echo_applied':'applied',account_id:scope.accountId,bootstrap_id:binding.bootstrap_id,protocol_version:row.protocol_version,reference:structuredClone(reference),header:structuredClone(h),mutation:plaintext.mutation,wire_digest:wireDigest,outcome_digest:'',source_revision:null,local_note_digest:null};proof=cleanProof
         const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,plaintext,sourceToken:source.token,replay:false,historyNext:[],transportHook:peerDependencyHook};p.dormant=dormant;plans.set(token,p)
-        try{if(!own){const prepared=await this.local.prepareProtectedNoteApply(scope,source.token,token);p.source=prepared.token;cleanProof.source_revision=prepared.source_revision;cleanProof.local_note_digest=await noteProofDigest(prepared.note);if(prerequisite){const transport=await prepareNoteTransportCommit(prerequisite.certificate,plaintext,prepared.note);p.transportHook=transport.hook;add(transport.candidate);if(content){proof=await contentProofFor(scope,row,transport.candidate,plaintext.mutation);p.proof=proof}}else add(await makeHistoryCandidate(scope,binding,row.protocol_version,reference.device_id,item,plaintext,'peer',prepared.note));head=nextNoteHead(scope,binding,candidates,h.event_id,records.find((r):r is BrowserNoteHead=>r.record_kind==='head'))}
-          proof.outcome_digest=await noteOutcomeDigest(proof);if(proof.owner_kind==='legacy_note')validateBrowserNoteProof(proof,scope);p.historyNext=historySort([...candidates,...groups,...versions,...(head?[head]:[])]);validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');return token
+        try{let projection:LocalNoteRecord|null=null;if(!own){const prepared=await this.local.prepareProtectedNoteApply(scope,source.token,token);p.source=prepared.token;cleanProof.source_revision=prepared.source_revision;projection=prepared.note}
+          const planned=await planCleanCandidateProof(scope,binding,row,item,plaintext,cleanProof,projection,prerequisite,content,candidates,groups,versions,head,records)
+          p.proof=planned.proof;p.historyNext=planned.historyNext;p.transportHook=planned.transportHook??p.transportHook
+          if(!current())fail('closed');return token
         }finally{delete p.plaintext}
       }
       const token=Object.freeze({}) as VerifiedLegacyNotePlan,p:Plan={owner:this,scope,inventory,row,proof,current,local:this.local,sourceToken:localConflictSource?.token,replay,historyNext:historySort([...candidates,...groups,...versions,...(head?[head]:[])]),transportHook:peerDependencyHook};validateNoteHistorySet(scope,p.historyNext);if(!current())fail('closed');plans.set(token,p);return token

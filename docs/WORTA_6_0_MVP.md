@@ -688,6 +688,22 @@ gates remain required. Web progress stays **89.36%**; `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED and
 PUBLIC RELEASE BLOCKED.
 
+## C21.2.08Z2B2 — shared Note causal planner slice (2026-10-26)
+
+The owner independently accepted Z2B1 Cloud run `40242607000` (6/6 SUCCESS).
+The existing Legacy2/Content3 single-event route now shares private causal
+head, clean peer and self-echo checks and Candidate/Head/proof planning. The
+functions use authenticated owner data and do not write or grant authority.
+Content3 Metadata/Stage prerequisites, `ownerHeads`, private tokens and CAS
+remain with their existing owners. This is **PARTIAL**: conflict/historical
+planning, a private virtual B source and one batch commit are still pending.
+The exact scope and focused checks are recorded in
+[`docs/web/C21_2_08Z2B2_CAUSAL_PLANNER_KERNEL.md`](web/C21_2_08Z2B2_CAUSAL_PLANNER_KERNEL.md).
+The next minimum task is completion of Z2B2's conflict/historical extraction;
+Z2B3 is not yet ready. Web progress stays **89.36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
+PUBLIC RELEASE BLOCKED and all C21/C22/C23/PF6.0/RC gates remain.
+
 ## Acceptance checklist — restricted MVP
 
 - [ ] Existing authorized account signs in on desktop and browser; both unlock
