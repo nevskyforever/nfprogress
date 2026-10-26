@@ -9,6 +9,55 @@ are in [MVP6.0 fast-track roadmap](web/MVP6_0_FASTTRACK_ROADMAP.md). Earlier
 Notes-only MVP wording below describes a restricted sync milestone, not the
 completion criterion for the owner's full product MVP.
 
+## LEGAL.ACCEPTANCE — REQUIRED BEFORE PRIVATE TESTER ONBOARDING
+
+After the six required CI jobs are green, implement server-backed consent
+evidence before continuing encrypted Web Documents or onboarding private
+testers. This is a mandatory private-testing and later release condition. This
+section records requirements; it does not claim implementation or final legal
+approval.
+
+- **Server evidence:** inspect all existing document-acceptance paths and keep
+  append-only PostgreSQL evidence for each cloud user, document type, exact
+  version ID, checksum of the displayed text, language and server-assigned
+  acceptance time. Keep separate records for the user agreement, privacy
+  policy, necessary personal-data consents and private-testing terms. Distinguish
+  informational notices from legally necessary consent; never replace history
+  with a boolean.
+- **Version checks:** the server identifies current versions and verifies
+  mandatory acceptance at login before protected features. Present a changed
+  mandatory document and require acceptance before access, retaining earlier
+  evidence only as history. Never migrate an unversioned
+  `user_agreement=true` to an unknown version.
+- **Private invitations:** before activation, `/invite` must display the
+  following warning and require explicit acceptance of the current testing
+  terms. Link viewing is not acceptance. Invitation acceptance, account
+  activation and consent persistence must be atomic; decline does not activate
+  an invitation. PostgreSQL is authoritative; localStorage/IndexedDB alone is
+  insufficient.
+
+  > Вы участвуете в закрытом тестировании WORTA.
+  > Приложение находится в разработке. Возможны ошибки, временная недоступность функций и сервиса, некорректная синхронизация, повреждение или потеря данных.
+  > Не рекомендуется хранить единственные экземпляры важных материалов в тестовой версии. Регулярно создавайте резервные копии.
+  > Для продолжения необходимо ознакомиться с условиями тестирования и принять их.
+
+- **Document review:** the old nfprogress agreement says registration is not
+  required and email is not collected, which does not describe cloud WORTA.
+  List changes to the agreement’s account/email statements, the privacy policy’s
+  cloud processing, retention and user-rights disclosures, separate personal-
+  data consents, and private-testing risks, backup guidance and service limits.
+  Require owner approval and legal review before tester access. Drafts are not
+  final. Keep public registration and invitations closed.
+- **E2EE:** keep legal evidence separate from encrypted user content. Do not
+  send AMKs, encryption keys or manuscript plaintext to the server. This gate
+  remains mandatory for private testing and later release, alongside all
+  C21/C22/C23/PF6.0/RC requirements.
+
+Web progress remains **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`; registration is CLOSED and PUBLIC RELEASE BLOCKED.
+The next stage after green CI is LEGAL.ACCEPTANCE implementation, followed by
+encrypted Web Documents.
+
 Cloud run `40281466847` for C21.2.08Z2B2C failed 1/6 mandatory jobs in a
 Chromium crash/restart test. The repair passed local private Metadata and
 post-F Metadata acceptance; remote acceptance is pending. No Note reader,

@@ -28,8 +28,8 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
   try{
    let page=await launch()
    await page.evaluate(async({schema,data,variant})=>{
-    const q=indexedDB.open(c21.WEB_DATABASE_NAME,variant==='future'?11:8)
-    q.onupgradeneeded=()=>{for(const [name,keyPath,indexes] of schema){const store=q.result.createObjectStore(name,{keyPath});for(const [index,path,unique] of indexes)if(!(variant==='schema'&&name==='localNotes'&&index==='identity'))store.createIndex(index,path,{unique,multiEntry:variant==='schema-multientry'&&name==='identities'&&index==='local_account_id'})}}
+    const q=indexedDB.open(c21.WEB_DATABASE_NAME,variant==='future'?12:8)
+    q.onupgradeneeded=()=>{for(const [name,keyPath,indexes] of schema){const store=q.result.createObjectStore(name,{keyPath});for(const [index,path,unique] of indexes)if(!(variant==='schema'&&name==='localNotes'&&index==='identity'))store.createIndex(index,path,{unique,multiEntry:variant==='schema-multientry'&&name==='identities'&&index==='local_account_id'})}if(variant==='future')q.result.createObjectStore('localStages',{keyPath:['account_id','project_id','stage_id']})}
     const db=await new Promise((resolve,reject)=>{q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})
     try{await c21.runBrowserTransaction(db,schema.map(s=>s[0]),'readwrite',(tx,result)=>{if(variant!=='empty')for(const [store,rows] of Object.entries(data))for(const row of rows)tx.objectStore(store).add(row);result(undefined)})}finally{db.close()}
    },{schema,data,variant})
@@ -37,10 +37,10 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
     const q=indexedDB.open(c21.WEB_DATABASE_NAME),db=await new Promise((resolve,reject)=>{q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})
     try{const names=Array.from(db.objectStoreNames),t=db.transaction(names),data={},schema=[];await Promise.all(names.map(name=>new Promise((resolve,reject)=>{const store=t.objectStore(name),r=store.getAll();schema.push([name,store.keyPath,Array.from(store.indexNames).map(n=>[n,store.index(n).keyPath,store.index(n).unique,store.index(n).multiEntry])]);r.onsuccess=()=>{data[name]=r.result;resolve()};r.onerror=()=>reject(r.error)})));return{version:db.version,schema,data}}finally{db.close()}
    })
-   const before=await snapshot();assert.equal(before.version,variant==='future'?11:8);assert.equal(before.schema.length,12)
+   const before=await snapshot();assert.equal(before.version,variant==='future'?12:8);assert.equal(before.schema.length,variant==='future'?13:12)
    const opened=await page.evaluate(async({scope,variant})=>{
     const open=IDBFactory.prototype.open
-    if(variant==='interrupted')IDBFactory.prototype.open=function(...args){const q=open.apply(this,args);q.addEventListener('upgradeneeded',e=>{if(e.oldVersion===8&&e.newVersion===10)q.transaction.abort()},{once:true});return q}
+    if(variant==='interrupted')IDBFactory.prototype.open=function(...args){const q=open.apply(this,args);q.addEventListener('upgradeneeded',e=>{if(e.oldVersion===8&&e.newVersion===11)q.transaction.abort()},{once:true});return q}
     try{globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId);return'opened'}catch(e){return e.code}finally{IDBFactory.prototype.open=open}
    },{scope,variant})
    if(['schema','schema-multientry','corrupt','interrupted','future'].includes(variant)){
@@ -48,12 +48,15 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
     assert.deepEqual(await snapshot(),before)
     if(variant==='interrupted'){
      await page.evaluate(async scope=>{await navigator.locks.request('worta-web:writer',()=>{});globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId)},scope)
-     assert.equal((await snapshot()).version,10);assert.deepEqual((await snapshot()).data,before.data)
+     const after=await snapshot();assert.equal(after.version,11);assert.equal(after.schema.length,13);assert.deepEqual(after.data.localStages,[])
+     assert.deepEqual(Object.fromEntries(Object.entries(after.data).filter(([name])=>name!=='localStages')),before.data)
     }
    }else{
-    assert.equal(opened,'opened',variant);const after=await snapshot();assert.equal(after.version,10);assert.deepEqual(after.schema,before.schema)
+    assert.equal(opened,'opened',variant);const after=await snapshot();assert.equal(after.version,11);assert.equal(after.schema.length,13)
+    assert.deepEqual(after.schema.filter(([name])=>name!=='localStages'),before.schema)
+    assert.deepEqual(after.data.localStages,[])
     if(variant==='empty'){for(const name of schema.map(s=>s[0]).filter(s=>!['identities','accountBindings'].includes(s)))assert.deepEqual(after.data[name],[])}
-    else assert.deepEqual(after.data,before.data)
+    else assert.deepEqual(Object.fromEntries(Object.entries(after.data).filter(([name])=>name!=='localStages')),before.data)
     assert.equal(await page.evaluate(async()=>new Promise(resolve=>{const q=indexedDB.open(c21.WEB_DATABASE_NAME,8);q.onsuccess=()=>{q.result.close();resolve('unsafe_open')};q.onerror=()=>resolve(q.error.name)})),'VersionError')
     assert.deepEqual(await snapshot(),after)
     if(variant!=='empty'){
@@ -66,14 +69,14 @@ export async function acceptContentAuthorityMigration({origin,profiles,cases}){
       assert.equal((await page.evaluate(scope=>session.proven.bind(meta.auth,meta.bindings,meta.keys).calculate(scope),scope)).candidate_proven_prefix,61)
       assert.deepEqual(await page.evaluate(scope=>session.sync.readCheckpoint(scope),scope),{pull_cursor:70,ack_cursor:61,proven_prefix:61,next_local_ordinal:after.data.cursors[0].next_local_ordinal})
      }
-     assert.deepEqual((await snapshot()).data,before.data)
+     assert.deepEqual(Object.fromEntries(Object.entries((await snapshot()).data).filter(([name])=>name!=='localStages')),before.data)
      await page.evaluate(async()=>{await meta.keys.dispose();await session.close()})
     }else await page.evaluate(()=>session.close())
     await context.close();page=await launch()
     await page.evaluate(async scope=>{globalThis.session=await c21.openBrowserPersistence(scope.canonicalUserId)},scope)
     assert.deepEqual(await snapshot(),after)
    }
-   cases.push(`C21.2.06 ${variant}: native disposable v8/v9 profile, exact records/schema preserved; format gate and fail-closed boundary PASS`)
+   cases.push(`C21.2.06 ${variant}: native disposable v8 profile upgrades to v11 with exact legacy records/schema preserved and empty localStages; format gate and fail-closed boundary PASS`)
   }finally{if(context)await context.close();await rm(directory,{recursive:true,force:true})}
  }
  assert.deepEqual(errors,[]);assert.deepEqual(api,[])

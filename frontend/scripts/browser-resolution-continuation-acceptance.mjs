@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {chromium} from '@playwright/test'
 import {pathToFileURL} from 'node:url'
+import {schema as v10Schema} from './browser-content-authority-migration-acceptance.mjs'
 // G reuses this exact genuine F -> transport -> H producer/restart acceptance.
 // Standalone H retains its H/old-T acceptance; W supersedes its current-G barrier.
 export async function runResolutionContinuationAcceptance(onHistorical,options={}){
@@ -15,6 +16,7 @@ if(legacy3&&!prefixMode){assert.equal(onHistorical,undefined);assert.ok(oldBundl
 const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents']
 const errors=[],network=[];let context,page,scope,decisions,registrations=0,faults=0,applied=0,continuations=0,continuationFaults=0,historicalReopens=0,oldReaders=0,uncertain=0,preparedProcessStops=0,hCAS=0,forkFaults=0
 const snapshot=()=>page.evaluate(async names=>Object.fromEntries(await Promise.all(names.map(async n=>[n,await nativeRows(n)]))),names)
+const schemaSnapshot=()=>page.evaluate(async()=>{const request=indexedDB.open(c21.WEB_DATABASE_NAME),db=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});try{return{version:db.version,stores:Array.from(db.objectStoreNames)}}finally{db.close()}})
 for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merge','delete','keep_both']){
  const testCase={protocol:legacy3?2:protocol,childProtocol:protocol,strategy,legacy3},directory=await mkdtemp(join(tmpdir(),'c21-resolution-apply-'))
  let activeDirectory=directory,old=false,copy
@@ -93,7 +95,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   }
   return result[0]
  },testCase)
-  const before=await snapshot(),http=network.length
+  const before=await snapshot()
   // Native transaction/request failure injection uses only this disposable profile.
   if(!legacy3&&strategy==='keep_both'){
    for(let fault=0;fault<12;fault++){
@@ -246,10 +248,31 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
    assert.equal(calculated.counts.resolution,1);assert.equal(calculated.ackAuthorized,false);assert.deepEqual(await snapshot(),progressed);assert.equal(network.length,barrierBookmark)
   }
   if(onHistorical)await onHistorical({get page(){return page},snapshot,scope,decisions,descendants,progressed,bind,restart:async()=>{await context.close();await launch();await bind()},withOldBundle:async(bundle,verifyOld,recover)=>{
-   await context.close();copy=await mkdtemp(join(tmpdir(),'c21-old-u-G-copy-'));await cp(directory,copy,{recursive:true});activeDirectory=copy;old=true
+   const v10Data=await snapshot()
+   await context.close();copy=await mkdtemp(join(tmpdir(),'c21-old-u-G-copy-'));activeDirectory=copy;old=true
    const previous=oldBundle;oldBundle=bundle
-   await launch();await bind();await verifyOld()
-   await context.close();old=false;await launch();await bind();await recover()
+   await launch()
+   await page.evaluate(async({schema,data})=>{
+    const dbRequest=indexedDB.open(c21.WEB_DATABASE_NAME,10)
+    dbRequest.onupgradeneeded=()=>{for(const [name,keyPath,indexes] of schema){const store=dbRequest.result.createObjectStore(name,{keyPath});for(const [index,path,unique] of indexes)store.createIndex(index,path,{unique})}}
+    const db=await new Promise((resolve,reject)=>{dbRequest.onsuccess=()=>resolve(dbRequest.result);dbRequest.onerror=()=>reject(dbRequest.error)})
+    try{await c21.runBrowserTransaction(db,schema.map(([name])=>name),'readwrite',(tx,result)=>{for(const [name,rows] of Object.entries(data))for(const row of rows)tx.objectStore(name).add(row);result(undefined)})}finally{db.close()}
+   },{schema:v10Schema,data:v10Data})
+   await bind()
+   assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()})
+   await verifyOld()
+   await context.close();old=false;await launch();await bind()
+   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()})
+   assert.deepEqual(await page.evaluate(()=>nativeRows('localStages')),[])
+   await recover()
+   const upgraded=await snapshot()
+   await context.close();old=true;await launch()
+   assert.equal(await page.evaluate(async scope=>{try{await c21.openBrowserPersistence(scope.canonicalUserId);return'opened'}catch(error){return error.code}},scope),'unsupported_version')
+   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()})
+   assert.deepEqual(await snapshot(),upgraded)
+   await context.close();old=false;await launch();await bind()
+   assert.deepEqual(await snapshot(),upgraded)
+   await recover()
    await context.close();await rm(copy,{recursive:true,force:true});copy=undefined;activeDirectory=directory;oldBundle=previous;await launch();await bind()
   }})
   // No push/ACK occurred before restart either (registration is external setup).

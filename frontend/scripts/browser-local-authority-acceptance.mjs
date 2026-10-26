@@ -39,10 +39,10 @@ export async function acceptLocalAuthority({ page, scope, otherScope, users, cas
   cases.push('v5 forced versionchange abort and quota roll back both new stores and preserve all eight existing rows/bytes')
   await seedV5(null)
   await page.evaluate(async ({ scope, users }) => { globalThis.users = users; globalThis.scopeA = scope; globalThis.session = await c21.openBrowserPersistence(users[0]); globalThis.meta = await c21.metadataFixture(session, scope); globalThis.local = session.localSource.bind(meta.auth, meta.bindings, meta.keys) }, { scope, users })
-  assert.deepEqual(await inspectSchema(), { version: 10, stores: [...oldStores,'localProjects','localNotes','legacyNoteHistory','legacyNoteIntents'].sort() })
+  assert.deepEqual(await inspectSchema(), { version: 11, stores: [...oldStores,'localProjects','localNotes','legacyNoteHistory','legacyNoteIntents','localStages'].sort() })
   assert.deepEqual(await rows(), old)
   assert.deepEqual(await page.evaluate(() => nativeRows('localProjects')), []); assert.deepEqual(await page.evaluate(() => nativeRows('localNotes')), [])
-  cases.push('real v5 to v6 preserves every applied proof/head, receipt, encrypted wire and all eight stores exactly; local stores empty')
+  cases.push('real v5→v11 preserves every applied proof/head, receipt, encrypted wire and all eight old stores exactly; project, Note, history, intent and Stage stores start empty')
   const initFailure = await page.evaluate(async scope => {
     const add = IDBObjectStore.prototype.add
     IDBObjectStore.prototype.add = function(value, ...args) { if (this.name === 'localNotes') throw new DOMException('fixture', 'QuotaExceededError'); return add.call(this, value, ...args) }

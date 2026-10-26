@@ -57,6 +57,70 @@ scope с явной привязкой к проекту или этапу. Оф
 `writerAuthorized=false`, регистрация CLOSED, PUBLIC RELEASE BLOCKED.
 C21/C22/C23/PF6.0/RC обязательны.
 
+## 2026-10-26 — MVP6.0.M1.01B IndexedDB v11 CI repair and legal acceptance gate
+
+M1.01B repairs the two confirmed CI regressions introduced by the v10→v11
+IndexedDB update. Current-schema acceptance now checks version 11 and all 13
+stores, including `localStages`; the v10→v11 migration remains a real data
+preservation test. Legacy3 G acceptance now runs the pinned old-U client on an
+isolated compatible v10 profile, upgrades that profile with the current build,
+checks the old client’s fail-closed refusal on v11, then reopens v11 with the
+current build and compares durable state. Production version gates, migration,
+encryption and the six required CI jobs are unchanged. Local validation passed:
+the C21 persistence Chromium suite, Legacy3 G/old-U Chromium acceptance (eight
+profiles), the real v10→v11 local Stage migration acceptance, 112 migration
+Vitest cases, typecheck, build and changed-script lint checks. The previously
+observed GitHub run was still in progress when checked; it was not polled.
+
+### LEGAL.ACCEPTANCE — REQUIRED BEFORE PRIVATE TESTER ONBOARDING
+
+After the six required CI jobs are green, implement server-backed consent
+evidence before continuing encrypted Web Documents or onboarding private
+testers. This checkpoint defines requirements only and does not implement
+them.
+
+- **Durable evidence:** inspect every existing agreement/document acceptance
+  path. PostgreSQL must append separate evidence per cloud user, document type,
+  exact version ID, checksum of the text shown, language and server-assigned
+  acceptance time. Keep prior versions; do not reduce history to booleans.
+  Cover the user agreement, privacy policy, necessary separate personal-data
+  consents and private-testing terms. Distinguish informational notices from
+  legally required consent.
+- **Current versions:** the server defines each current document version and
+  verifies acceptance at login before protected features are available. A new
+  mandatory version must be presented and accepted before access. Preserve old
+  evidence as history; never treat it as consent to a new version or convert an
+  unversioned `user_agreement=true` into evidence for an unknown version.
+- **Invited testers:** `/invite` must show the supplied closed-testing warning
+  before account activation and require explicit acceptance of the current
+  testing terms. Opening a link is not consent. Invitation acceptance, account
+  activation and mandatory evidence must succeed atomically; declining must
+  leave the invitation unactivated. PostgreSQL is the source of truth, never
+  browser storage alone.
+- **Document review:** the old nfprogress agreement says registration is not
+  required and email is not collected; review and update the document set for
+  cloud WORTA. List changes to the agreement’s account/email statements, the
+  privacy policy’s cloud processing, retention and user-rights disclosures,
+  separate personal-data consents, and private-testing risks, backup guidance
+  and service limits. Obtain owner approval and legal review before tester
+  access. Draft text is not final. Public registration and invitations stay
+  closed.
+- **E2EE boundary:** store legal evidence separately from E2EE content. Never
+  send AMKs, encryption keys or manuscript plaintext to the server. Consent
+  work does not relax C21/C22/C23/PF6.0/RC gates.
+
+Required invite warning:
+
+> Вы участвуете в закрытом тестировании WORTA.
+> Приложение находится в разработке. Возможны ошибки, временная недоступность функций и сервиса, некорректная синхронизация, повреждение или потеря данных.
+> Не рекомендуется хранить единственные экземпляры важных материалов в тестовой версии. Регулярно создавайте резервные копии.
+> Для продолжения необходимо ознакомиться с условиями тестирования и принять их.
+
+Web progress remains **89,36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`; registration CLOSED and PUBLIC RELEASE BLOCKED. The
+next stage is LEGAL.ACCEPTANCE implementation after green CI; encrypted Web
+Documents follows that stage.
+
 ## Постоянная политика экономного выбора моделей Codex для WORTA 6.0
 
 Эта политика применяется ко всем следующим задачам WORTA, включая C21/C22/C23,
