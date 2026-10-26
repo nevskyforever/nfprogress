@@ -175,6 +175,24 @@ export class BrowserLocalAuthorityRuntime {
       project.onsuccess = finish; notes.onsuccess = finish
     })
   }
+  /** Enumerate only this account's encrypted local projects; names never enter an index. */
+  async listProjects(scope: BrowserSyncScope): Promise<NativeLocalProject[]> {
+    scope = snapshotBrowserSyncScope(scope)
+    const guard = await this.guard(scope)
+    const rows = await this.transaction<LocalProjectRecord[]>(scope, ['localProjects'], 'readonly', (tx, result, abort) => {
+      const request = tx.objectStore('localProjects').getAll(IDBKeyRange.bound([scope.accountId], [scope.accountId, []]))
+      request.onsuccess = () => { try { result(request.result.map(row => validateLocalProjectRecord(row, scope))) } catch (error) { abort(error) } }
+    })
+    const projects: NativeLocalProject[] = []
+    for (const row of rows) {
+      if (row.deleted) continue
+      const snapshot = await this.readSnapshot(scope, row.project_id)
+      const project = await this.withDecryptedSnapshot(scope, snapshot.token, async source => structuredClone(source.project))
+      projects.push(project)
+    }
+    if (!guard.current()) fail('closed')
+    return projects
+  }
   private async seal(scope: BrowserSyncScope, id: string, kind: 'project' | 'note', payload: LocalProjectPayload | LocalNotePayload, amk: AccountMasterKey): Promise<LocalEnvelope> {
     const bytes = localCanonicalBytes(payload)
     let nonce: Uint8Array | undefined, ciphertext: Uint8Array | undefined
@@ -273,16 +291,18 @@ export class BrowserLocalAuthorityRuntime {
   private write(scope: BrowserSyncScope, guard: Guard, expected: LocalSourceToken | null, project: LocalProjectRecord, notes: LocalNoteRecord[], deletion = false, mutation?: NoteMutationPlan): Promise<number> {
     if (!guard.current()) fail('closed')
     let unsubscribe: (() => void) | undefined
-    return this.transaction<number>(scope, [...new Set(['localProjects','localNotes','legacyNoteIntents','legacyNoteHistory', ...(deletion ? ['projectBindings'] : []), ...(mutation ? this.writer!.mutationStores : [])])], 'readwrite', (tx, result, abort) => {
+    return this.transaction<number>(scope, [...new Set(['localProjects','localNotes','legacyNoteIntents','legacyNoteHistory', ...(deletion ? ['projectBindings', 'localStages'] : []), ...(mutation ? this.writer!.mutationStores : [])])], 'readwrite', (tx, result, abort) => {
       unsubscribe = this.auth.onInvalidated(() => abort(new BrowserPersistenceError('closed')))
       const commit = () => {
         const reads = notes.map(note => tx.objectStore('localNotes').index('identity').get([scope.accountId, note.note_id]))
         const binding = deletion ? tx.objectStore('projectBindings').get([scope.accountId, project.project_id]) : null
-        const requests = [...reads, ...(binding ? [binding] : [])]
+        const stages = deletion ? tx.objectStore('localStages').count(IDBKeyRange.bound([scope.accountId, project.project_id], [scope.accountId, project.project_id, []])) : null
+        const requests = [...reads, ...(binding ? [binding] : []), ...(stages ? [stages] : [])]
         let ready = 0
         const finish = () => { if (++ready < requests.length) return; try {
           if (!guard.current()) fail('closed')
           if (binding?.result) fail('unsupported_local_source') // No cloud deletion/bootstrap semantics here.
+          if (stages?.result) fail('unsupported_local_source') // A project with stages cannot become an orphaned source.
           reads.forEach(read => { if (read.result) { const existing = validateLocalNoteRecord(read.result, scope, read.result.project_id); if (existing.project_id !== project.project_id) fail('conflicting_record') } })
           const persist = () => {
           const writes = [tx.objectStore('localProjects').put(project), ...notes.map(n => tx.objectStore('localNotes')[expected ? 'put' : 'add'](n))]

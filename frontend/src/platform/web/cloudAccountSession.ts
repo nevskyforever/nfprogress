@@ -5,6 +5,7 @@ import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot 
 import { currentPlatform } from '@/platform/runtime'
 import { BrowserPersistenceError, openBrowserPersistence } from './persistence'
 import type { BrowserLocalAuthorityRuntime } from './localAuthority'
+import type { BrowserLocalStagesRuntime } from './localStages'
 import type { BrowserSyncScope } from './syncDurability'
 
 type BrowserStorage = Awaited<ReturnType<typeof openBrowserPersistence>>
@@ -14,7 +15,8 @@ export interface BrowserLocalNoteRepository {
   /** Account/device scope derived from the authenticated, unlocked Web session. */
   readonly scope: BrowserSyncScope
   /** Existing C21 encrypted local source. It has no cloud transport or Note writer. */
-  readonly source: Pick<BrowserLocalAuthorityRuntime, 'readSnapshot' | 'withDecryptedSnapshot' | 'assertSnapshot' | 'initializeProject' | 'createProject' | 'createNote' | 'updateNote' | 'tombstoneNote' | 'replaceProject' | 'deleteProject'>
+  readonly source: Pick<BrowserLocalAuthorityRuntime, 'listProjects' | 'readSnapshot' | 'withDecryptedSnapshot' | 'assertSnapshot' | 'initializeProject' | 'createProject' | 'createNote' | 'updateNote' | 'tombstoneNote' | 'replaceProject' | 'deleteProject'>
+  readonly stages: Pick<BrowserLocalStagesRuntime, 'list' | 'create' | 'rename' | 'remove' | 'reorder'>
 }
 
 export interface BrowserAccountSessionOptions {
@@ -156,7 +158,8 @@ export class BrowserCloudAccountSession {
     const lease = identity && keys?.leaseForAccount(identity.local_account_id)
     if (!identity || !storage || !bindings || !keys || !lease?.isCurrent()) throw new BrowserPersistenceError('closed')
     const scope = Object.freeze({ canonicalUserId: context.userId, accountId: identity.local_account_id, deviceId: identity.device_id })
-    return Object.freeze({ scope, source: storage.localSource.bind(this.auth, bindings, keys) })
+    const source = storage.localSource.bind(this.auth, bindings, keys)
+    return Object.freeze({ scope, source, stages: storage.localStages.bind(this.auth, bindings, keys, source) })
   }
 
   async lock(): Promise<void> {

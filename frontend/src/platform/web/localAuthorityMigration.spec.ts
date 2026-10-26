@@ -13,7 +13,7 @@ function fixture(): unknown[][] {
   return [[],[inbox],[cursor],[],[binding],[head]]
 }
 describe('v5 to v6 local authority migration structural validation', () => {
-  it('supports v6 and validates empty old state without inventing source', () => { expect(WEB_DATABASE_VERSION).toBe(10); validateBrowserV5State([scope], [[],[],[],[],[],[]]) })
+  it('supports v6 and validates empty old state without inventing source', () => { expect(WEB_DATABASE_VERSION).toBe(11); validateBrowserV5State([scope], [[],[],[],[],[],[]]) })
   it('preserves applied Metadata proofs, heads and wire bytes exactly', () => { const old = fixture(), original = structuredClone(old); validateBrowserV5State([scope], old); expect(old).toEqual(original) })
   it.each([1,2,4,5])('refuses corrupt record version in old store %s', index => { const old = fixture(); (old[index]![0] as Record<string,unknown>).record_version = 99; expect(() => validateBrowserV5State([scope], old)).toThrow() })
   it('refuses applied proof without head', () => { const old = fixture(); old[5] = []; expect(() => validateBrowserV5State([scope], old)).toThrow() })

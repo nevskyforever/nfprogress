@@ -14,10 +14,27 @@ Chromium crash/restart test. The repair passed local private Metadata and
 post-F Metadata acceptance; remote acceptance is pending. No Note reader,
 writer, ACK or production sync capability is activated by this repair.
 
+**MVP6.0.M1.01A local Web slice.** M1.01 stopped because the encrypted local
+source had project and Note records but no independent local Stage authority.
+With the owner's explicit v11 authorization, `worta-web` now adds
+`localStages`; stage content and manual order are AMK ciphertext with
+account/device/project/stage routing and revision checks. The developer-only
+protected workspace lists, creates, opens and renames local projects, and
+creates, renames, safely removes and reorders stages. Notes remain attached to
+their original project. Real Chromium checks cover v10→v11 preservation of a
+project and Note, multi-project isolation, CRUD/order after browser restart,
+tamper, stale revision, rollback, lock/logout and no plaintext API writes. The
+owner independently accepted prior run `40301057184` on
+`d20f537b4305f42977efe881bba162a3f163558a` (6/6 SUCCESS); this change
+awaits its own CI. The workspace has no encrypted manuscripts, Progress, Game,
+maps or cloud sync yet. The next product slice is durable encrypted project
+and stage text editing. Official Web progress remains **89,36%** with all
+C21/C22/C23/PF6.0/RC and release gates closed.
+
 **Historical restricted-sync priority:** Web + desktop encrypted writing; frozen C21 reader,
 security, backup/restore, CI, and public-release gates remain.
 
-**Current practical browser milestone: MVP6.0.12.** The development Web account
+**Historical browser milestone: MVP6.0.12.** The development Web account
 session composes normal-user login, account-key lookup, durable IndexedDB
 account/device identity, exact binding, and client-side AMK unlock. After unlock,
 the explicitly separate encrypted workspace can create one local project and
@@ -67,7 +84,7 @@ requires every registered device to truthfully satisfy the frozen Note predicate
 | Area | Existing tested component | Connected working user flow |
 | --- | --- | --- |
 | Desktop Notes | Native SQLite Notes and durable encrypted sync capture/seal/upload/pull/apply/ACK owners; bounded restart/conflict evidence | Desktop cloud session is Tauri-only; no accepted real backend + Web + desktop writing round trip |
-| Browser writing | Separate developer-only encrypted workspace backed by C21 local authority and IndexedDB; create/read/edit/autosave local project Notes after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and is not synced |
+| Browser writing | Separate developer-only encrypted workspace in IndexedDB v11; basic project and Stage CRUD/order plus local project Notes after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and is not synced; project/stage manuscripts remain |
 | Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock supplies a guarded scope to the MVP6.0.12 local encrypted editor | No production Web bootstrap or browser cloud sync; lock/logout invalidates retained repository handles |
 | Private account access | Existing administrator role checks and MVP6.0.03 invite issuance/acceptance, revocation and expiry have local PostgreSQL/browser evidence | No production backend deployment, live invitation delivery or owner-authorized tester onboarding |
 | Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
@@ -83,7 +100,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | User goal | Already works | Missing | Exact blocker | Next action |
 | --- | --- | --- | --- | --- |
 | Desktop local writing | Existing Tauri editor and SQLite | MVP smoke evidence on selected build | No MVP-specific baseline evidence in current records | Record exact build/profile and local-save restart result |
-| Browser local encrypted project/Note storage | MVP6.0.12 developer-only local editor uses C21 authority for create/read/edit/autosave; ciphertext survives persistent-profile restart and lock/logout revokes access | Deliberate compatibility-data migration/import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Keep the two modes explicit; complete C21 truthful reader/writer gate before any sync flow |
+| Browser local encrypted project/Stage/Note storage | MVP6.0.M1.01A adds additive `localStages` in v11 and protected multi-project UI; project, Stage/order and Notes ciphertext survives persistent-profile restart and lock/logout revokes access | Compatibility-data import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Next store/edit project and stage texts locally, then complete C21 truthful reader/writer gate before sync |
 | Account login and encryption | Backend auth, desktop key owners and MVP6.0.02 development Web login/unlock | Production Web bootstrap and sync composition | `cloudSession` remains Tauri-only; test Web card runs behind the development boundary | Keep account session isolated; connect durable Note path only after reader acceptance |
 | Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim and admin status/revocation | Deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed; invite link cannot be issued to real testers yet | Review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
 | Browser cloud upload and inbound apply | Encrypted APIs and bounded browser reader/apply owners | Production routing, complete reader lifecycle | Note gate requires all six fields; production dispatch/replay and histories incomplete | Implement the next accepted C21.2.08 reader slice; keep declaration off |

@@ -7,17 +7,34 @@ import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import type { BrowserCloudAccountSession } from '@/platform/web/cloudAccountSession'
 import { BrowserPersistenceError } from '@/platform/web/persistence'
 import type { LocalNoteSource, NativeLegacyNote, NativeLocalProject } from '@/platform/web/localAuthorityRecords'
+import type { LocalStage } from '@/platform/web/localStages'
 import NoteCard from '@/components/notes/NoteCard.vue'
 import NoteEditorDialog from '@/components/notes/NoteEditorDialog.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { ProjectNote, ProjectNotePatch } from '@/types/notes'
+import type { SupportedLanguage } from '@/types/api'
+
+const unavailableCopy: Record<SupportedLanguage, string> = {
+  ru: 'Тексты, прогресс и игровой режим в защищённом пространстве пока недоступны.',
+  en: 'Texts, progress, and game mode are not yet available in the encrypted workspace.',
+  es: 'Los textos, el progreso y el modo de juego aún no están disponibles en el espacio cifrado.',
+  de: 'Texte, Fortschritt und Spielmodus sind im verschlüsselten Arbeitsbereich noch nicht verfügbar.',
+  fr: 'Les textes, la progression et le mode jeu ne sont pas encore disponibles dans cet espace chiffré.',
+  pt_BR: 'Textos, progresso e modo de jogo ainda não estão disponíveis no espaço criptografado.',
+}
 
 const props = defineProps<{ session: BrowserCloudAccountSession }>()
 const emit = defineEmits<{ close: [] }>()
 const locale = useLocaleStore()
 const t = locale.translate
 const projectName = ref('')
+const newProjectName = ref('')
 const projectId = ref('')
+const projects = ref<NativeLocalProject[]>([])
+const stages = ref<LocalStage[]>([])
+const newStageName = ref('')
+const editingStageId = ref<string | null>(null)
+const editingStageName = ref('')
 const notes = ref<ProjectNote[]>([])
 const loading = ref(true)
 const mutating = ref(false)
@@ -33,16 +50,16 @@ function timestamp(): string {
   return canonicalizeSyncTimestamp(new Date().toISOString())
 }
 
-function workspaceProject(scope: { accountId: string }): NativeLocalProject {
+function workspaceProject(id: string, name: string): NativeLocalProject {
   return {
-    id: `web-local-${scope.accountId}`,
-    name: projectName.value.trim(),
+    id,
+    name: name.trim(),
     goal: null,
     infinite: true,
     unit: 'symbols',
-    status: 'active',
-    created_at: null,
-    updated_at: null,
+    status: 'активен',
+    created_at: timestamp(),
+    updated_at: timestamp(),
     payload: {},
   }
 }
@@ -72,7 +89,7 @@ function safeError(reason: unknown): string {
     if (reason.code === 'writer_busy') return t('Другая вкладка использует зашифрованное хранилище.')
     return t('Не удалось открыть зашифрованное локальное хранилище. Данные не изменены.')
   }
-  return t('Не удалось сохранить заметку. Повторите сохранение после проверки доступа к хранилищу.')
+  return t('Не удалось сохранить изменения.')
 }
 
 async function loadWorkspace(): Promise<void> {
@@ -80,18 +97,31 @@ async function loadWorkspace(): Promise<void> {
   error.value = null
   try {
     const repository = props.session.localNoteRepository()
-    projectId.value = `web-local-${repository.scope.accountId}`
+    const available = await repository.source.listProjects(repository.scope)
+    if (!active) return
+    projects.value = available
+    if (!available.length) {
+      projectMissing.value = true
+      projectId.value = ''
+      notes.value = []
+      stages.value = []
+      return
+    }
+    if (!available.some(project => project.id === projectId.value)) projectId.value = available[0]!.id
     const snapshot = await repository.source.readSnapshot(repository.scope, projectId.value)
     const decoded = await repository.source.withDecryptedSnapshot(repository.scope, snapshot.token, async source => structuredClone(source))
+    const storedStages = await repository.stages.list(repository.scope, projectId.value)
     if (!active) return
     projectName.value = decoded.project.name
     notes.value = decoded.notes.map(displayNote).filter((note): note is ProjectNote => note !== null)
+    stages.value = storedStages
     projectMissing.value = false
   } catch (reason) {
     if (!active) return
     if (reason instanceof BrowserPersistenceError && reason.code === 'missing_local_source') {
       projectMissing.value = true
       notes.value = []
+      stages.value = []
     } else {
       error.value = safeError(reason)
     }
@@ -101,19 +131,99 @@ async function loadWorkspace(): Promise<void> {
 }
 
 async function createProject(): Promise<void> {
-  if (mutating.value || !projectName.value.trim()) return
+  const name = projectMissing.value ? projectName.value.trim() : newProjectName.value.trim()
+  if (mutating.value || !name) return
   mutating.value = true
   error.value = null
   try {
     const repository = props.session.localNoteRepository()
-    projectId.value = `web-local-${repository.scope.accountId}`
-    await repository.source.createProject(repository.scope, workspaceProject(repository.scope))
+    const id = crypto.randomUUID()
+    await repository.source.createProject(repository.scope, workspaceProject(id, name))
+    projectId.value = id
+    newProjectName.value = ''
     await loadWorkspace()
   } catch (reason) {
     error.value = safeError(reason)
   } finally {
     mutating.value = false
   }
+}
+
+async function selectProject(id: string): Promise<void> {
+  if (mutating.value || id === projectId.value) return
+  projectId.value = id
+  editingNote.value = null
+  await loadWorkspace()
+}
+
+async function renameProject(): Promise<void> {
+  if (mutating.value || !projectId.value || !projectName.value.trim()) return
+  mutating.value = true
+  error.value = null
+  try {
+    const repository = props.session.localNoteRepository()
+    const snapshot = await repository.source.readSnapshot(repository.scope, projectId.value)
+    const old = await repository.source.withDecryptedSnapshot(repository.scope, snapshot.token, async source => structuredClone(source.project))
+    await repository.source.replaceProject(repository.scope, snapshot.token, { ...old, name: projectName.value.trim(), updated_at: timestamp() })
+    await loadWorkspace()
+  } catch (reason) { error.value = safeError(reason) }
+  finally { mutating.value = false }
+}
+
+async function createStage(): Promise<void> {
+  if (mutating.value || !newStageName.value.trim() || !projectId.value) return
+  mutating.value = true
+  error.value = null
+  try {
+    const repository = props.session.localNoteRepository()
+    const unit = projects.value.find(project => project.id === projectId.value)?.unit ?? 'symbols'
+    await repository.stages.create(repository.scope, projectId.value, newStageName.value, unit)
+    newStageName.value = ''
+    await loadWorkspace()
+  } catch (reason) { error.value = safeError(reason) }
+  finally { mutating.value = false }
+}
+
+async function renameStage(): Promise<void> {
+  if (mutating.value || !editingStageId.value || !editingStageName.value.trim()) return
+  mutating.value = true
+  error.value = null
+  try {
+    const repository = props.session.localNoteRepository()
+    const revision = stages.value.find(stage => stage.id === editingStageId.value)?.revision
+    if (revision === undefined) throw new BrowserPersistenceError('stale_source')
+    await repository.stages.rename(repository.scope, projectId.value, editingStageId.value, editingStageName.value, revision)
+    editingStageId.value = null
+    await loadWorkspace()
+  } catch (reason) { error.value = safeError(reason) }
+  finally { mutating.value = false }
+}
+
+async function removeStage(stage: LocalStage): Promise<void> {
+  if (mutating.value || !window.confirm(`${t('Удалить')} «${stage.name}»?`)) return
+  mutating.value = true
+  error.value = null
+  try {
+    const repository = props.session.localNoteRepository()
+    await repository.stages.remove(repository.scope, projectId.value, stage.id, stage.revision)
+    await loadWorkspace()
+  } catch (reason) { error.value = safeError(reason) }
+  finally { mutating.value = false }
+}
+
+async function moveStage(index: number, direction: -1 | 1): Promise<void> {
+  const target = index + direction
+  if (mutating.value || target < 0 || target >= stages.value.length) return
+  const ids = stages.value.map(stage => stage.id)
+  ;[ids[index], ids[target]] = [ids[target]!, ids[index]!]
+  mutating.value = true
+  error.value = null
+  try {
+    const repository = props.session.localNoteRepository()
+    await repository.stages.reorder(repository.scope, projectId.value, ids, Object.fromEntries(stages.value.map(stage => [stage.id, stage.revision])))
+    await loadWorkspace()
+  } catch (reason) { error.value = safeError(reason) }
+  finally { mutating.value = false }
 }
 
 async function createNote(): Promise<void> {
@@ -211,6 +321,8 @@ onMounted(() => { void loadWorkspace() })
 onBeforeUnmount(() => {
   active = false
   notes.value = []
+  stages.value = []
+  projects.value = []
   editingNote.value = null
 })
 </script>
@@ -229,6 +341,7 @@ onBeforeUnmount(() => {
     </header>
 
     <p v-if="visibleError" role="alert" class="encrypted-workspace__error">{{ visibleError }}</p>
+    <button v-if="visibleError && !loading" class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="loadWorkspace">{{ t('Повторить') }}</button>
     <p v-if="loading" role="status">{{ t('Открываем зашифрованные заметки…') }}</p>
 
     <form v-else-if="projectMissing" class="encrypted-workspace__create" @submit.prevent="createProject">
@@ -244,6 +357,44 @@ onBeforeUnmount(() => {
 
     <div v-else-if="!error" class="encrypted-workspace__body">
       <h4>{{ projectName }}</h4>
+      <nav class="encrypted-workspace__projects" :aria-label="t('Проекты')">
+        <button v-for="item in projects" :key="item.id" class="nf-button" :class="item.id === projectId ? '' : 'nf-button--secondary'" type="button" :disabled="mutating" @click="selectProject(item.id)">{{ item.name }}</button>
+      </nav>
+      <form class="encrypted-workspace__create" data-testid="encrypted-new-project" @submit.prevent="createProject">
+        <label><span>{{ t('Название локального проекта') }}</span><input v-model="newProjectName" maxlength="200" required /></label>
+        <button class="nf-button" type="submit" :disabled="mutating || !newProjectName.trim()">{{ t('Создать проект') }}</button>
+      </form>
+      <form class="encrypted-workspace__create" data-testid="encrypted-rename-project" @submit.prevent="renameProject">
+        <label><span>{{ t('Название локального проекта') }}</span><input v-model="projectName" maxlength="200" required /></label>
+        <button class="nf-button nf-button--secondary" type="submit" :disabled="mutating || !projectName.trim()">{{ t('Сохранить') }}</button>
+      </form>
+      <section class="encrypted-workspace__stages" aria-labelledby="encrypted-stages-title">
+        <h4 id="encrypted-stages-title">{{ t('Этапы') }}</h4>
+        <form class="encrypted-workspace__create" data-testid="encrypted-new-stage" @submit.prevent="createStage">
+          <label><span>{{ t('Название') }}</span><input v-model="newStageName" maxlength="200" required /></label>
+          <button class="nf-button" type="submit" :disabled="mutating || !newStageName.trim()">{{ t('Добавить этап') }}</button>
+        </form>
+        <ol class="encrypted-workspace__stage-list" data-testid="encrypted-stage-list">
+          <li v-for="(stage, index) in stages" :key="stage.id">
+            <template v-if="editingStageId === stage.id">
+              <form class="encrypted-workspace__create" @submit.prevent="renameStage">
+                <label><span>{{ t('Название') }}</span><input v-model="editingStageName" maxlength="200" required /></label>
+                <button class="nf-button" type="submit" :disabled="mutating || !editingStageName.trim()">{{ t('Сохранить') }}</button>
+                <button class="nf-button nf-button--secondary" type="button" @click="editingStageId = null">{{ t('Отмена') }}</button>
+              </form>
+            </template>
+            <template v-else>
+              <strong>{{ stage.name }}</strong>
+              <button class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="editingStageId = stage.id; editingStageName = stage.name">{{ t('Переименовать') }}</button>
+              <button class="nf-button nf-button--secondary" type="button" :disabled="mutating || index === 0" :aria-label="`${t('Выше')}: ${stage.name}`" @click="moveStage(index, -1)">↑</button>
+              <button class="nf-button nf-button--secondary" type="button" :disabled="mutating || index === stages.length - 1" :aria-label="`${t('Ниже')}: ${stage.name}`" @click="moveStage(index, 1)">↓</button>
+              <button class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="removeStage(stage)">{{ t('Удалить') }}</button>
+            </template>
+          </li>
+        </ol>
+        <p>{{ unavailableCopy[locale.language] }}</p>
+      </section>
+      <h4>{{ t('Заметки') }} · {{ projectName }}</h4>
       <button class="nf-button encrypted-workspace__new-note" type="button" :disabled="mutating" @click="createNote">
         <IonIcon :icon="addOutline" aria-hidden="true" /> {{ t('Новая заметка') }}
       </button>
@@ -292,6 +443,11 @@ onBeforeUnmount(() => {
 .encrypted-workspace__create label { display: grid; flex: 1; gap: .3rem; min-width: 15rem; }
 .encrypted-workspace__create input { min-height: 2.75rem; padding: .5rem .7rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface); color: var(--nf-color-text); }
 .encrypted-workspace__body { display: grid; gap: .75rem; }
+.encrypted-workspace__projects { display: flex; flex-wrap: wrap; gap: .5rem; }
+.encrypted-workspace__stages { display: grid; gap: .75rem; }
+.encrypted-workspace__stages h4, .encrypted-workspace__stages p { margin: 0; }
+.encrypted-workspace__stage-list { display: grid; gap: .5rem; padding-left: 1.5rem; }
+.encrypted-workspace__stage-list li { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .encrypted-workspace__new-note { justify-self: start; }
 .encrypted-workspace__notes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr)); gap: 1rem; }
 .encrypted-workspace__empty { display: flex; gap: .5rem; align-items: center; margin: 0; color: var(--nf-color-text-muted); }

@@ -16,6 +16,7 @@ function sessionFixture(options: { locked?: boolean } = {}) {
   let project: Record<string, unknown> | null = null
   const source = {
     createProject: vi.fn(async (_scope: unknown, input: Record<string, unknown>) => { project = structuredClone(input); return 1 }),
+    listProjects: vi.fn(async () => project ? [structuredClone(project)] : []),
     readSnapshot: vi.fn(async (_scope: unknown, projectId: string) => {
       if (!project) throw new BrowserPersistenceError('missing_local_source')
       if (project.id !== projectId) throw new BrowserPersistenceError('account_mismatch')
@@ -24,12 +25,13 @@ function sessionFixture(options: { locked?: boolean } = {}) {
     withDecryptedSnapshot: vi.fn(async (_scope: unknown, _token: unknown, consume: (data: unknown) => unknown) =>
       consume({ project: structuredClone(project), notes: [], source_revision: 1 })),
   }
+  const stages = { list: vi.fn(async () => []), create: vi.fn(), rename: vi.fn(), remove: vi.fn(), reorder: vi.fn() }
   return {
     source,
     session: {
       localNoteRepository: () => {
         if (options.locked) throw new BrowserPersistenceError('closed')
-        return { scope, source }
+        return { scope, source, stages }
       },
     } as unknown as BrowserCloudAccountSession,
   }
@@ -51,11 +53,11 @@ describe('BrowserEncryptedWorkspace', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(fixture.source.createProject).toHaveBeenCalledWith(scope, expect.objectContaining({
-      id: `web-local-${scope.accountId}`,
+      id: expect.any(String),
       name: 'Local test project',
       payload: {},
     }))
-    expect(wrapper.get('h4').text()).toBe('Local test project')
+    expect(wrapper.get('.encrypted-workspace__projects').text()).toBe('Local test project')
     expect(wrapper.get('[data-testid="encrypted-local-workspace"]').text()).toContain('Не синхронизируется')
     wrapper.unmount()
   })

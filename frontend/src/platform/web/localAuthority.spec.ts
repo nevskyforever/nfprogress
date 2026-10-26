@@ -18,7 +18,7 @@ async function setup() {
   await auth.login('fixture', 'fixture')
   const context = auth.requireContext(), copies: Uint8Array[] = []
   let current = true, closed = false, forceAbort = false
-  const db: Record<string, unknown[]> & { localProjects: unknown[]; localNotes: unknown[]; projectBindings: unknown[] } = { localProjects: [], localNotes: [], projectBindings: [], legacyNoteIntents: [], legacyNoteHistory: [] }
+  const db: Record<string, unknown[]> & { localProjects: unknown[]; localNotes: unknown[]; projectBindings: unknown[] } = { localProjects: [], localNotes: [], localStages: [], projectBindings: [], legacyNoteIntents: [], legacyNoteHistory: [] }
   const calls: { stores: string[]; mode: string }[] = []
   const transaction: BrowserSyncTransaction = (s, stores, mode, schedule) => new Promise((resolve, reject) => {
     calls.push({ stores, mode })

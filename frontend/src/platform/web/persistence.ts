@@ -15,6 +15,7 @@ import { BrowserAccountRegistry } from './accountRegistry'
 import { BrowserBootstrapCompletion } from './bootstrapCompletion'
 import { BrowserInitialNoteCapture } from './initialNoteCapture'
 import { BrowserLocalAuthority } from './localAuthority'
+import { BrowserLocalStages } from './localStages'
 import { validateBrowserV5State } from './localAuthorityMigration'
 import { BrowserImportedMetadataApply } from './importedMetadataApply'
 import { BrowserProjectBindings, validateBrowserProjectBinding } from './projectBindings'
@@ -23,7 +24,7 @@ import type { CloudAccountBindingRepository, EnsureCloudAccountBindingResult } f
 import { BrowserSyncDurability, validateBrowserV2SyncState, validateBrowserV3SyncState, type BrowserSyncScope } from './syncDurability'
 
 export const WEB_DATABASE_NAME = 'worta-web'
-export const WEB_DATABASE_VERSION = 10
+export const WEB_DATABASE_VERSION = 11
 const WRITER_LOCK = `${WEB_DATABASE_NAME}:writer`
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const STORES = ['identities', 'accountBindings']
@@ -42,10 +43,11 @@ const SCHEMA: ReadonlyArray<readonly [string, string | string[], ReadonlyArray<r
   ['localNotes', ['account_id','project_id','note_id'], [['identity', ['account_id','note_id'], true]]],
   ['legacyNoteHistory', ['account_id','project_id','note_id','record_kind','record_id'], [['event', ['account_id','event_id'], true]]],
   ['legacyNoteIntents', ['account_id','event_id'], [['note', ['account_id','project_id','note_id'], true], ['ordinal', ['account_id','device_id','local_ordinal'], true]]],
+  ['localStages', ['account_id','project_id','stage_id'], []],
 ]
 
 function validateSchema(database: IDBDatabase, transaction: IDBTransaction, version: number): void {
-  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : version === 3 ? SCHEMA.slice(0, 6) : version === 4 ? SCHEMA.slice(0, 7) : version === 5 ? SCHEMA.slice(0, 8) : version === 6 ? SCHEMA.slice(0,10) : version === 7 ? SCHEMA.slice(0,11) : SCHEMA
+  const schema = version === 1 ? SCHEMA.slice(0, 2) : version === 2 ? SCHEMA.slice(0, 5) : version === 3 ? SCHEMA.slice(0, 6) : version === 4 ? SCHEMA.slice(0, 7) : version === 5 ? SCHEMA.slice(0, 8) : version === 6 ? SCHEMA.slice(0,10) : version === 7 ? SCHEMA.slice(0,11) : version <= 10 ? SCHEMA.slice(0,12) : SCHEMA
   if (Array.from(database.objectStoreNames).sort().join(',') !== schema.map(([name]) => name).sort().join(',')) throw new BrowserPersistenceError('unsupported_version')
   for (const [name, key, indexes] of schema) {
     const store = transaction.objectStore(name)
@@ -164,7 +166,7 @@ function openDatabase(factory: IDBFactory, signal: AbortSignal): Promise<IDBData
     request.onblocked = () => fail(new BrowserPersistenceError('upgrade_blocked'))
     request.onerror = () => fail(request.error)
     request.onupgradeneeded = event => {
-      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7, 8, 9].includes(event.oldVersion)) {
+      if (failed || ![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(event.oldVersion)) {
         abortUpgrade()
         fail(new BrowserPersistenceError('unsupported_version'))
         return
@@ -223,6 +225,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
   readonly stages: BrowserStageApply
   readonly metadata: BrowserImportedMetadataApply
   readonly localSource: BrowserLocalAuthority
+  readonly localStages: BrowserLocalStages
   readonly initialNotes: BrowserInitialNoteCapture
   readonly completion: BrowserBootstrapCompletion
   readonly noteIntents: BrowserNoteIntents
@@ -246,6 +249,7 @@ class BrowserPersistence implements CloudIdentityRepository, CloudAccountBinding
     this.sync = new BrowserSyncDurability((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.projects = new BrowserProjectBindings((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.localSource = new BrowserLocalAuthority((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
+    this.localStages = new BrowserLocalStages((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule))
     this.initialNotes = new BrowserInitialNoteCapture((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, this.projects)
     this.completion = new BrowserBootstrapCompletion((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), () => this.active)
     this.noteIntents = new BrowserNoteIntents((scope, stores, mode, schedule) => this.syncTransaction(scope, stores, mode, schedule), this.localSource, () => this.active)

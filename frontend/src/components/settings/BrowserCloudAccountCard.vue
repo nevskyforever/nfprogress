@@ -92,7 +92,7 @@ onBeforeUnmount(() => {
 <template>
   <section class="settings-card" aria-labelledby="browser-cloud-account-title" data-testid="browser-cloud-account">
     <div class="settings-card__heading">
-      <h2 id="browser-cloud-account-title">{{ t('Режим разработчика') }} · {{ t('Облачная синхронизация заметок') }}</h2>
+      <h2 id="browser-cloud-account-title">{{ t('Режим разработчика') }} · {{ t('Зашифрованное рабочее пространство') }}</h2>
       <p>{{ t('Веб-приложение') }} · {{ t('Синхронизация отключена') }}</p>
     </div>
     <p :data-status="status" aria-live="polite">
