@@ -38,6 +38,26 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
 
+## 2026-10-26 — C21.2.08Z2B2C authenticated historical Note planner
+
+**STAGE COMPLETE; overall Z2B2 PARTIAL.** Owner-confirmed Z2B2 Cloud run
+`40277351544`: 6/6 SUCCESS. The authenticated single-event owner now uses
+private shared planning for retained Legacy Candidates, initial-cohort
+backfill, prior applied proof/self-echo, Content3 historical join and proven
+Legacy replay. Content3 Metadata/Stage prerequisites, original encrypted wire,
+auth/key lease, protected tokens and single-event CAS remain with their owners.
+Seven existing focused suites passed (297 tests); typecheck, build and changed
+file ESLint passed. No new CI tests or workflow edits were needed given the
+previous Frontend admin duration of 37:27/40:00. Details:
+[`docs/web/C21_2_08Z2B2C_HISTORICAL_PLANNER.md`](web/C21_2_08Z2B2C_HISTORICAL_PLANNER.md).
+Clean B still needs a private virtual source/inventory seam and one atomic
+batch commit. Conflict extraction is unnecessary for Z2A's narrow clean
+cohort if unsupported conflict history is rejected before commit. No B replay,
+Q handoff, writer, ACK or reader declaration was activated. Web **89.36%**,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+registration CLOSED, PUBLIC RELEASE BLOCKED and C21/C22/C23/PF6.0/RC gates
+remain unchanged.
+
 ## 2026-10-26 — C21.2.08Z2B2 shared Note causal planner slice
 
 **PARTIAL; atomic second-project replay remains blocked.** The owner independently

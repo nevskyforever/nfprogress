@@ -7,7 +7,7 @@ import {validateContentNoteConflictProof,type BrowserContentNoteConflictProof} f
 import { contentProofFor,verifyStoredContentNoteProof,contentHistoryJoin } from './contentNoteProof'
 import type { BrowserContentNoteProof } from './contentNoteRecords'
 import { openNoteTransport } from './noteTransport'
-import { prepareNotePrerequisite, assertNotePrerequisiteCompatible, prepareNoteTransportConflictCommit, prepareNoteTransportCommit, prepareNoteTransportReplay, scheduleNoteTransportCommit, type VerifiedNoteTransportCommit } from './noteTransportPrerequisite'
+import { prepareNotePrerequisite, assertNotePrerequisiteCompatible, prepareNoteTransportConflictCommit, prepareNoteTransportCommit, prepareNoteTransportReplay, scheduleNoteTransportCommit, type VerifiedNotePrerequisite, type VerifiedNoteTransportCommit } from './noteTransportPrerequisite'
 import { NOTE_INTENT_STORE } from './noteIntentRecords'
 import { freezeLocalVersion,openFrozenLocalVersion,unsealedPlaintext } from './noteUnsealedVersion'
 import { NOTE_HISTORY_STORE,validateNoteHistorySet,type BrowserNoteLocalVersion,type BrowserNoteHistoryRecord,type BrowserNoteCandidate,type BrowserNoteConflictGroup,type BrowserNoteHead } from './noteHistoryRecords'
@@ -95,6 +95,53 @@ async function planCleanCandidateProof(scope:BrowserSyncScope,binding:BrowserPro
  validateNoteHistorySet(scope,historyNext)
  return{proof,historyNext,transportHook}
 }
+/** Reconstruct immutable Legacy history only from authenticated owner inventory and original encrypted events. */
+async function planHistoricalLegacyCandidates(scope:BrowserSyncScope,binding:BrowserProjectBinding,row:BrowserInboxRecord,header:NoteSyncPlaintext['header'],inventory:Inventory,cohort:ReturnType<typeof deriveInitialLegacyCohort>|null,candidates:BrowserNoteCandidate[],versions:BrowserNoteLocalVersion[],add:(candidate:BrowserNoteCandidate)=>void,amk:AccountMasterKey):Promise<BrowserInboxRecord[]>{
+ if(inventory.history.some(record=>record.bootstrap_id!==binding.bootstrap_id))fail('stale_lineage')
+ for(const candidate of candidates)await openHistoryCandidate(scope,candidate,amk)
+ for(const version of versions)await openFrozenLocalVersion(scope,version,amk)
+ // First-use reconstruction reads immutable outbound wire, never the current Note source.
+ for(const out of cohort?.rows??[]){
+  const wire=JSON.parse(out.raw_body).items[0]
+  if(wire.event.entity_id!==header.entity_id)continue
+  const found=candidates.find(candidate=>candidate.event_id===out.event_id)
+  if(found){if(found.wire_item!==JSON.stringify(wire))fail('conflicting_record');continue}
+  const synthetic={...row,record_version:1,state:'received',event_id:out.event_id,server_sequence:1,protocol_version:out.protocol_version,wire_item:JSON.stringify({...wire,event:{...wire.event,device_id:scope.deviceId,server_sequence:1}})} as BrowserInboxRecord
+  const opened=await openRetainedNote(scope,amk,synthetic)
+  add(await makeHistoryCandidate(scope,binding,out.protocol_version,scope.deviceId,wire,opened,'initial_backfill',null))
+ }
+ const applied=inventory.rows.filter(prior=>prior.state==='note_proven'&&prior.note_proof.header.project_id===header.project_id&&prior.note_proof.header.entity_id===header.entity_id)
+ for(const prior of applied){
+  if(prior.state!=='note_proven')fail('corrupt_record')
+  await verifyStoredNoteProof(scope,amk,prior)
+  if(prior.note_proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage')
+  if(prior.note_proof.outcome==='self_echo_applied'){
+   requireOwnReceipt(scope,inventory,prior)
+   if(!candidates.some(candidate=>candidate.event_id===prior.event_id))fail('candidate_history_unavailable')
+   continue
+  }
+  if(!candidates.some(candidate=>candidate.event_id===prior.event_id)){
+   const wire=JSON.parse(prior.wire_item),{device_id:source,server_sequence:_sequence,...event}=wire.event,opened=await openRetainedNote(scope,amk,prior);void _sequence
+   add(await makeHistoryCandidate(scope,binding,prior.protocol_version,source,{event,object:wire.object},opened,'peer',null,prior.note_proof.local_note_digest))
+  }
+ }
+ return applied
+}
+/** The owner authenticates Content proof and Metadata/Stage prerequisite before this immutable join. */
+function planHistoricalContentJoin(prior:BrowserInboxRecord,candidates:BrowserNoteCandidate[],anchor:VerifiedNotePrerequisite|undefined,checked:VerifiedNotePrerequisite,hook:VerifiedNoteTransportCommit|undefined):{anchor:VerifiedNotePrerequisite;hook:VerifiedNoteTransportCommit}{
+ const retained=candidates.find(candidate=>candidate.event_id===prior.event_id)
+ if(!retained)fail('corrupt_record')
+ if(anchor)assertNotePrerequisiteCompatible(anchor,checked)
+ return{anchor:anchor??checked,hook:hook??prepareNoteTransportReplay(checked,retained)}
+}
+async function verifyHistoricalLegacyReplay(scope:BrowserSyncScope,inventory:Inventory,binding:BrowserProjectBinding,row:BrowserInboxRecord,amk:AccountMasterKey):Promise<BrowserNoteProof>{
+ if(row.state!=='note_proven')fail('corrupt_record')
+ const proof=validateBrowserNoteProof(row.note_proof,scope)
+ if(proof.outcome==='self_echo_applied')requireOwnReceipt(scope,inventory,row)
+ await verifyStoredNoteProof(scope,amk,row)
+ if(proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage')
+ return proof
+}
 /** Internal capability reader: no DTO constructor. Only current authenticated prepare can expose plaintext to local authority. */
 export function verifiedLegacyNoteForLocal(token:VerifiedLegacyNotePlan,local:BrowserLocalAuthorityRuntime,scope:BrowserSyncScope):NoteSyncPlaintext {
   const p=plans.get(token);if(!p||p.local!==local||!same(p.scope,scope)||!p.current()||!p.plaintext||p.proof.outcome!=='applied')fail('stale_source');return p.plaintext
@@ -138,23 +185,13 @@ export class BrowserLegacyNoteApplyRuntime {
       let plaintext:NoteSyncPlaintext;try{plaintext=prerequisite?prerequisite.plaintext:await openRetainedNote(scope,amk,row)}catch(e){if(row.state!=='received')fail('corrupt_record');throw e}const h=plaintext.header
       const records=inventory.history,candidates=records.filter((r):r is BrowserNoteCandidate=>r.record_kind==='candidate'),groups=records.filter((r):r is BrowserNoteConflictGroup=>r.record_kind==='group'),versions=records.filter((r):r is BrowserNoteLocalVersion=>r.record_kind==='local_version')
       const localConflictSource=groups.some(g=>g.members.some(m=>m.source==='local_unsealed'))&&candidates.some(c=>c.record_version===2)?await this.local.readSnapshot(scope,binding.project_id):undefined
-      if(records.some(r=>r.bootstrap_id!==binding.bootstrap_id))fail('stale_lineage')
-      for(const c of candidates)await openHistoryCandidate(scope,c,amk);for(const v of versions)await openFrozenLocalVersion(scope,v,amk)
       const add=(c:BrowserNoteCandidate)=>{const old=candidates.find(r=>r.event_id===c.event_id);if(old){if(old.wire_item!==c.wire_item||!same(old.header,c.header)||old.source_device_id!==c.source_device_id||old.protocol_version!==c.protocol_version)fail('conflicting_record')}else candidates.push(c)}
-      // Explicit first-use reconstruction: immutable event+existing outcome only. Never current Note.
-      for(const out of cohort?.rows??[]){const wire=JSON.parse(out.raw_body).items[0];if(wire.event.entity_id!==h.entity_id)continue;const found=candidates.find(c=>c.event_id===out.event_id);if(found){if(found.wire_item!==JSON.stringify(wire))fail('conflicting_record');continue}
-        const synthetic={...row,record_version:1,state:'received',event_id:out.event_id,server_sequence:1,protocol_version:out.protocol_version,wire_item:JSON.stringify({...wire,event:{...wire.event,device_id:scope.deviceId,server_sequence:1}})} as BrowserInboxRecord
-        const opened=await openRetainedNote(scope,amk,synthetic);add(await makeHistoryCandidate(scope,binding,out.protocol_version,scope.deviceId,wire,opened,'initial_backfill',null))
-      }
-      const applied=inventory.rows.filter(r=>r.state==='note_proven'&&r.note_proof.header.project_id===h.project_id&&r.note_proof.header.entity_id===h.entity_id)
-      for(const prior of applied){if(prior.state!=='note_proven')fail('corrupt_record');await verifyStoredNoteProof(scope,amk,prior);if(prior.note_proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');if(prior.note_proof.outcome==='self_echo_applied'){requireOwnReceipt(scope,inventory,prior);if(!candidates.some(c=>c.event_id===prior.event_id))fail('candidate_history_unavailable');continue}
-        if(!candidates.some(c=>c.event_id===prior.event_id)){const wire=JSON.parse(prior.wire_item),{device_id:source,server_sequence:_seq,...e}=wire.event,opened=await openRetainedNote(scope,amk,prior);void _seq;add(await makeHistoryCandidate(scope,binding,prior.protocol_version,source,{event:e,object:wire.object},opened,'peer',null,prior.note_proof.local_note_digest))}
-      }
+      const applied=await planHistoricalLegacyCandidates(scope,binding,row,h,inventory,cohort,candidates,versions,add,amk)
       let dependencyAnchor=prerequisite?.certificate
       let peerDependencyHook:VerifiedNoteTransportCommit|undefined
       for(const prior of inventory.rows){if(prior.state!=='content_note_proven'&&prior.state!=='content_note_conflict_preserved')continue;const p=prior.state==='content_note_proven'?prior.content_note_proof:prior.content_note_conflict_proof;if(p.header.project_id!==h.project_id||p.header.entity_id!==h.entity_id)continue
         if(prior.state==='content_note_proven')await verifyStoredContentNoteProof(scope,amk,prior,records);else await verifyStoredContentConflictProof(scope,amk,prior,records,inventory.rows,{out:inventory.out,receipts:inventory.receipts})
-        const checked=await prepareNotePrerequisite(scope,prior,binding,amk,current,this.transaction),retained=candidates.find(c=>c.event_id===prior.event_id);if(!retained)fail('corrupt_record');if(dependencyAnchor)assertNotePrerequisiteCompatible(dependencyAnchor,checked.certificate);else dependencyAnchor=checked.certificate;peerDependencyHook??=prepareNoteTransportReplay(checked.certificate,retained)
+        const checked=await prepareNotePrerequisite(scope,prior,binding,amk,current,this.transaction),joined=planHistoricalContentJoin(prior,candidates,dependencyAnchor,checked.certificate,peerDependencyHook);dependencyAnchor=joined.anchor;peerDependencyHook=joined.hook
       }
       for(const group of groups){
         const hasContent=group.members.some(m=>candidates.find(c=>c.event_id===m.event_id)?.record_version===2)
@@ -193,7 +230,7 @@ export class BrowserLegacyNoteApplyRuntime {
         if(!current())fail('closed');return token
       }
       if(row.state==='note_proven'){
-        proof=validateBrowserNoteProof(row.note_proof,scope);if(proof.outcome==='self_echo_applied')requireOwnReceipt(scope,inventory,row);await verifyStoredNoteProof(scope,amk,row);if(proof.bootstrap_id!==binding.bootstrap_id)fail('stale_lineage');replay=true
+        proof=await verifyHistoricalLegacyReplay(scope,inventory,binding,row,amk);replay=true
       }else if(row.state==='note_conflict_preserved'){
         proof=validateBrowserNoteConflictProof(row.note_conflict_proof,scope)
         const group=groups.find(g=>g.group_id===(proof as BrowserNoteConflictProof).group_id),member=group?.members.find(m=>m.event_id===row.event_id)

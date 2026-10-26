@@ -704,6 +704,26 @@ Z2B3 is not yet ready. Web progress stays **89.36%**; `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
 PUBLIC RELEASE BLOCKED and all C21/C22/C23/PF6.0/RC gates remain.
 
+## C21.2.08Z2B2C — authenticated historical Note planner (2026-10-26)
+
+The owner confirmed independent acceptance of Z2B2 Cloud run `40277351544`,
+6/6 SUCCESS. The existing Legacy2/Content3 single-event route now shares
+private historical Candidate reconstruction, initial cohort backfill, prior
+Legacy proof/self-echo checks, Content3 historical joining and Legacy replay
+verification. The owner still authenticates Content3 Metadata/Stage and
+original encrypted wire; protected tokens, source authority and CAS are
+unchanged. Seven existing focused test suites passed (297 tests), as did
+typecheck, build and touched ESLint. See
+[`docs/web/C21_2_08Z2B2C_HISTORICAL_PLANNER.md`](web/C21_2_08Z2B2C_HISTORICAL_PLANNER.md).
+
+This stage is complete but overall Z2B2 remains partial. Clean B still lacks
+the private virtual inventory/source seam and atomic batch commit. Z2A excludes
+conflicts, so the future owner must reject them before commit; conflict-branch
+extraction is not a prerequisite for this narrow contract. No B replay or
+cloud synchronization is active. Web remains **89.36%** with `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
+PUBLIC RELEASE BLOCKED and all C21/C22/C23/PF6.0/RC gates preserved.
+
 ## Acceptance checklist — restricted MVP
 
 - [ ] Existing authorized account signs in on desktop and browser; both unlock
