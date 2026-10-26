@@ -121,6 +121,45 @@ Web progress remains **89,36%**; `ready=false`, `declarationAllowed=false`,
 next stage is LEGAL.ACCEPTANCE implementation after green CI; encrypted Web
 Documents follows that stage.
 
+## 2026-10-26 — MVP6.0.M1.01C legacy v10/v11 CI compatibility repair
+
+Run `40319552627` completed **5/6 SUCCESS**. Its only reported failure was
+Frontend admin, `Verify Legacy3 owner and pinned old-v10 rejection`: the
+acceptance copied a current v11 browser profile, switched to the pinned v10
+client, and called `bind()`. The resulting `web_persistence_unsupported_version`
+was the expected version boundary, exposing a bad fixture sequence rather than
+a demonstrated migration defect.
+
+The affected acceptance now seeds the generated Legacy3 records into a
+separate, schema-compatible v10 profile. The pinned client performs its
+historical negative owner checks and survives a real profile restart on v10.
+The current client upgrades that same representative profile to v11; the
+acceptance compares the exact old rows, checks replay/reconcile, verifies the
+pinned v10 client returns `unsupported_version` on v11 without changing schema
+or data, then reopens and replays with the current client. The neighboring
+Legacy3 H / pinned old-T acceptance had the same v11-profile setup and now also
+runs its historical checks on an isolated compatible v10 profile. Production
+schema gates, encryption, protocol, ACK and reader/writer gates are unchanged.
+Local validation passed: the Legacy3 owner acceptance with pinned old-v10
+(`4` strategies, `13` profile restarts), the Legacy3 H / pinned old-T acceptance
+(`8` profiles), ordinary Resolution apply, real Chromium v10→v11 Stage
+migration, `166` profile-specific Vitest cases, typecheck, build, changed-script
+lint and `git diff --check`. No additional mandatory CI jobs were introduced.
+
+M1.01A’s encrypted local Stage functionality is implemented; independent
+acceptance remains dependent on a new CI run. This repair adds no mandatory job.
+After all six mandatory jobs pass, the next product stage remains
+**LEGAL.ACCEPTANCE.01**: server-side, versioned PostgreSQL evidence for the
+agreement, privacy policy, necessary separate consents and closed-testing
+terms; explicit re-acceptance on version changes; declined terms do not activate
+an invite. The supplied WORTA testing-risk warning must appear before invite
+activation. Legal text requires owner approval; public registration stays
+closed. Encrypted Web Documents with AMK protection follows LEGAL.ACCEPTANCE.
+
+Web progress remains **89,36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`; Registration CLOSED, PUBLIC RELEASE BLOCKED, and
+C21/C22/C23/PF6.0/RC gates remain unchanged.
+
 ## Постоянная политика экономного выбора моделей Codex для WORTA 6.0
 
 Эта политика применяется ко всем следующим задачам WORTA, включая C21/C22/C23,

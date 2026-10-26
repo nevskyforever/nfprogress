@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import {mkdtemp,rm,cp,readFile} from 'node:fs/promises'
+import {mkdtemp,rm,readFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {chromium} from '@playwright/test'
@@ -230,8 +230,18 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   assert.equal(await page.evaluate(async()=>{try{await session.proven.bind(meta.auth,meta.bindings,meta.keys).prepare(s);return false}catch{return true}}),true)
   assert.deepEqual(await snapshot(),progressed)
   if(legacy3&&!prefixMode){
-   await context.close();copy=await mkdtemp(join(tmpdir(),'c21-old-t-H-copy-'));await cp(directory,copy,{recursive:true});activeDirectory=copy;old=true
-   await launch();await bind();assert.deepEqual(await snapshot(),progressed)
+   const v10Data=await snapshot()
+   await context.close();copy=await mkdtemp(join(tmpdir(),'c21-old-t-H-copy-'));activeDirectory=copy;old=true
+   await launch()
+   await page.evaluate(async({schema,data})=>{
+    const dbRequest=indexedDB.open(c21.WEB_DATABASE_NAME,10)
+    dbRequest.onupgradeneeded=()=>{for(const [name,keyPath,indexes] of schema){const store=dbRequest.result.createObjectStore(name,{keyPath});for(const [index,path,unique] of indexes)store.createIndex(index,path,{unique})}}
+    const db=await new Promise((resolve,reject)=>{dbRequest.onsuccess=()=>resolve(dbRequest.result);dbRequest.onerror=()=>reject(dbRequest.error)})
+    try{await c21.runBrowserTransaction(db,schema.map(([name])=>name),'readwrite',(tx,result)=>{for(const [name,rows] of Object.entries(data))for(const row of rows)tx.objectStore(name).add(row);result(undefined)})}finally{db.close()}
+   },{schema:v10Schema,data:v10Data})
+   await bind()
+   assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()})
+   assert.deepEqual(await snapshot(),progressed)
    const oldBookmark=network.length
    const rejected=await page.evaluate(async descendants=>{
     const device=verifiedHDevice,g=c21.resolutionPrefixFixture(session,meta,device),q=c21.mixedResolutionPrefixFixture(session,meta,device),k=c21.v10RecoveryFixture(session,meta,device),mixed=c21.mixedV10RecoveryFixture(session,meta,device),o=c21.v10OrdinaryOwnerFixture(session,meta,device),privateMeta=c21.privateMetadataFixture(session,meta,device)
@@ -239,7 +249,11 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
     const outcomes=[];for(const action of actions){try{await action();outcomes.push(null)}catch(e){if(e instanceof TypeError||e instanceof ReferenceError)throw e;outcomes.push(e.code??e.message)}}return outcomes
    },descendants)
    assert.ok(rejected.every(Boolean),JSON.stringify(rejected));assert.deepEqual(await snapshot(),progressed);assert.equal(network.length,oldBookmark);oldReaders++
-   await context.close();old=false;await launch();await bind();historicalReopens++
+   // Keep the historical rejection proof on a compatible v10 profile across a real restart.
+   await context.close();await launch();await bind();historicalReopens++
+   assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()});assert.deepEqual(await snapshot(),progressed)
+   await context.close();await rm(copy,{recursive:true,force:true});copy=undefined;activeDirectory=directory;old=false;await launch();await bind()
+   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()});assert.deepEqual(await snapshot(),progressed)
    assert.equal((await page.evaluate(()=>continuation.history(s))).resolutions,1)
    for(const d of descendants)assert.equal(await page.evaluate(sequence=>continuation.reconcile(s,sequence),d.sequence),'already_applied')
    assert.deepEqual(await snapshot(),progressed)

@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import {mkdtemp,rm,cp,readFile} from 'node:fs/promises'
+import {mkdtemp,rm,readFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {chromium} from '@playwright/test'
+import {schema as v10Schema} from './browser-content-authority-migration-acceptance.mjs'
 const origin=new URL(process.argv[2]||'http://127.0.0.1:5174').origin
 assert.equal(new URL(origin).hostname,'127.0.0.1')
 const legacyV3=process.argv.includes('--legacy-v3'),oldBundle=process.env.C21_OLD_V10_BUNDLE
@@ -13,6 +14,7 @@ if(legacyV3){
 const names=['identities','accountBindings','outbox','inbox','cursors','receipts','projectBindings','ownerHeads','localProjects','localNotes','legacyNoteHistory','legacyNoteIntents']
 const errors=[],network=[];let context,page,scope,decisions,registrations=0,faults=0,applied=0,restarts=0,oldReaders=0,joins=0,uncertain=0,preCommitProcessStops=0
 const snapshot=()=>page.evaluate(async names=>Object.fromEntries(await Promise.all(names.map(async n=>[n,await nativeRows(n)]))),names)
+const schemaSnapshot=()=>page.evaluate(async()=>{const request=indexedDB.open(c21.WEB_DATABASE_NAME),db=await new Promise((resolve,reject)=>{request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});try{return{version:db.version,stores:Array.from(db.objectStoreNames)}}finally{db.close()}})
 for(const protocol of legacyV3?[2]:[2,3])for(const strategy of ['choose_version','manual_merge','delete','keep_both']){
  const testCase={protocol,strategy,legacyV3},directory=await mkdtemp(join(tmpdir(),'c21-resolution-apply-'))
  let activeDirectory=directory,old=false,copy
@@ -163,9 +165,19 @@ for(const protocol of legacyV3?[2]:[2,3])for(const strategy of ['choose_version'
   // No push/ACK occurred before restart either (registration is external setup).
   assert.equal(network.length,registrations)
   if(legacyV3){
+   const v10Data=await snapshot()
    await context.close()
-   copy=await mkdtemp(join(tmpdir(),'c21-old-v10-copy-'));await cp(directory,copy,{recursive:true});activeDirectory=copy;old=true
-   await launch();await bind();assert.deepEqual(await snapshot(),after)
+   copy=await mkdtemp(join(tmpdir(),'c21-old-v10-copy-'));activeDirectory=copy;old=true
+   await launch()
+   await page.evaluate(async({schema,data})=>{
+    const dbRequest=indexedDB.open(c21.WEB_DATABASE_NAME,10)
+    dbRequest.onupgradeneeded=()=>{for(const [name,keyPath,indexes] of schema){const store=dbRequest.result.createObjectStore(name,{keyPath});for(const [index,path,unique] of indexes)store.createIndex(index,path,{unique})}}
+    const db=await new Promise((resolve,reject)=>{dbRequest.onsuccess=()=>resolve(dbRequest.result);dbRequest.onerror=()=>reject(dbRequest.error)})
+    try{await c21.runBrowserTransaction(db,schema.map(([name])=>name),'readwrite',(tx,result)=>{for(const [name,rows] of Object.entries(data))for(const row of rows)tx.objectStore(name).add(row);result(undefined)})}finally{db.close()}
+   },{schema:v10Schema,data:v10Data})
+   await bind()
+   assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()})
+   assert.deepEqual(await snapshot(),after)
    const oldBookmark=network.length
    const rejected=await page.evaluate(async d=>{
     const device=replayDevice,j=c21.v10TransportFixture(session,meta,device),h=c21.resolutionContinuationFixture(session,meta,device),g=c21.resolutionPrefixFixture(session,meta,device),q=c21.mixedResolutionPrefixFixture(session,meta,device),k=c21.v10RecoveryFixture(session,meta,device),mixed=c21.mixedV10RecoveryFixture(session,meta,device),o=c21.v10OrdinaryOwnerFixture(session,meta,device)
@@ -174,8 +186,26 @@ for(const protocol of legacyV3?[2]:[2,3])for(const strategy of ['choose_version'
     const outcomes=[];for(const action of actions){try{await action();outcomes.push(null)}catch(e){if(e instanceof TypeError||e instanceof ReferenceError)throw e;outcomes.push(e.code??e.message)}}return outcomes
    },decisions)
    assert.ok(rejected.every(Boolean),JSON.stringify(rejected));assert.deepEqual(await snapshot(),after);assert.equal(network.length,oldBookmark);oldReaders++
+   // The pinned client must also reopen the same compatible v10 profile after a real process restart.
+   await context.close();await launch();await bind();restarts++
+   assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()});assert.deepEqual(await snapshot(),after)
+   // Upgrade the representative Legacy3 profile with the current client and compare every old row.
+   await context.close();old=false;await launch();await bind()
+   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()})
+   assert.deepEqual(await page.evaluate(()=>nativeRows('localStages')),[])
+   assert.deepEqual(await snapshot(),after)
+   assert.equal((await page.evaluate(d=>applier.reconcile(s,d.sequence),decisions)).status,'already_applied')
+   assert.deepEqual(await snapshot(),after)
+   // The same pinned client must fail closed on v11 without changing schema or data.
+   await context.close();old=true;await launch()
+   assert.equal(await page.evaluate(async scope=>{try{await c21.openBrowserPersistence(scope.canonicalUserId);return'opened'}catch(error){return error.code}},scope),'unsupported_version')
+   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()})
+   assert.deepEqual(await snapshot(),after)
+   // Current-client recovery after refusal retains the exact Legacy3 result and replay status.
    await context.close();old=false;await launch();await bind();restarts++
-   assert.equal((await page.evaluate(d=>applier.reconcile(s,d.sequence),decisions)).status,'already_applied');assert.deepEqual(await snapshot(),after)
+   assert.deepEqual(await snapshot(),after)
+   assert.equal((await page.evaluate(d=>applier.reconcile(s,d.sequence),decisions)).status,'already_applied')
+   assert.deepEqual(await snapshot(),after)
   }
  }finally{await context?.close();await rm(directory,{recursive:true,force:true});if(copy)await rm(copy,{recursive:true,force:true})}
 }
