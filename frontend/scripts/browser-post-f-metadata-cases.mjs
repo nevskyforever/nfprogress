@@ -5,8 +5,14 @@ export async function runPostFMetadataCase({getPage,snapshot,restart,compete,pro
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg)
  let ownerCommits=0,cursorCommits=0,rollbacks=0,restarts=0,crashes=0,races=0,replays=0
  const crashRestart=async()=>{
-  const page=getPage(),cdp=await page.context().newCDPSession(page),crashed=page.waitForEvent('crash',{timeout:5000})
-  void cdp.send('Page.crash').catch(()=>undefined);await crashed;crashes++;await restart();restarts++
+  const page=getPage(),cdp=await page.context().newCDPSession(page)
+  const playwrightCrash=page.waitForEvent('crash',{timeout:5000})
+  const cdpCrash=new Promise(resolve=>cdp.once('Inspector.targetCrashed',()=>resolve('cdp')))
+  let command='pending'
+  const commandFailure=cdp.send('Page.crash').then(()=>{command='returned';return new Promise(()=>{})},error=>{command=`failed: ${error.message}`;throw error})
+  try{await Promise.race([playwrightCrash,cdpCrash,commandFailure])}
+  catch(error){throw new Error(`Chromium renderer crash not confirmed (CDP ${command}, page closed: ${page.isClosed()}): ${error.message}`,{cause:error})}
+  crashes++;await restart();restarts++
  }
  const setup=()=>evaluate(async()=>{
   const project='planner-project',peer='44444444-4444-4444-8444-444444444444',stamp='2026-10-22T00:00:00.000000Z'

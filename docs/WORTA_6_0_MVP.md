@@ -1,6 +1,20 @@
 # WORTA 6.0 MVP — desktop + Web + encrypted cloud sync
 
-**Owner priority:** restricted Web + desktop encrypted writing; frozen C21 reader,
+**Current owner goal (MVP6.0.FASTTRACK.01):** full functional parity of the
+existing Desktop WORTA on Web, with durable offline E2EE data and bidirectional
+Windows/macOS/Web cloud synchronization for every supported user data type.
+Projects, stages, project/stage texts, Notes, Progress and Game Mode are all
+mandatory. The current evidence matrix and shortest safe implementation path
+are in [MVP6.0 fast-track roadmap](web/MVP6_0_FASTTRACK_ROADMAP.md). Earlier
+Notes-only MVP wording below describes a restricted sync milestone, not the
+completion criterion for the owner's full product MVP.
+
+Cloud run `40281466847` for C21.2.08Z2B2C failed 1/6 mandatory jobs in a
+Chromium crash/restart test. The repair passed local private Metadata and
+post-F Metadata acceptance; remote acceptance is pending. No Note reader,
+writer, ACK or production sync capability is activated by this repair.
+
+**Historical restricted-sync priority:** Web + desktop encrypted writing; frozen C21 reader,
 security, backup/restore, CI, and public-release gates remain.
 
 **Current practical browser milestone: MVP6.0.12.** The development Web account
@@ -34,7 +48,7 @@ and MVP6.0.05 (`40206456558`, 6/6 SUCCESS).
 The owner reports MVP6.0.06 Cloud `40212021756`, 6/6 SUCCESS.
 MVP6.0.04 did not query GitHub Actions.
 
-## Exact MVP
+## Historical Notes-only restricted milestone (not the full MVP)
 
 One existing authorized account can sign in on a Mac desktop client and in a
 browser, unlock the same account encryption key with the cloud password, enable

@@ -1,5 +1,31 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## WORTA 6.0 MVP — PRIMARY PRODUCT GOAL
+
+Полноценная Web-версия существующей Desktop WORTA должна предоставлять все
+её пользовательские функции, сохраняя функциональную эквивалентность сценариев
+без требования попиксельного совпадения интерфейса. Windows, macOS и Web —
+участники одного зашифрованного облака. Все существующие поддерживаемые типы
+пользовательских данных должны безопасно синхронизироваться между ними.
+
+Обязательный минимум включает проекты и их структуру, этапы и порядок,
+проектные и этапные тексты, Notes, Progress со статистикой и историей,
+полный существующий Game Mode, а также остальные пользовательские функции,
+перечисленные в [матрице Desktop → Web](web/MVP6_0_FASTTRACK_ROADMAP.md).
+Локальное долговечное сохранение и офлайн-работа не зависят от доступности
+облака. Сохранность данных, E2EE и достоверное подтверждение синхронизации
+обязательны. Одной синхронизации Notes недостаточно для завершения MVP.
+
+**Правило планирования:** каждый следующий implementation stage должен либо
+приближать конкретный обязательный пользовательский сценарий MVP, либо
+устранять доказанный блокер этого сценария. Необязательные улучшения не должны
+задерживать пользовательский MVP. P0 безопасность, C21/C22/C23/PF6.0/RC и
+замороженные reader/writer gates нельзя упрощать ради скорости.
+
+Текущий официальный Web progress — **89,36%**. `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`; регистрация CLOSED,
+PUBLIC RELEASE BLOCKED. Эти значения не изменяются за перепланирование.
+
 ## Постоянная политика экономного выбора моделей Codex для WORTA 6.0
 
 Эта политика применяется ко всем следующим задачам WORTA, включая C21/C22/C23,
@@ -37,6 +63,25 @@ MVP, инфраструктуру и дальнейшие релизы. Экон
    существующий CI.
 6. Не утверждать точную экономию без подтверждённых измерений. Фактический расход
    лимитов зависит от модели, размера задачи, контекста и количества действий.
+
+## 2026-10-26 — MVP6.0.FASTTRACK.01 CI recovery and critical path
+
+Cloud run `40281466847` for C21.2.08Z2B2C FAILED (5/6 jobs SUCCESS):
+`PostgreSQL mandatory (complete-project)` timed out waiting for Playwright
+`crash` during private Metadata protocol 2 / manual_merge. The test helper
+discarded `Page.crash` command errors, so that run cannot distinguish a CDP
+failure from a missing Playwright event. The helper now also accepts CDP
+`Inspector.targetCrashed` as real renderer-crash evidence and reports command
+errors when no crash is observed; it still checks disk/IndexedDB state after
+restart. Local private Metadata and post-F Metadata Chromium acceptance passed
+with genuine crashes. Remote CI acceptance of this repair is **PENDING**.
+
+The current full-feature MVP target and shortest safe milestones are in
+[`docs/web/MVP6_0_FASTTRACK_ROADMAP.md`](web/MVP6_0_FASTTRACK_ROADMAP.md).
+The older Notes-only “Exact MVP” in `WORTA_6_0_MVP.md` is a historical restricted
+sync milestone, not completion of the owner's current full MVP. Atomic project B
+replay remains unimplemented. The next sync slice will be chosen only after CI
+acceptance and this product critical-path review; C21.2.08Z2B2D is not started.
 
 ## 2026-10-26 — C21.2.08Z2B2C authenticated historical Note planner
 

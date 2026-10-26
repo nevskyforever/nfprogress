@@ -4,11 +4,16 @@ export async function runPrivateMetadataCase({getPage,snapshot,restart,compete,p
  const evaluate=(fn,arg)=>getPage().evaluate(fn,arg)
  let restarts=0,rollbacks=0,replays=0,crashes=0
  const crashRestart=async()=>{
-  const page=getPage(),cdp=await page.context().newCDPSession(page),crashed=page.waitForEvent('crash',{timeout:5000})
-  void cdp.send('Page.crash').catch(()=>undefined)
-  await crashed;crashes++;await restart();restarts++
+  const page=getPage(),cdp=await page.context().newCDPSession(page)
+  const playwrightCrash=page.waitForEvent('crash',{timeout:5000})
+  const cdpCrash=new Promise(resolve=>cdp.once('Inspector.targetCrashed',()=>resolve('cdp')))
+  let command='pending'
+  const commandFailure=cdp.send('Page.crash').then(()=>{command='returned';return new Promise(()=>{})},error=>{command=`failed: ${error.message}`;throw error})
+  try{await Promise.race([playwrightCrash,cdpCrash,commandFailure])}
+  catch(error){throw new Error(`Chromium renderer crash not confirmed (CDP ${command}, page closed: ${page.isClosed()}): ${error.message}`,{cause:error})}
+  crashes++;await restart();restarts++
  }
- const setup=()=>evaluate(async({protocol,strategy,decision})=>{
+ const setup=()=>evaluate(async()=>{
   const project='planner-project',peer='44444444-4444-4444-8444-444444444444',stamp='2026-10-22T00:00:00.000000Z'
   const binding=(await nativeRows('projectBindings')).find(b=>b.project_id===project)
   globalThis.privateWriter=c21.privateMetadataFixture(session,meta,verifiedDevice)
@@ -29,7 +34,7 @@ export async function runPrivateMetadataCase({getPage,snapshot,restart,compete,p
    const event=c21.createNoteSyncPlaintext(h,parent,note).plaintext
    return sendPrivateEvent({...h,operation:'event',deleted_at:null},c21.readerFrame({id:8,version:1,event:{version:1,account_id:s.canonicalUserId,device_id:peer,dependencies:{bootstrap_id:binding.bootstrap_id,metadata_event_id:metadata.tip_event_ids[0],stage_event_ids:[]},event}},compressed))
   }
- },{protocol,strategy,decision})
+ })
  const apply=async(sequence,fault)=>evaluate(async({sequence,fault})=>{
   const writer=c21.privateMetadataFixture(session,meta,verifiedDevice,fault)
   const random=crypto.getRandomValues,fetch=globalThis.fetch;let nonces=0,http=0
