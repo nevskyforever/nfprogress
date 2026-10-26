@@ -776,3 +776,27 @@ progress and the .08 reader gate is not closed. C22, C23, PF6.0, RC, VPS securit
 landing and all existing release criteria are preserved. This priority document
 does not award roadmap points, alter scoring, or report unverified deployment,
 CI, readiness, restore, or end-to-end results as complete.
+
+## MVP6.0.FASTTRACK.02 — rebalance mandatory CI workload (2026-10-26)
+
+Run `40286613966` finished **5/6 SUCCESS, 1 CANCELLED** when the unchanged
+40-minute `complete-project` limit was reached. Chromium private Metadata
+atomic handoff/disk recovery passed (8 profiles, 16 crashes); post-F browser
+acceptance was interrupted by the timeout, not a confirmed failure. The
+workflow moves the 13:15 C21 recovery/historical Metadata Vitest group to
+`foundation` and the 2:52 private Metadata prerequisite Vitest group to
+`content-action`. Browser crash/restart checks, native bridge and backend
+acceptance remain enabled; coverage, pinned toolchain, six mandatory jobs and
+40-minute limits are unchanged. Capacity estimates: `foundation` 29:20
+(10:40 reserve), `content-action` 24:28 (15:32 reserve),
+`complete-project` 34:09 (5:51 reserve), using run `40286613966` observed
+setup/install/test timings and the remaining complete-project step timings
+from successful run `40277351544`. The new SHA needs independent CI acceptance;
+Codex does not claim a result for it.
+
+The next product implementation slice after acceptance remains the encrypted
+Web projects/stages repository connected to the existing Vue UI. It is not
+part of this CI-only change. The full product goal, Web progress **89.36%**,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, CLOSED
+registration, PUBLIC RELEASE BLOCKED and all C21/C22/C23/PF6.0/RC gates remain
+unchanged.

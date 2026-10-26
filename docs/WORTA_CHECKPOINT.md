@@ -10982,3 +10982,45 @@ public registration and all release gates remain. Official Web progress stays
 **89.36%**. A docs-only push is not expected to trigger automatic GitHub
 Actions under current path filters; that is a static expectation, not a
 queried remote result.
+
+## 2026-10-26 — MVP6.0.FASTTRACK.02 CI mandatory-job rebalance
+
+Starting `6.0`/`origin/6.0` SHA: `8fa3e85a8a40b79d3d29aa5ba0e95934a9b8c227`.
+Cloud run `40286613966` ended **5/6 SUCCESS, 1 CANCELLED**: the mandatory
+`complete-project` job reached the unchanged 40-minute limit. Its real Chromium
+private Metadata atomic handoff/disk recovery step passed (8 profiles, 16
+crashes); the following post-F browser acceptance was cut off by the job limit,
+not a confirmed test failure.
+
+The workflow now keeps all checks and redistributes the two isolated Vitest
+groups: C21 recovery/historical Metadata contract tests move to the existing
+`foundation` shard; private Metadata prerequisite contract tests move to the
+existing `content-action` shard. Complete-project's historical/private/post-F
+browser acceptance, including crash/restart, plus its native bridge and
+mandatory PostgreSQL acceptance remain in place. No tests are skipped,
+duplicated, weakened, or assigned a longer timeout; all six mandatory jobs and
+the pinned toolchain remain unchanged.
+
+Capacity estimate from observed run `40286613966`: `foundation` 16:05 + 13:15
+= **29:20** (10:40 below 40:00); `content-action` 21:36 + 2:52 = **24:28**
+(15:32 below 40:00). `complete-project` had reached the post-F step at 40:11;
+removing the preceding 13:15 and 2:52 contract groups moves that point to
+24:04. Add the complete remaining post-F acceptance (2:12), native bridge
+preparation (2:16) and PostgreSQL acceptance (5:37), each measured in the
+successful run `40277351544`: projected total **34:09**, leaving **5:51**.
+These estimates preserve the slow native/Chromium installation times observed
+in `40286613966`; CI variance remains possible. The workflow requires
+independent acceptance of this new SHA. No GitHub Actions result for it is
+claimed here.
+
+The primary product goal remains full Desktop (Windows/macOS) and Web feature
+parity, durable encrypted offline storage and bidirectional synchronization of
+projects, stages, texts, Notes, maps, Progress, Game Mode and all other existing
+capabilities. After independent CI acceptance, the next product slice is the
+encrypted Web projects/stages repository connected to the existing Vue UI; it
+was not started in this CI repair.
+
+Official Web progress remains **89.36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED and
+PUBLIC RELEASE BLOCKED. C21/C22/C23/PF6.0/RC and all reader/writer gates remain
+unchanged.

@@ -335,12 +335,12 @@ jobs:
         run: python tests/prepare_c15_native_bridge.py
 
       - name: Run isolated C21 recovery and historical Metadata contract tests
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'foundation'
         working-directory: frontend
         run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts src/platform/web/historicalMetadataDependency.spec.ts src/platform/web/historicalContentAuthentication.spec.ts src/platform/web/historicalPrefixQualification.spec.ts --maxWorkers=1
 
       - name: Run isolated private Metadata prerequisite contract tests
-        if: matrix.shard == 'complete-project'
+        if: matrix.shard == 'content-action'
         working-directory: frontend
         run: npm test -- --run src/platform/web/privateMetadataAuthentication.spec.ts src/platform/web/privateMetadataHandoff.spec.ts --maxWorkers=1
 
