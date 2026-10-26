@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
+from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_accepted_user
 from .schemas import (CloudProjectBootstrapCompletionRequest,
                       CloudProjectBootstrapDescriptor,
                       CloudProjectBootstrapListResponse,
@@ -57,7 +57,7 @@ async def _reject_request_body(request: Request) -> None:
 
 
 @router.get('', response_model=CloudProjectsResponse)
-def list_cloud_projects(current: AuthenticatedUser = Depends(get_current_user),
+def list_cloud_projects(current: AuthenticatedUser = Depends(get_current_accepted_user),
                         session: Session = Depends(get_cloud_session)) -> CloudProjectsResponse:
     try:
         return _response(CloudProjectService().list(session, current.user.id))
@@ -67,7 +67,7 @@ def list_cloud_projects(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.get('/bootstrap', response_model=CloudProjectBootstrapListResponse)
 def list_cloud_project_bootstraps(
-    current: AuthenticatedUser = Depends(get_current_user),
+    current: AuthenticatedUser = Depends(get_current_accepted_user),
     session: Session = Depends(get_cloud_session),
 ) -> CloudProjectBootstrapListResponse:
     state = CloudProjectService().list_bootstrap(session, current.user.id)
@@ -81,7 +81,7 @@ def list_cloud_project_bootstraps(
 def register_cloud_project_bootstrap(
     project_id: str,
     request: CloudProjectBootstrapRegistrationRequest,
-    current: AuthenticatedUser = Depends(get_current_user),
+    current: AuthenticatedUser = Depends(get_current_accepted_user),
     session: Session = Depends(get_cloud_session),
 ) -> CloudProjectBootstrapResponse:
     if not project_id or len(project_id) > 512:
@@ -109,7 +109,7 @@ def register_cloud_project_bootstrap(
 def complete_cloud_project_bootstrap(
     project_id: str,
     request: CloudProjectBootstrapCompletionRequest,
-    current: AuthenticatedUser = Depends(get_current_user),
+    current: AuthenticatedUser = Depends(get_current_accepted_user),
     session: Session = Depends(get_cloud_session),
 ) -> CloudProjectBootstrapResponse:
     if not project_id or len(project_id) > 512:
@@ -130,7 +130,7 @@ def complete_cloud_project_bootstrap(
 
 @router.post('/{project_id}', response_model=CloudProjectsResponse)
 async def enable_cloud_project(project_id: str, request: Request,
-                               current: AuthenticatedUser = Depends(get_current_user),
+                               current: AuthenticatedUser = Depends(get_current_accepted_user),
                                session: Session = Depends(get_cloud_session)) -> CloudProjectsResponse:
     if not project_id or len(project_id) > 512:
         raise HTTPException(status_code=422, detail={
@@ -149,7 +149,7 @@ async def enable_cloud_project(project_id: str, request: Request,
 
 
 @router.delete('/{project_id}', status_code=status.HTTP_204_NO_CONTENT)
-def disable_cloud_project(project_id: str, current: AuthenticatedUser = Depends(get_current_user),
+def disable_cloud_project(project_id: str, current: AuthenticatedUser = Depends(get_current_accepted_user),
                           session: Session = Depends(get_cloud_session)) -> None:
     if not project_id or len(project_id) > 512:
         raise HTTPException(status_code=422, detail={

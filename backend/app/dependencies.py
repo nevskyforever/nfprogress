@@ -89,6 +89,36 @@ def get_current_user(
     return AuthenticatedUser(user=user, session=auth_session)
 
 
+def get_current_accepted_user(
+        request: Request,
+        current: AuthenticatedUser = Depends(get_current_user),
+        session: Session = Depends(get_cloud_session),
+) -> AuthenticatedUser:
+    """Gate normal-user cloud data operations on exact current legal versions."""
+    from .cloud.legal_documents import (DEFAULT_LEGAL_DOCUMENT_REGISTRY,
+                                        LegalAcceptanceService,
+                                        LegalDocumentError)
+
+    if current.user.role != 'user':
+        return current
+    registry = getattr(request.app.state, 'legal_document_registry',
+                       DEFAULT_LEGAL_DOCUMENT_REGISTRY)
+    try:
+        missing = LegalAcceptanceService(registry).missing_for_gate(session, current.user.id)
+    except LegalDocumentError as error:
+        raise HTTPException(status_code=error.status_code, detail={
+            'code': error.code,
+            'message': 'Required legal documents are unavailable.',
+        }) from None
+    if missing:
+        raise HTTPException(status_code=451, detail={
+            'code': 'legal_acceptance_required',
+            'message': 'Current legal documents must be accepted.',
+            'missing_document_ids': [version.document_id for version in missing],
+        })
+    return current
+
+
 def get_current_admin(current: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
     """C7's server-side boundary; frontend guards are only convenience."""
     if current.user.role != 'admin' or current.user.status != 'active':

@@ -406,3 +406,40 @@ class AdminInvitation(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class UserDocumentAcceptance(Base):
+    """Append-only evidence for an exact account-level legal document version."""
+
+    __tablename__ = 'user_document_acceptances'
+    __table_args__ = (
+        CheckConstraint(
+            "document_type IN ('user_agreement', 'privacy_policy', 'personal_data_consent', 'beta_terms')",
+            name='ck_user_document_acceptances_type',
+        ),
+        CheckConstraint(
+            "acceptance_method IN ('invitation', 'authenticated_confirmation')",
+            name='ck_user_document_acceptances_method',
+        ),
+        CheckConstraint("content_checksum ~ '^[0-9a-f]{64}$'", name='ck_user_document_acceptances_checksum'),
+        CheckConstraint("char_length(document_id) >= 1", name='ck_user_document_acceptances_document_id'),
+        CheckConstraint("char_length(revision) >= 1", name='ck_user_document_acceptances_revision'),
+        UniqueConstraint(
+            'user_id', 'document_id', 'revision', 'content_checksum', 'language',
+            name='uq_user_document_acceptance_exact',
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True,
+    )
+    document_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    document_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    content_checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    language: Mapped[str] = mapped_column(String(16), nullable=False)
+    acceptance_method: Mapped[str] = mapped_column(String(32), nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
+    )

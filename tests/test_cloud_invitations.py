@@ -17,7 +17,7 @@ from test_cloud_auth import cloud_client, create_user, login, migrated_database
 
 
 def _admin(client, engine) -> dict[str, str]:
-    admin_id = create_user(engine, username='PrivateAdmin', email='admin@example.test')
+    admin_id = create_user(engine, username='PrivateAdmin', email='admin@example.test', accept_legal=False)
     with Session(engine) as session:
         user = session.get(User, admin_id)
         user.role = 'admin'
@@ -29,6 +29,28 @@ def _admin(client, engine) -> dict[str, str]:
 def _issued_token(client) -> str:
     message = client.app.state.email_sender.messages[-1]
     return message.body.split('#token=', 1)[1].split()[0]
+
+
+def _invitation_documents(client, token: str) -> list[dict]:
+    response = client.post('/api/v1/auth/invitations/documents', json={
+        'token': token, 'language': 'ru',
+    })
+    assert response.status_code == 200, response.json()
+    return [{
+        'document_id': item['document_id'],
+        'revision': item['revision'],
+        'content_checksum': item['content_checksum'],
+        'language': item['language'],
+    } for item in response.json()['documents'] if item['mandatory']]
+
+
+def _accept_payload(client, token: str, password: str = 'new private password long') -> dict:
+    return {
+        'token': token,
+        'password': password,
+        'language': 'ru',
+        'documents': _invitation_documents(client, token),
+    }
 
 
 def test_private_invitation_authorization_creation_acceptance_and_replay(cloud_client):
@@ -47,9 +69,9 @@ def test_private_invitation_authorization_creation_acceptance_and_replay(cloud_c
     assert 'token' not in issued.text and 'password' not in issued.text
     assert client.app.state.email_sender.messages[-1].recipient == payload['email']
     token = _issued_token(client)
-    assert client.post('/api/v1/auth/invitations/accept', json={
-        'token': token[:-1] + ('A' if token[-1] != 'A' else 'B'),
-        'password': 'new private password long',
+    invalid_token = token[:-1] + ('A' if token[-1] != 'A' else 'B')
+    assert client.post('/api/v1/auth/invitations/documents', json={
+        'token': invalid_token, 'language': 'ru',
     }).status_code == 400
     with Session(engine) as session:
         user = session.scalar(select(User).where(User.username_normalized == 'privatewriter'))
@@ -59,16 +81,14 @@ def test_private_invitation_authorization_creation_acceptance_and_replay(cloud_c
     assert client.post('/api/v1/auth/login', json={
         'username': 'PrivateWriter', 'password': 'new private password long',
     }).status_code == 401
-    assert client.post('/api/v1/auth/invitations/accept', json={
-        'token': token, 'password': 'short',
-    }).status_code == 422
-    accepted = client.post('/api/v1/auth/invitations/accept', json={
-        'token': token, 'password': 'new private password long',
-    })
+    assert client.post('/api/v1/auth/invitations/accept', json=_accept_payload(
+        client, token, 'short',
+    )).status_code == 422
+    accepted = client.post('/api/v1/auth/invitations/accept', json=_accept_payload(client, token))
     assert accepted.status_code == 200 and accepted.json()['code'] == 'invitation_accepted'
-    assert client.post('/api/v1/auth/invitations/accept', json={
-        'token': token, 'password': 'new private password long',
-    }).json()['detail']['code'] == 'invalid_or_expired_invitation'
+    replay_payload = accepted.request.content
+    assert client.post('/api/v1/auth/invitations/accept', content=replay_payload,
+                       headers={'content-type': 'application/json'}).json()['detail']['code'] == 'invalid_or_expired_invitation'
     assert login(client, 'PrivateWriter', 'new private password long').status_code == 200
     listed = client.get('/api/v1/admin/invitations', headers=headers).json()
     assert listed[0]['status'] == 'accepted' and token not in str(listed)
@@ -87,8 +107,8 @@ def test_private_invitation_revoke_expiry_reissue_and_capacity(cloud_client):
     first_token = _issued_token(client)
     assert client.post('/api/v1/admin/invitations', json=payload, headers=headers).json()['detail']['code'] == 'invitation_pending'
     assert client.post(f"/api/v1/admin/invitations/{first['id']}/revoke", headers=headers).json()['status'] == 'revoked'
-    assert client.post('/api/v1/auth/invitations/accept', json={
-        'token': first_token, 'password': 'new private password long',
+    assert client.post('/api/v1/auth/invitations/documents', json={
+        'token': first_token, 'language': 'ru',
     }).status_code == 400
     second = client.post('/api/v1/admin/invitations', json=payload, headers=headers).json()
     second_token = _issued_token(client)
@@ -97,25 +117,22 @@ def test_private_invitation_revoke_expiry_reissue_and_capacity(cloud_client):
         session.commit()
     assert any(row['id'] == second['id'] and row['status'] == 'expired'
                for row in client.get('/api/v1/admin/invitations', headers=headers).json())
-    assert client.post('/api/v1/auth/invitations/accept', json={
-        'token': second_token, 'password': 'new private password long',
+    assert client.post('/api/v1/auth/invitations/documents', json={
+        'token': second_token, 'language': 'ru',
     }).status_code == 400
     third = client.post('/api/v1/admin/invitations', json=payload, headers=headers).json()
     third_token = _issued_token(client)
     with Session(engine) as session:
         session.get(RegistrationSettings, 1).max_users = 1  # The administrator already uses the slot.
         session.commit()
-    blocked = client.post('/api/v1/auth/invitations/accept', json={
-        'token': third_token, 'password': 'new private password long',
-    })
+    third_payload = _accept_payload(client, third_token)
+    blocked = client.post('/api/v1/auth/invitations/accept', json=third_payload)
     assert blocked.status_code == 409 and blocked.json()['detail']['code'] == 'capacity_reached'
     with Session(engine) as session:
         assert session.get(AdminInvitation, third['id']).used_at is None
         session.get(RegistrationSettings, 1).max_users = 2
         session.commit()
-    assert client.post('/api/v1/auth/invitations/accept', json={
-        'token': third_token, 'password': 'new private password long',
-    }).status_code == 200
+    assert client.post('/api/v1/auth/invitations/accept', json=third_payload).status_code == 200
 
 
 def test_invitation_requires_email_delivery_without_creating_an_account(cloud_client):

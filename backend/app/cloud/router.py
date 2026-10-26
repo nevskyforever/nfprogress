@@ -2,16 +2,21 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
-                            get_cloud_session, get_current_user, get_email_sender)
+                            get_cloud_session, get_current_accepted_user,
+                            get_current_user, get_email_sender)
 from .email import EmailDeliveryError, EmailSender, OutgoingEmail
 from .invitations import InvitationError, PrivateInvitationService
-from .schemas import (AccountLimitsResponse, AccountResponse, CurrentUserCryptoResponse,
-                      InitialCryptoProvisioningRequest, InvitationAcceptRequest, LoginRequest,
+from .legal_documents import (DEFAULT_LEGAL_DOCUMENT_REGISTRY, DocumentConfirmation,
+                              LegalAcceptanceService, LegalDocumentError)
+from .schemas import (AccountLimitsResponse, AccountResponse, AuthenticatedLegalAcceptRequest,
+                      CurrentUserCryptoResponse, InitialCryptoProvisioningRequest,
+                      InvitationAcceptRequest, InvitationDocumentsRequest,
+                      LegalDocumentResponse, LegalDocumentStatusResponse, LoginRequest,
                       PasswordKdfDto, PasswordResetConfirmRequest, PasswordWrappedAmkDto,
                       PasswordResetRequest, PublicVerificationRequest,
                       RecoveryWrappedAmkDto, RefreshRequest, RegistrationRequest, TokenResponse,
@@ -26,6 +31,41 @@ from .tokens import TokenService
 
 
 router = APIRouter(prefix='/api/v1', tags=['cloud authentication'])
+
+
+def _legal_registry(request: Request):
+    return getattr(request.app.state, 'legal_document_registry', DEFAULT_LEGAL_DOCUMENT_REGISTRY)
+
+
+def _confirmations(payload) -> list[DocumentConfirmation]:
+    return [DocumentConfirmation(
+        document_id=item.document_id,
+        revision=item.revision,
+        content_checksum=item.content_checksum,
+        language=item.language,
+    ) for item in payload.documents]
+
+
+def _legal_response(documents, missing) -> LegalDocumentStatusResponse:
+    missing_keys = {
+        (item.document_id, item.revision, item.content_checksum, item.language)
+        for item in missing
+    }
+    return LegalDocumentStatusResponse(
+        documents=[LegalDocumentResponse(
+            document_id=item.document_id,
+            document_type=item.document_type,
+            revision=item.revision,
+            content_checksum=item.content_checksum,
+            language=item.language,
+            title=item.title,
+            content=item.content,
+            mandatory=item.mandatory,
+            requires_explicit_acceptance=item.requires_explicit_acceptance,
+            accepted=(item.document_id, item.revision, item.content_checksum, item.language) not in missing_keys,
+        ) for item in documents],
+        missing_required_document_ids=[item.document_id for item in missing],
+    )
 
 
 def _authentication_failure() -> HTTPException:
@@ -131,15 +171,41 @@ def register(payload: RegistrationRequest, background: BackgroundTasks, request:
     return {'code': 'registration_request_accepted'}
 
 
+@router.post('/auth/invitations/documents', response_model=LegalDocumentStatusResponse)
+def invitation_documents(payload: InvitationDocumentsRequest, request: Request,
+        response: Response, session: Session = Depends(get_cloud_session)) -> LegalDocumentStatusResponse:
+    service = PrivateInvitationService(
+        TokenService(request.app.state.runtime_config.require_auth_secret()),
+        legal_registry=_legal_registry(request),
+    )
+    try:
+        service.inspect(session, raw_token=payload.token)
+        documents = service.documents(payload.language)
+    except InvitationError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    except LegalDocumentError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    response.headers['Cache-Control'] = 'no-store'
+    return _legal_response(documents, tuple(item for item in documents if item.mandatory))
+
+
 @router.post('/auth/invitations/accept')
 def accept_invitation(payload: InvitationAcceptRequest, request: Request,
         session: Session = Depends(get_cloud_session)) -> dict[str, str]:
-    service = PrivateInvitationService(TokenService(request.app.state.runtime_config.require_auth_secret()))
+    service = PrivateInvitationService(
+        TokenService(request.app.state.runtime_config.require_auth_secret()),
+        legal_registry=_legal_registry(request),
+    )
     try:
-        user = service.accept(session, raw_token=payload.token, password=payload.password)
+        user = service.accept(
+            session, raw_token=payload.token, password=payload.password,
+            language=payload.language, documents=_confirmations(payload),
+        )
     except ValueError:
         raise HTTPException(422, detail={'code': 'invalid_password'}) from None
     except InvitationError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    except LegalDocumentError as error:
         raise HTTPException(error.status_code, detail={'code': error.code}) from None
     return {'code': 'invitation_accepted', 'username': user.username}
 
@@ -180,8 +246,41 @@ def account_me(current: AuthenticatedUser = Depends(get_current_user)) -> Accoun
         email_verified=user.email_verified, role=user.role, status=user.status, created_at=user.created_at)
 
 
+@router.get('/legal/documents/status', response_model=LegalDocumentStatusResponse)
+def legal_document_status(request: Request, response: Response,
+        language: str = Query('ru', pattern='^(ru|en|es|de|fr|pt_BR)$'),
+        current: AuthenticatedUser = Depends(get_current_user),
+        session: Session = Depends(get_cloud_session)) -> LegalDocumentStatusResponse:
+    try:
+        documents, missing = LegalAcceptanceService(_legal_registry(request)).status(
+            session, current.user.id, language,
+        )
+    except LegalDocumentError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    response.headers['Cache-Control'] = 'private, no-store'
+    return _legal_response(documents, missing)
+
+
+@router.post('/legal/documents/accept', response_model=LegalDocumentStatusResponse)
+def accept_legal_documents(payload: AuthenticatedLegalAcceptRequest, request: Request,
+        response: Response, current: AuthenticatedUser = Depends(get_current_user),
+        session: Session = Depends(get_cloud_session)) -> LegalDocumentStatusResponse:
+    service = LegalAcceptanceService(_legal_registry(request))
+    try:
+        service.record(
+            session, user_id=current.user.id, confirmations=_confirmations(payload),
+            preferred_language=payload.language, method='authenticated_confirmation',
+        )
+        session.commit()
+    except LegalDocumentError as error:
+        raise HTTPException(error.status_code, detail={'code': error.code}) from None
+    documents, missing = service.status(session, current.user.id, payload.language)
+    response.headers['Cache-Control'] = 'private, no-store'
+    return _legal_response(documents, missing)
+
+
 @router.get('/account/crypto', response_model=CurrentUserCryptoResponse)
-def account_crypto(response: Response, current: AuthenticatedUser = Depends(get_current_user),
+def account_crypto(response: Response, current: AuthenticatedUser = Depends(get_current_accepted_user),
                    session: Session = Depends(get_cloud_session)) -> CurrentUserCryptoResponse:
     """Return only the current user's wrapped AMK record; never provision one implicitly."""
     from .models import UserCrypto
@@ -223,7 +322,7 @@ def account_crypto(response: Response, current: AuthenticatedUser = Depends(get_
 def provision_account_crypto(
         payload: InitialCryptoProvisioningRequest,
         response: Response,
-        current: AuthenticatedUser = Depends(get_current_user),
+        current: AuthenticatedUser = Depends(get_current_accepted_user),
         session: Session = Depends(get_cloud_session),
 ) -> CurrentUserCryptoResponse:
     """Create exactly one opaque C11 wrapper set for the current normal user."""
@@ -271,7 +370,7 @@ def provision_account_crypto(
 
 
 @router.get('/account/limits', response_model=AccountLimitsResponse)
-def account_limits(current: AuthenticatedUser = Depends(get_current_user),
+def account_limits(current: AuthenticatedUser = Depends(get_current_accepted_user),
                    session: Session = Depends(get_cloud_session)) -> AccountLimitsResponse:
     try:
         limits = LimitsService().effective_for_user(session, current.user.id)

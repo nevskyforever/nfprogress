@@ -10,6 +10,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import AdminInvitation, RegistrationSettings, User
+from .legal_documents import (DocumentConfirmation, LegalAcceptanceService,
+                              LegalDocumentError, LegalDocumentRegistry,
+                              LegalDocumentVersion)
 from .passwords import PasswordService
 from .repositories import (RegistrationSettingsRepository, ReservedUsernameRepository,
                            UserRepository, lock_username_namespace, normalize_email,
@@ -36,10 +39,11 @@ def invitation_status(row: AdminInvitation, now: datetime) -> str:
 
 class PrivateInvitationService:
     def __init__(self, tokens: TokenService, passwords: PasswordService | None = None,
-                 now_provider=utc_now) -> None:
+                 now_provider=utc_now, legal_registry: LegalDocumentRegistry | None = None) -> None:
         self._tokens = tokens
         self._passwords = passwords or PasswordService()
         self._now = now_provider
+        self._legal = LegalAcceptanceService(legal_registry) if legal_registry else LegalAcceptanceService()
 
     @staticmethod
     def _closed_settings(session: Session) -> RegistrationSettings:
@@ -113,7 +117,7 @@ class PrivateInvitationService:
             session.rollback()
             raise
 
-    def accept(self, session: Session, *, raw_token: str, password: str) -> User:
+    def inspect(self, session: Session, *, raw_token: str) -> None:
         parsed = self._tokens.parse_opaque_token(raw_token, 'iv1')
         if parsed is None:
             raise InvitationError('invalid_or_expired_invitation')
@@ -123,6 +127,20 @@ class PrivateInvitationService:
         if (row is None or invitation_status(row, now) != 'pending'
                 or not self._tokens.verify_refresh_secret(secret, row.token_hash)):
             raise InvitationError('invalid_or_expired_invitation')
+
+    def documents(self, language: str) -> tuple[LegalDocumentVersion, ...]:
+        documents = self._legal.registry.current(language)
+        if not any(item.mandatory for item in documents):
+            raise LegalDocumentError('legal_documents_unavailable', 503)
+        return documents
+
+    def accept(self, session: Session, *, raw_token: str, password: str,
+               language: str, documents: list[DocumentConfirmation]) -> User:
+        self.inspect(session, raw_token=raw_token)
+        parsed = self._tokens.parse_opaque_token(raw_token, 'iv1')
+        assert parsed is not None
+        token_id, secret = parsed
+        self._legal.registry.verify(documents, language)
         self._passwords.validate_new_password(password)
         password_hash = self._passwords.hash(password)
         session.commit()
@@ -143,11 +161,15 @@ class PrivateInvitationService:
                     User.status == 'active')) or 0
                 if settings.max_users is not None and active_count >= settings.max_users:
                     raise InvitationError('capacity_reached', 409)
+                self._legal.record(
+                    session, user_id=user.id, confirmations=documents,
+                    preferred_language=language, method='invitation',
+                )
                 user.password_hash = password_hash
                 user.email_verified = True  # The private link was delivered to this email by the server.
                 user.status = 'active'
                 row.used_at = now
                 return user
-        except InvitationError:
+        except (InvitationError, LegalDocumentError):
             session.rollback()
             raise

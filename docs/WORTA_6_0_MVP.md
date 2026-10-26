@@ -9,54 +9,62 @@ are in [MVP6.0 fast-track roadmap](web/MVP6_0_FASTTRACK_ROADMAP.md). Earlier
 Notes-only MVP wording below describes a restricted sync milestone, not the
 completion criterion for the owner's full product MVP.
 
-## LEGAL.ACCEPTANCE — REQUIRED BEFORE PRIVATE TESTER ONBOARDING
+## LEGAL.ACCEPTANCE.01 — versioned private-beta acceptance
 
-After the six required CI jobs are green, implement server-backed consent
-evidence before continuing encrypted Web Documents or onboarding private
-testers. This is a mandatory private-testing and later release condition. This
-section records requirements; it does not claim implementation or final legal
-approval.
+Run `40358594637` was independently accepted with all six mandatory jobs
+SUCCESS. The server-backed consent mechanism is now implemented locally;
+independent acceptance of this new commit remains pending. This does not claim
+final approval of the still-draft WORTA legal texts.
 
-- **Server evidence:** inspect all existing document-acceptance paths and keep
-  append-only PostgreSQL evidence for each cloud user, document type, exact
+- **Server evidence:** append-only PostgreSQL evidence now records each cloud
+  user, document type, exact
   version ID, checksum of the displayed text, language and server-assigned
   acceptance time. Keep separate records for the user agreement, privacy
   policy, necessary personal-data consents and private-testing terms. Distinguish
   informational notices from legally necessary consent; never replace history
   with a boolean.
-- **Version checks:** the server identifies current versions and verifies
+- **Version checks:** the server identifies current approved versions and verifies
   mandatory acceptance at login before protected features. Present a changed
   mandatory document and require acceptance before access, retaining earlier
   evidence only as history. Never migrate an unversioned
   `user_agreement=true` to an unknown version.
-- **Private invitations:** before activation, `/invite` must display the
-  following warning and require explicit acceptance of the current testing
-  terms. Link viewing is not acceptance. Invitation acceptance, account
-  activation and consent persistence must be atomic; decline does not activate
-  an invitation. PostgreSQL is authoritative; localStorage/IndexedDB alone is
-  insufficient.
+- **Private invitations:** before activation, `/invite` displays the full
+  approved beta warning and requires a distinct confirmation for each mandatory
+  document. Exact version/hash/language validation and the evidence/account/
+  invitation update are one transaction. Link viewing is not acceptance;
+  PostgreSQL is authoritative and the secret token remains memory-only.
 
   > Вы участвуете в закрытом тестировании WORTA.
-  > Приложение находится в разработке. Возможны ошибки, временная недоступность функций и сервиса, некорректная синхронизация, повреждение или потеря данных.
+  >
+  > Приложение находится в разработке. Возможны ошибки, временная недоступность функций и сервиса, проблемы с синхронизацией, повреждение или потеря данных.
+  >
   > Не рекомендуется хранить единственные экземпляры важных материалов в тестовой версии. Регулярно создавайте резервные копии.
-  > Для продолжения необходимо ознакомиться с условиями тестирования и принять их.
+  >
+  > Перед продолжением ознакомьтесь с условиями тестирования и подтвердите их принятие
 
-- **Document review:** the old nfprogress agreement says registration is not
+- **Document review remains open:** the old nfprogress agreement says registration is not
   required and email is not collected, which does not describe cloud WORTA.
   List changes to the agreement’s account/email statements, the privacy policy’s
   cloud processing, retention and user-rights disclosures, separate personal-
   data consents, and private-testing risks, backup guidance and service limits.
-  Require owner approval and legal review before tester access. Drafts are not
-  final. Keep public registration and invitations closed.
+  The registry therefore exposes only the owner-supplied Russian beta warning.
+  WORTA `user_agreement`, `privacy_policy` and `personal_data_consent` entries
+  remain draft/non-publishable until owner/legal approval and an applicability
+  decision. UI controls support all six interface languages; the available
+  Russian document is labelled and recorded as Russian rather than silently
+  substituting a different localization. Keep public registration closed.
 - **E2EE:** keep legal evidence separate from encrypted user content. Do not
   send AMKs, encryption keys or manuscript plaintext to the server. This gate
   remains mandatory for private testing and later release, alongside all
   C21/C22/C23/PF6.0/RC requirements.
 
-Web progress remains **89.36%**, `ready=false`, `declarationAllowed=false`,
-`writerAuthorized=false`; registration is CLOSED and PUBLIC RELEASE BLOCKED.
-The next stage after green CI is LEGAL.ACCEPTANCE implementation, followed by
-encrypted Web Documents.
+Focused local verification includes **23 passed** against disposable real
+PostgreSQL 16 and **11 passed** invitation/login frontend tests; the wider
+affected PostgreSQL regression set is **107 passed**. No production
+migration or deployment occurred. Web progress remains **89.36%**,
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`;
+registration is CLOSED and PUBLIC RELEASE BLOCKED. After independent acceptance,
+the next product stage is AMK-encrypted Web Documents for projects and stages.
 
 Cloud run `40281466847` for C21.2.08Z2B2C failed 1/6 mandatory jobs in a
 Chromium crash/restart test. The repair passed local private Metadata and
@@ -135,7 +143,7 @@ requires every registered device to truthfully satisfy the frozen Note predicate
 | Desktop Notes | Native SQLite Notes and durable encrypted sync capture/seal/upload/pull/apply/ACK owners; bounded restart/conflict evidence | Desktop cloud session is Tauri-only; no accepted real backend + Web + desktop writing round trip |
 | Browser writing | Separate developer-only encrypted workspace in IndexedDB v11; basic project and Stage CRUD/order plus local project Notes after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and is not synced; project/stage manuscripts remain |
 | Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock supplies a guarded scope to the MVP6.0.12 local encrypted editor | No production Web bootstrap or browser cloud sync; lock/logout invalidates retained repository handles |
-| Private account access | Existing administrator role checks and MVP6.0.03 invite issuance/acceptance, revocation and expiry have local PostgreSQL/browser evidence | No production backend deployment, live invitation delivery or owner-authorized tester onboarding |
+| Private account access | Administrator invitations plus LEGAL.ACCEPTANCE.01 exact-version beta warning, atomic activation/evidence and later server-side consent gate have local PostgreSQL/browser evidence | Final WORTA agreement/privacy/possible personal-data texts still need owner/legal approval; no production backend deployment, live invitation delivery or owner-authorized tester onboarding |
 | Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
 | Note readers | Bounded F/H/G/Q/J/K/O owners and ordinary Legacy/Content readers have local evidence; Y is independently accepted and Z2A defines a second-project atomic replay contract | No implemented B atomic replay or full v10 production dispatch/replay/recovery path; readiness is deliberately negative |
 | Project isolation | Per-account/project ownership and bootstrap contracts, encrypted envelopes, isolation tests | Two-project end-to-end desktop↔Web isolation has not been accepted against a real deployment |
@@ -151,7 +159,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | Desktop local writing | Existing Tauri editor and SQLite | MVP smoke evidence on selected build | No MVP-specific baseline evidence in current records | Record exact build/profile and local-save restart result |
 | Browser local encrypted project/Stage/Note storage | MVP6.0.M1.01A adds additive `localStages` in v11 and protected multi-project UI; project, Stage/order and Notes ciphertext survives persistent-profile restart and lock/logout revokes access | Compatibility-data import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Next store/edit project and stage texts locally, then complete C21 truthful reader/writer gate before sync |
 | Account login and encryption | Backend auth, desktop key owners and MVP6.0.02 development Web login/unlock | Production Web bootstrap and sync composition | `cloudSession` remains Tauri-only; test Web card runs behind the development boundary | Keep account session isolated; connect durable Note path only after reader acceptance |
-| Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim and admin status/revocation | Deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed; invite link cannot be issued to real testers yet | Review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
+| Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim, versioned beta acceptance and admin status/revocation | Owner-approved final agreement/privacy/consent documents, deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed and final legal texts remain draft; invite link cannot be issued to real testers yet | Obtain owner/legal approval for applicable documents, then review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
 | Browser cloud upload and inbound apply | Encrypted APIs and bounded browser reader/apply owners | Production routing, complete reader lifecycle | Note gate requires all six fields; production dispatch/replay and histories incomplete | Implement the next accepted C21.2.08 reader slice; keep declaration off |
 | Desktop↔Web bidirectional Notes | Desktop production router and browser v10 slices; browser local encrypted persistence now has an internal account/key-session binding | Connected durable writer/reader cycle in both clients | C21 truthful six-field reader gate, production dispatch/replay/recovery, browser user-flow wiring and C22/C23 acceptance remain open | Complete the next accepted C21 reader slice with declaration/writer/ACK disabled; later prove paired-client round trips |
 | Project isolation | Server ownership checks and local owner tests | Real account with two end-to-end projects | No accepted deployed E2E evidence | Include two project IDs in restricted staging acceptance |

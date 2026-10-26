@@ -130,10 +130,50 @@ class AdminInvitationResponse(BaseModel):
     expires_at: datetime
 
 
+class LegalDocumentConfirmation(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    document_id: str = Field(min_length=1, max_length=128)
+    revision: str = Field(min_length=1, max_length=64)
+    content_checksum: str = Field(pattern=r'^[0-9a-f]{64}$')
+    language: Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR']
+
+
+class LegalDocumentResponse(BaseModel):
+    document_id: str
+    document_type: Literal['user_agreement', 'privacy_policy', 'personal_data_consent', 'beta_terms']
+    revision: str
+    content_checksum: str
+    language: Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR']
+    title: str
+    content: str
+    mandatory: bool
+    requires_explicit_acceptance: bool
+    accepted: bool
+
+
+class LegalDocumentStatusResponse(BaseModel):
+    documents: list[LegalDocumentResponse]
+    missing_required_document_ids: list[str]
+
+
+class InvitationDocumentsRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    token: str = Field(min_length=1, max_length=1024)
+    language: Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR'] = 'ru'
+
+
 class InvitationAcceptRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     token: str = Field(min_length=1, max_length=1024)
     password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+    language: Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR'] = 'ru'
+    documents: list[LegalDocumentConfirmation] = Field(min_length=1, max_length=8)
+
+
+class AuthenticatedLegalAcceptRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    language: Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR'] = 'ru'
+    documents: list[LegalDocumentConfirmation] = Field(min_length=1, max_length=8)
 
 
 class PublicVerificationRequest(BaseModel):

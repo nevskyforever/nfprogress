@@ -22,6 +22,9 @@ from backend.app.cloud.models import (AuthRefreshToken, AuthSession, EmailVerifi
                                       PasswordResetToken, User)
 from backend.app.cloud.repositories import normalize_username
 from backend.app.cloud.services import AccountService, AuthenticationError, AuthenticationService
+from backend.app.cloud.legal_documents import (DEFAULT_LEGAL_DOCUMENT_REGISTRY,
+                                               DocumentConfirmation,
+                                               LegalAcceptanceService)
 from backend.app.cloud.tokens import JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER, TokenService, utc_now
 from backend.app.config import RuntimeConfig
 from backend.app.main import create_app
@@ -44,6 +47,7 @@ def migrated_database(monkeypatch):
     monkeypatch.setenv('NFPROGRESS_ENV', 'test')
     engine = create_engine(url)
     with engine.begin() as connection:
+        connection.execute(text('DROP TABLE IF EXISTS user_document_acceptances CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS admin_invitations CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS encrypted_blobs CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS encrypted_objects CASCADE'))
@@ -68,6 +72,7 @@ def migrated_database(monkeypatch):
         yield engine
     finally:
         with engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS user_document_acceptances CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS admin_invitations CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS encrypted_blobs CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS encrypted_objects CASCADE'))
@@ -98,9 +103,25 @@ def cloud_client(migrated_database, tmp_path):
         yield client, migrated_database
 
 
-def create_user(engine, *, username='Arthur', email='arthur@example.test', password='correct horse battery staple', status='active'):
+def create_user(engine, *, username='Arthur', email='arthur@example.test', password='correct horse battery staple',
+                status='active', accept_legal=True):
     with Session(engine) as session:
         user = AccountService().create_user(session, username=username, email=email, password=password, status=status)
+        session.flush()
+        if accept_legal and status == 'active' and inspect(engine).has_table('user_document_acceptances'):
+            versions = DEFAULT_LEGAL_DOCUMENT_REGISTRY.current('ru')
+            LegalAcceptanceService().record(
+                session,
+                user_id=user.id,
+                confirmations=[DocumentConfirmation(
+                    document_id=version.document_id,
+                    revision=version.revision,
+                    content_checksum=version.content_checksum,
+                    language=version.language,
+                ) for version in versions if version.mandatory],
+                preferred_language='ru',
+                method='authenticated_confirmation',
+            )
         session.commit()
         session.refresh(user)
         return user.id
@@ -282,13 +303,14 @@ def test_c2_schema_and_repeated_head_upgrade(migrated_database, monkeypatch):
         'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
         'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
         'global_limits', 'user_limit_overrides', 'reserved_usernames', 'cloud_projects', 'admin_invitations',
+        'user_document_acceptances',
         'sync_user_state', 'sync_devices', 'sync_events', 'user_crypto', 'encrypted_objects', 'encrypted_blobs',
     }
     assert inspect(migrated_database).get_columns('users')[0]['name'] == 'id'
     monkeypatch.setenv('NFPROGRESS_DATABASE_URL', _database_url())
     command.upgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'head')
     with migrated_database.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'private_invitations'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'legal_acceptances'
     command.downgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'c2_account_auth_core')
     assert 'email_verification_tokens' not in inspect(migrated_database).get_table_names()
     assert 'password_reset_tokens' not in inspect(migrated_database).get_table_names()

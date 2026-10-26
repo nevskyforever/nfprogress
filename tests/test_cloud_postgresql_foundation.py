@@ -146,6 +146,7 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS user_document_acceptances CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS admin_invitations CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS encrypted_blobs CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS encrypted_objects CASCADE'))
@@ -176,13 +177,15 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
                 'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
                 'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
                 'global_limits', 'user_limit_overrides', 'reserved_usernames', 'cloud_projects', 'admin_invitations',
+                'user_document_acceptances',
                 'sync_user_state', 'sync_devices', 'sync_events', 'user_crypto', 'encrypted_objects', 'encrypted_blobs',
             }
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == (
-                'private_invitations'
+                'legal_acceptances'
             )
     finally:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS user_document_acceptances CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS admin_invitations CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS encrypted_blobs CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS encrypted_objects CASCADE'))

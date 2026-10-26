@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
+from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_accepted_user
 from .schemas import (CompressionReaderCapability, CompressionWriterRequest,ProjectCoverReaderCapabilities, ObjectEnvelopeDto, SyncPushResult, V3EncryptedSyncPushRequest,
                       V3EncryptedSyncPushResponse, V3EncryptedSyncPullItem,
                       V3EncryptedSyncPullResponse, V3EncryptedSyncAckRequest,
@@ -25,7 +25,7 @@ _ACCOUNT_PUSH_SCHEMA = _inline_json_schema(AccountEncryptedPushRequest)
 
 @router.post('/reader-ready', status_code=status.HTTP_204_NO_CONTENT)
 def reader_ready(request: V3ReaderReadyRequest,
-                 current: AuthenticatedUser = Depends(get_current_user),
+                 current: AuthenticatedUser = Depends(get_current_accepted_user),
                  session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_v3_reader_ready(session, current.user.id, request.device_id)
@@ -35,7 +35,7 @@ def reader_ready(request: V3ReaderReadyRequest,
 
 @router.post('/cutover', response_model=V3CutoverResponse)
 def cutover(request: V3CutoverRequest,
-            current: AuthenticatedUser = Depends(get_current_user),
+            current: AuthenticatedUser = Depends(get_current_accepted_user),
             session: Session = Depends(get_cloud_session)) -> V3CutoverResponse:
     try:
         mode, epoch = SyncService().cutover_to_v3(session, current.user.id, request.expected_cutover_epoch)
@@ -48,7 +48,7 @@ def cutover(request: V3CutoverRequest,
     'requestBody': {'required': True, 'content': {'application/json': {'schema': _PUSH_SCHEMA}}},
 })
 async def encrypted_push(http_request: Request,
-                         current: AuthenticatedUser = Depends(get_current_user),
+                         current: AuthenticatedUser = Depends(get_current_accepted_user),
                          session: Session = Depends(get_cloud_session)) -> V3EncryptedSyncPushResponse:
     body = await _read_encrypted_push_body(http_request)
     try:
@@ -73,7 +73,7 @@ async def encrypted_push(http_request: Request,
 def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_740_991),
                    limit: int = Query(default=200, ge=1, le=500),
                    protocol_version: int = Query(...), encrypted_sync_version: int = Query(...),
-                   current: AuthenticatedUser = Depends(get_current_user),
+                   current: AuthenticatedUser = Depends(get_current_accepted_user),
                    session: Session = Depends(get_cloud_session)) -> V3EncryptedSyncPullResponse:
     if protocol_version != 3 or encrypted_sync_version != 3:
         raise _error(SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted sync version.', 422))
@@ -103,7 +103,7 @@ def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_74
 
 @router.post('/ack', status_code=status.HTTP_204_NO_CONTENT)
 def ack(request: V3EncryptedSyncAckRequest,
-        current: AuthenticatedUser = Depends(get_current_user),
+        current: AuthenticatedUser = Depends(get_current_accepted_user),
         session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().ack(session, current.user.id, request.device_id, request.cursor, transport_version=3)
@@ -115,7 +115,7 @@ def ack(request: V3EncryptedSyncAckRequest,
     'requestBody': {'required': True, 'content': {'application/json': {'schema': _ACCOUNT_PUSH_SCHEMA}}},
 })
 async def account_push(http_request: Request,
-                       current: AuthenticatedUser = Depends(get_current_user),
+                       current: AuthenticatedUser = Depends(get_current_accepted_user),
                        session: Session = Depends(get_cloud_session)) -> V3EncryptedSyncPushResponse:
     body = await _read_encrypted_push_body(http_request)
     try:
@@ -133,7 +133,7 @@ async def account_push(http_request: Request,
 
 @router.put('/note-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def note_reader_capabilities(request: ContentNoteReaderCapabilities,
-                             current: AuthenticatedUser = Depends(get_current_user),
+                             current: AuthenticatedUser = Depends(get_current_accepted_user),
                              session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_content_note_reader(session, current.user.id, request)
@@ -142,7 +142,7 @@ def note_reader_capabilities(request: ContentNoteReaderCapabilities,
 
 
 @router.get('/note-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def note_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+def note_reader_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                      session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().content_note_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
@@ -150,7 +150,7 @@ def note_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.put('/map-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def map_reader_capabilities(request: MapReaderCapabilities,
-                            current: AuthenticatedUser = Depends(get_current_user),
+                            current: AuthenticatedUser = Depends(get_current_accepted_user),
                             session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_map_reader(session, current.user.id, request)
@@ -159,7 +159,7 @@ def map_reader_capabilities(request: MapReaderCapabilities,
 
 
 @router.get('/map-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def map_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+def map_reader_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().map_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
@@ -167,7 +167,7 @@ def map_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.put('/document-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def document_reader_capabilities(request: DocumentReaderCapabilities,
-                            current: AuthenticatedUser = Depends(get_current_user),
+                            current: AuthenticatedUser = Depends(get_current_accepted_user),
                             session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_document_reader(session, current.user.id, request)
@@ -176,14 +176,14 @@ def document_reader_capabilities(request: DocumentReaderCapabilities,
 
 
 @router.get('/document-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def document_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+def document_reader_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().document_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
 
 @router.put('/progress-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def progress_reader_capabilities(request: ProgressReaderCapabilities,
-                            current: AuthenticatedUser = Depends(get_current_user),
+                            current: AuthenticatedUser = Depends(get_current_accepted_user),
                             session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_progress_reader(session, current.user.id, request)
@@ -192,7 +192,7 @@ def progress_reader_capabilities(request: ProgressReaderCapabilities,
 
 
 @router.get('/progress-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def progress_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+def progress_reader_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                     session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().progress_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
@@ -200,7 +200,7 @@ def progress_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.put('/game-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def game_reader_capabilities(request: GameReaderCapabilities,
-                             current: AuthenticatedUser = Depends(get_current_user),
+                             current: AuthenticatedUser = Depends(get_current_accepted_user),
                              session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_game_reader(session, current.user.id, request)
@@ -209,7 +209,7 @@ def game_reader_capabilities(request: GameReaderCapabilities,
 
 
 @router.get('/game-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def game_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+def game_reader_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                      session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().game_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
@@ -217,7 +217,7 @@ def game_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.put('/cover-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def declare_cover_reader(request: ProjectCoverReaderCapabilities,
-                         current: AuthenticatedUser = Depends(get_current_user),
+                         current: AuthenticatedUser = Depends(get_current_accepted_user),
                          session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_cover_reader(session, current.user.id, request)
@@ -226,7 +226,7 @@ def declare_cover_reader(request: ProjectCoverReaderCapabilities,
 
 
 @router.get('/cover-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def cover_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
+def cover_reader_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                       session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().cover_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
@@ -236,7 +236,7 @@ def cover_reader_gate(current: AuthenticatedUser = Depends(get_current_user),
     'requestBody': {'required': True, 'content': {'application/json': {'schema': _PUSH_SCHEMA}}},
 })
 async def cover_metadata_push(http_request: Request,
-                         current: AuthenticatedUser = Depends(get_current_user),
+                         current: AuthenticatedUser = Depends(get_current_accepted_user),
                          session: Session = Depends(get_cloud_session)) -> V3EncryptedSyncPushResponse:
     body = await _read_encrypted_push_body(http_request)
     try:
@@ -259,7 +259,7 @@ async def cover_metadata_push(http_request: Request,
 
 @router.put('/compression-reader-capabilities', status_code=status.HTTP_204_NO_CONTENT)
 def compression_reader(request: CompressionReaderCapability,
-                       current: AuthenticatedUser = Depends(get_current_user),
+                       current: AuthenticatedUser = Depends(get_current_accepted_user),
                        session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().declare_compression_reader(session, current.user.id, request)
@@ -268,7 +268,7 @@ def compression_reader(request: CompressionReaderCapability,
 
 
 @router.get('/compression-reader-capabilities', response_model=ContentNoteCapabilityGate)
-def compression_gate(current: AuthenticatedUser = Depends(get_current_user),
+def compression_gate(current: AuthenticatedUser = Depends(get_current_accepted_user),
                      session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     ready, missing = SyncService().compression_gate(session, current.user.id)
     return ContentNoteCapabilityGate(ready=ready, missing_devices=missing)
@@ -276,7 +276,7 @@ def compression_gate(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.post('/compression-writer', response_model=ContentNoteCapabilityGate)
 def compression_writer(request: CompressionWriterRequest,
-                       current: AuthenticatedUser = Depends(get_current_user),
+                       current: AuthenticatedUser = Depends(get_current_accepted_user),
                        session: Session = Depends(get_cloud_session)) -> ContentNoteCapabilityGate:
     try:
         ready, missing = SyncService().authorize_compressed_seal(session, current.user.id, request.device_id)

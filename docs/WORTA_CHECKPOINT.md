@@ -160,6 +160,63 @@ Web progress remains **89,36%**; `ready=false`, `declarationAllowed=false`,
 `writerAuthorized=false`; Registration CLOSED, PUBLIC RELEASE BLOCKED, and
 C21/C22/C23/PF6.0/RC gates remain unchanged.
 
+## 2026-10-26 — LEGAL.ACCEPTANCE.01 versioned private-beta acceptance
+
+The owner independently accepted M1.01C run `40358594637`: all six mandatory
+jobs SUCCESS. LEGAL.ACCEPTANCE.01 is locally implemented from baseline
+`8bae1b968a0e366e80e90c589a263e092a8047a6`; its own remote acceptance is
+pending and was not queried.
+
+PostgreSQL now has append-only `user_document_acceptances` evidence with the
+cloud user, document type and stable ID, exact revision, SHA-256 of the exact
+displayed UTF-8 text, displayed language, server timestamp and bounded
+acceptance method. A uniqueness constraint makes exact retries idempotent;
+database triggers reject UPDATE/DELETE. No IP, browser-storage claim, AMK,
+encryption password, key or manuscript content is recorded. The old
+unversioned `user_agreement=true` remains unrelated legacy settings state and
+is not migrated into cloud evidence.
+
+The extensible registry supports `user_agreement`, `privacy_policy`,
+`personal_data_consent` and `beta_terms`, separates mandatory status from
+explicit acceptance, and never serves unapproved versions. Only the exact
+Russian private-beta warning supplied for this stage is approved and mandatory
+as `wotra.beta_terms/private-beta-warning-1`. UI chrome supports all six
+interface languages; until owner-approved legal translations exist, the API
+truthfully returns the available Russian document with `language=ru`, and the
+server records that same version. The WORTA user agreement, privacy policy and
+possible separate personal-data consent are registered as non-publishable
+draft metadata and still require owner/legal approval plus an applicability
+decision. The outdated nfprogress agreement is not presented as cloud WORTA
+terms.
+
+`/invite` now fetches current documents with the one-time token kept only in
+memory, displays the full warning before activation and requires a separate
+checkbox for every mandatory document. The server rejects missing, duplicate,
+stale, unknown or hash-tampered confirmations. Evidence insertion, password
+installation, invitation consumption and `pending → active` occur in one
+locked PostgreSQL transaction; failure rolls all of them back. Authenticated
+status/accept endpoints preserve prior revisions. A new mandatory revision
+returns the user to a re-confirmation UI. Cloud project, sync, encrypted-blob,
+account-crypto and limits routes use a server-side acceptance dependency;
+document status/acceptance, account identity, logout, recovery, public policy
+and admin routes remain available as appropriate.
+
+Focused local evidence: disposable PostgreSQL 16 migration/invitation/legal
+suite **23 passed**, including fail-closed unapproved documents, current-
+revision localization handling, concurrent
+activation, rollback, append-only mutation refusal and repeated head upgrade;
+the broader affected PostgreSQL regression set is **107 passed**. Focused
+invitation/login Vue specs and auth runtime are **11 passed**. Typecheck/build
+and changed-file lint pass; the repository-wide lint command still reports its
+pre-existing historical baseline debt. No production/VPS migration or deployment
+was performed; public registration remains closed. After independent acceptance,
+the next product stage is AMK-encrypted Web Documents for project and Stage
+scopes.
+
+Official Web progress remains **89,36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`; Registration CLOSED,
+PUBLIC RELEASE BLOCKED, and C21/C22/C23/PF6.0/RC remain mandatory.
+
 ## Постоянная политика экономного выбора моделей Codex для WORTA 6.0
 
 Эта политика применяется ко всем следующим задачам WORTA, включая C21/C22/C23,

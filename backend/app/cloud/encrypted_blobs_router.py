@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
-from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
+from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_accepted_user
 from .blob_store import FileSystemBlobStore
 from .encrypted_blobs_service import (BlobMetadata, EncryptedBlobError,
                                       EncryptedBlobService, MAX_COVER_CIPHERTEXT_BYTES)
@@ -72,7 +72,7 @@ async def _ciphertext(request: Request) -> bytes:
 
 @router.put('/{project_id}/covers/{blob_id}')
 async def upload_cover(project_id: str, blob_id: UUID, request: Request,
-                       current: AuthenticatedUser = Depends(get_current_user),
+                       current: AuthenticatedUser = Depends(get_current_accepted_user),
                        session: Session = Depends(get_cloud_session)) -> dict[str, object]:
     if request.headers.get('content-type', '').split(';', 1)[0].strip().lower() != 'application/octet-stream':
         raise HTTPException(status_code=422, detail={'code': 'invalid_encrypted_blob', 'message': 'Invalid encrypted blob.'})
@@ -89,7 +89,7 @@ async def upload_cover(project_id: str, blob_id: UUID, request: Request,
 
 @router.get('/{project_id}/covers/{blob_id}')
 def download_cover(project_id: str, blob_id: UUID, request: Request,
-                   current: AuthenticatedUser = Depends(get_current_user),
+                   current: AuthenticatedUser = Depends(get_current_accepted_user),
                    session: Session = Depends(get_cloud_session)) -> Response:
     try:
         row, ciphertext = EncryptedBlobService(_store(request)).download(session, current.user.id, project_id, blob_id)

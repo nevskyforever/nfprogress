@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { ApiError } from '@/api/client'
+import { confirmationFor } from '@/api/legalDocuments'
 import { KeyNotProvisionedError } from '@/auth/keyContext'
 import { StaleAuthContextError } from '@/auth/userAuth'
 import { CryptoError } from '@/crypto'
@@ -10,13 +11,14 @@ import { useLocaleStore } from '@/stores/locale'
 import type { SupportedLanguage } from '@/types/api'
 import BrowserEncryptedWorkspace from './BrowserEncryptedWorkspace.vue'
 
-const copy: Record<SupportedLanguage, { unlocked: string; badPassword: string; writerBusy: string; storageUnavailable: string }> = {
-  ru: { unlocked: 'Ключ шифрования разблокирован.', badPassword: 'Не удалось разблокировать ключ. Проверьте пароль шифрования.', writerBusy: 'Другая вкладка использует защищённое хранилище. Закройте её и повторите попытку.', storageUnavailable: 'Защищённое хранилище браузера недоступно.' },
-  en: { unlocked: 'Encryption key unlocked.', badPassword: 'Could not unlock the key. Check the encryption password.', writerBusy: 'Another tab is using secure storage. Close it and try again.', storageUnavailable: 'Secure browser storage is unavailable.' },
-  es: { unlocked: 'Clave de cifrado desbloqueada.', badPassword: 'No se pudo desbloquear la clave. Comprueba la contraseña de cifrado.', writerBusy: 'Otra pestaña está usando el almacenamiento seguro. Ciérrala e inténtalo de nuevo.', storageUnavailable: 'El almacenamiento seguro del navegador no está disponible.' },
-  de: { unlocked: 'Verschlüsselungsschlüssel entsperrt.', badPassword: 'Der Schlüssel konnte nicht entsperrt werden. Prüfe das Verschlüsselungspasswort.', writerBusy: 'Ein anderer Tab verwendet den sicheren Speicher. Schließe ihn und versuche es erneut.', storageUnavailable: 'Sicherer Browserspeicher ist nicht verfügbar.' },
-  fr: { unlocked: 'Clé de chiffrement déverrouillée.', badPassword: 'Impossible de déverrouiller la clé. Vérifiez le mot de passe de chiffrement.', writerBusy: 'Un autre onglet utilise le stockage sécurisé. Fermez-le et réessayez.', storageUnavailable: 'Le stockage sécurisé du navigateur est indisponible.' },
-  pt_BR: { unlocked: 'Chave de criptografia desbloqueada.', badPassword: 'Não foi possível desbloquear a chave. Verifique a senha de criptografia.', writerBusy: 'Outra aba está usando o armazenamento seguro. Feche-a e tente novamente.', storageUnavailable: 'O armazenamento seguro do navegador não está disponível.' },
+type Copy = { unlocked: string; badPassword: string; writerBusy: string; storageUnavailable: string; legalRequired: string; acceptRevision: string; acceptCurrent: string; stale: string }
+const copy: Record<SupportedLanguage, Copy> = {
+  ru: { unlocked: 'Ключ шифрования разблокирован.', badPassword: 'Не удалось разблокировать ключ. Проверьте пароль шифрования.', writerBusy: 'Другая вкладка использует защищённое хранилище. Закройте её и повторите попытку.', storageUnavailable: 'Защищённое хранилище браузера недоступно.', legalRequired: 'Требуется принять действующие условия', acceptRevision: 'Я ознакомился(-ась) и принимаю эту редакцию', acceptCurrent: 'Принять действующие условия', stale: 'Редакция условий изменилась. Ознакомьтесь с новым текстом и подтвердите его заново.' },
+  en: { unlocked: 'Encryption key unlocked.', badPassword: 'Could not unlock the key. Check the encryption password.', writerBusy: 'Another tab is using secure storage. Close it and try again.', storageUnavailable: 'Secure browser storage is unavailable.', legalRequired: 'Current terms must be accepted', acceptRevision: 'I have read and accept this version', acceptCurrent: 'Accept current terms', stale: 'The terms changed. Review the new text and confirm it again.' },
+  es: { unlocked: 'Clave de cifrado desbloqueada.', badPassword: 'No se pudo desbloquear la clave. Comprueba la contraseña de cifrado.', writerBusy: 'Otra pestaña está usando el almacenamiento seguro. Ciérrala e inténtalo de nuevo.', storageUnavailable: 'El almacenamiento seguro del navegador no está disponible.', legalRequired: 'Debes aceptar las condiciones vigentes', acceptRevision: 'He leído y acepto esta versión', acceptCurrent: 'Aceptar las condiciones vigentes', stale: 'Las condiciones han cambiado. Revisa el texto nuevo y confírmalo otra vez.' },
+  de: { unlocked: 'Verschlüsselungsschlüssel entsperrt.', badPassword: 'Der Schlüssel konnte nicht entsperrt werden. Prüfe das Verschlüsselungspasswort.', writerBusy: 'Ein anderer Tab verwendet den sicheren Speicher. Schließe ihn und versuche es erneut.', storageUnavailable: 'Sicherer Browserspeicher ist nicht verfügbar.', legalRequired: 'Die aktuellen Bedingungen müssen akzeptiert werden', acceptRevision: 'Ich habe diese Fassung gelesen und akzeptiere sie', acceptCurrent: 'Aktuelle Bedingungen akzeptieren', stale: 'Die Bedingungen wurden geändert. Lies den neuen Text und bestätige ihn erneut.' },
+  fr: { unlocked: 'Clé de chiffrement déverrouillée.', badPassword: 'Impossible de déverrouiller la clé. Vérifiez le mot de passe de chiffrement.', writerBusy: 'Un autre onglet utilise le stockage sécurisé. Fermez-le et réessayez.', storageUnavailable: 'Le stockage sécurisé du navigateur est indisponible.', legalRequired: 'Les conditions en vigueur doivent être acceptées', acceptRevision: 'J’ai lu et j’accepte cette version', acceptCurrent: 'Accepter les conditions en vigueur', stale: 'Les conditions ont changé. Consultez le nouveau texte et confirmez-le à nouveau.' },
+  pt_BR: { unlocked: 'Chave de criptografia desbloqueada.', badPassword: 'Não foi possível desbloquear a chave. Verifique a senha de criptografia.', writerBusy: 'Outra aba está usando o armazenamento seguro. Feche-a e tente novamente.', storageUnavailable: 'O armazenamento seguro do navegador não está disponível.', legalRequired: 'É necessário aceitar os termos atuais', acceptRevision: 'Li e aceito esta versão', acceptCurrent: 'Aceitar os termos atuais', stale: 'Os termos mudaram. Leia o novo texto e confirme novamente.' },
 }
 
 const locale = useLocaleStore()
@@ -31,6 +33,7 @@ const connectedUsername = ref<string | null>(null)
 const busy = ref(false)
 const error = ref<string | null>(null)
 const workspaceOpen = ref(false)
+const legalConfirmed = ref<Record<string, boolean>>({})
 
 function refresh(): void {
   status.value = session.status
@@ -47,6 +50,7 @@ function safeError(value: unknown, action: 'login' | 'unlock'): string {
   if (value instanceof KeyNotProvisionedError) return t('Для этого аккаунта нужно настроить сквозное шифрование.')
   if (value instanceof StaleAuthContextError) return t('Сеанс аккаунта изменился. Войдите снова.')
   if (value instanceof ApiError && value.status === 401) return t('Сеанс аккаунта истёк. Войдите снова.')
+  if (value instanceof ApiError && value.code === 'legal_document_version_changed') return words.value.stale
   if (value instanceof ApiError) return t('Не удалось подключиться к nfprogress API.')
   if (value instanceof CryptoError && value.code === 'decrypt_failed') return words.value.badPassword
   return action === 'unlock' ? t('Произошла непредвиденная ошибка.') : t('Не удалось войти.')
@@ -58,7 +62,10 @@ async function act(action: 'login' | 'unlock' | 'lock' | 'logout', operation: ()
   busy.value = true
   error.value = null
   try { await operation() }
-  catch (cause) { error.value = safeError(cause, action === 'unlock' ? 'unlock' : 'login') }
+  catch (cause) {
+    if (cause instanceof ApiError && cause.code === 'legal_document_version_changed') legalConfirmed.value = {}
+    error.value = safeError(cause, action === 'unlock' ? 'unlock' : 'login')
+  }
   finally {
     refresh()
     busy.value = false
@@ -70,7 +77,13 @@ function signIn(): Promise<void> {
   if (!input || !input.value || !username.value) return Promise.resolve()
   const password = input.value
   input.value = ''
-  return act('login', () => session.login(username.value, password))
+  legalConfirmed.value = {}
+  return act('login', () => session.login(username.value, password, locale.language))
+}
+function acceptLegal(): Promise<void> {
+  const required = session.legalDocuments.filter(document => document.mandatory)
+  if (!required.length || !required.every(document => legalConfirmed.value[document.document_id])) return Promise.resolve()
+  return act('login', () => session.acceptLegalDocuments(locale.language, required.map(confirmationFor)))
 }
 function unlock(): Promise<void> {
   const input = encryptionPasswordInput.value
@@ -97,6 +110,7 @@ onBeforeUnmount(() => {
     </div>
     <p :data-status="status" aria-live="polite">
       <template v-if="status === 'logged_out'">{{ t('Войдите в аккаунт') }}</template>
+      <template v-else-if="status === 'legal_required'">{{ words.legalRequired }}</template>
       <template v-else-if="status === 'authenticated'">{{ t('Подключён аккаунт') }}</template>
       <template v-else-if="status === 'locked'">{{ t('Ключ шифрования заблокирован. Введите пароль шифрования.') }}</template>
       <template v-else>{{ words.unlocked }}</template>
@@ -108,6 +122,20 @@ onBeforeUnmount(() => {
       <label>{{ t('Пароль аккаунта') }} <input ref="accountPasswordInput" type="password" autocomplete="current-password" required /></label>
       <button class="nf-button" type="submit" :disabled="busy || !username">{{ t('Войти в облачный аккаунт') }}</button>
     </form>
+    <div v-else-if="status === 'legal_required'" class="browser-cloud-account__legal">
+      <article v-for="document in session.legalDocuments" :key="`${document.document_id}:${document.revision}`">
+        <h3>{{ document.title }}</h3>
+        <p class="browser-cloud-account__legal-text">{{ document.content }}</p>
+        <label v-if="document.mandatory">
+          <input v-model="legalConfirmed[document.document_id]" type="checkbox" />
+          {{ words.acceptRevision }}
+        </label>
+      </article>
+      <button class="nf-button" type="button" :disabled="busy || session.legalDocuments.filter(document => document.mandatory).some(document => !legalConfirmed[document.document_id])" @click="acceptLegal">
+        {{ words.acceptCurrent }}
+      </button>
+      <button class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="logout">{{ t('Выйти из аккаунта') }}</button>
+    </div>
     <div v-else class="browser-cloud-account__inputs">
       <form v-if="status !== 'unlocked'" class="browser-cloud-account__inputs" @submit.prevent="unlock">
         <label>{{ t('Пароль шифрования') }} <input ref="encryptionPasswordInput" type="password" autocomplete="off" required /></label>
@@ -126,5 +154,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .browser-cloud-account__inputs { display: flex; flex-wrap: wrap; gap: .75rem; align-items: end; }
 .browser-cloud-account__inputs label { display: grid; gap: .25rem; min-width: 14rem; }
+.browser-cloud-account__legal { display: grid; gap: 1rem; }
+.browser-cloud-account__legal article { padding: 1rem; border: 1px solid var(--nf-color-border); border-radius: .5rem; }
+.browser-cloud-account__legal-text { white-space: pre-line; }
 [role="alert"] { color: var(--ion-color-danger); }
 </style>

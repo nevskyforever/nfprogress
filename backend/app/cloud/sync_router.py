@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
+from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_accepted_user
 from .schemas import (ENCRYPTED_SYNC_VERSION, MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES,
                       SYNC_PROTOCOL_VERSION, EncryptedSyncPullItem,
                       EncryptedSyncPullResponse, EncryptedSyncPushRequest,
@@ -71,14 +71,14 @@ async def _read_encrypted_push_body(request: Request) -> bytes:
 
 
 @router.put('/devices/{device_id}', response_model=SyncDeviceResponse)
-def register_device(device_id: UUID, current: AuthenticatedUser = Depends(get_current_user),
+def register_device(device_id: UUID, current: AuthenticatedUser = Depends(get_current_accepted_user),
                     session: Session = Depends(get_cloud_session)) -> SyncDeviceResponse:
     device_id, ack, _cursor = SyncService().register_device(session, current.user.id, device_id)
     return SyncDeviceResponse(device_id=device_id, last_ack_cursor=ack)
 
 
 @router.post('/push', response_model=SyncPushResponse)
-def push(request: SyncPushRequest, current: AuthenticatedUser = Depends(get_current_user),
+def push(request: SyncPushRequest, current: AuthenticatedUser = Depends(get_current_accepted_user),
          session: Session = Depends(get_cloud_session)) -> SyncPushResponse:
     service = SyncService()
     try:
@@ -96,7 +96,7 @@ def push(request: SyncPushRequest, current: AuthenticatedUser = Depends(get_curr
         'content': {'application/json': {'schema': _ENCRYPTED_PUSH_OPENAPI_SCHEMA}},
     },
 })
-async def encrypted_push(http_request: Request, current: AuthenticatedUser = Depends(get_current_user),
+async def encrypted_push(http_request: Request, current: AuthenticatedUser = Depends(get_current_accepted_user),
                          session: Session = Depends(get_cloud_session)) -> EncryptedSyncPushResponse:
     body = await _read_encrypted_push_body(http_request)
     try:
@@ -123,7 +123,7 @@ async def encrypted_push(http_request: Request, current: AuthenticatedUser = Dep
 @router.get('/pull', response_model=SyncPullResponse)
 def pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_740_991), limit: int = Query(default=200, ge=1, le=500),
          protocol_version: int = Query(default=SYNC_PROTOCOL_VERSION),
-         current: AuthenticatedUser = Depends(get_current_user),
+         current: AuthenticatedUser = Depends(get_current_accepted_user),
          session: Session = Depends(get_cloud_session)) -> SyncPullResponse:
     service = SyncService()
     try:
@@ -143,7 +143,7 @@ def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_74
                    limit: int = Query(default=200, ge=1, le=500),
                    protocol_version: int = Query(default=SYNC_PROTOCOL_VERSION),
                    encrypted_sync_version: int = Query(default=ENCRYPTED_SYNC_VERSION),
-                   current: AuthenticatedUser = Depends(get_current_user),
+                   current: AuthenticatedUser = Depends(get_current_accepted_user),
                    session: Session = Depends(get_cloud_session)) -> EncryptedSyncPullResponse:
     service = SyncService()
     try:
@@ -170,7 +170,7 @@ def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_74
 
 
 @router.post('/ack', status_code=status.HTTP_204_NO_CONTENT)
-def ack(request: SyncAckRequest, current: AuthenticatedUser = Depends(get_current_user),
+def ack(request: SyncAckRequest, current: AuthenticatedUser = Depends(get_current_accepted_user),
         session: Session = Depends(get_cloud_session)) -> None:
     service = SyncService()
     try:

@@ -5,18 +5,29 @@ import { useLocaleStore } from '@/stores/locale'
 import { CryptoError } from '@/crypto'
 
 const fixture = vi.hoisted(() => ({
-  status: 'logged_out' as 'logged_out' | 'authenticated' | 'unlocked' | 'locked',
+  status: 'logged_out' as 'logged_out' | 'legal_required' | 'authenticated' | 'unlocked' | 'locked',
   username: null as string | null,
-  login: vi.fn(), unlock: vi.fn(), lock: vi.fn(), logout: vi.fn(), dispose: vi.fn(),
+  requireLegal: false,
+  login: vi.fn(), acceptLegal: vi.fn(), unlock: vi.fn(), lock: vi.fn(), logout: vi.fn(), dispose: vi.fn(),
 }))
 
 vi.mock('@/platform/web/cloudAccountSession', () => ({
   BrowserCloudAccountSession: class {
     get status() { return fixture.status }
     get username() { return fixture.username }
+    get legalDocuments() { return fixture.status === 'legal_required' ? [{
+      document_id: 'wotra.beta_terms', document_type: 'beta_terms', revision: '1',
+      content_checksum: 'a'.repeat(64), language: 'ru', title: 'Закрытое тестирование WORTA',
+      content: 'Возможны ошибки и потеря данных.', mandatory: true,
+      requires_explicit_acceptance: true, accepted: false,
+    }] : [] }
     async login(username: string, password: string) {
       fixture.login(username, password)
       fixture.username = username
+      fixture.status = fixture.requireLegal ? 'legal_required' : 'authenticated'
+    }
+    async acceptLegalDocuments(language: string, documents: unknown[]) {
+      fixture.acceptLegal(language, documents)
       fixture.status = 'authenticated'
     }
     async unlock(password: string) {
@@ -35,7 +46,30 @@ import BrowserCloudAccountCard from './BrowserCloudAccountCard.vue'
 beforeEach(() => {
   fixture.status = 'logged_out'
   fixture.username = null
-  for (const name of ['login', 'unlock', 'lock', 'logout', 'dispose'] as const) fixture[name].mockClear()
+  fixture.requireLegal = false
+  for (const name of ['login', 'acceptLegal', 'unlock', 'lock', 'logout', 'dispose'] as const) fixture[name].mockClear()
+})
+
+it('checks legal status at login and gates the encrypted account until explicit acceptance', async () => {
+  fixture.requireLegal = true
+  const pinia = createPinia()
+  useLocaleStore(pinia).language = 'ru'
+  const wrapper = mount(BrowserCloudAccountCard, { global: { plugins: [pinia] } })
+  await wrapper.get('input[autocomplete="username"]').setValue('one')
+  await wrapper.get('input[autocomplete="current-password"]').setValue('account-pass')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(wrapper.get('[data-status]').attributes('data-status')).toBe('legal_required')
+  expect(wrapper.text()).toContain('Закрытое тестирование WORTA')
+  expect(wrapper.text()).toContain('потеря данных')
+  const accept = wrapper.findAll('button').find(button => button.text().includes('Принять действующие'))!
+  expect(accept.attributes('disabled')).toBeDefined()
+  await wrapper.get('input[type="checkbox"]').setValue(true)
+  await accept.trigger('click')
+  await flushPromises()
+  expect(fixture.acceptLegal).toHaveBeenCalledOnce()
+  expect(wrapper.get('[data-status]').attributes('data-status')).toBe('authenticated')
+  wrapper.unmount()
 })
 
 it('shows the bounded Web account, unlock, lock and logout flow without Note actions', async () => {

@@ -1,8 +1,11 @@
 import { accountCryptoApi, type AccountCryptoTransport } from '@/api/accountCrypto'
+import { legalDocumentsApi, type LegalDocument, type LegalDocumentConfirmation,
+  type LegalDocumentStatus } from '@/api/legalDocuments'
 import { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { KeyNotProvisionedError, RuntimeKeyContext, type AuthoritativeKeyContextLease } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
 import { currentPlatform } from '@/platform/runtime'
+import type { SupportedLanguage } from '@/types/api'
 import { BrowserPersistenceError, openBrowserPersistence } from './persistence'
 import type { BrowserLocalAuthorityRuntime } from './localAuthority'
 import type { BrowserLocalStagesRuntime } from './localStages'
@@ -23,6 +26,7 @@ export interface BrowserAccountSessionOptions {
   readonly auth?: NormalUserAuthRuntime
   readonly cryptoTransport?: AccountCryptoTransport
   readonly openStorage?: typeof openBrowserPersistence
+  readonly legalTransport?: typeof legalDocumentsApi
 }
 
 /** Test-Web account/key composition. It owns no Note transport or reader authority. */
@@ -30,6 +34,7 @@ export class BrowserCloudAccountSession {
   private readonly auth: NormalUserAuthRuntime
   private readonly cryptoTransport: AccountCryptoTransport
   private readonly openStorage: typeof openBrowserPersistence
+  private readonly legalTransport: typeof legalDocumentsApi
   private readonly unsubscribe: () => void
   private storage: BrowserStorage | null = null
   private bindings: AuthoritativeAccountBinding | null = null
@@ -40,18 +45,21 @@ export class BrowserCloudAccountSession {
   private generation = 0
   private everUnlocked = false
   private disposed = false
+  private legalStatus: LegalDocumentStatus | null = null
   private readonly onPageHide = () => { void this.logout().catch(() => undefined) }
 
   constructor(options: BrowserAccountSessionOptions = {}) {
     this.auth = options.auth ?? new NormalUserAuthRuntime()
     this.cryptoTransport = options.cryptoTransport ?? accountCryptoApi
     this.openStorage = options.openStorage ?? openBrowserPersistence
+    this.legalTransport = options.legalTransport ?? legalDocumentsApi
     this.unsubscribe = this.auth.onInvalidated(() => this.revoke(true))
     if (typeof window !== 'undefined') window.addEventListener('pagehide', this.onPageHide)
   }
 
-  get status(): 'logged_out' | 'authenticated' | 'unlocked' | 'locked' {
+  get status(): 'logged_out' | 'legal_required' | 'authenticated' | 'unlocked' | 'locked' {
     if (this.auth.state !== 'authenticated') return 'logged_out'
+    if (this.legalStatus?.missing_required_document_ids.length) return 'legal_required'
     if (this.identity && this.keys?.leaseForAccount(this.identity.local_account_id)?.isCurrent()) return 'unlocked'
     return this.everUnlocked ? 'locked' : 'authenticated'
   }
@@ -62,6 +70,10 @@ export class BrowserCloudAccountSession {
 
   get username(): string | null {
     return this.auth.state === 'authenticated' ? this.auth.requireContext().username : null
+  }
+
+  get legalDocuments(): readonly LegalDocument[] {
+    return this.status === 'legal_required' ? [...(this.legalStatus?.documents ?? [])] : []
   }
 
   private assertWeb(): void {
@@ -78,7 +90,7 @@ export class BrowserCloudAccountSession {
     this.keys = null
     this.bindings = null
     this.storage = null
-    if (clearIdentity) { this.identity = null; this.everUnlocked = false }
+    if (clearIdentity) { this.identity = null; this.everUnlocked = false; this.legalStatus = null }
     await Promise.all([keys?.dispose(), storage?.close()])
   }
 
@@ -120,19 +132,45 @@ export class BrowserCloudAccountSession {
     }
   }
 
-  async login(username: string, password: string): Promise<BrowserIdentity> {
+  private async finishLogin(context: AuthContextSnapshot): Promise<BrowserIdentity> {
+    const record = await this.auth.authorized(token => this.cryptoTransport.get(token))
+    if (!record.value.provisioned) throw new KeyNotProvisionedError()
+    await this.openFor(context)
+    if (!this.identity || !this.auth.isCurrent(context)) throw new StaleAuthContextError()
+    return { ...this.identity }
+  }
+
+  async login(username: string, password: string, language: SupportedLanguage = 'ru'): Promise<BrowserIdentity | null> {
     this.assertWeb()
     const context = await this.auth.login(username, password)
     try {
-      const record = await this.auth.authorized(token => this.cryptoTransport.get(token))
-      if (!record.value.provisioned) throw new KeyNotProvisionedError()
-      await this.openFor(context)
-      if (!this.identity || !this.auth.isCurrent(context)) throw new StaleAuthContextError()
-      return { ...this.identity }
+      const legal = await this.auth.authorized(token => this.legalTransport.status(token, language))
+      this.legalStatus = legal.value
+      if (legal.value.missing_required_document_ids.length) return null
+      return await this.finishLogin(context)
     } catch (error) {
       if (this.auth.isCurrent(context)) await this.auth.logout().catch(() => undefined)
       throw error
     }
+  }
+
+  async acceptLegalDocuments(language: SupportedLanguage,
+    documents: LegalDocumentConfirmation[]): Promise<BrowserIdentity> {
+    this.assertWeb()
+    const context = this.auth.requireContext()
+    let result
+    try {
+      result = await this.auth.authorized(token => this.legalTransport.accept(token, language, documents))
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'legal_document_version_changed') {
+        const refreshed = await this.auth.authorized(token => this.legalTransport.status(token, language))
+        this.legalStatus = refreshed.value
+      }
+      throw error
+    }
+    this.legalStatus = result.value
+    if (result.value.missing_required_document_ids.length) throw new Error('Legal acceptance remains incomplete.')
+    return await this.finishLogin(context)
   }
 
   async unlock(passphrase: string): Promise<AuthoritativeKeyContextLease> {

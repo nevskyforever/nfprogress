@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
-from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_user
+from ..dependencies import AuthenticatedUser, get_cloud_session, get_current_accepted_user
 from .schemas import (MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES, ObjectEnvelopeDto,
                       V2EncryptedSyncAckRequest, V2EncryptedSyncCapabilitiesResponse,
                       V2EncryptedSyncCutoverRequest, V2EncryptedSyncCutoverResponse,
@@ -26,7 +26,7 @@ _V2_ENCRYPTED_PUSH_OPENAPI_SCHEMA = _inline_json_schema(V2EncryptedSyncPushReque
 
 
 @router.get('/capabilities', response_model=V2EncryptedSyncCapabilitiesResponse)
-def capabilities(current: AuthenticatedUser = Depends(get_current_user),
+def capabilities(current: AuthenticatedUser = Depends(get_current_accepted_user),
                  session: Session = Depends(get_cloud_session)) -> V2EncryptedSyncCapabilitiesResponse:
     writer_transport_version, cutover_epoch = SyncService().capabilities(session, current.user.id)
     return V2EncryptedSyncCapabilitiesResponse(
@@ -37,7 +37,7 @@ def capabilities(current: AuthenticatedUser = Depends(get_current_user),
 
 @router.post('/cutover', response_model=V2EncryptedSyncCutoverResponse)
 def cutover(request: V2EncryptedSyncCutoverRequest,
-            current: AuthenticatedUser = Depends(get_current_user),
+            current: AuthenticatedUser = Depends(get_current_accepted_user),
             session: Session = Depends(get_cloud_session)) -> V2EncryptedSyncCutoverResponse:
     try:
         writer_transport_version, cutover_epoch = SyncService().cutover_to_v2(
@@ -53,7 +53,7 @@ def cutover(request: V2EncryptedSyncCutoverRequest,
 @router.post('/push', response_model=V2EncryptedSyncPushResponse, openapi_extra={
     'requestBody': {'required': True, 'content': {'application/json': {'schema': _V2_ENCRYPTED_PUSH_OPENAPI_SCHEMA}}},
 })
-async def encrypted_push(http_request: Request, current: AuthenticatedUser = Depends(get_current_user),
+async def encrypted_push(http_request: Request, current: AuthenticatedUser = Depends(get_current_accepted_user),
                          session: Session = Depends(get_cloud_session)) -> V2EncryptedSyncPushResponse:
     body = await _read_encrypted_push_body(http_request)
     try:
@@ -81,7 +81,7 @@ async def encrypted_push(http_request: Request, current: AuthenticatedUser = Dep
 def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_740_991),
                    limit: int = Query(default=200, ge=1, le=500),
                    protocol_version: int = Query(...), encrypted_sync_version: int = Query(...),
-                   current: AuthenticatedUser = Depends(get_current_user),
+                   current: AuthenticatedUser = Depends(get_current_accepted_user),
                    session: Session = Depends(get_cloud_session)) -> V2EncryptedSyncPullResponse:
     if protocol_version != V2_SYNC_PROTOCOL_VERSION or encrypted_sync_version != V2_ENCRYPTED_SYNC_VERSION:
         raise _error(SyncProtocolError('encrypted_sync_version_unsupported', 'Unsupported encrypted sync version.', 422))
@@ -106,7 +106,7 @@ def encrypted_pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_74
 
 
 @router.post('/ack', status_code=status.HTTP_204_NO_CONTENT)
-def ack(request: V2EncryptedSyncAckRequest, current: AuthenticatedUser = Depends(get_current_user),
+def ack(request: V2EncryptedSyncAckRequest, current: AuthenticatedUser = Depends(get_current_accepted_user),
         session: Session = Depends(get_cloud_session)) -> None:
     try:
         SyncService().ack(session, current.user.id, request.device_id, request.cursor, transport_version=2)
