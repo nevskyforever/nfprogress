@@ -112,7 +112,7 @@ export function encodeV2Ack(request:V2AckRequest):V2AckRequest {
   safe(request.cursor,0);return request
 }
 export const encryptedSyncV2Api={
-  capabilities:(token:string)=>apiRequest<unknown>('/api/v2/sync/encrypted/capabilities',{headers:headers(token)}).then(parseV2Capabilities),
+  capabilities:(token:string,signal?:AbortSignal)=>apiRequest<unknown>('/api/v2/sync/encrypted/capabilities',{headers:headers(token),signal}).then(parseV2Capabilities),
   cutover:(token:string,expectedCutoverEpoch:number):Promise<V2CutoverResponse>=>{
     safe(expectedCutoverEpoch,0)
     return apiRequest<unknown>('/api/v2/sync/encrypted/cutover',{method:'POST',headers:headers(token),body:{expected_cutover_epoch:expectedCutoverEpoch}}).then(parseV2CutoverResponse)

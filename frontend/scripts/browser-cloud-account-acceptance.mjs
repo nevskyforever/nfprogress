@@ -189,7 +189,8 @@ try {
   assert.equal(await card.getByText('Проектов на сервере: 1 из 8').count(), 1)
   assert.equal(await card.getByText('server-one-project').count(), 1)
   assert.equal(await card.getByText('persist-project').count(), 0)
-  assert.equal(await card.getByText('Чтение содержимого будет подключено отдельным этапом.').count(), 1)
+  assert.equal(await card.getByText('После разблокировки доступен проверяемый просмотр настроек; другие данные проекта ещё не открываются.').count(), 1)
+  assert.equal(await card.getByRole('button', { name: 'Открыть облачный проект', exact: true }).isDisabled(), true)
   failCloudCatalog = true
   await card.getByRole('button', { name: 'Обновить список' }).click()
   await card.getByText('Не удалось получить список с сервера. Проверьте подключение и повторите попытку.').waitFor()

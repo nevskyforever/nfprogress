@@ -102,7 +102,11 @@ describe('browser cloud legal gate', () => {
     let release!: (value: { cloud_project_ids: string[]; cloud_project_count: number; max_cloud_projects: number }) => void
     list.mockReturnValueOnce(new Promise(resolve => { release = resolve }))
     const pending = session.listCloudProjects()
+    const revoked = vi.fn(() => { expect(session.currentIdentity).toBeNull() })
+    const unsubscribe = session.onRevoked(revoked)
     await session.logout()
+    expect(revoked).toHaveBeenCalledOnce()
+    unsubscribe()
     release({ cloud_project_ids: ['stale-user-id'], cloud_project_count: 1, max_cloud_projects: 8 })
     await expect(pending).rejects.toBeInstanceOf(StaleAuthContextError)
     await session.dispose()

@@ -237,10 +237,10 @@ export const encryptedSyncV3Api = {
   pushMetadata: (token: string, deviceId: string, items: readonly V3MetadataPushItem[]): Promise<V3PushResponse> =>
     apiRequest<unknown>('/api/v3/sync/encrypted/push', { method: 'POST', headers: headers(token), rawBody: encodeV3MetadataPush(deviceId, items) })
       .then(value => parsePush(value, items.map(item => item.event.event_id))),
-  async pull(token: string, deviceId: string, since: number, limit = 200): Promise<V3PullResponse> {
+  async pull(token: string, deviceId: string, since: number, limit = 200, signal?: AbortSignal): Promise<V3PullResponse> {
     if (!UUID.test(deviceId) || !safe(since, 0) || !safe(limit, 1) || limit > 500) fail()
     const query = new URLSearchParams({ device_id: deviceId, since: String(since), limit: String(limit), protocol_version: '3', encrypted_sync_version: '3' })
-    const value = await apiRequest<unknown>(`/api/v3/sync/encrypted/pull?${query}`, { headers: headers(token), maxResponseBytes: MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES })
+    const value = await apiRequest<unknown>(`/api/v3/sync/encrypted/pull?${query}`, { headers: headers(token), signal, maxResponseBytes: MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES })
     return parseV3Pull(value, since, limit)
   },
   ack: (token: string, deviceId: string, cursor: number): Promise<void> => {

@@ -9,6 +9,7 @@ on:
       - 'frontend/scripts/browser-local-documents-acceptance.mjs'
       - 'frontend/scripts/browser-local-document-migration-acceptance.mjs'
       - 'frontend/scripts/browser-cloud-account-harness.html'
+      - 'frontend/scripts/browser-cloud-read-acceptance.mjs'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -47,6 +48,7 @@ on:
       - 'requirements-test.txt'
       - 'tests/test_api.py'
       - 'tests/test_cloud_*.py'
+      - 'tests/test_web_cloud_read.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -114,6 +116,7 @@ on:
       - 'frontend/scripts/browser-local-documents-acceptance.mjs'
       - 'frontend/scripts/browser-local-document-migration-acceptance.mjs'
       - 'frontend/scripts/browser-cloud-account-harness.html'
+      - 'frontend/scripts/browser-cloud-read-acceptance.mjs'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -152,6 +155,7 @@ on:
       - 'requirements-test.txt'
       - 'tests/test_api.py'
       - 'tests/test_cloud_*.py'
+      - 'tests/test_web_cloud_read.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -250,6 +254,7 @@ jobs:
           - shard: content-action
             tests: >-
               tests/test_cloud_c18_content_note_gate.py
+              tests/test_web_cloud_read.py
               tests/test_cloud_c18_content_note_acceptance.py
               tests/test_cloud_c18_map_gate.py
               tests/test_cloud_c18_map_acceptance.py
@@ -373,7 +378,7 @@ jobs:
       - name: Run isolated C21 recovery and historical Metadata contract tests
         if: matrix.shard == 'foundation'
         working-directory: frontend
-        run: npm test -- --run src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts src/platform/web/historicalMetadataDependency.spec.ts src/platform/web/historicalContentAuthentication.spec.ts src/platform/web/historicalPrefixQualification.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/cloudRead.spec.ts src/cloud/projectMetadataMigrationRuntime.spec.ts src/platform/web/v10MixedRecovery.spec.ts src/platform/web/postFMetadataBoundary.spec.ts src/platform/web/historicalMetadataDependency.spec.ts src/platform/web/historicalContentAuthentication.spec.ts src/platform/web/historicalPrefixQualification.spec.ts --maxWorkers=1
 
       - name: Run isolated private Metadata prerequisite contract tests
         if: matrix.shard == 'content-action'

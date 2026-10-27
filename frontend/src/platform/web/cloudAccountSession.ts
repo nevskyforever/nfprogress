@@ -12,6 +12,7 @@ import type { BrowserLocalAuthorityRuntime } from './localAuthority'
 import type { BrowserLocalStagesRuntime } from './localStages'
 import type { BrowserLocalDocumentsRuntime } from './localDocuments'
 import type { BrowserSyncScope } from './syncDurability'
+import { readBrowserCloudProject, BrowserCloudReadError, type BrowserCloudProjectRead } from './cloudRead'
 
 type BrowserStorage = Awaited<ReturnType<typeof openBrowserPersistence>>
 type BrowserIdentity = { readonly local_account_id: string; readonly device_id: string }
@@ -49,6 +50,7 @@ export class BrowserCloudAccountSession {
   private everUnlocked = false
   private disposed = false
   private legalStatus: LegalDocumentStatus | null = null
+  private readonly revocations = new EventTarget()
   private readonly onPageHide = () => { void this.logout().catch(() => undefined) }
 
   constructor(options: BrowserAccountSessionOptions = {}) {
@@ -79,6 +81,11 @@ export class BrowserCloudAccountSession {
     return this.status === 'legal_required' ? [...(this.legalStatus?.documents ?? [])] : []
   }
 
+  onRevoked(listener: () => void): () => void {
+    this.revocations.addEventListener('revoked', listener)
+    return () => this.revocations.removeEventListener('revoked', listener)
+  }
+
   /** Fetches server-owned IDs only; local developer projects are never a fallback. */
   async listCloudProjects(signal?: AbortSignal): Promise<CloudProjectsResponse> {
     this.assertWeb()
@@ -96,6 +103,26 @@ export class BrowserCloudAccountSession {
       max_cloud_projects: value.max_cloud_projects }
   }
 
+  /** Server read only. The result belongs to this active key/auth session. */
+  async readCloudProject(projectId: string, signal: AbortSignal): Promise<BrowserCloudProjectRead> {
+    this.assertWeb()
+    const identity = this.identity, context = this.auth.requireContext(), generation = this.generation
+    const lease = identity && this.keys?.leaseForAccount(identity.local_account_id)
+    if (this.status !== 'unlocked' || !identity || !lease || !this.controller) throw new BrowserCloudReadError('key_locked')
+    return readBrowserCloudProject({ auth: this.auth, lease, deviceId: identity.device_id, projectId,
+      signal: AbortSignal.any([signal, this.controller.signal]),
+      current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context) })
+  }
+
+  /** Explicit user action: identity registration only, never reader readiness. */
+  async registerCloudReadDevice(): Promise<void> {
+    this.assertWeb()
+    const context = this.auth.requireContext(), identity = this.identity
+    if (this.status !== 'unlocked' || !identity || !this.storage || !this.bindings) throw new BrowserCloudReadError('key_locked')
+    await this.storage.device.bind(this.auth, this.bindings).registerOnce({ canonicalUserId: context.userId,
+      accountId: identity.local_account_id, deviceId: identity.device_id })
+  }
+
   private assertWeb(): void {
     if (this.disposed || currentPlatform() !== 'web' || !import.meta.env.DEV) {
       throw new BrowserPersistenceError('unavailable')
@@ -111,6 +138,7 @@ export class BrowserCloudAccountSession {
     this.bindings = null
     this.storage = null
     if (clearIdentity) { this.identity = null; this.everUnlocked = false; this.legalStatus = null }
+    this.revocations.dispatchEvent(new Event('revoked'))
     await Promise.all([keys?.dispose(), storage?.close()])
   }
 

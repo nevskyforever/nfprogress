@@ -129,6 +129,7 @@ backend_checks() {
     tests/test_cloud_invitations.py \
     tests/test_cloud_legal_acceptance.py \
     tests/test_cloud_projects.py \
+    tests/test_web_cloud_read.py \
     tests/test_cloud_encrypted_schema.py \
     tests/test_cloud_encrypted_sync.py \
     tests/test_cloud_encrypted_sync_v2.py \
@@ -146,6 +147,8 @@ frontend_checks() {
   cd "$repo_root/frontend"
   npm test -- --run \
     src/api/cloudProjects.spec.ts \
+    src/platform/web/cloudRead.spec.ts \
+    src/cloud/projectMetadataMigrationRuntime.spec.ts \
     src/platform/web/cloudAccountSession.spec.ts \
     src/components/settings/BrowserCloudAccountCard.spec.ts \
     src/platform/web/localDocuments.spec.ts \

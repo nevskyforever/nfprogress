@@ -1,5 +1,54 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-27 — MVP6.0.WEB.CLOUD.READ.01 — bounded server Metadata read
+
+**LOCAL COMPLETE — BOUNDED READ-ONLY METADATA; FULL PROJECT OPEN PARTIAL;
+REMOTE ACCEPTANCE PENDING.** Baseline `9ebce9eb554b0efd8853abc19b93544ad1ff05a7`.
+
+В существующем Web catalog после разблокировки AMK доступно «Открыть облачный
+проект»: **только проверенный просмотр Project Metadata**, не полное открытие
+проекта. Используются настоящие auth, registry, transport capabilities и v3
+pull API, `openBrowserCanonicalObject` и общий `metadataImportSnapshot` reducer
+(выделен из Desktop runtime с сохранением прежнего экспорта и поведения).
+Незарегистрированный браузер получает конкретный server gate; отдельная явная
+кнопка использует существующий identity-only `BrowserDeviceRegistration`.
+Автоматических reader-ready/capability declarations, cutover, ACK или content
+writes нет. Ранее зарегистрированный device не получает новых возможностей.
+
+Читается вся последовательность аккаунта от нуля до стабильного server cursor:
+не более 200 событий / 32 MiB ciphertext. Поддерживается только Metadata-only
+история активных bootstrap, включая допустимые Metadata v1/v2 без cover material.
+Пропуск/дубликат, чужой account/descriptor/bootstrap, повреждённый AEAD, отсутствующий
+parent, конфликт/удалённый head, неподдерживаемое семейство, cover material и
+изменившийся registry/transport закрывают весь просмотр без частичного результата.
+Выбранный проект выделяется после проверки историй всех полученных проектов.
+Расшифрованный результат остаётся в памяти активной вкладки; switch/lock/logout
+очищают view, revoke/abort прерывают read. IndexedDB v12/schema/C21 proofs не меняются.
+
+FASTTRACK.01 STOP уточнён реальным серверным контрактом: разрешённый Metadata-only
+GET в уже настроенном mode3 не требует ложного полного Note reader declaration.
+Это не C21 import/apply/replay и не замена обязательного durable proof. Полные
+Stage/Note/Document/Map/Progress/Game/Account истории пока отвергаются; следующий
+минимальный участок — подключить существующий structural reader и его зависимости
+к такому же read-only просмотру без объявления общей C21 готовности.
+
+LOCAL-FIRST: `local_acceptance.sh prepush` PASS — 471 Vitest / 17 files,
+typecheck/build, all five existing Chromium acceptance scripts, 262 backend tests
+against disposable PostgreSQL 16 and one encrypted-blob backup/restore test.
+The new real Chromium → loopback FastAPI → PostgreSQL test uses five accounts:
+permitted Metadata read/two-project isolation, ciphertext tamper, wrong account,
+missing dependency and closed compression gate, plus explicit device registration,
+network failure/retry and lock/logout. All 14 IDB stores stay unchanged; browser
+reader flags and ACK remain at their defaults. HTTP data responses are real,
+not fixtures; the separate Vitest API mocks test planning and failure boundaries.
+Focused API/shared-reducer/session checks: 53 PASS. Changed-file ESLint, workflow
+YAML, shell syntax and `git diff --check` PASS. Existing six CI jobs retained;
+real server test added to content-action. Actions were not polled.
+
+Официальный прогресс **89,36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`; Registration CLOSED, PUBLIC RELEASE BLOCKED;
+C21/C22/C23/PF6.0/RC mandatory. Desktop остаётся offline-first, Web online-only.
+
 ## 2026-10-27 — MVP6.0.WEB.FASTTRACK.01 product priority and read gate
 
 **WORTA 6.0 DEVELOPMENT PRIORITY: FULL ONLINE WEB PARITY THROUGH EXISTING
