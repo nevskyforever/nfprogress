@@ -1,0 +1,64 @@
+import type { CloudProjectBootstrapListResponse } from '@/api/cloudProjects'
+import { parseV2Capabilities, type V2Capabilities } from '@/api/encryptedSyncV2'
+import { decodeBase64Url } from '@/api/base64url'
+import { validateAccountRegistry } from './accountRegistry'
+import { BrowserPersistenceError } from './persistence'
+import { immutableWireIdentity, validateBrowserInboundPage, type BrowserSyncScope } from './syncDurability'
+
+export const REPLAY_LIMITS = Object.freeze({ events: 200, ciphertextBytes: 32 * 1024 * 1024, inventoryBytes: 32 * 1024 * 1024, controlReserveBytes: 4096, page: 100 })
+export class BrowserReplayError extends Error {
+  constructor(readonly code: string) { super(`browser_replay_${code}`) }
+}
+export interface ReplayAnchor { registry: CloudProjectBootstrapListResponse; transport: V2Capabilities }
+export interface ReplayManifest {
+  record_version: 1; contract_version: 1; account_id: string; canonical_user_id: string; device_id: string
+  generation: string; anchor: ReplayAnchor; receive_cursor: number; ciphertext_bytes: number
+  phase: 'receiving' | 'received'; revision: number
+}
+export const replaySame = (a: unknown, b: unknown): boolean => immutableWireIdentity(a) === immutableWireIdentity(b)
+export const replayExact = (v: unknown, keys: readonly string[]): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+  && Object.keys(v).length === keys.length && keys.every(key => Object.hasOwn(v, key))
+export const replayUuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v)
+const safe = (v: unknown, min = 0): v is number => Number.isSafeInteger(v) && (v as number) >= min
+const fail = (code: string): never => { throw new BrowserReplayError(code) }
+
+export function replayAnchor(registry: unknown, transport: unknown): ReplayAnchor {
+  const anchor = { registry: validateAccountRegistry(registry), transport: structuredClone(parseV2Capabilities(transport)) }
+  if (anchor.transport.writer_transport_version !== 3) fail('transport_v3_required')
+  if (anchor.registry.current_cursor > REPLAY_LIMITS.events) fail('history_limit')
+  if (anchor.registry.projects.some(project => project.state !== 'active')) fail('unsupported_lineage')
+  return anchor
+}
+
+export function validateReplayManifest(value: unknown, scope: BrowserSyncScope): ReplayManifest {
+  try {
+    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision'])
+      || value.record_version !== 1 || value.contract_version !== 1 || value.account_id !== scope.accountId
+      || value.canonical_user_id !== scope.canonicalUserId || value.device_id !== scope.deviceId || !replayUuid(value.generation)
+      || !safe(value.receive_cursor) || !safe(value.ciphertext_bytes) || value.ciphertext_bytes > REPLAY_LIMITS.ciphertextBytes
+      || !safe(value.revision, 1) || !['receiving', 'received'].includes(value.phase as string)
+      || !replayExact(value.anchor, ['registry', 'transport'])) throw new Error()
+    const anchor = replayAnchor(value.anchor.registry, value.anchor.transport)
+    if (value.receive_cursor > anchor.registry.current_cursor || value.phase === 'received' && value.receive_cursor !== anchor.registry.current_cursor) throw new Error()
+    return structuredClone(value) as unknown as ReplayManifest
+  } catch { throw new BrowserPersistenceError('corrupt_record') }
+}
+
+/** Transport staging only. No AEAD/owner outcome is inferred from this validation. */
+export function prepareReplayPage(raw: string, since: number, scope: BrowserSyncScope, anchor: ReplayAnchor) {
+  const page = validateBrowserInboundPage(raw, since, scope)
+  if (page.protocol_version !== 3 || page.items.length > REPLAY_LIMITS.page) fail('invalid_page')
+  const target = anchor.registry.current_cursor
+  let bytes = 0
+  for (const [index, item] of page.items.entries()) {
+    if (item.event.server_sequence !== since + index + 1) fail('history_gap')
+    if (item.event.server_sequence! > target) fail('server_changed')
+    const event = item.event as unknown as { scope?: string; project_id?: string }
+    if (event.scope !== 'account' && !anchor.registry.projects.some(project => project.project_id === event.project_id && project.state === 'active')) fail('unsupported_lineage')
+    const ciphertext = decodeBase64Url((item.object as { ciphertext: string }).ciphertext)
+    bytes += ciphertext.length; ciphertext.fill(0)
+  }
+  if (page.next_cursor > target || page.has_more && page.next_cursor >= target) fail('server_changed')
+  if (!page.has_more && page.next_cursor !== target || !page.items.length && since < target) fail('history_incomplete')
+  return { page, bytes }
+}

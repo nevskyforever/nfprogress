@@ -10,6 +10,8 @@ on:
       - 'frontend/scripts/browser-local-document-migration-acceptance.mjs'
       - 'frontend/scripts/browser-cloud-account-harness.html'
       - 'frontend/scripts/browser-cloud-read-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-storage-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-receiver-acceptance.mjs'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -49,6 +51,7 @@ on:
       - 'tests/test_api.py'
       - 'tests/test_cloud_*.py'
       - 'tests/test_web_cloud_read.py'
+      - 'tests/test_web_replay.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -117,6 +120,8 @@ on:
       - 'frontend/scripts/browser-local-document-migration-acceptance.mjs'
       - 'frontend/scripts/browser-cloud-account-harness.html'
       - 'frontend/scripts/browser-cloud-read-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-storage-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-receiver-acceptance.mjs'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -156,6 +161,7 @@ on:
       - 'tests/test_api.py'
       - 'tests/test_cloud_*.py'
       - 'tests/test_web_cloud_read.py'
+      - 'tests/test_web_replay.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -255,6 +261,7 @@ jobs:
             tests: >-
               tests/test_cloud_c18_content_note_gate.py
               tests/test_web_cloud_read.py
+              tests/test_web_replay.py
               tests/test_cloud_c18_content_note_acceptance.py
               tests/test_cloud_c18_map_gate.py
               tests/test_cloud_c18_map_acceptance.py
@@ -763,7 +770,7 @@ jobs:
       - run: npm test -- --run src/diagnostics/diagnostics.spec.ts src/diagnostics/desktop.spec.ts src/components/settings/DiagnosticsCard.spec.ts src/components/developer/DeveloperModeDialog.spec.ts src/api/game.native.spec.ts src/api/game.spec.ts src/api/documents.native.spec.ts src/pages/SettingsPage.spec.ts src/stores/projects.spec.ts
         working-directory: frontend
       - name: Verify encrypted local Web Documents contracts
-        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts --maxWorkers=1
         working-directory: frontend
       - name: Verify encrypted Web Documents and v11 to v12 migration in Chromium
         working-directory: frontend
@@ -783,6 +790,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:5173/scripts/browser-cloud-account-harness.html >/dev/null || { cat "$RUNNER_TEMP/web-documents-vite.log"; exit 1; }
           node scripts/browser-local-documents-acceptance.mjs http://127.0.0.1:5173
           node scripts/browser-local-document-migration-acceptance.mjs http://127.0.0.1:5173
+          node scripts/browser-replay-storage-acceptance.mjs http://127.0.0.1:5173
       - run: npm run build
         working-directory: frontend
 

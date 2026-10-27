@@ -1,11 +1,33 @@
 # WEB.ONLINE.02B — C21 Online-Only source/proof contract
 
-**Status: DESIGN COMPLETE; implementation and storage creation are deferred.**
+**Status: DESIGN COMPLETE. Slice 1 implementation is recorded below; later slices remain deferred.**
 Reviewed against clean `6.0` baseline
 `57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28. No production code,
 migration, capability, writer, ACK or release change is part of this task.
 The preceding implementation at `3ef704c5` was independently accepted by
 owner-reported Cloud run `40578946929`, 6/6 SUCCESS. No CI was queried here.
+
+**Implementation record, 2026-10-28:** the owner subsequently authorized slice 1
+on baseline `a092ed2e84ceb18836d83dbec7118e060d8d07f4`. The new separate
+`worta-web-replay` schema1 has 13 stores and permits only received inbox/technical
+cursor/manifest state plus mirrored technical identity. Owner/source/outbound
+stores remain empty. The explicit session receiver reads all account events in
+pages, atomically stages them through `BrowserSyncDurability`, revalidates the
+entire retained prefix against fresh server wire on resume, and requires final
+registry/mode equality before returning a ciphertext-receipt summary. Prefix
+comparison is read-only source reconciliation; it does not extend J's interval
+replay or grant a certificate. No source/cohort/AEAD owner verification or project
+opening is claimed. The 200-event, ciphertext and aggregate inventory limits are
+enforced; rollback/lineage drift and unknown schemas reject. V12 and legacy data
+are untouched. Final local prepush passed: 501 Vitest/18 files, typecheck/build,
+six frontend Chromium scripts (17 new native storage scenarios), 263 backend
+tests including the 10-scenario real Chromium/API/PostgreSQL receiver test, and
+one encrypted-blob/PostgreSQL backup/restore. Changed ESLint and diff/static
+checks passed; independent CI is pending and was not polled. The
+original design sections below distinguish the future full owner composition
+from this implemented receipt-only layer. Future owner records must have an
+explicit schema/record compatibility decision before v1's received-only refusal
+is broadened. No later slice is implicitly authorized.
 
 ## 1. Decision and authority
 
@@ -21,8 +43,9 @@ owner evidence and Online-Only operation are compatible when browser storage
 is derived, isolated and freshly checked against the server. Existing owners
 still lack production composition and several family implementations. This
 document does not remove those implementation barriers or approve full reading.
-It specifies a proposed storage boundary; creating new user-content stores
-requires a subsequent explicit implementation task under `AGENTS.md`.
+At the design baseline it proposed a storage boundary; the subsequent explicit
+slice-1 task authorized its receipt-only implementation under `AGENTS.md`.
+Further owner/content stores or behavior still require their own task.
 
 Desktop keeps its SQLite source and optional sync. Existing `worta-web` v12,
 local projects/stages/Notes/Documents and historical proofs remain untouched.
@@ -271,8 +294,9 @@ today's `metadata_only` result retains its restricted meaning.
 
 ## 7. D — Minimum browser durability and schema decision
 
-Propose a separate database `worta-web-replay`, initial schema version 1, scoped
-by canonical account/device. It is not created in this task. A technical
+Use the separate database `worta-web-replay`, initial schema version 1, scoped
+by canonical account/device; slice 1 now implements the receipt subset above.
+The full owner design extends a technical
 `replayManifest`, keyed by local account ID/device, binds that ID to the canonical
 user and records schema/reader-contract version, generation,
 registry snapshot/T, mode/epoch, source seed references, phase and receive cursor. These fields bind CAS
@@ -311,7 +335,7 @@ user edits. Cache absence/eviction is a normal requirement to reconnect/replay.
 | --- | --- |
 | Desktop SQLite | No migration. Native owner-core extraction must preserve current transactions and schema. |
 | Existing `worta-web` IndexedDB v12 | No upgrade, record conversion, import or cleanup. Keep version12 and historical refusal checks. |
-| Proposed `worta-web-replay` IndexedDB | New initial schema required in a later approved storage slice; this is a new database, not v12-to-v13. Later family schemas require explicit versioning/upgrade/refusal plans. |
+| Separate `worta-web-replay` IndexedDB | Initial receipt schema1 is now implemented under the explicit slice-1 authorization; this is a new database, not v12-to-v13. Later family schemas require explicit versioning/upgrade/refusal plans. |
 | Production PostgreSQL | No migration or API/wire change required for the bounded active-bootstrap replay contract. Existing server gates stay mandatory. Unsupported legacy/lineage histories stop; broadening them may require a separate contract and cannot be assumed here. |
 
 Schema discovery must be strict. An unknown version, partial/corrupt schema or
@@ -373,7 +397,8 @@ CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC remain mandatory.
 
 ## 10. Small implementation slices and acceptance
 
-All slices are future work, not started here. Each requires focused LOCAL-FIRST
+At the design baseline all slices below were future work. The implementation
+record above now covers slice 1 only. Each requires focused LOCAL-FIRST
 tests first, relevant regressions/typecheck/build/lint, real Chromium for changed
 browser flows and disposable PostgreSQL16 for API integration. Keep six CI jobs
 and their budgets; place bounded new tests in existing appropriate groups after
@@ -388,9 +413,9 @@ measuring duration. No capability/gate activation is implicit in these slices.
 | 5. Native family owner cores/adapters | One family per task: shared core extraction and browser execution/storage feasibility, then account catalog, Documents/Maps, Progress and Game in actual dependency order | Desktop behavior and real producer outputs match; owner parity/negative cases, encrypted browser records and atomic ledger/projection/reward joins. Cannot count a codec or Tauri mock as browser owner support. |
 | 6. Complete read-only project publication | Coverage/closure for every encountered family and auxiliary material, stable server checks, correct UI and lifecycle | Real Chromium/FastAPI/PostgreSQL server replay, cold cache and restart, all required project data restored; mixed unsupported account history blocks; network has no plaintext/ACK/push/declaration. Full-read acceptance still does not authorize writer or release. |
 
-The next minimum implementation slice is **slice 1**, requiring explicit approval
-to create the proposed production replay database. It has useful receipt/restart
-acceptance without pretending to open a project. Recommended model:
+After slice 1's local/independent acceptance, the next minimum implementation
+is **slice 2**, the real imported Metadata owner composition and compatibility
+guard. It must retain Metadata-only semantics. Recommended model:
 **GPT-6 Sol / High**. Native shared-core feasibility and any positive Note
 capability lifecycle are separate later tasks, never hidden inside storage work.
 
@@ -416,7 +441,9 @@ capability lifecycle are separate later tasks, never hidden inside storage work.
   `frontend/src/platform/web`, native runtimes in `frontend/src/cloud`, and
   Rust owner transactions/ledgers in `frontend/src-tauri/src`.
 
-Design consistency review and local Markdown link/path checks plus
-`git diff --check` are the checks for this documentation task. Runtime tests,
-Chromium, PostgreSQL and migrations are NOT RUN; no implementation result or
-remote acceptance is claimed. Official Web progress remains **89.36%**.
+For the original 02B documentation task, design consistency review, local
+Markdown link/path checks and `git diff --check` passed; runtime tests, Chromium,
+PostgreSQL and migrations were NOT RUN at that design baseline. Subsequent
+slice-1 runtime checks are recorded separately above/in checkpoint, without
+claiming full-project implementation or remote acceptance. Official Web progress
+remains **89.36%**.

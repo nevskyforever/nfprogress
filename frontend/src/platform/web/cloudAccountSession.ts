@@ -13,6 +13,7 @@ import type { BrowserLocalStagesRuntime } from './localStages'
 import type { BrowserLocalDocumentsRuntime } from './localDocuments'
 import type { BrowserSyncScope } from './syncDurability'
 import { readBrowserCloudProject, BrowserCloudReadError, type BrowserCloudProjectRead } from './cloudRead'
+import { receiveBrowserAccountHistory, type BrowserAccountReceiveResult } from './replayReceiver'
 
 type BrowserStorage = Awaited<ReturnType<typeof openBrowserPersistence>>
 type BrowserIdentity = { readonly local_account_id: string; readonly device_id: string }
@@ -110,6 +111,18 @@ export class BrowserCloudAccountSession {
     const lease = identity && this.keys?.leaseForAccount(identity.local_account_id)
     if (this.status !== 'unlocked' || !identity || !lease || !this.controller) throw new BrowserCloudReadError('key_locked')
     return readBrowserCloudProject({ auth: this.auth, lease, deviceId: identity.device_id, projectId,
+      signal: AbortSignal.any([signal, this.controller.signal]),
+      current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context) })
+  }
+
+  /** Explicit ciphertext receipt only; no owner apply, project opening or background work. */
+  async receiveCloudAccountHistory(signal: AbortSignal): Promise<BrowserAccountReceiveResult> {
+    this.assertWeb()
+    const identity = this.identity, context = this.auth.requireContext(), generation = this.generation
+    const lease = identity && this.keys?.leaseForAccount(identity.local_account_id)
+    if (this.status !== 'unlocked' || !identity || !lease || !this.controller) throw new BrowserCloudReadError('key_locked')
+    return receiveBrowserAccountHistory({ auth: this.auth, lease,
+      scope: { accountId: identity.local_account_id, deviceId: identity.device_id, canonicalUserId: context.userId },
       signal: AbortSignal.any([signal, this.controller.signal]),
       current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context) })
   }

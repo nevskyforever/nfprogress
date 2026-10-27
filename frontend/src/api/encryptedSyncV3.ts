@@ -149,6 +149,12 @@ export function encodeAccountPush(deviceId:string,items:readonly AccountPushItem
   if (new Set(items.map(i=>i.event.event_id)).size!==items.length||items.reduce((n,i)=>n+i.object.ciphertext.length,0)>MAX_ENCRYPTED_SYNC_BATCH_CIPHERTEXT_BYTES) fail()
   const body=JSON.stringify({protocol_version:3,encrypted_sync_version:3,device_id:deviceId,items:wire});if(new TextEncoder().encode(body).length>MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES)fail();return body
 }
+async function requestV3Pull(token: string, deviceId: string, since: number, limit: number, signal?: AbortSignal): Promise<unknown> {
+  if (!UUID.test(deviceId) || !safe(since, 0) || !safe(limit, 1) || limit > 500) fail()
+  const query = new URLSearchParams({ device_id: deviceId, since: String(since), limit: String(limit), protocol_version: '3', encrypted_sync_version: '3' })
+  return apiRequest<unknown>(`/api/v3/sync/encrypted/pull?${query}`, { headers: headers(token), signal, maxResponseBytes: MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES })
+}
+
 export const encryptedSyncV3Api = {
   compressionReaderCapabilities: (token: string, deviceId: string): Promise<void> => apiRequest('/api/v3/sync/encrypted/compression-reader-capabilities', {method:'PUT', headers:headers(token), body:{device_id:deviceId, compression_id1:true}}),
   compressionWriter: (token: string, deviceId: string): Promise<{ready:boolean;missing_devices:number}> => apiRequest<unknown>('/api/v3/sync/encrypted/compression-writer', {method:'POST', headers:headers(token), body:{device_id:deviceId}}).then(value => {
@@ -238,10 +244,14 @@ export const encryptedSyncV3Api = {
     apiRequest<unknown>('/api/v3/sync/encrypted/push', { method: 'POST', headers: headers(token), rawBody: encodeV3MetadataPush(deviceId, items) })
       .then(value => parsePush(value, items.map(item => item.event.event_id))),
   async pull(token: string, deviceId: string, since: number, limit = 200, signal?: AbortSignal): Promise<V3PullResponse> {
-    if (!UUID.test(deviceId) || !safe(since, 0) || !safe(limit, 1) || limit > 500) fail()
-    const query = new URLSearchParams({ device_id: deviceId, since: String(since), limit: String(limit), protocol_version: '3', encrypted_sync_version: '3' })
-    const value = await apiRequest<unknown>(`/api/v3/sync/encrypted/pull?${query}`, { headers: headers(token), signal, maxResponseBytes: MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES })
-    return parseV3Pull(value, since, limit)
+    return parseV3Pull(await requestV3Pull(token, deviceId, since, limit, signal), since, limit)
+  },
+  /** Accepted original wire values for durable staging; no crypto normalization or apply evidence. */
+  async pullRaw(token: string, deviceId: string, since: number, limit = 100, signal?: AbortSignal): Promise<string> {
+    const value = await requestV3Pull(token, deviceId, since, limit, signal)
+    const parsed = parseV3Pull(value, since, limit)
+    try { return JSON.stringify(value) }
+    finally { for (const item of parsed.items) { item.object.nonce.fill(0); item.object.ciphertext.fill(0) } }
   },
   ack: (token: string, deviceId: string, cursor: number): Promise<void> => {
     if (!UUID.test(deviceId) || !safe(cursor, 0)) fail()

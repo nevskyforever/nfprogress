@@ -1,5 +1,73 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-28 — WEB.ONLINE — isolated replay receipt, 02B implementation slice 1
+
+Baseline `a092ed2e84ceb18836d83dbec7118e060d8d07f4`, clean branch `6.0`.
+**LOCAL COMPLETE — CIPHERTEXT RECEIPT ONLY; FULL PROJECT OPEN BLOCKED;
+INDEPENDENT CI PENDING.**
+The owner explicitly authorized the first implementation slice of the
+[02B source/proof contract](web/WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md).
+
+`worta-web-replay` now has initial schema **v1**, separate from `worta-web` v12.
+Its 13 strictly validated stores contain technical identity/binding, original
+encrypted inbox, receive cursor and generation manifest; the eight compatibility
+owner/source/outbound stores stay empty. No SQLite/PostgreSQL/v12 upgrade or
+legacy data import occurs. Unknown/newer/malformed schemas refuse without
+cleanup. No key, credential, title, HTML or plaintext document projection is
+persisted in the replay database.
+
+The explicit `BrowserCloudAccountSession.receiveCloudAccountHistory()` method
+uses existing auth/legal/unlock, account/device identity and AMK lease. It calls
+only existing GET registry/transport/pull APIs; registration remains separate.
+The API's new raw receipt method retains accepted wire values with existing
+v3 parsing. Full account sequence and IDs are checked across project/account
+events, without project filtering, under the existing 200-event/32-MiB bounds
+and aggregate inventory budget. Resume re-fetches and compares the complete
+saved prefix from zero before appending; this read-only comparison grants no J
+certificate or applied proof. Page writes reuse `BrowserSyncDurability` and put
+the inbox, cursor and manifest in one strict physical IDB transaction with
+complete cache CAS. Exact interval replay is idempotent.
+
+Server snapshot changes invalidate the result; a fresh attempt may rebuild only
+the current account's validated owner-free cache generation for an advancing
+snapshot. Cursor/epoch rollback and changed existing bootstrap lineage refuse.
+Final `received_ciphertext` requires fresh registry/mode checks. A cached phase
+is never online success; offline/server errors, logout/lock/abort reject. The
+result has `projectOpened=false`, `ownerProofs=0` and all readiness/writer flags
+false. Ciphertext receipt is not AEAD content/owner authentication, project
+opening, local source initialization, ACK or save. No new UI action or automatic
+receiver/background work was added; later slices were not started.
+
+Focused LOCAL-FIRST: 67 tests / six Vitest files PASS, typecheck and changed-file
+ESLint PASS. Native Chromium storage acceptance PASS: **17 scenarios**, including
+profile restart, duplicate/event identity, partial-page quota/abort rollback,
+writer contention, strict schema/version refusal, fake-proof rejection,
+account-scoped generation rebuild, precise persisted-row budget admission before
+native writes and v12 preservation. Real Chromium/FastAPI/
+PostgreSQL16 acceptance PASS: **10 scenarios**, 102 account/project ciphertext
+events, network interruption at 100, lock/restart/resume, no duplicate/replay
+mutation, no cached offline success, another account's real compression gate,
+unchanged 14 v12 stores and zero reader writes. Disposable PostgreSQL test
+additionally checks server ACK/capabilities remain at defaults. Task container
+was stopped. Final `local_acceptance.sh prepush` PASS: 501 Vitest/18 files,
+typecheck/build, six frontend Chromium scripts (including all five historical
+scripts), 263 backend tests and one real encrypted-blob/PostgreSQL backup/restore
+test. The final repeat includes the exact persisted-row budget refinement and
+its before-write rejection regression. Both task-owned prepush containers were
+stopped by the runner. Changed-file ESLint, YAML/shell/Python syntax, six-job
+configuration and `git diff --check` PASS. Linux/independent CI was not run here.
+
+Measured on local macOS arm64: final storage script 3.42s, new PostgreSQL/browser test
+5.83s. These do not prove Linux timing; independent CI is pending. New tests join
+existing Frontend admin/content-action groups; foundation gets no new work.
+Six mandatory jobs, names, 40-minute timeouts and all previous checks remain.
+Web progress stays **89.36%**: receipt infrastructure does not close a formal MVP
+criterion. `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+Registration CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC mandatory.
+Next minimum slice: compose the real imported Metadata owner with an isolated
+replay transaction/generation guard and its compatibility/refusal tests, retaining
+Metadata-only UI semantics. Recommended model: GPT-6 Sol / High.
+
 ## 2026-10-28 — WEB.ONLINE.02B — Online-Only source/proof contract
 
 **DESIGN COMPLETE; PRODUCTION IMPLEMENTATION NOT STARTED.** Clean `6.0`

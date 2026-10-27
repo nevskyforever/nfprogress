@@ -1,0 +1,92 @@
+import { cloudProjectsApi } from '@/api/cloudProjects'
+import { encryptedSyncV2Api } from '@/api/encryptedSyncV2'
+import { encryptedSyncV3Api } from '@/api/encryptedSyncV3'
+import { ApiError, ApiResponseTooLargeError } from '@/api/client'
+import type { NormalUserAuthRuntime } from '@/auth/userAuth'
+import type { AuthoritativeKeyContextLease } from '@/auth/keyContext'
+import { BrowserPersistenceError } from './persistence'
+import { snapshotBrowserSyncScope, type BrowserSyncScope } from './syncDurability'
+import { BrowserReplayError, REPLAY_LIMITS, prepareReplayPage, replayAnchor, replaySame } from './replayRecords'
+import { openBrowserReplayStorage } from './replayStorage'
+
+export interface BrowserAccountReceiveResult {
+  readonly kind: 'received_ciphertext'; readonly cursor: number; readonly events: number; readonly generation: string
+  readonly ready: false; readonly declarationAllowed: false; readonly writerAuthorized: false
+  readonly projectOpened: false; readonly ownerProofs: 0
+}
+
+/** Explicit account-wide ciphertext staging, not owner apply or project opening. */
+export async function receiveBrowserAccountHistory(input: {
+  auth: NormalUserAuthRuntime; lease: AuthoritativeKeyContextLease; scope: BrowserSyncScope
+  signal: AbortSignal; current: () => boolean; openStorage?: typeof openBrowserReplayStorage
+}): Promise<BrowserAccountReceiveResult> {
+  const { auth, lease } = input, scope = snapshotBrowserSyncScope(input.scope), context = auth.requireContext()
+  const controller = new AbortController(), signal = AbortSignal.any([input.signal, controller.signal])
+  const unsubscribe = auth.onInvalidated(() => controller.abort())
+  const fail = (code: string): never => { throw new BrowserReplayError(code) }
+  const check = () => {
+    if (signal.aborted || !input.current() || !auth.isCurrent(context) || !lease.isCurrent()
+      || lease.localAccountId !== scope.accountId || lease.canonicalUserId !== scope.canonicalUserId
+      || context.userId !== scope.canonicalUserId || lease.authEpoch !== context.authEpoch) fail('session_closed')
+  }
+  const request = async <T>(operation: (token: string) => Promise<T>): Promise<T> => {
+    check()
+    const response = await auth.authorized(token => { check(); return operation(token) })
+    check(); return response.value
+  }
+  let storage: Awaited<ReturnType<typeof openBrowserReplayStorage>> | undefined
+  try {
+    check()
+    const mode = await request(token => encryptedSyncV2Api.capabilities(token, signal))
+    const registry = await request(token => cloudProjectsApi.listBootstraps(token, signal))
+    const anchor = replayAnchor(registry, mode)
+    storage = await (input.openStorage ?? openBrowserReplayStorage)(scope, signal, () => {
+      try { check(); return true } catch { return false }
+    })
+    check()
+    let snapshot = await storage.start(anchor)
+    const retained = snapshot.manifest!.receive_cursor
+    const ids = new Set<string>()
+    let since = 0, more = true
+    while (more) {
+      // Fresh zero-origin reconciliation of ALL retained wire. This is readonly
+      // server comparison, not J's older-page replay or an applied certificate.
+      const limit = Math.min(REPLAY_LIMITS.page, since < retained ? retained - since : REPLAY_LIMITS.page)
+      const raw = await request(token => encryptedSyncV3Api.pullRaw(token, scope.deviceId, since, limit, signal))
+      const { page } = prepareReplayPage(raw, since, scope, anchor)
+      if (page.items.length > limit) fail('invalid_page')
+      for (const item of page.items) {
+        if (ids.has(item.event.event_id)) fail('history_duplicate')
+        ids.add(item.event.event_id)
+      }
+      if (since < retained) {
+        if (page.next_cursor > retained) fail('history_incomplete')
+        for (const item of page.items) {
+          const row = snapshot.rows[item.event.server_sequence! - 1]
+          if (!row || !replaySame(JSON.parse(row.wire_item), item)) fail('retained_wire_mismatch')
+        }
+      } else if (page.items.length) {
+        check(); snapshot = await storage.commitPage(snapshot, since, raw); check()
+      }
+      since = page.next_cursor; more = page.has_more
+    }
+    if (since !== anchor.registry.current_cursor || snapshot.manifest!.receive_cursor !== since) fail('history_incomplete')
+    const afterRegistry = await request(token => cloudProjectsApi.listBootstraps(token, signal))
+    const afterMode = await request(token => encryptedSyncV2Api.capabilities(token, signal))
+    if (!replaySame(replayAnchor(afterRegistry, afterMode), anchor)) fail('server_changed')
+    check(); snapshot = await storage.finish(snapshot); check()
+    return { kind: 'received_ciphertext', cursor: since, events: snapshot.rows.length, generation: snapshot.manifest!.generation,
+      ready: false, declarationAllowed: false, writerAuthorized: false, projectOpened: false, ownerProofs: 0 }
+  } catch (error) {
+    check()
+    if (error instanceof BrowserReplayError || error instanceof BrowserPersistenceError) throw error
+    if (error instanceof ApiResponseTooLargeError) fail('history_limit')
+    if (error instanceof ApiError) {
+      if (error.status === 0 && error.code === 'network_error') fail('connection_failed')
+      const gates = ['sync_device_not_registered', 'sync_transport_mode_incompatible', 'compression_reader_required',
+        'content_note_reader_required', 'map_reader_required', 'document_reader_required', 'progress_reader_required']
+      fail(gates.includes(error.code) ? error.code : error.status === 401 || error.status === 403 ? 'authorization_required' : 'server_rejected')
+    }
+    return fail(error instanceof SyntaxError || error instanceof TypeError ? 'invalid_history' : 'connection_failed')
+  } finally { unsubscribe(); controller.abort(); await storage?.close() }
+}

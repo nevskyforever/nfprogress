@@ -130,6 +130,7 @@ backend_checks() {
     tests/test_cloud_legal_acceptance.py \
     tests/test_cloud_projects.py \
     tests/test_web_cloud_read.py \
+    tests/test_web_replay.py \
     tests/test_cloud_encrypted_schema.py \
     tests/test_cloud_encrypted_sync.py \
     tests/test_cloud_encrypted_sync_v2.py \
@@ -148,6 +149,7 @@ frontend_checks() {
   npm test -- --run \
     src/api/cloudProjects.spec.ts \
     src/platform/web/cloudRead.spec.ts \
+    src/platform/web/replayReceiver.spec.ts \
     src/cloud/projectMetadataMigrationRuntime.spec.ts \
     src/platform/web/cloudAccountSession.spec.ts \
     src/components/settings/BrowserCloudAccountCard.spec.ts \
@@ -211,6 +213,11 @@ frontend_checks() {
     return "$status"
   }
   node scripts/browser-local-document-migration-acceptance.mjs http://127.0.0.1:5173 || {
+    local status=$?
+    cleanup_vite
+    return "$status"
+  }
+  node scripts/browser-replay-storage-acceptance.mjs http://127.0.0.1:5173 || {
     local status=$?
     cleanup_vite
     return "$status"

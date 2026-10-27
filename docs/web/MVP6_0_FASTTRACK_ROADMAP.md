@@ -7,6 +7,51 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-28 — 02B implementation slice 1: isolated ciphertext receipt
+
+**LOCAL COMPLETE — CIPHERTEXT RECEIPT; INDEPENDENT CI PENDING;
+FULL PROJECT OPEN BLOCKED.** Starting
+SHA `a092ed2e84ceb18836d83dbec7118e060d8d07f4`. With the owner's explicit
+storage authorization, a separate `worta-web-replay` initial schema v1 and an
+account-wide paged receiver now implement slice 1 of the
+[02B contract](WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md). Existing v12,
+SQLite and PostgreSQL schemas/data remain unchanged.
+
+The explicit unlocked-session API returns only `received_ciphertext` after
+complete dense sequence/identity checks and final fresh server snapshot checks.
+The database stores original ciphertext and technical receipt/generation state;
+all owner/source/outbound compatibility stores stay empty. Atomic page commit
+reuses existing durability and includes inbox/cursor/manifest CAS. Restart
+revalidates all retained wire against server history from zero, then resumes;
+exact page replay does not duplicate rows. Network/server/lifecycle errors never
+return cached success. Unsupported schemas, source/lineage rollback, unknown
+descriptors, gaps and duplicate identities reject; only the current account's
+known owner-free cache can be rebuilt for a newer server snapshot.
+
+No owner apply/source seed, project opening, decryption guarantee, capability
+declaration, ACK, push, new project UI or background sync was added. Receipt is
+not application evidence. `projectOpened=false`, `ownerProofs=0`, `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`; Registration CLOSED,
+PUBLIC RELEASE BLOCKED and C21/C22/C23/PF6.0/RC stay mandatory. Progress remains
+**89.36%** pending formal reassessment; no full-project criterion is closed.
+
+Focused checks passed: 67 Vitest, typecheck/changed ESLint, 17 actual Chromium
+storage scenarios and 10 real Chromium/FastAPI/PostgreSQL receipt scenarios.
+Local arm64 timings were 3.42s for final storage and 5.83s for the new backend test.
+Existing Frontend admin/content-action jobs carry these bounded checks;
+foundation load and all six mandatory names/timeouts are unchanged. Linux/remote
+acceptance remains independent. Final prepush PASS: 501 Vitest/18 files,
+typecheck/build, all six frontend Chromium scripts, 263 backend tests and one
+real PostgreSQL/encrypted-blob backup/restore. This includes the final persisted
+row budget guard and its native before-write refusal regression. YAML/shell/
+Python syntax, changed ESLint, six-job configuration and diff checks passed.
+
+Next: compose imported Metadata's real owner through the replay transaction and
+generation adapter, including schema/record compatibility before permitting any
+applied state. Keep Metadata-only preview truthful. Subsequent structural/source,
+Note/Resolution and native-family slices remain gated and were not started.
+Recommended model for the next slice: GPT-6 Sol / High.
+
 ## 2026-10-28 — WEB.ONLINE.02B source/proof contract — DESIGN COMPLETE
 
 Reviewed against clean baseline `57abb27ed712378a836ba654bc3c1c107ac804d5`.
@@ -132,6 +177,7 @@ storage**, **E2EE**, **Desktop format compatibility**, and **gate status**.
 | Capability | User action in Web | Server path | Server stores data | E2EE verified | Desktop format compatible | Status / next work |
 | --- | --- | --- | --- | --- | --- | --- |
 | Cloud project catalog | IMPLEMENTED in developer account flow; IDs/count/limit, empty state, refresh, network error | `GET /api/v1/cloud/projects`, authenticated ordinary-user token via session | Server-owned catalog; no catalog persistence in IndexedDB | N/A: IDs and limits only | IDs are not names/content | Local fixture acceptance added; verify backend regression in prepush |
+| Ciphertext account receipt | Explicit unlocked-session method; no project UI/opening result | Existing authenticated v3 account pull, registry and mode GETs | Server remains authoritative; isolated reconstructible replay IDB v1 | Original AEAD ciphertext retained; content/owner authentication deferred | Original receive protocol, descriptor, nonce and ciphertext preserved | Slice 1 LOCAL COMPLETE/prepush PASS; no proofs or source initialization; independent CI pending |
 | Project names/content | Bounded Metadata-only preview accepted at `3ef704c5`; full project/content opening remains blocked | Real authenticated account-wide v3 pull plus shared Metadata decoder/reducer | Existing ciphertext protocol; preview remains in memory | Bounded Metadata read accepted; other families uncomposed | Shared formats retained | .02B defines source/proof design; next is isolated replay receiver, then accepted owners |
 | Stages and structure | NOT IMPLEMENTED in target online flow; legacy local CRUD remains dev-only | No Web cloud product flow | Not confirmed by this slice | Not verified in Web flow | Existing codecs/owners only | ONLINE.04 after accepted read path |
 | Project/stage documents | Editor component exists; server flow NOT IMPLEMENTED | No writer connected | No Web document write in this slice | Existing local M1.02 is not cloud E2EE acceptance | Desktop codec exists; cross-client Web flow unverified | ONLINE.03 after writer gates |
