@@ -5,7 +5,8 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import inspect, text
-from test_cloud_auth import cloud_client, migrated_database, create_user, login
+from test_cloud_auth import (accept_current_legal_documents, cloud_client,
+                             migrated_database, create_user, login)
 from test_cloud_c18_cover_gate import mode3
 from test_cloud_c18_metadata import _headers, _event, _request
 from test_cloud_c15_headless_cross_runtime import ROOT
@@ -87,7 +88,7 @@ def test_upgrade_populated_old_registry_safe_defaults_and_reversible_before_acti
     headers=_headers(login(client).json()['access_token']);device=str(uuid4())
     assert client.put(f'/api/v1/sync/devices/{device}',headers=headers).status_code==200
     config=Config(str(ROOT/'alembic.ini'))
-    assert ScriptDirectory.from_config(config).get_heads()==['private_invitations']
+    assert ScriptDirectory.from_config(config).get_heads()==['legal_acceptances']
     command.downgrade(config,'c18_cover_readers')
     with engine.connect() as db:
         before=db.execute(text('SELECT user_id,device_id,last_ack_sequence FROM sync_devices')).all()
@@ -102,6 +103,7 @@ def test_upgrade_populated_old_registry_safe_defaults_and_reversible_before_acti
         assert {c['name'] for c in inspect(db).get_columns('sync_devices')}==columns|{'compression_id1'}
         assert {c['name'] for c in inspect(db).get_columns('sync_user_state')}==state_columns|{'compression_id1_required'}
         assert inspect(db).get_check_constraints('sync_devices')==constraints
+    accept_current_legal_documents(client,headers)
     assert declare(client,headers,device).status_code==204
     command.downgrade(config,'c18_cover_readers');command.upgrade(config,'head')
     with engine.connect() as db:

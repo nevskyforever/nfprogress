@@ -25,6 +25,8 @@ async function launch() {
     const account = request.headers().authorization?.match(/^Bearer synthetic-access-(one|two)$/)?.[1]
     if (!account) return send({ detail: { code: 'unauthorized' } }, 401)
     if (path === '/api/v1/account/me' && request.method() === 'GET') return send({ id: account === 'one' ? '11111111-1111-4111-8111-111111111111' : '22222222-2222-4222-8222-222222222222', username: account, email: `${account}@example.test`, email_verified: true, role: 'user', status: 'active', created_at: '2026-01-01T00:00:00Z' })
+    if (path === '/api/v1/legal/documents/status' && request.method() === 'GET') return send({ documents: [], missing_required_document_ids: [] })
+    if (path === '/api/v1/legal/documents/accept' && request.method() === 'POST') return send({ documents: [], missing_required_document_ids: [] })
     if (path === '/api/v1/account/crypto' && request.method() === 'GET') return send(records[account])
     if (path === '/api/v1/auth/logout' && request.method() === 'POST') return route.fulfill({ status: 204 })
     return send({ detail: { code: 'unexpected_api' } }, 404)
@@ -229,8 +231,8 @@ try {
     assert.equal(JSON.stringify(stored).includes(plaintext), false)
   }
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0)
-  assert.ok(calls.includes('/api/v1/auth/login') && calls.includes('/api/v1/account/me') && calls.includes('/api/v1/account/crypto'))
-  assert.ok(calls.every(path => ['/api/v1/auth/login', '/api/v1/account/me', '/api/v1/account/crypto', '/api/v1/auth/logout'].includes(path)))
+  assert.ok(calls.includes('/api/v1/auth/login') && calls.includes('/api/v1/legal/documents/status') && calls.includes('/api/v1/account/me') && calls.includes('/api/v1/account/crypto'))
+  assert.ok(calls.every(path => ['/api/v1/auth/login', '/api/v1/legal/documents/status', '/api/v1/legal/documents/accept', '/api/v1/account/me', '/api/v1/account/crypto', '/api/v1/auth/logout'].includes(path)))
   console.log('Chromium encrypted workspace PASS: two projects, Stage CRUD/order, project rename, Notes, restart, account isolation, lock/logout, rollback, ciphertext storage and no plaintext project/Stage API calls')
 } finally {
   await context?.close()

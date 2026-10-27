@@ -16,9 +16,13 @@ from alembic.config import Config as AlembicConfig
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
+from sqlalchemy.orm import Session
 
 from backend.app.config import RuntimeConfig
+from backend.app.cloud.legal_documents import DEFAULT_LEGAL_DOCUMENT_REGISTRY
+from backend.app.cloud.models import EncryptedObject, SyncEvent, UserDocumentAcceptance
 from backend.app.main import create_app
+from backend.app.cloud.tokens import utc_now
 from test_cloud_auth import AUTH_SECRET, create_user, login
 
 
@@ -81,6 +85,35 @@ def test_disposable_postgresql_and_encrypted_blob_backup_restore(tmp_path, monke
         command.upgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'head')
         source_engine = create_engine(source_url)
         user_id = create_user(source_engine)
+        version = next(item for item in DEFAULT_LEGAL_DOCUMENT_REGISTRY.current('ru')
+                       if item.document_type == 'beta_terms')
+        with Session(source_engine) as session:
+            event_id = uuid4()
+            session.add(SyncEvent(
+                user_id=user_id, event_id=event_id, device_id=uuid4(),
+                project_id='restore-project', entity_id='restore-note', entity_type='note',
+                operation='upsert', revision=1, updated_at=utc_now(), server_sequence=1,
+            ))
+            session.flush()
+            session.add(EncryptedObject(
+                user_id=user_id, event_id=event_id, crypto_version=1, aad_version=1,
+                nonce=b'n' * 24, ciphertext=b'opaque test ciphertext for restore',
+            ))
+            acceptance = session.query(UserDocumentAcceptance).filter_by(
+                user_id=user_id, document_id=version.document_id,
+                revision=version.revision, content_checksum=version.content_checksum,
+                language=version.language,
+            ).one()
+            acceptance_snapshot = (
+                acceptance.document_type, acceptance.document_id, acceptance.revision,
+                acceptance.content_checksum, acceptance.language,
+                acceptance.acceptance_method, acceptance.accepted_at,
+            )
+            session.commit()
+        with source_engine.connect() as connection:
+            encrypted_snapshot = connection.execute(text(
+                'SELECT user_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at '
+                'FROM encrypted_objects WHERE user_id=:user_id'), {'user_id': user_id}).one()
         source_blobs = tmp_path / 'source-blobs'
         source_app = create_app(_config(source_url, tmp_path / 'source-data', source_blobs))
         blob_id = uuid4()
@@ -119,8 +152,46 @@ def test_disposable_postgresql_and_encrypted_blob_backup_restore(tmp_path, monke
         try:
             with restored_engine.connect() as connection:
                 assert connection.scalar(text('SELECT count(*) FROM users')) == 1
+                assert connection.scalar(text('SELECT id FROM users')) == user_id
                 assert connection.scalar(text('SELECT count(*) FROM encrypted_blobs')) == 1
-                assert connection.scalar(text('SELECT version_num FROM alembic_version')) == 'private_invitations'
+                assert connection.scalar(text('SELECT count(*) FROM encrypted_objects')) == 1
+                assert connection.scalar(text('SELECT version_num FROM alembic_version')) == 'legal_acceptances'
+                restored_encrypted = connection.execute(text(
+                    'SELECT user_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at '
+                    'FROM encrypted_objects WHERE user_id=:user_id'), {'user_id': user_id}).one()
+                assert restored_encrypted == encrypted_snapshot
+            with Session(restored_engine) as session:
+                restored_acceptance = session.query(UserDocumentAcceptance).filter_by(
+                    user_id=user_id, document_id=version.document_id,
+                    revision=version.revision, content_checksum=version.content_checksum,
+                    language=version.language,
+                ).one()
+                assert (
+                    restored_acceptance.document_type, restored_acceptance.document_id,
+                    restored_acceptance.revision, restored_acceptance.content_checksum,
+                    restored_acceptance.language, restored_acceptance.acceptance_method,
+                    restored_acceptance.accepted_at,
+                ) == acceptance_snapshot
+            with restored_engine.connect() as connection:
+                try:
+                    connection.execute(text(
+                        "UPDATE user_document_acceptances SET language='en' WHERE user_id=:user_id"
+                    ), {'user_id': user_id})
+                except Exception as error:
+                    assert 'append-only' in str(error)
+                    connection.rollback()
+                else:
+                    raise AssertionError('Restored legal acceptance was mutable.')
+            with restored_engine.connect() as connection:
+                try:
+                    connection.execute(text(
+                        'DELETE FROM user_document_acceptances WHERE user_id=:user_id'
+                    ), {'user_id': user_id})
+                except Exception as error:
+                    assert 'append-only' in str(error)
+                    connection.rollback()
+                else:
+                    raise AssertionError('Restored legal acceptance was deletable.')
         finally:
             restored_engine.dispose()
 

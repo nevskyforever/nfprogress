@@ -131,6 +131,22 @@ def login(client, username='Arthur', password='correct horse battery staple'):
     return client.post('/api/v1/auth/login', json={'username': username, 'password': password})
 
 
+def accept_current_legal_documents(client, headers, language='ru'):
+    status = client.get(f'/api/v1/legal/documents/status?language={language}', headers=headers)
+    assert status.status_code == 200, status.text
+    documents = [item for item in status.json()['documents'] if item['mandatory']]
+    assert documents
+    response = client.post('/api/v1/legal/documents/accept', headers=headers, json={
+        'language': language,
+        'documents': [{key: item[key] for key in (
+            'document_id', 'revision', 'content_checksum', 'language',
+        )} for item in documents],
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()['missing_required_document_ids'] == []
+    return response
+
+
 def _b64(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode('ascii').rstrip('=')
 

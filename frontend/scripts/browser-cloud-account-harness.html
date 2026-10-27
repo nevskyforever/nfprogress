@@ -116,6 +116,10 @@ const harness = {
     })
     return new BrowserCloudAccountSession({
       auth,
+      legalTransport: {
+        async status() { return { documents: [], missing_required_document_ids: [] } },
+        async accept() { return { documents: [], missing_required_document_ids: [] } },
+      },
       cryptoTransport: { get: async token => {
         if (harness.pauseCrypto) await new Promise(resolve => { harness.resumeCrypto = resolve })
         if (harness.failCrypto) throw Error('synthetic_network_failure')

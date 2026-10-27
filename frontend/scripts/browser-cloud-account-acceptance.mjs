@@ -28,6 +28,8 @@ async function launch() {
     if (path === '/api/v1/account/me' && request.method() === 'GET') {
       return send({ id: name === 'one' ? '11111111-1111-4111-8111-111111111111' : '22222222-2222-4222-8222-222222222222', username: name, email: `${name}@example.test`, email_verified: true, role: 'user', status: 'active', created_at: '2026-01-01T00:00:00Z' })
     }
+    if (path === '/api/v1/legal/documents/status' && request.method() === 'GET') return send({ documents: [], missing_required_document_ids: [] })
+    if (path === '/api/v1/legal/documents/accept' && request.method() === 'POST') return send({ documents: [], missing_required_document_ids: [] })
     if (path === '/api/v1/account/crypto' && request.method() === 'GET') {
       if (failCrypto) return route.abort('failed')
       return send(records[name])
@@ -208,8 +210,8 @@ try {
     } catch (error) { return error.code ?? 'unknown' }
     finally { if (original) Object.defineProperty(navigator, 'locks', original); else delete navigator.locks }
   }), 'unavailable')
-  assert.ok(calls.includes('/api/v1/auth/login') && calls.includes('/api/v1/account/me') && calls.includes('/api/v1/account/crypto'))
-  assert.ok(calls.every(path => ['/api/v1/auth/login', '/api/v1/account/me', '/api/v1/account/crypto', '/api/v1/auth/logout'].includes(path)))
+  assert.ok(calls.includes('/api/v1/auth/login') && calls.includes('/api/v1/legal/documents/status') && calls.includes('/api/v1/account/me') && calls.includes('/api/v1/account/crypto'))
+  assert.ok(calls.every(path => ['/api/v1/auth/login', '/api/v1/legal/documents/status', '/api/v1/legal/documents/accept', '/api/v1/account/me', '/api/v1/account/crypto', '/api/v1/auth/logout'].includes(path)))
   const localRows = await page.evaluate(async () => ({ projects: await harness.rows('localProjects'), notes: await harness.rows('localNotes') }))
   assert.equal(localRows.projects.length, 3)
   assert.equal(localRows.notes.length, 1)

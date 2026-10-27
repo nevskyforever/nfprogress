@@ -4,7 +4,8 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text,inspect
-from test_cloud_auth import cloud_client,migrated_database,create_user,login
+from test_cloud_auth import (accept_current_legal_documents, cloud_client,
+                             migrated_database, create_user, login)
 from test_cloud_c15_headless_cross_runtime import ROOT,_headers
 from test_cloud_c18_progress_acceptance import support
 from backend.app.cloud.schemas import V3EncryptedSyncPushRequest
@@ -27,7 +28,8 @@ def test_progress_upgrade_registered_gate_and_normalized_defaults(cloud_client):
     with engine.connect() as db:
         assert db.execute(text('SELECT user_id,device_id,last_ack_sequence,note_codec_version,document_codec_version FROM sync_devices')).all()==before
         assert db.execute(text('SELECT progress_frame_version,progress_codec_version,progress_reader_version,progress_compression_zero FROM sync_devices')).one()==(0,0,0,False)
-        assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='private_invitations'
+        assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one()=='legal_acceptances'
+    accept_current_legal_documents(client,headers)
     assert client.get('/api/v3/sync/encrypted/progress-reader-capabilities',headers=headers).json()==dict(ready=False,missing_devices=1)
     support(client,headers,device)
     # Prerequisite transport mode is mandatory, independent of codec declaration.

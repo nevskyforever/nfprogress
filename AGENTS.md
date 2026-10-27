@@ -195,6 +195,44 @@ in Chromium through Playwright when practical. Use `Run Web.sh` to start the
 local application. If Chromium is not installed for Playwright, ask the user
 for permission before running `npx playwright install chromium`.
 
+## LOCAL-FIRST TESTING POLICY — MANDATORY FOR ALL FUTURE CODEX TASKS
+
+Use local verification as the primary development loop, then commit and push
+for independent GitHub Actions acceptance:
+
+1. After code changes, identify affected tests and run them locally.
+2. For PostgreSQL, migration, account, sync, or backend changes, use an isolated
+   local PostgreSQL 16 Docker container.
+3. Run focused tests first, followed by the regressions needed for the change.
+4. For schema changes, run migration tests for current and historical upgrade,
+   repeat-upgrade, data-preservation, compatibility, and safe-downgrade behavior.
+5. For frontend changes, run affected Vitest tests, typecheck, build, and
+   Chromium acceptance when the UI flow needs browser verification.
+6. For E2EE, sync, or file-format changes, retain negative tests and
+   backward-compatibility checks.
+7. Before commit or push, run the broadest reasonable local checks for the
+   affected components.
+8. Diagnose and fix a local test failure before repeating the check.
+9. Change an expected test result only after verifying that the contract itself
+   changed.
+10. Do not disable tests, bypass security checks, or report SKIP as PASS.
+11. Commit and push only after all available mandatory local checks pass.
+12. GitHub Actions provides independent final acceptance; it is not the main
+    way to discover implementation failures.
+13. After push, do not wait for or poll GitHub Actions. ChatGPT performs remote
+    acceptance separately.
+14. If a local check cannot run, report the exact reason, mark it NOT RUN, and
+    describe the remaining risk. Do not claim a complete local PASS.
+15. On Apple Silicon, arm64 results do not establish x86-64/Linux compatibility.
+    Use a suitable isolated environment for platform-specific checks or leave
+    them explicitly for CI.
+16. Do not run a multi-platform build unless the task requires it.
+17. Never remove unrelated Docker data, containers, volumes, configured
+    databases, or use destructive Git cleanup such as `git clean` or `git reset`.
+
+Use `scripts/maintenance/local_acceptance.sh` for the maintained `quick`,
+`backend`, `frontend`, and `prepush` local acceptance modes.
+
 ## Extending creative rhythm, cabinet, and shop
 
 The feature state belongs to `game.Gamer`. New fields must have defaults both in
