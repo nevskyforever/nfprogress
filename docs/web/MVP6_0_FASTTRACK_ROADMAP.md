@@ -7,6 +7,45 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-28 — WEB.ONLINE.02B source/proof contract — DESIGN COMPLETE
+
+Reviewed against clean baseline `57abb27ed712378a836ba654bc3c1c107ac804d5`.
+The [C21 Online-Only source/proof contract](WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md)
+resolves the storage design raised by .02A through a proposed isolated encrypted
+replay cache. Server history remains authoritative; browser proofs record real
+owner transactions over a reconstructible projection. Cache presence cannot
+authorize offline opening or replace a fresh server check. Existing developer
+`worta-web` v12 content/proofs are neither imported nor promoted.
+
+The contract includes the complete owner matrix, replay diagram, account-wide
+cursor/registry inventory, proof atomicity, initial-source and mixed transport
+barriers, failure/restart rules and ordered acceptance slices. The audit confirms
+that Maps/Documents/Progress/Game and catalog owners currently execute native
+Rust/SQLite transactions; their shared owner logic needs browser adapters before
+full reading. Codec support and Metadata preview do not close those gaps.
+
+No fundamental conflict exists between Online-Only and durable reconstructible
+evidence under this proposed boundary. Implementation remains gated: a new
+`worta-web-replay` initial schema needs a subsequent explicit task; no SQLite,
+PostgreSQL or existing IDB v12 migration is required for the bounded design.
+All code, schemas, capability gates and the restricted Metadata preview remain
+unchanged. This is a design proposal, not FULL PROJECT OPEN or C21 closure.
+
+Next minimum implementation: isolated replay schema/transaction adapter and
+paged full-account receiver. It must retain only original ciphertext/technical
+receive state, mint no applied proofs, expose no opened project, preserve v12,
+and prove restart/replay/isolation/rollback with real producer and Chromium/API
+tests. Then compose Metadata, structural/bootstrap source and bounded Note/
+Resolution owners; native families and complete publication follow only after
+their own acceptance. Recommended model for slice 1: GPT-6 Sol / High.
+
+No migrations, runtime tests or implementation were performed here; documentation
+links/paths and `git diff --check` are the local checks. No CI was polled.
+Progress stays **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, Registration CLOSED, PUBLIC RELEASE BLOCKED;
+C21/C22/C23/PF6.0/RC stay mandatory. .02A below is the historical implementation
+STOP; .02B supplies its source/proof design, without claiming production readiness.
+
 ## 2026-10-28 — WEB.ONLINE.02A production reader audit / STOP
 
 Baseline `3ef704c5f4353fcfdf4d0921739ce2213fd052de` was independently accepted
@@ -93,7 +132,7 @@ storage**, **E2EE**, **Desktop format compatibility**, and **gate status**.
 | Capability | User action in Web | Server path | Server stores data | E2EE verified | Desktop format compatible | Status / next work |
 | --- | --- | --- | --- | --- | --- | --- |
 | Cloud project catalog | IMPLEMENTED in developer account flow; IDs/count/limit, empty state, refresh, network error | `GET /api/v1/cloud/projects`, authenticated ordinary-user token via session | Server-owned catalog; no catalog persistence in IndexedDB | N/A: IDs and limits only | IDs are not names/content | Local fixture acceptance added; verify backend regression in prepush |
-| Project names/content | NOT IMPLEMENTED in target online flow | Existing opaque event/metadata owners, not composed into UI | Existing server protocol only | Components exist; end-to-end Web read not accepted | Existing codecs provide candidate formats | FASTTRACK.01 blocked by C21 reader/recovery gates below |
+| Project names/content | Bounded Metadata-only preview accepted at `3ef704c5`; full project/content opening remains blocked | Real authenticated account-wide v3 pull plus shared Metadata decoder/reducer | Existing ciphertext protocol; preview remains in memory | Bounded Metadata read accepted; other families uncomposed | Shared formats retained | .02B defines source/proof design; next is isolated replay receiver, then accepted owners |
 | Stages and structure | NOT IMPLEMENTED in target online flow; legacy local CRUD remains dev-only | No Web cloud product flow | Not confirmed by this slice | Not verified in Web flow | Existing codecs/owners only | ONLINE.04 after accepted read path |
 | Project/stage documents | Editor component exists; server flow NOT IMPLEMENTED | No writer connected | No Web document write in this slice | Existing local M1.02 is not cloud E2EE acceptance | Desktop codec exists; cross-client Web flow unverified | ONLINE.03 after writer gates |
 | Notes and maps | Legacy/local developer experiences only | No cloud Note/Map writer connected | No Web write in this slice | Not verified as server flow | Existing codecs exist; Web compatibility unaccepted | ONLINE.04; keep C21 gates frozen |

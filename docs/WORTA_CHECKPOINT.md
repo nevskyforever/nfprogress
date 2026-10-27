@@ -1,5 +1,54 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-28 — WEB.ONLINE.02B — Online-Only source/proof contract
+
+**DESIGN COMPLETE; PRODUCTION IMPLEMENTATION NOT STARTED.** Clean `6.0`
+baseline `57abb27ed712378a836ba654bc3c1c107ac804d5` was verified. The
+[C21 Online-Only source/proof contract](web/WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md)
+defines complete account replay, owner readiness by family, original-wire
+inventory, atomic owner proof/source commits, isolated browser durability,
+restart/failure rules, schema decisions and six bounded implementation slices.
+
+The architectural decision is a proposed separate, reconstructible encrypted
+replay cache. Durable local apply evidence is compatible with server authority:
+the cache cannot accept user edits, replace fresh server validation, authorize
+offline opening, or become a cloud save. WEB.ONLINE.02A's production-composition
+STOP remains an implementation barrier; the storage question is now specified.
+Existing `worta-web` v12 and developer content/proofs are never imported or
+promoted. Creating the proposed `worta-web-replay` initial schema requires a
+separate explicit implementation task. No storage, migration or code was changed.
+
+The code audit clarifies the platform gap: browser Metadata/Stage/StageOrder/
+Note owners use IDB, but Maps/Documents/Progress/Game and account-catalog apply
+owners execute in Rust/SQLite through Tauri. They need shared owner computation
+and browser durable adapters, not only codec dispatch. The new cache-specific
+source contract proposes a private authenticated empty seed and resumable real
+per-event owner commits inside an unpublished generation. It does not relax the
+unimplemented Z2A atomic B/workspace batch or grant its Q handoff. Legacy-v2,
+raw Legacy-on-v3, codec8 Resolution, source cohorts,
+earliest-event barriers and actual server capability gates remain distinct.
+No universal browser reader or full-project opening is claimed.
+
+Migration decision: no Desktop SQLite, PostgreSQL or `worta-web` v12 migration
+for the bounded contract; a new isolated replay DB schema is needed in a later
+approved slice. New family records and broader unsupported histories require
+their own schema/owner review. No migration files were created.
+
+Next minimum slice: isolated replay storage/transaction adapter and full-account
+paged receiver, with zero applied proofs, no project-open result and unchanged
+legacy data. Recommended model: GPT-6 Sol / High. Its acceptance must include
+real producer ciphertext, account/project isolation, exact replay, interruption,
+Chromium restart, quotas/rollback and absent ACK/push/capability calls.
+
+Documentation-only verification: source/contract consistency review, relative
+link/path validation and `git diff --check`. Runtime tests/build/Chromium/
+PostgreSQL are NOT RUN because no implementation changed. No CI was queried;
+the prior accepted implementation remains `3ef704c5`, Cloud `40578946929`,
+6/6 SUCCESS (owner-reported). This design commit has no remote acceptance claim.
+Web stays **89.36%**, `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, Registration CLOSED, PUBLIC RELEASE BLOCKED;
+C21/C22/C23/PF6.0/RC remain mandatory. The next slice was not started.
+
 ## 2026-10-28 — WEB.ONLINE.02A — production reader composition audit / STOP
 
 Baseline `3ef704c5f4353fcfdf4d0921739ce2213fd052de` is independently accepted
