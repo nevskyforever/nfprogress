@@ -230,6 +230,36 @@ for independent GitHub Actions acceptance:
 17. Never remove unrelated Docker data, containers, volumes, configured
     databases, or use destructive Git cleanup such as `git clean` or `git reset`.
 
+## WEB ONLINE-ONLY PRODUCT POLICY — MANDATORY
+
+Approved by the project owner on 2026-10-27. This product policy defines the
+runtime architecture; LOCAL-FIRST above continues to define how Codex verifies
+changes before commit and independent GitHub Actions acceptance.
+
+1. Web requires an available server. The server is authoritative for persistent
+   user data; Desktop remains offline-first with SQLite and optional cloud sync.
+2. E2EE is performed in the browser. The server stores opaque encrypted user
+   content, apart from minimal protocol metadata. Never send plaintext user
+   content or AMK to the server.
+3. Do not create offline-first Web repositories or new IndexedDB stores for user
+   content without direct owner approval. Do not add a browser offline outbox or
+   background sync for the ordinary Web path.
+4. Do not use legacy plaintext `/api` routes for E2EE data. A local write,
+   successful encryption, or queued operation is not a server save. Report a
+   save only after verified server confirmation and required protocol checks.
+5. Keep C21/C22/C23 security, reader, writer, ACK, recovery and release gates
+   intact. Never infer readiness from catalog IDs or local records.
+6. Do not delete or migrate existing local user data without an explicit safe
+   migration plan and owner approval. Keep legacy developer-only local workspace
+   clearly separate from the server catalog; never auto-import or merge it.
+7. While disconnected, retain unsaved edits in the current tab's memory when
+   possible and show an error. Do not promise recovery after browser restart or
+   offline persistence.
+8. New Web user flows must use real server APIs and relevant backend tests.
+   Keep credentials out of browser storage and expose no raw access token to UI.
+9. Do not change Desktop offline-first behavior. Public registration and release
+   remain blocked until all required gates and explicit approvals pass.
+
 Use `scripts/maintenance/local_acceptance.sh` for the maintained `quick`,
 `backend`, `frontend`, and `prepush` local acceptance modes.
 

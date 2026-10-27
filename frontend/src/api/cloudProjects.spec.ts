@@ -5,6 +5,22 @@ import { cloudProjectsApi } from './cloudProjects'
 afterEach(() => vi.restoreAllMocks())
 
 describe('cloud project bootstrap transport', () => {
+  it('lists the server catalog with authenticated metadata-only GET and forwards cancellation', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({
+      cloud_project_ids: ['server-project'], cloud_project_count: 1, max_cloud_projects: 8,
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    const controller = new AbortController()
+    await expect(cloudProjectsApi.list('private-access-token', controller.signal)).resolves.toEqual({
+      cloud_project_ids: ['server-project'], cloud_project_count: 1, max_cloud_projects: 8,
+    })
+    const [url, options] = fetchMock.mock.calls[0]!
+    expect(url).toBe('/api/v1/cloud/projects')
+    expect(options?.method ?? 'GET').toBe('GET')
+    expect(new Headers(options?.headers).get('Authorization')).toBe('Bearer private-access-token')
+    expect(options?.signal).toBe(controller.signal)
+    expect(options?.body).toBeUndefined()
+  })
+
   it('uses authenticated metadata-only registry routes and immutable lineage bodies', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({
         project: {

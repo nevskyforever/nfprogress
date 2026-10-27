@@ -1,4 +1,5 @@
 import { accountCryptoApi, type AccountCryptoTransport } from '@/api/accountCrypto'
+import { cloudProjectsApi, type CloudProjectsResponse } from '@/api/cloudProjects'
 import { legalDocumentsApi, type LegalDocument, type LegalDocumentConfirmation,
   type LegalDocumentStatus } from '@/api/legalDocuments'
 import { AuthoritativeAccountBinding } from '@/auth/accountBinding'
@@ -76,6 +77,23 @@ export class BrowserCloudAccountSession {
 
   get legalDocuments(): readonly LegalDocument[] {
     return this.status === 'legal_required' ? [...(this.legalStatus?.documents ?? [])] : []
+  }
+
+  /** Fetches server-owned IDs only; local developer projects are never a fallback. */
+  async listCloudProjects(signal?: AbortSignal): Promise<CloudProjectsResponse> {
+    this.assertWeb()
+    if (this.status === 'logged_out' || this.status === 'legal_required') throw new StaleAuthContextError()
+    const { value, context } = await this.auth.authorized(token => cloudProjectsApi.list(token, signal))
+    if (!this.auth.isCurrent(context)) throw new StaleAuthContextError()
+    if (!value || !Array.isArray(value.cloud_project_ids) || !Number.isSafeInteger(value.cloud_project_count)
+      || !Number.isSafeInteger(value.max_cloud_projects) || value.cloud_project_count !== value.cloud_project_ids.length
+      || value.cloud_project_count < 0 || value.max_cloud_projects < value.cloud_project_count
+      || value.cloud_project_ids.some(id => typeof id !== 'string' || !id.trim() || new TextEncoder().encode(id).length > 512)
+      || new Set(value.cloud_project_ids).size !== value.cloud_project_ids.length) {
+      throw new Error('cloud_project_catalog_response_invalid')
+    }
+    return { cloud_project_ids: [...value.cloud_project_ids], cloud_project_count: value.cloud_project_count,
+      max_cloud_projects: value.max_cloud_projects }
   }
 
   private assertWeb(): void {

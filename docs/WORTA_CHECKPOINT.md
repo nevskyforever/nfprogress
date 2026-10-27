@@ -1,5 +1,47 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-27 — MVP6.0.WEB.ONLINE.01R architecture decision
+
+**Решение владельца: WEB ONLINE-ONLY / SERVER-AUTHORITATIVE.** Desktop остаётся
+offline-first на SQLite с необязательной облачной синхронизацией. Web требует
+подключения к серверу; сервер — источник постоянных пользовательских данных,
+E2EE выполняется в браузере. Полная офлайн-функциональность Web отменена как
+цель продукта. Это не меняет LOCAL-FIRST как обязательную политику локальной
+проверки кода.
+
+Незавершённая MVP6.0.M1.03 отменена владельцем и помечена
+**CANCELLED / OBSOLETE BY OWNER DECISION**. Её незакоммиченные изменения были
+точечно удалены после проверки чистого baseline; M1.03 не создала IndexedDB
+v13 или committed artifact. Уже принятые v12 и developer-only local workspace
+сохранены для legacy тестирования и возможных существующих данных. Они не
+являются источником облачного каталога, не импортируются автоматически и не
+обещаются как целевой Web storage.
+
+`MVP6.0.WEB.ONLINE.01R` добавляет отдельный server catalog в защищённый
+developer-only account flow через авторизованный `GET /api/v1/cloud/projects`.
+Показываются серверные IDs, count и limit; IDs не выдаются за названия или
+расшифрованные проекты. Legal gate остаётся обязательным. Каталог не записывается
+в IndexedDB, не подменяется local workspace, сбрасывается при logout/смене
+auth context, а сетевые ошибки требуют явной повторной загрузки. Endpoint —
+metadata-only; чтение E2EE-содержимого, server writers, ACK, bootstrap и
+автосинхронизация не активируются.
+
+Новая последовательность Web: ONLINE.01 — каталог; ONLINE.02 — E2EE server
+read после reader/security gates; ONLINE.03 — принятый encrypted document
+writer; ONLINE.04 — Notes/Maps/Stages; ONLINE.05 — Progress/Game/Settings;
+ONLINE.06 — Desktop↔Web acceptance и recovery. Конкретные шаги уточняются по
+C21/C22/C23 контрактам без ослабления gate.
+
+Приёмка previous baseline: run `40541798752`, SHA
+`6011d0d04cb1e7b75372c778de4e5cc2e615e931`, **6/6 SUCCESS** — принята владельцем.
+Эта приёмка M1.02 не означает готовность Web E2EE cloud flow. Official Web
+progress **89,36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`; Registration CLOSED, PUBLIC RELEASE BLOCKED;
+C21/C22/C23/PF6.0/RC обязательны. LEGAL.ACCEPTANCE.02 и M1.02 остаются
+исторически принятыми; юридические тексты всё ещё требуют отдельного утверждения.
+
+Подробная целевая архитектура: [WEB ONLINE-ONLY](web/WEB_ONLINE_ONLY_ARCHITECTURE.md).
+
 ## WORTA 6.0 MVP — PRIMARY PRODUCT GOAL
 
 Полноценная Web-версия существующей Desktop WORTA должна предоставлять все

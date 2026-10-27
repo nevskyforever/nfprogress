@@ -1,50 +1,81 @@
-# WORTA 6.0 — full-feature MVP fast track
+# WORTA 6.0 — Web Online-Only roadmap
 
-**Product outcome.** One authorized person uses the existing WORTA feature set on Windows, macOS and Web, keeps working offline, and later sees the same accepted encrypted data on each client. Functional scenarios matter; pixel-identical layouts do not. Notes-only sync is an intermediate milestone. No row below is `VERIFIED E2E` across real clients and backend.
+**Owner decision, 2026-10-27: WEB ONLINE-ONLY / SERVER-AUTHORITATIVE.** Desktop
+remains offline-first on SQLite with optional cloud sync. Web requires server
+connectivity. E2EE remains client-side; the server is authoritative for
+persistent user data and stores opaque ciphertext plus required protocol
+metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
+it does not require offline-first runtime behavior in Web.
 
-**Evidence boundary (2026-10-27).** Vue already contains routes/screens for projects, stages, project and stage documents, Notes/maps, Progress, Game Mode, integrations, settings and help. On Desktop their service paths use Tauri/SQLite. Most ordinary Web routes use the compatibility `/api` backend, which is plaintext and unavailable in production cloud. The developer-only protected Web workspace now persists multiple local projects, basic stages/manual order, Notes and project/stage manuscripts in `worta-web` v12 under one account/key lifecycle. M1.02 adds `localDocuments` and reuses Tiptap for encrypted text editing. Chromium acceptance proves local restart, isolation and ciphertext, not cloud sync or the ordinary Web project routes. See `frontend/src/platform/web/{cloudAccountSession,localAuthority,localStages,localDocuments,persistence}.ts` and `frontend/src/components/settings/BrowserEncryptedWorkspace.vue`. This is a code-backed planning matrix, not full product E2E acceptance.
+**SUPERSEDED BY WEB ONLINE-ONLY DECISION:** the earlier plan for full offline Web
+parity, durable IndexedDB copies of all user data, offline queues/retry, and
+browser-only manuscript recovery. Historical acceptance records remain valid as
+evidence of the existing developer-only workspace; they are not the target
+product contract. IndexedDB v12 and its data are retained without automatic
+cleanup or import. The local workspace remains a clearly labeled legacy
+developer/test tool and is never merged into the cloud catalog.
 
-## Desktop → Web feature matrix
+Previous baseline SHA `6011d0d04cb1e7b75372c778de4e5cc2e615e931` was independently
+accepted by run `40541798752` (**6/6 SUCCESS**). LEGAL.ACCEPTANCE.02 and M1.02
+remain historically accepted. MVP6.0.M1.03 was cancelled by owner decision before
+commit: **CANCELLED / OBSOLETE BY OWNER DECISION**; its partial uncommitted
+v13/local map experiment was discarded explicitly and no v13 schema was
+published.
 
-`IMPLEMENTED` means the cited client already performs the scenario; `PARTIAL` means bounded code/UI exists but the named scenario is incomplete; `MISSING` means no verified implementation for that client path; `BLOCKED` means a required gate prevents activation. No `VERIFIED E2E` claim is made.
+## Feature matrix
 
-| Capability | Desktop now | Web now | Durable offline encrypted Web | Cloud sync across Desktop/Web | Mandatory | Next action |
+Web status dimensions are separate: **user action**, **server path**, **server
+storage**, **E2EE**, **Desktop format compatibility**, and **gate status**.
+`PARTIAL` means only a bounded component exists; it is not an accepted user flow.
+
+| Capability | User action in Web | Server path | Server stores data | E2EE verified | Desktop format compatible | Status / next work |
 | --- | --- | --- | --- | --- | --- | --- |
-| Projects, folders, covers, create/edit/archive/order | IMPLEMENTED — Tauri/SQLite project service and Vue UI | PARTIAL — ordinary UI uses legacy `/api`; protected workspace lists/creates/opens/renames local projects | PARTIAL — encrypted project metadata survives Chromium restart; folders/covers/archive/order remain | PARTIAL — metadata/cover owners, no connected Web flow | Yes | Extend protected project adapter to remaining Desktop fields/actions without plaintext fallback |
-| Stages, structure, ordering and completion | IMPLEMENTED — project service and stage workspace | PARTIAL — ordinary screens/actions use legacy `/api`; protected workspace has basic local Stage CRUD/order | PARTIAL — encrypted Stage content/order survives Chromium restart; completion and dependent content remain | PARTIAL — stage owners/codecs without Web product flow | Yes | Add encrypted project/stage text, then extend structural actions with safe dependencies |
-| Project text and editor state | IMPLEMENTED — Tiptap/Tauri document owner | PARTIAL — protected workspace reuses Tiptap; ordinary route uses legacy `/api` | PARTIAL — AMK ciphertext survives Chromium restart in the protected workspace | PARTIAL — document codec/runtime is Tauri-oriented; no Web sync | Yes | Connect ordinary Web flow safely after local feature coverage; later attach accepted sync owner |
-| Text within a stage | IMPLEMENTED — same editor with stage scope | PARTIAL — protected workspace edits stage text; ordinary route uses legacy `/api` | PARTIAL — scoped AMK ciphertext survives Chromium restart | PARTIAL — document scope/codec exists, no Web sync | Yes | Complete the ordinary Web flow without plaintext fallback, then accepted sync |
-| Notes: create/edit/delete/order, tags and stage association | IMPLEMENTED — native SQLite and Vue Notes UI | PARTIAL — normal Notes UI uses compatibility API; separate developer-only encrypted editor supports basic local Notes | PARTIAL — basic encrypted Notes survive IndexedDB restart in one profile | BLOCKED — C21 truthful reader/writer gate and Web composition | Yes | Preserve the separate modes; complete safe local Notes parity and gated transport |
-| Mind maps and linked Notes | IMPLEMENTED — Notes service and native map source | PARTIAL — existing MindMapEditor uses compatibility repository | MISSING | PARTIAL — map codec/runtime exists without browser product flow | Yes | Reuse Vue map editor over encrypted browser source; preserve links |
-| Goals, writing progress, statistics, streaks and history | IMPLEMENTED — project/game services and UI | PARTIAL — Vue progress views call legacy `/api` | MISSING | PARTIAL — progress codec/runtime exists without browser product flow | Yes | Add encrypted progress facts and offline calculations, then gated sync |
-| Game Mode: sessions, challenges, inventory/shop, cabinet, awards, bank, rewards | IMPLEMENTED — `game.py`, game service and Vue tabs | PARTIAL — GamePage uses legacy `/api/game` | MISSING | PARTIAL — game codec/runtime exists, no Web product flow | Yes | Reuse GamePage and canonical game rules; persist/sync full state and verify reward idempotence |
-| Settings, personalization, account data and help | IMPLEMENTED — desktop settings and help | PARTIAL — Vue screens exist; account card is development Web only | PARTIAL — small view preferences exist; complete encrypted user settings are unverified | PARTIAL — account catalog/runtime exists, no accepted Web composition | Yes where user data or workflow depends on them | Inventory settings by stored data type; port necessary settings, reuse existing help/UI |
-| Imports/exports and local Word binding | IMPLEMENTED — native file actions and document integration | PARTIAL — browser editor/export exists; native file binding is Tauri-only | MISSING for durable imported content independent of server | PARTIAL — document content transport exists, file-system path itself is device-local | Yes for user-visible import/export outcomes; OS path integration may differ | Reuse browser file picker/export and preserve document content; keep native path feature on Desktop |
-| Account unlock, device binding, offline/online recovery | IMPLEMENTED in bounded Desktop owners | PARTIAL — development Web sign-in/unlock and local Notes workspace | PARTIAL — account-scoped IndexedDB exists; not all entities use it | BLOCKED — C21/C22/C23 and production composition | Yes | Keep one key/session lifecycle and truthful gates while adding repositories |
+| Cloud project catalog | IMPLEMENTED in developer account flow; IDs/count/limit, empty state, refresh, network error | `GET /api/v1/cloud/projects`, authenticated ordinary-user token via session | Server-owned catalog; no catalog persistence in IndexedDB | N/A: IDs and limits only | IDs are not names/content | Local fixture acceptance added; verify backend regression in prepush |
+| Project names/content | NOT IMPLEMENTED in target online flow | Existing opaque event/metadata owners, not composed into UI | Existing server protocol only | Components exist; end-to-end Web read not accepted | Existing codecs provide candidate formats | Wait for ONLINE.02 and C21 reader/security gates |
+| Stages and structure | NOT IMPLEMENTED in target online flow; legacy local CRUD remains dev-only | No Web cloud product flow | Not confirmed by this slice | Not verified in Web flow | Existing codecs/owners only | ONLINE.04 after accepted read path |
+| Project/stage documents | Editor component exists; server flow NOT IMPLEMENTED | No writer connected | No Web document write in this slice | Existing local M1.02 is not cloud E2EE acceptance | Desktop codec exists; cross-client Web flow unverified | ONLINE.03 after writer gates |
+| Notes and maps | Legacy/local developer experiences only | No cloud Note/Map writer connected | No Web write in this slice | Not verified as server flow | Existing codecs exist; Web compatibility unaccepted | ONLINE.04; keep C21 gates frozen |
+| Progress and Game Mode | UI paths exist but are not target server-authoritative flow | Legacy plaintext routes are not permitted for E2EE data | Not verified | Not verified | Desktop models/codecs exist | ONLINE.05; no plaintext fallback |
+| Account and legal access | IMPLEMENTED bounded login, legal acceptance and account key setup in developer flow | Auth/legal APIs | Server-owned identity/legal records | Key remains in client; no key sent with catalog request | N/A | Keep public registration CLOSED |
 
-## Priority rules
+## Online critical path
 
-- **P0 — correctness and safety:** six green mandatory CI jobs, no lost or corrupted data, account/device authentication, E2EE, truthful C21 reader/writer gates and required C22/C23 recovery/security evidence.
-- **P1 — full Web product:** use the existing UI for projects, stages, both text scopes, Notes/maps, Progress, Game Mode and necessary settings; make every mandatory entity durable and usable offline, then connect bidirectional encrypted sync.
-- **P2 — restricted acceptance:** prove Windows ↔ Web ↔ macOS scenarios, offline retry, conflicts, backup/restore and all release checks before declaring the full MVP accepted.
+1. **WEB.ONLINE.01 — architecture and server catalog.** Bind the developer-only
+   Web account flow to the authenticated server catalog. Keep local test projects
+   visibly separate. No content read or write is implied by an ID.
+2. **WEB.ONLINE.02 — encrypted server read.** Retrieve opaque E2EE events and
+   restore supported content in browser memory only after accepted reader,
+   security and recovery gates. Reject unsupported histories without mutation.
+3. **WEB.ONLINE.03 — encrypted document save.** Reuse Tiptap and existing codecs;
+   send ciphertext through an accepted writer protocol. Show saved only after
+   verified server confirmation and revision/protocol checks.
+4. **WEB.ONLINE.04 — Notes, Maps and Stages.** Compose existing UI/codecs with
+   accepted cloud owners. Preserve map-note links and stage dependencies; no
+   plaintext API fallback.
+5. **WEB.ONLINE.05 — Progress, Game Mode and Settings.** Add only supported
+   server-authoritative encrypted flows with safe rejection of unsupported data.
+6. **WEB.ONLINE.06 — Desktop ↔ Web acceptance.** Verify format compatibility,
+   conflicts, recovery, authorization and cross-client preservation against
+   isolated backend and PostgreSQL fixtures.
 
-P1 local Web work can proceed while P0 cloud gates remain closed. P0 cannot be waived to accelerate P1.
+These stages may be refined after checking frozen C21/C22/C23 contracts. They
+must not activate reader declaration, writer authorization, ACK, auto-bootstrap
+or background synchronization before their exact gates pass.
 
-## Critical path: milestones and small slices
+## Safety and release boundary
 
-| Milestone | User result | Ready components | Remaining work and parallel work | Hard prerequisite | Done when | Next smallest slice |
-| --- | --- | --- | --- | --- | --- | --- |
-| **M0 — trusted build** | Recovery tests make CI evidence usable | Six mandatory jobs; real Chromium disk-restart scenarios | Accept crash-observer repair in CI; no broad refactor | Real renderer crash and IndexedDB post-restart assertions | 6/6 mandatory jobs on exact SHA, independently accepted | Repair crash helper and run focused private/post-F acceptance (this stage) |
-| **M1 — complete offline Web workspace** | All mandatory project, writing, Notes, Progress and Game actions survive browser restart without cloud | Existing Vue screens/models and encrypted account/Notes IndexedDB owner; M1.02 project/stage Tiptap manuscripts pass local Chromium | Add encrypted repositories for remaining Notes/maps, progress/game and project actions; connect ordinary Web flows safely. | Correct account/project isolation, lock/logout revocation and durable ciphertext writes | Feature matrix user actions work offline and reopen from ciphertext; no plaintext fallback or silent migration | Next: remaining local Notes/maps and required offline data |
-| **M2 — secure cloud connection** | Windows/macOS/Web exchange accepted changes in both directions | Desktop runtimes/codecs, backend opaque transport, bounded Web owners | Complete only C21 cases required by frozen global reader predicate; compose Web upload/read/retry by entity. Work on local M1 features can continue while gates are closed. | C21 truthful reader/writer/ACK gates, C22 security, account/device/E2EE; unsupported histories stop safely | Real paired-client accepted round trips for every mandatory data type, including offline retry and conflict retention | Choose next C21 slice after M0 CI acceptance; no C21.2.08Z2B2D in this stage |
-| **M3 — restricted full MVP acceptance** | One tester uses all Desktop-equivalent scenarios on Windows, macOS and Web | Isolated loopback staging and restore drill, private invitation mechanisms | Complete HTTPS restricted staging, representative cross-client flows, C23 restored-client recovery and release evidence | Owner-authorized deployment; C21/C22/C23/PF6.0/RC | Signed-off full feature matrix, no data loss, tested restore, 6/6 CI, public registration still CLOSED | Stage only after M1/M2 evidence and explicit VPS approval |
+- Desktop offline-first and SQLite behavior remain unchanged.
+- The ordinary plaintext compatibility `/api` routes are not an E2EE fallback.
+- `localProjects`, `localStages`, `localNotes`, `localDocuments` and the v12
+  schema remain for existing data and developer tests. No automatic import,
+  promotion, cleanup or cloud-catalog substitution is allowed.
+- On network loss, show an error and retain current unsaved input in memory where
+  possible. Do not claim persistence or restart recovery.
+- LEGAL.ACCEPTANCE.02 remains required; legal text approval is separate.
+- Official Web progress remains **89.36%** pending formal reassessment.
+  `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+  Registration CLOSED, PUBLIC RELEASE BLOCKED. C21/C22/C23/PF6.0/RC remain
+  mandatory. No production VPS/database changes are authorized by this roadmap.
 
-**Fast path:** use the existing Vue screens, canonical models, desktop codecs and bounded owners. Implement vertical user flows with a durable encrypted Web adapter. Keep cloud operations behind truthful gates while local Web parity advances. At each slice, test the exact user action, restart and data isolation; use existing focused CI suites. Do not repeat broad architecture audits for an accepted contract.
-
-**Deferred from the critical path:** cosmetic polish, extra performance tuning beyond safe MVP limits, new non-Desktop features, optional platform extensions and rare historical cohorts that can be rejected before writes/ACK with data preserved. Native filesystem binding may use a browser-appropriate import/export workflow; manuscript content and user-visible result remain mandatory. A case required by the frozen global reader predicate is never deferrable. No C21/C22/C23 gate is optional.
-
-## Current blockers and next task boundary
-
-Previous CI run `40470606994` on `508a1a98a3da8686e0b4168ba6d6d5b4dfd931a5` was independently accepted (6/6 SUCCESS). M1.02's additive v11→v12 migration and protected project/stage manuscripts pass local Chromium, including preservation of old project/Stage/Note/C21 records and atomic failure. M1.02 remote CI is pending. Atomic project B replay remains unimplemented. Do not activate Note reader declaration, writer, ACK or the sync scheduler.
-
-Official Web progress: **89,36%**. `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`; registration CLOSED, PUBLIC RELEASE BLOCKED. C21/C22/C23/PF6.0/RC remain mandatory.
+See [WEB ONLINE-ONLY architecture](WEB_ONLINE_ONLY_ARCHITECTURE.md) and the
+current [checkpoint](../WORTA_CHECKPOINT.md).

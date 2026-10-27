@@ -1,13 +1,33 @@
-# WORTA 6.0 MVP — desktop + Web + encrypted cloud sync
+# WORTA 6.0 MVP — Desktop offline-first + Web online-only E2EE cloud
 
-**Current owner goal (MVP6.0.FASTTRACK.01):** full functional parity of the
-existing Desktop WORTA on Web, with durable offline E2EE data and bidirectional
-Windows/macOS/Web cloud synchronization for every supported user data type.
-Projects, stages, project/stage texts, Notes, Progress and Game Mode are all
-mandatory. The current evidence matrix and shortest safe implementation path
-are in [MVP6.0 fast-track roadmap](web/MVP6_0_FASTTRACK_ROADMAP.md). Earlier
-Notes-only MVP wording below describes a restricted sync milestone, not the
-completion criterion for the owner's full product MVP.
+## Owner decision: WEB ONLINE-ONLY (2026-10-27)
+
+This policy supersedes every earlier future requirement in this document for
+full offline Web parity, browser-persistent copies of all user content, offline
+queues, reconnect retries, or browser-only manuscript recovery. Those passages
+remain historical planning/evidence and are not current Web completion criteria.
+Desktop remains offline-first on SQLite with optional cloud sync. Web requires
+server connectivity; the server is authoritative for persistent data and stores
+opaque ciphertext. E2EE remains in the clients, and Desktop/Web must share
+accepted cloud formats. LOCAL-FIRST remains the mandatory development and test
+policy; it does not prescribe offline-first runtime behavior for Web.
+
+The partially started MVP6.0.M1.03 was explicitly cancelled by the owner and is
+**CANCELLED / OBSOLETE BY OWNER DECISION**. Its partial v13/local Map changes were
+discarded before commit. IndexedDB v12 and its existing local test workspace
+remain intact for legacy testing and possible existing data; they are not
+automatically imported, promoted to cloud, or used as the online catalog.
+See [WEB ONLINE-ONLY architecture](web/WEB_ONLINE_ONLY_ARCHITECTURE.md).
+
+**Current path:** WEB.ONLINE.01 server catalog; .02 accepted E2EE server read;
+.03 accepted encrypted document writer; .04 Notes/Maps/Stages; .05
+Progress/Game/Settings; .06 Desktop↔Web compatibility and recovery acceptance.
+Every step remains behind C21/C22/C23/PF6.0/RC gates.
+
+The current evidence matrix and implementation path are in
+[MVP6.0 fast-track roadmap](web/MVP6_0_FASTTRACK_ROADMAP.md). Earlier Notes-only
+MVP wording below describes a restricted sync milestone, not the completion
+criterion for the product MVP.
 
 **MVP6.0.M1.02 local Documents (2026-10-27).** The owner independently
 accepted run `40470606994` at `508a1a98a3da8686e0b4168ba6d6d5b4dfd931a5`
@@ -22,8 +42,10 @@ sync is absent, and ordinary Web document routes still use the legacy API.
 Legal texts still require owner approval. Official Web progress stays
 **89,36%**; `ready=false`, `declarationAllowed=false`,
 `writerAuthorized=false`, Registration CLOSED, PUBLIC RELEASE BLOCKED and
-C21/C22/C23/PF6.0/RC remain mandatory. The next M1 slice is remaining
-local Notes/maps and other required offline data.
+C21/C22/C23/PF6.0/RC remain mandatory. The later owner decision records run
+`40541798752` on `6011d0d04cb1e7b75372c778de4e5cc2e615e931` as independently
+accepted (6/6). M1.03's proposed remaining offline Notes/maps work is
+**CANCELLED / OBSOLETE BY OWNER DECISION**; proceed through WEB.ONLINE.01–06.
 
 ## LEGAL.ACCEPTANCE.01 — versioned private-beta acceptance
 
@@ -138,48 +160,55 @@ and MVP6.0.05 (`40206456558`, 6/6 SUCCESS).
 The owner reports MVP6.0.06 Cloud `40212021756`, 6/6 SUCCESS.
 MVP6.0.04 did not query GitHub Actions.
 
-## Historical Notes-only restricted milestone (not the full MVP)
+## Historical Notes-only restricted milestone (not the full MVP; Web offline wording superseded)
 
 One existing authorized account can sign in on a Mac desktop client and in a
 browser, unlock the same account encryption key with the cloud password, enable
 cloud sync for two isolated test projects, and write Notes on either client.
 After reconnect/restart, each client shows the other client’s accepted edit.
 The server stores authenticated opaque ciphertext; it never receives manuscript
-plaintext or encryption keys. Local saves remain durable while offline. A conflict
+plaintext or encryption keys. This paragraph's earlier Web offline-save goal is
+SUPERSEDED BY WEB ONLINE-ONLY DECISION; Desktop retains offline saves. A conflict
 retains both versions or stops safely with a clear recovery action.
 This is **restricted MVP staging**, not public release. Support only accepted
 Note formats/histories; unsupported legacy, mixed-family, dependency or conflict
 history stops with data preserved and a diagnostic. Reader readiness still
 requires every registered device to truthfully satisfy the frozen Note predicate.
 
-## Current state: components vs user flow
+## Current state: server-authoritative Web user flow
 
-| Area | Existing tested component | Connected working user flow |
-| --- | --- | --- |
-| Desktop Notes | Native SQLite Notes and durable encrypted sync capture/seal/upload/pull/apply/ACK owners; bounded restart/conflict evidence | Desktop cloud session is Tauri-only; no accepted real backend + Web + desktop writing round trip |
-| Browser writing | Separate developer-only encrypted workspace in IndexedDB v12; project and Stage CRUD/order, local Notes and AMK-encrypted project/stage manuscripts through Tiptap after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and documents are not synced |
-| Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock supplies a guarded scope to the MVP6.0.12 local encrypted editor | No production Web bootstrap or browser cloud sync; lock/logout invalidates retained repository handles |
-| Private account access | Administrator invitations plus LEGAL.ACCEPTANCE.01 exact-version beta warning, atomic activation/evidence and later server-side consent gate have local PostgreSQL/browser evidence | Final WORTA agreement/privacy/possible personal-data texts still need owner/legal approval; no production backend deployment, live invitation delivery or owner-authorized tester onboarding |
-| Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
-| Note readers | Bounded F/H/G/Q/J/K/O owners and ordinary Legacy/Content readers have local evidence; Y is independently accepted and Z2A defines a second-project atomic replay contract | No implemented B atomic replay or full v10 production dispatch/replay/recovery path; readiness is deliberately negative |
-| Project isolation | Per-account/project ownership and bootstrap contracts, encrypted envelopes, isolation tests | Two-project end-to-end desktop↔Web isolation has not been accepted against a real deployment |
-| Recovery and conflicts | Durable outbox/inbox, atomic apply, replay, conflict preservation and backup/restore code/tests exist in bounded scopes | Full offline/retry/restart/conflict/backup-restore user workflow is not accepted across real clients and backend |
+| Area | User action implemented | Server path | Server storage | E2EE verified in Web flow | Desktop compatibility | Current gate |
+| --- | --- | --- | --- | --- | --- | --- |
+| Cloud project catalog | ONLINE.01 bounded authenticated list with empty/error/retry | `GET /api/v1/cloud/projects` | Server-owned ID/count/limit response; not persisted in IndexedDB | N/A: metadata only | IDs are not names or content | Local fixture flow only; backend regression is required |
+| Projects and metadata | Catalog only; project content not read | Existing opaque owners not composed into product flow | No new user content written by ONLINE.01 | Not yet verified | Candidate shared codecs exist | ONLINE.02 + C21 reader/security gates |
+| Documents, Notes, Maps, Stages | UI/editors and legacy local workspace exist, not target cloud flow | No E2EE writer connected | No new server content writes | Not verified as Web server flow | Existing desktop formats/codecs, cross-client flow unaccepted | ONLINE.03/.04 + writer gates |
+| Progress and Game Mode | Views exist, not online-authoritative | Legacy plaintext paths cannot be used for E2EE data | Not verified | Not verified | Desktop code exists | ONLINE.05 |
+| Account/legal access | Bounded login, legal gate, key setup | Existing authenticated account/legal APIs | Server owns accounts and acceptance evidence | Key remains client-side | Not applicable | Keep legal approval and closed registration |
+| Recovery and conflicts | Bounded component tests only | Requires accepted server read/write orchestration | PostgreSQL/opaque event owners exist | Paired Web/Desktop E2EE flow not accepted | Not accepted end-to-end | ONLINE.06 + C21/C22/C23/PF6.0/RC |
 Existing tests prove bounded components, not a connected product. `Run Web.sh`
 uses a local plaintext API and synthetic profile; it does not prove encrypted
 cloud sync or justify describing Web persistence as cloud synchronization.
 
-## Current critical path
+## Historical C21 restricted-sync plan — SUPERSEDED as Web product roadmap
+
+The C21 proof inventories and safety gaps below remain relevant gates, but the
+earlier product sequencing around durable offline Web Notes/repositories and
+offline retry is superseded. Current Web product work follows
+`docs/web/MVP6_0_FASTTRACK_ROADMAP.md` and WEB.ONLINE.01–06. No frozen C21 gate is
+removed or weakened.
+
+## Historical critical path (C21/security prerequisites remain)
 
 | User goal | Already works | Missing | Exact blocker | Next action |
 | --- | --- | --- | --- | --- |
 | Desktop local writing | Existing Tauri editor and SQLite | MVP smoke evidence on selected build | No MVP-specific baseline evidence in current records | Record exact build/profile and local-save restart result |
-| Browser local encrypted project/Stage/Note/document storage | M1.02 adds `localDocuments` in v12 and Tiptap project/stage editing; ciphertext survives persistent-profile restart and lock/logout revokes access | Compatibility-data import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Complete remaining local Notes/maps and required offline data, then C21 truthful reader/writer gate before sync |
+| Legacy browser local encrypted workspace | M1.02 adds `localDocuments` in v12; existing ciphertext/data preserved for the developer-only path | Not the target online user flow; no automatic local-to-server import | Local persistence remains isolated and is not presented as server save | Keep as legacy/dev-only; separately implement ONLINE.02+ behind C21 gates |
 | Account login and encryption | Backend auth, desktop key owners and MVP6.0.02 development Web login/unlock | Production Web bootstrap and sync composition | `cloudSession` remains Tauri-only; test Web card runs behind the development boundary | Keep account session isolated; connect durable Note path only after reader acceptance |
 | Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim, versioned beta acceptance and admin status/revocation | Owner-approved final agreement/privacy/consent documents, deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed and final legal texts remain draft; invite link cannot be issued to real testers yet | Obtain owner/legal approval for applicable documents, then review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
 | Browser cloud upload and inbound apply | Encrypted APIs and bounded browser reader/apply owners | Production routing, complete reader lifecycle | Note gate requires all six fields; production dispatch/replay and histories incomplete | Implement the next accepted C21.2.08 reader slice; keep declaration off |
 | Desktop↔Web bidirectional Notes | Desktop production router and browser v10 slices; browser local encrypted persistence now has an internal account/key-session binding | Connected durable writer/reader cycle in both clients | C21 truthful six-field reader gate, production dispatch/replay/recovery, browser user-flow wiring and C22/C23 acceptance remain open | Complete the next accepted C21 reader slice with declaration/writer/ACK disabled; later prove paired-client round trips |
 | Project isolation | Server ownership checks and local owner tests | Real account with two end-to-end projects | No accepted deployed E2E evidence | Include two project IDs in restricted staging acceptance |
-| Restart and retry | Durable local stores, idempotent receipts and restart tests | Cross-client/backend interruption proof | No production-shaped end-to-end run | Inject lost reply/offline/reopen and verify exact replay |
+| Restart and recovery | Bounded local stores and protocol restart tests exist | Production-shaped server recovery and cross-client proof are incomplete | No production-shaped end-to-end run | ONLINE.06: verify server recovery and exact protocol replay; browser-only offline persistence is not a Web goal |
 | Minimum conflict safety | Keep-both and atomic conflict owners in bounded tests | User-visible Web/desktop conflict recovery round trip | Production composition and real client evidence absent | Preserve both versions or stop; never overwrite silently |
 | Note reader gate | Server predicate and negative-only readiness | Truthful full cohort declaration | Legacy v3/F2 join, complete route/replay/recovery and lifecycle evidence remain incomplete | Resolve the historical reader-gate dependency; no capability bypass |
 | VPS backend and PostgreSQL | MVP6.0.08 created an empty isolated staging DB, peer-auth role, private paths and inactive unit; PostgreSQL 16/Caddy remain loopback-only | Migration role/grants, backend install, native loaded RAM gate and accepted MVP6.0.07 CI | C21/C22/C23 and real service/restore evidence remain; no backend installed | After independent CI acceptance, review C21/C22 installation boundary and separately authorize backend/migrations; C23 before testers |
@@ -230,11 +259,10 @@ is not deferrable: restricted sync stays blocked until the predicate is met.
    lifecycle cases; retain full inventory checks. Each slice needs focused native
    and browser evidence plus the existing mandatory CI gate. Unsupported cases
    fail closed; the six-field account-wide declaration remains unchanged.
-4. **Compose the durable browser Note path.** Extend the bounded Web session
-   with IndexedDB-backed repositories, then wire explicit project enable,
-   encrypted upload and accepted inbound apply. Show locked, offline, blocked,
-   conflict and retry states. Do not use localStorage or HTTP plaintext APIs as
-   sync success.
+4. **Compose the server-authoritative browser Note path (historical order).**
+   The future Web flow uses the accepted encrypted cloud owners and reports
+   server confirmation only; it must not depend on offline IndexedDB persistence
+   or use plaintext APIs as sync success. See ONLINE.04.
 5. **Prepare isolated staging and run paired-client acceptance.** MVP6.0.08
    prepared the empty staging DB/role, private paths and inactive unit. Only
    after MVP6.0.07 independent CI acceptance and C21/C22 authorization:
@@ -828,7 +856,7 @@ cloud synchronization is active. Web remains **89.36%** with `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
 PUBLIC RELEASE BLOCKED and all C21/C22/C23/PF6.0/RC gates preserved.
 
-## Acceptance checklist — restricted MVP
+## Acceptance checklist — restricted MVP (historical Web offline item superseded)
 
 - [ ] Existing authorized account signs in on desktop and browser; both unlock
       the same E2EE account key without sending plaintext or keys to the server.
@@ -837,8 +865,9 @@ PUBLIC RELEASE BLOCKED and all C21/C22/C23/PF6.0/RC gates preserved.
 - [ ] Two test projects are enabled independently; data never crosses projects.
 - [ ] Desktop Note save seals locally, uploads ciphertext, and Web applies the
       authenticated Note; Web edit then appears on desktop.
-- [ ] Offline save survives close/restart; reconnect retries idempotently and a
-      lost reply does not duplicate writes or advance an unproven cursor.
+- [ ] Online save is confirmed by the server only after accepted protocol checks;
+      network loss shows an error and does not claim persistence or queue an
+      autonomous Web write for later.
 - [ ] Conflict keeps both versions or stops before mutation with a usable
       recovery path; corrupt/unknown/unsupported history remains intact.
 - [ ] Server/PostgreSQL inspection confirms only opaque encrypted content and no

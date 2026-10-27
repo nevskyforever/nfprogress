@@ -11,9 +11,11 @@ const calls = []
 let context
 let records
 let failCrypto = false
+let failCloudCatalog = false
+let requireLegalForCard = false
 
 async function launch() {
-  context = await chromium.launchPersistentContext(directory, { headless: true })
+  context = await chromium.launchPersistentContext(directory, { headless: true, locale: 'ru-RU' })
   await context.route(url => url.pathname.startsWith('/api/'), async route => {
     const request = route.request(), path = new URL(request.url()).pathname
     calls.push(path)
@@ -28,11 +30,21 @@ async function launch() {
     if (path === '/api/v1/account/me' && request.method() === 'GET') {
       return send({ id: name === 'one' ? '11111111-1111-4111-8111-111111111111' : '22222222-2222-4222-8222-222222222222', username: name, email: `${name}@example.test`, email_verified: true, role: 'user', status: 'active', created_at: '2026-01-01T00:00:00Z' })
     }
-    if (path === '/api/v1/legal/documents/status' && request.method() === 'GET') return send({ documents: [], missing_required_document_ids: [] })
+    if (path === '/api/v1/legal/documents/status' && request.method() === 'GET') {
+      if (!requireLegalForCard || name === 'two') return send({ documents: [], missing_required_document_ids: [] })
+      const legal = { document_id: 'wotra.beta_terms', document_type: 'beta_terms', revision: 'test-warning-1', content_checksum: 'a'.repeat(64), language: 'ru', title: 'Закрытое тестирование WORTA', content: 'Возможны ошибки и потеря данных.', mandatory: true, requires_explicit_acceptance: true, accepted: false }
+      return send({ documents: [legal], missing_required_document_ids: ['wotra.beta_terms'] })
+    }
     if (path === '/api/v1/legal/documents/accept' && request.method() === 'POST') return send({ documents: [], missing_required_document_ids: [] })
     if (path === '/api/v1/account/crypto' && request.method() === 'GET') {
       if (failCrypto) return route.abort('failed')
       return send(records[name])
+    }
+    if (path === '/api/v1/cloud/projects' && request.method() === 'GET') {
+      if (failCloudCatalog) return route.abort('failed')
+      return send(name === 'one'
+        ? { cloud_project_ids: ['server-one-project'], cloud_project_count: 1, max_cloud_projects: 8 }
+        : { cloud_project_ids: [], cloud_project_count: 0, max_cloud_projects: 8 })
     }
     if (path === '/api/v1/auth/logout' && request.method() === 'POST') return route.fulfill({ status: 204 })
     return send({ detail: { code: 'unexpected_api' } }, 404)
@@ -161,6 +173,41 @@ try {
   assert.notEqual(other.local_account_id, first.local_account_id)
   assert.notEqual(other.device_id, first.device_id)
 
+  requireLegalForCard = true
+  await page.evaluate(() => harness.mountAccountCard())
+  const card = page.locator('[data-testid="browser-cloud-account"]')
+  await card.locator('input[autocomplete="username"]').fill('one')
+  await card.locator('input[autocomplete="current-password"]').fill('account-password')
+  await card.getByRole('button', { name: 'Войти в облачный аккаунт' }).click()
+  await card.getByText('Требуется принять действующие условия').waitFor()
+  await card.getByText('Закрытое тестирование WORTA').waitFor()
+  await card.locator('input[type="checkbox"]').check()
+  await card.getByRole('button', { name: 'Принять действующие условия' }).click()
+  await card.getByRole('button', { name: 'Облачные проекты WORTA' }).waitFor()
+  await card.getByRole('button', { name: 'Облачные проекты WORTA' }).click()
+  await card.getByText('server-one-project').waitFor()
+  assert.equal(await card.getByText('Проектов на сервере: 1 из 8').count(), 1)
+  assert.equal(await card.getByText('server-one-project').count(), 1)
+  assert.equal(await card.getByText('persist-project').count(), 0)
+  assert.equal(await card.getByText('Чтение содержимого будет подключено отдельным этапом.').count(), 1)
+  failCloudCatalog = true
+  await card.getByRole('button', { name: 'Обновить список' }).click()
+  await card.getByText('Не удалось получить список с сервера. Проверьте подключение и повторите попытку.').waitFor()
+  failCloudCatalog = false
+  await card.getByRole('button', { name: 'Обновить список' }).click()
+  await card.getByRole('button', { name: 'Выйти из аккаунта' }).click()
+  await card.getByRole('button', { name: 'Войти в облачный аккаунт' }).waitFor()
+  assert.equal(await card.getByText('server-one-project').count(), 0)
+  await card.locator('input[autocomplete="username"]').fill('two')
+  await card.locator('input[autocomplete="current-password"]').fill('account-password')
+  await card.getByRole('button', { name: 'Войти в облачный аккаунт' }).click()
+  await card.getByRole('button', { name: 'Облачные проекты WORTA' }).click()
+  await card.getByText('На сервере пока нет облачных проектов.').waitFor()
+  assert.equal(await card.getByText('server-one-project').count(), 0)
+  await card.getByRole('button', { name: 'Выйти из аккаунта' }).click()
+  await page.evaluate(() => harness.unmountAccountCard())
+  requireLegalForCard = false
+
   failCrypto = true
   await page.evaluate(async () => {
     window.session = harness.realSession()
@@ -211,14 +258,14 @@ try {
     finally { if (original) Object.defineProperty(navigator, 'locks', original); else delete navigator.locks }
   }), 'unavailable')
   assert.ok(calls.includes('/api/v1/auth/login') && calls.includes('/api/v1/legal/documents/status') && calls.includes('/api/v1/account/me') && calls.includes('/api/v1/account/crypto'))
-  assert.ok(calls.every(path => ['/api/v1/auth/login', '/api/v1/legal/documents/status', '/api/v1/legal/documents/accept', '/api/v1/account/me', '/api/v1/account/crypto', '/api/v1/auth/logout'].includes(path)))
+  assert.ok(calls.every(path => ['/api/v1/auth/login', '/api/v1/legal/documents/status', '/api/v1/legal/documents/accept', '/api/v1/account/me', '/api/v1/account/crypto', '/api/v1/auth/logout', '/api/v1/cloud/projects'].includes(path)))
   const localRows = await page.evaluate(async () => ({ projects: await harness.rows('localProjects'), notes: await harness.rows('localNotes') }))
   assert.equal(localRows.projects.length, 3)
   assert.equal(localRows.notes.length, 1)
   const localText = JSON.stringify(localRows)
   for (const plaintext of ['PRIVATE_PROJECT_SENTINEL', 'PRIVATE_TITLE_SENTINEL', 'PRIVATE_BODY_SENTINEL', 'ISOLATED_PROJECT_SENTINEL', 'SECOND_ACCOUNT_PROJECT']) assert.equal(localText.includes(plaintext), false)
   assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0)
-  console.log('Browser account acceptance PASS: encrypted local Note persistence across browser restart, account/project isolation, lock revocation, two-tab writer contention, wrong password and corruption refusal; no Note writer/ACK/declaration calls')
+  console.log('Browser account acceptance PASS: encrypted legacy local Note checks; authenticated server project catalog, offline error/retry, logout/account isolation, local-catalog separation; no plaintext endpoint, Note writer/ACK/declaration calls')
 } finally {
   await context?.close()
   await rm(directory, { recursive: true, force: true })

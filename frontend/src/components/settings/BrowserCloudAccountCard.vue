@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ApiError } from '@/api/client'
+import type { CloudProjectsResponse } from '@/api/cloudProjects'
 import { confirmationFor } from '@/api/legalDocuments'
 import { KeyNotProvisionedError } from '@/auth/keyContext'
 import { StaleAuthContextError } from '@/auth/userAuth'
@@ -11,14 +12,14 @@ import { useLocaleStore } from '@/stores/locale'
 import type { SupportedLanguage } from '@/types/api'
 import BrowserEncryptedWorkspace from './BrowserEncryptedWorkspace.vue'
 
-type Copy = { unlocked: string; badPassword: string; writerBusy: string; storageUnavailable: string; legalRequired: string; acceptRevision: string; acceptCurrent: string; stale: string }
+type Copy = { unlocked: string; badPassword: string; writerBusy: string; storageUnavailable: string; legalRequired: string; acceptRevision: string; acceptCurrent: string; stale: string; onlineOnly: string; cloudProjects: string; refreshProjects: string; projectCount: string; noCloudProjects: string; projectIdsOnly: string; localWorkspace: string; connectionFailed: string }
 const copy: Record<SupportedLanguage, Copy> = {
-  ru: { unlocked: 'Ключ шифрования разблокирован.', badPassword: 'Не удалось разблокировать ключ. Проверьте пароль шифрования.', writerBusy: 'Другая вкладка использует защищённое хранилище. Закройте её и повторите попытку.', storageUnavailable: 'Защищённое хранилище браузера недоступно.', legalRequired: 'Требуется принять действующие условия', acceptRevision: 'Я ознакомился(-ась) и принимаю эту редакцию', acceptCurrent: 'Принять действующие условия', stale: 'Редакция условий изменилась. Ознакомьтесь с новым текстом и подтвердите его заново.' },
-  en: { unlocked: 'Encryption key unlocked.', badPassword: 'Could not unlock the key. Check the encryption password.', writerBusy: 'Another tab is using secure storage. Close it and try again.', storageUnavailable: 'Secure browser storage is unavailable.', legalRequired: 'Current terms must be accepted', acceptRevision: 'I have read and accept this version', acceptCurrent: 'Accept current terms', stale: 'The terms changed. Review the new text and confirm it again.' },
-  es: { unlocked: 'Clave de cifrado desbloqueada.', badPassword: 'No se pudo desbloquear la clave. Comprueba la contraseña de cifrado.', writerBusy: 'Otra pestaña está usando el almacenamiento seguro. Ciérrala e inténtalo de nuevo.', storageUnavailable: 'El almacenamiento seguro del navegador no está disponible.', legalRequired: 'Debes aceptar las condiciones vigentes', acceptRevision: 'He leído y acepto esta versión', acceptCurrent: 'Aceptar las condiciones vigentes', stale: 'Las condiciones han cambiado. Revisa el texto nuevo y confírmalo otra vez.' },
-  de: { unlocked: 'Verschlüsselungsschlüssel entsperrt.', badPassword: 'Der Schlüssel konnte nicht entsperrt werden. Prüfe das Verschlüsselungspasswort.', writerBusy: 'Ein anderer Tab verwendet den sicheren Speicher. Schließe ihn und versuche es erneut.', storageUnavailable: 'Sicherer Browserspeicher ist nicht verfügbar.', legalRequired: 'Die aktuellen Bedingungen müssen akzeptiert werden', acceptRevision: 'Ich habe diese Fassung gelesen und akzeptiere sie', acceptCurrent: 'Aktuelle Bedingungen akzeptieren', stale: 'Die Bedingungen wurden geändert. Lies den neuen Text und bestätige ihn erneut.' },
-  fr: { unlocked: 'Clé de chiffrement déverrouillée.', badPassword: 'Impossible de déverrouiller la clé. Vérifiez le mot de passe de chiffrement.', writerBusy: 'Un autre onglet utilise le stockage sécurisé. Fermez-le et réessayez.', storageUnavailable: 'Le stockage sécurisé du navigateur est indisponible.', legalRequired: 'Les conditions en vigueur doivent être acceptées', acceptRevision: 'J’ai lu et j’accepte cette version', acceptCurrent: 'Accepter les conditions en vigueur', stale: 'Les conditions ont changé. Consultez le nouveau texte et confirmez-le à nouveau.' },
-  pt_BR: { unlocked: 'Chave de criptografia desbloqueada.', badPassword: 'Não foi possível desbloquear a chave. Verifique a senha de criptografia.', writerBusy: 'Outra aba está usando o armazenamento seguro. Feche-a e tente novamente.', storageUnavailable: 'O armazenamento seguro do navegador não está disponível.', legalRequired: 'É necessário aceitar os termos atuais', acceptRevision: 'Li e aceito esta versão', acceptCurrent: 'Aceitar os termos atuais', stale: 'Os termos mudaram. Leia o novo texto e confirme novamente.' },
+  ru: { unlocked: 'Ключ шифрования разблокирован.', badPassword: 'Не удалось разблокировать ключ. Проверьте пароль шифрования.', writerBusy: 'Другая вкладка использует защищённое хранилище. Закройте её и повторите попытку.', storageUnavailable: 'Защищённое хранилище браузера недоступно.', legalRequired: 'Требуется принять действующие условия', acceptRevision: 'Я ознакомился(-ась) и принимаю эту редакцию', acceptCurrent: 'Принять действующие условия', stale: 'Редакция условий изменилась. Ознакомьтесь с новым текстом и подтвердите его заново.', onlineOnly: 'Web-версия требует подключения к серверу. Сервер хранит постоянные пользовательские данные; E2EE выполняется в браузере.', cloudProjects: 'Облачные проекты WORTA', refreshProjects: 'Обновить список', projectCount: 'Проектов на сервере: {count} из {limit}', noCloudProjects: 'На сервере пока нет облачных проектов.', projectIdsOnly: 'Сервер вернул только идентификаторы. Чтение содержимого будет подключено отдельным этапом.', localWorkspace: 'Открыть локальные тестовые проекты (не синхронизированы)', connectionFailed: 'Не удалось получить список с сервера. Проверьте подключение и повторите попытку.' },
+  en: { unlocked: 'Encryption key unlocked.', badPassword: 'Could not unlock the key. Check the encryption password.', writerBusy: 'Another tab is using secure storage. Close it and try again.', storageUnavailable: 'Secure browser storage is unavailable.', legalRequired: 'Current terms must be accepted', acceptRevision: 'I have read and accept this version', acceptCurrent: 'Accept current terms', stale: 'The terms changed. Review the new text and confirm it again.', onlineOnly: 'Web requires a server connection. The server stores persistent user data; E2EE runs in this browser.', cloudProjects: 'WORTA cloud projects', refreshProjects: 'Refresh list', projectCount: 'Server projects: {count} of {limit}', noCloudProjects: 'There are no cloud projects on the server yet.', projectIdsOnly: 'The server returns identifiers only. Reading project content will be connected in a later stage.', localWorkspace: 'Open local test projects (not synced)', connectionFailed: 'Could not load the server list. Check your connection and try again.' },
+  es: { unlocked: 'Clave de cifrado desbloqueada.', badPassword: 'No se pudo desbloquear la clave. Comprueba la contraseña de cifrado.', writerBusy: 'Otra pestaña está usando el almacenamiento seguro. Ciérrala e inténtalo de nuevo.', storageUnavailable: 'El almacenamiento seguro del navegador no está disponible.', legalRequired: 'Debes aceptar las condiciones vigentes', acceptRevision: 'He leído y acepto esta versión', acceptCurrent: 'Aceptar las condiciones vigentes', stale: 'Las condiciones han cambiado. Revisa el texto nuevo y confírmalo otra vez.', onlineOnly: 'La Web requiere conexión al servidor. El servidor guarda los datos; E2EE se ejecuta en este navegador.', cloudProjects: 'Proyectos en la nube de WORTA', refreshProjects: 'Actualizar lista', projectCount: 'Proyectos en el servidor: {count} de {limit}', noCloudProjects: 'Aún no hay proyectos en la nube.', projectIdsOnly: 'El servidor devuelve solo identificadores. La lectura del contenido llegará en una etapa posterior.', localWorkspace: 'Abrir proyectos locales de prueba (sin sincronizar)', connectionFailed: 'No se pudo cargar la lista del servidor. Comprueba la conexión e inténtalo de nuevo.' },
+  de: { unlocked: 'Verschlüsselungsschlüssel entsperrt.', badPassword: 'Der Schlüssel konnte nicht entsperrt werden. Prüfe das Verschlüsselungspasswort.', writerBusy: 'Ein anderer Tab verwendet den sicheren Speicher. Schließe ihn und versuche es erneut.', storageUnavailable: 'Sicherer Browserspeicher ist nicht verfügbar.', legalRequired: 'Die aktuellen Bedingungen müssen akzeptiert werden', acceptRevision: 'Ich habe diese Fassung gelesen und akzeptiere sie', acceptCurrent: 'Aktuelle Bedingungen akzeptieren', stale: 'Die Bedingungen wurden geändert. Lies den neuen Text und bestätige ihn erneut.', onlineOnly: 'Web benötigt eine Serververbindung. Der Server speichert Nutzerdaten; E2EE läuft im Browser.', cloudProjects: 'WORTA-Cloudprojekte', refreshProjects: 'Liste aktualisieren', projectCount: 'Serverprojekte: {count} von {limit}', noCloudProjects: 'Es gibt noch keine Cloudprojekte auf dem Server.', projectIdsOnly: 'Der Server liefert nur Kennungen. Das Lesen der Inhalte folgt in einer späteren Phase.', localWorkspace: 'Lokale Testprojekte öffnen (nicht synchronisiert)', connectionFailed: 'Die Serverliste konnte nicht geladen werden. Verbindung prüfen und erneut versuchen.' },
+  fr: { unlocked: 'Clé de chiffrement déverrouillée.', badPassword: 'Impossible de déverrouiller la clé. Vérifiez le mot de passe de chiffrement.', writerBusy: 'Un autre onglet utilise le stockage sécurisé. Fermez-le et réessayez.', storageUnavailable: 'Le stockage sécurisé du navigateur est indisponible.', legalRequired: 'Les conditions en vigueur doivent être acceptées', acceptRevision: 'J’ai lu et j’accepte cette version', acceptCurrent: 'Accepter les conditions en vigueur', stale: 'Les conditions ont changé. Consultez le nouveau texte et confirmez-le à nouveau.', onlineOnly: 'Le Web nécessite une connexion au serveur. Le serveur conserve les données ; E2EE est exécuté dans ce navigateur.', cloudProjects: 'Projets cloud WORTA', refreshProjects: 'Actualiser la liste', projectCount: 'Projets serveur : {count} sur {limit}', noCloudProjects: 'Aucun projet cloud sur le serveur pour le moment.', projectIdsOnly: 'Le serveur renvoie uniquement des identifiants. La lecture du contenu sera ajoutée dans une étape ultérieure.', localWorkspace: 'Ouvrir les projets de test locaux (non synchronisés)', connectionFailed: 'Impossible de charger la liste du serveur. Vérifiez la connexion et réessayez.' },
+  pt_BR: { unlocked: 'Chave de criptografia desbloqueada.', badPassword: 'Não foi possível desbloquear a chave. Verifique a senha de criptografia.', writerBusy: 'Outra aba está usando o armazenamento seguro. Feche-a e tente novamente.', storageUnavailable: 'O armazenamento seguro do navegador não está disponível.', legalRequired: 'É necessário aceitar os termos atuais', acceptRevision: 'Li e aceito esta versão', acceptCurrent: 'Aceitar os termos atuais', stale: 'Os termos mudaram. Leia o novo texto e confirme novamente.', onlineOnly: 'A Web exige conexão com o servidor. O servidor mantém os dados; E2EE é executado neste navegador.', cloudProjects: 'Projetos na nuvem WORTA', refreshProjects: 'Atualizar lista', projectCount: 'Projetos no servidor: {count} de {limit}', noCloudProjects: 'Ainda não há projetos na nuvem no servidor.', projectIdsOnly: 'O servidor retorna somente identificadores. A leitura do conteúdo será conectada em uma etapa futura.', localWorkspace: 'Abrir projetos locais de teste (não sincronizados)', connectionFailed: 'Não foi possível carregar a lista do servidor. Verifique a conexão e tente novamente.' },
 }
 
 const locale = useLocaleStore()
@@ -35,10 +36,59 @@ const error = ref<string | null>(null)
 const workspaceOpen = ref(false)
 const workspace = ref<{ canLeave: () => boolean } | null>(null)
 const legalConfirmed = ref<Record<string, boolean>>({})
+const cloudProjects = ref<CloudProjectsResponse | null>(null)
+const cloudCatalogOpen = ref(false)
+const cloudCatalogBusy = ref(false)
+const cloudCatalogError = ref<string | null>(null)
+let cloudCatalogGeneration = 0
+let cloudCatalogController: AbortController | null = null
 
 function refresh(): void {
   status.value = session.status
   connectedUsername.value = session.username
+}
+
+function clearCloudCatalog(): void {
+  cloudCatalogGeneration += 1
+  cloudCatalogController?.abort()
+  cloudCatalogController = null
+  cloudProjects.value = null
+  cloudCatalogError.value = null
+  cloudCatalogBusy.value = false
+  cloudCatalogOpen.value = false
+}
+
+async function loadCloudCatalog(): Promise<void> {
+  cloudCatalogController?.abort()
+  const controller = new AbortController(), generation = ++cloudCatalogGeneration
+  cloudCatalogController = controller
+  cloudCatalogBusy.value = true
+  cloudCatalogError.value = null
+  try {
+    const result = await session.listCloudProjects(controller.signal)
+    if (generation !== cloudCatalogGeneration || !['authenticated', 'unlocked'].includes(session.status)) return
+    cloudProjects.value = result
+  } catch (cause) {
+    if (generation !== cloudCatalogGeneration || controller.signal.aborted) return
+    if (cause instanceof StaleAuthContextError) {
+      refresh()
+      clearCloudCatalog()
+      return
+    }
+    if (cause instanceof ApiError && cause.status === 401) {
+      refresh()
+      clearCloudCatalog()
+      return
+    }
+    cloudCatalogError.value = words.value.connectionFailed
+  } finally {
+    if (generation === cloudCatalogGeneration) cloudCatalogBusy.value = false
+  }
+}
+
+function toggleCloudCatalog(): void {
+  cloudCatalogOpen.value = !cloudCatalogOpen.value
+  if (cloudCatalogOpen.value) void loadCloudCatalog()
 }
 
 function safeError(value: unknown, action: 'login' | 'unlock'): string {
@@ -79,6 +129,7 @@ function signIn(): Promise<void> {
   if (!input || !input.value || !username.value) return Promise.resolve()
   const password = input.value
   input.value = ''
+  clearCloudCatalog()
   legalConfirmed.value = {}
   return act('login', () => session.login(username.value, password, locale.language))
 }
@@ -95,24 +146,27 @@ function unlock(): Promise<void> {
   return act('unlock', () => session.unlock(password))
 }
 function lock(): Promise<void> { return act('lock', () => session.lock()) }
-function logout(): Promise<void> { return act('logout', () => session.logout()) }
+function logout(): Promise<void> { clearCloudCatalog(); return act('logout', () => session.logout()) }
 function toggleWorkspace(): void {
   if (workspaceOpen.value && !workspace.value?.canLeave()) return
   workspaceOpen.value = !workspaceOpen.value
 }
 
 onBeforeUnmount(() => {
+  clearCloudCatalog()
   if (accountPasswordInput.value) accountPasswordInput.value.value = ''
   if (encryptionPasswordInput.value) encryptionPasswordInput.value.value = ''
   void session.dispose().catch(() => undefined)
 })
+
+watch(status, next => { if (next === 'logged_out' || next === 'legal_required') clearCloudCatalog() })
 </script>
 
 <template>
   <section class="settings-card" aria-labelledby="browser-cloud-account-title" data-testid="browser-cloud-account">
     <div class="settings-card__heading">
       <h2 id="browser-cloud-account-title">{{ t('Режим разработчика') }} · {{ t('Зашифрованное рабочее пространство') }}</h2>
-      <p>{{ t('Веб-приложение') }} · {{ t('Синхронизация отключена') }}</p>
+      <p>{{ t('Веб-приложение') }} · {{ words.cloudProjects }}</p>
     </div>
     <p :data-status="status" aria-live="polite">
       <template v-if="status === 'logged_out'">{{ t('Войдите в аккаунт') }}</template>
@@ -143,13 +197,33 @@ onBeforeUnmount(() => {
       <button class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="logout">{{ t('Выйти из аккаунта') }}</button>
     </div>
     <div v-else class="browser-cloud-account__inputs">
+      <p class="browser-cloud-account__online-policy">{{ words.onlineOnly }}</p>
+      <button class="nf-button nf-button--secondary" type="button" :disabled="busy || cloudCatalogBusy" @click="toggleCloudCatalog">
+        {{ cloudCatalogOpen ? t('Скрыть') : words.cloudProjects }}
+      </button>
+      <section v-if="cloudCatalogOpen" class="browser-cloud-account__catalog" :aria-label="words.cloudProjects" data-testid="server-cloud-project-catalog">
+        <div class="browser-cloud-account__catalog-heading">
+          <h3>{{ words.cloudProjects }}</h3>
+          <button class="nf-button nf-button--secondary" type="button" :disabled="cloudCatalogBusy" @click="loadCloudCatalog">{{ words.refreshProjects }}</button>
+        </div>
+        <p v-if="cloudCatalogBusy" role="status">{{ t('Загружаем с сервера…') }}</p>
+        <p v-if="cloudCatalogError" role="alert">{{ cloudCatalogError }}</p>
+        <template v-if="cloudProjects">
+          <p>{{ words.projectCount.replace('{count}', String(cloudProjects.cloud_project_count)).replace('{limit}', String(cloudProjects.max_cloud_projects)) }}</p>
+          <p v-if="cloudProjects.cloud_project_ids.length === 0">{{ words.noCloudProjects }}</p>
+          <ul v-else>
+            <li v-for="id in cloudProjects.cloud_project_ids" :key="id"><code>{{ id }}</code></li>
+          </ul>
+          <p>{{ words.projectIdsOnly }}</p>
+        </template>
+      </section>
       <form v-if="status !== 'unlocked'" class="browser-cloud-account__inputs" @submit.prevent="unlock">
         <label>{{ t('Пароль шифрования') }} <input ref="encryptionPasswordInput" type="password" autocomplete="off" required /></label>
         <button class="nf-button" type="submit" :disabled="busy">{{ t('Разблокировать') }}</button>
       </form>
       <button v-if="status === 'unlocked'" class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="lock">{{ t('Заблокировать ключ') }}</button>
       <button v-if="status === 'unlocked'" class="nf-button" type="button" :disabled="busy" @click="toggleWorkspace">
-        {{ workspaceOpen ? t('Закрыть рабочее пространство') : t('Открыть зашифрованное локальное пространство') }}
+        {{ workspaceOpen ? t('Закрыть рабочее пространство') : words.localWorkspace }}
       </button>
       <button class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="logout">{{ t('Выйти из аккаунта') }}</button>
     </div>
@@ -163,5 +237,9 @@ onBeforeUnmount(() => {
 .browser-cloud-account__legal { display: grid; gap: 1rem; }
 .browser-cloud-account__legal article { padding: 1rem; border: 1px solid var(--nf-color-border); border-radius: .5rem; }
 .browser-cloud-account__legal-text { white-space: pre-line; }
+.browser-cloud-account__online-policy { flex-basis: 100%; }
+.browser-cloud-account__catalog { flex-basis: 100%; display: grid; gap: .5rem; padding: 1rem; border: 1px solid var(--nf-color-border); border-radius: .5rem; }
+.browser-cloud-account__catalog-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.browser-cloud-account__catalog h3, .browser-cloud-account__catalog p { margin: 0; }
 [role="alert"] { color: var(--ion-color-danger); }
 </style>

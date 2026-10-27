@@ -12,7 +12,7 @@ let context
 let records
 
 async function launch() {
-  context = await chromium.launchPersistentContext(directory, { headless: true })
+  context = await chromium.launchPersistentContext(directory, { headless: true, locale: 'ru-RU' })
   await context.route(url => url.pathname.startsWith('/api/'), async route => {
     const request = route.request(), path = new URL(request.url()).pathname
     calls.push(path)
@@ -71,7 +71,7 @@ try {
   assert.match(await secondTab.locator('[role="alert"]').textContent(), /Другая вкладка использует защищённое хранилище|Another tab is using secure storage/)
   await secondTab.close()
 
-  await page.getByRole('button', { name: 'Открыть зашифрованное локальное пространство' }).click()
+  await page.getByRole('button', { name: 'Открыть локальные тестовые проекты (не синхронизированы)' }).click()
   await page.getByTestId('encrypted-local-workspace').waitFor()
   await page.getByLabel('Название локального проекта').fill('Локальный тестовый проект')
   await page.getByRole('button', { name: 'Создать зашифрованный проект' }).click()
@@ -125,7 +125,7 @@ try {
   page = await openPage()
   await page.evaluate(value => { harness.records = value }, records)
   await loginAndUnlock(page)
-  await page.getByRole('button', { name: 'Открыть зашифрованное локальное пространство' }).click()
+  await page.getByRole('button', { name: 'Открыть локальные тестовые проекты (не синхронизированы)' }).click()
   await page.getByRole('button', { name: 'Локальный тестовый проект', exact: true }).click()
   await page.getByRole('heading', { name: 'Локальный тестовый проект', exact: true }).waitFor()
   assert.match(await page.getByTestId('encrypted-stage-list').textContent(), /PRIVATE_STAGE_RENAMED/)
@@ -161,7 +161,7 @@ try {
   page = await openPage()
   await page.evaluate(value => { harness.records = value }, records)
   await loginAndUnlock(page)
-  await page.getByRole('button', { name: 'Открыть зашифрованное локальное пространство' }).click()
+  await page.getByRole('button', { name: 'Открыть локальные тестовые проекты (не синхронизированы)' }).click()
   await page.getByRole('button', { name: 'Локальный тестовый проект', exact: true }).click()
   const recoveredTitle = page.getByRole('heading', { name: /^(PRIVATE_WORKSPACE_TITLE|DROPPED_DURING_SAVE)$/ })
   await recoveredTitle.waitFor()
@@ -185,7 +185,7 @@ try {
   await page.getByLabel('Пароль шифрования').fill('encryption-password')
   await page.getByRole('button', { name: 'Разблокировать' }).click()
   await page.locator('[data-status="unlocked"]').waitFor()
-  await page.getByRole('button', { name: 'Открыть зашифрованное локальное пространство' }).click()
+  await page.getByRole('button', { name: 'Открыть локальные тестовые проекты (не синхронизированы)' }).click()
   await page.locator('form.encrypted-workspace__create').waitFor()
   assert.equal(await page.getByRole('heading', { name: 'PRIVATE_WORKSPACE_TITLE' }).count(), 0)
 
@@ -221,7 +221,7 @@ try {
   await page.getByLabel('Пароль шифрования').fill('encryption-password')
   await page.getByRole('button', { name: 'Разблокировать' }).click()
   await page.locator('[data-status="unlocked"]').waitFor()
-  await page.getByRole('button', { name: 'Открыть зашифрованное локальное пространство' }).click()
+  await page.getByRole('button', { name: 'Открыть локальные тестовые проекты (не синхронизированы)' }).click()
   await page.getByRole('alert').filter({ hasText: 'Зашифрованная заметка повреждена' }).waitFor()
   assert.equal((await page.evaluate(async () => harness.rows('localNotes'))).length, 1)
 

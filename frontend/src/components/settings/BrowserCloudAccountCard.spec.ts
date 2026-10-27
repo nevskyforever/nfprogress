@@ -8,6 +8,8 @@ const fixture = vi.hoisted(() => ({
   status: 'logged_out' as 'logged_out' | 'legal_required' | 'authenticated' | 'unlocked' | 'locked',
   username: null as string | null,
   requireLegal: false,
+  cloudResponse: { cloud_project_ids: ['server-project-1'], cloud_project_count: 1, max_cloud_projects: 8 },
+  cloudFailure: false,
   login: vi.fn(), acceptLegal: vi.fn(), unlock: vi.fn(), lock: vi.fn(), logout: vi.fn(), dispose: vi.fn(),
 }))
 
@@ -21,6 +23,10 @@ vi.mock('@/platform/web/cloudAccountSession', () => ({
       content: 'Возможны ошибки и потеря данных.', mandatory: true,
       requires_explicit_acceptance: true, accepted: false,
     }] : [] }
+    async listCloudProjects() {
+      if (fixture.cloudFailure) throw Error('network_failure')
+      return structuredClone(fixture.cloudResponse)
+    }
     async login(username: string, password: string) {
       fixture.login(username, password)
       fixture.username = username
@@ -47,6 +53,8 @@ beforeEach(() => {
   fixture.status = 'logged_out'
   fixture.username = null
   fixture.requireLegal = false
+  fixture.cloudResponse = { cloud_project_ids: ['server-project-1'], cloud_project_count: 1, max_cloud_projects: 8 }
+  fixture.cloudFailure = false
   for (const name of ['login', 'acceptLegal', 'unlock', 'lock', 'logout', 'dispose'] as const) fixture[name].mockClear()
 })
 
@@ -76,7 +84,7 @@ it('shows the bounded Web account, unlock, lock and logout flow without Note act
   const pinia = createPinia()
   useLocaleStore(pinia).language = 'ru'
   const wrapper = mount(BrowserCloudAccountCard, { global: { plugins: [pinia] } })
-  expect(wrapper.text()).toContain('Синхронизация отключена')
+  expect(wrapper.text()).toContain('Облачные проекты WORTA')
   expect(wrapper.get('[data-status]').attributes('data-status')).toBe('logged_out')
   await wrapper.get('input[autocomplete="username"]').setValue('one')
   await wrapper.get('input[autocomplete="current-password"]').setValue('account-pass')
@@ -84,6 +92,21 @@ it('shows the bounded Web account, unlock, lock and logout flow without Note act
   await flushPromises()
   expect(fixture.login).toHaveBeenCalledWith('one', 'account-pass')
   expect(wrapper.get('[data-status]').attributes('data-status')).toBe('authenticated')
+  await wrapper.get('button').trigger('click')
+  await flushPromises()
+  expect(wrapper.get('[data-testid="server-cloud-project-catalog"]').text()).toContain('server-project-1')
+  expect(wrapper.text()).toContain('Проектов на сервере: 1 из 8')
+  expect(wrapper.text()).toContain('Сервер вернул только идентификаторы')
+  expect(wrapper.text()).not.toContain('PRIVATE_LOCAL_PROJECT')
+  fixture.cloudFailure = true
+  await wrapper.findAll('[data-testid="server-cloud-project-catalog"] button')[0]!.trigger('click')
+  await flushPromises()
+  expect(wrapper.get('[role="alert"]').text()).toContain('Не удалось получить список с сервера')
+  fixture.cloudFailure = false
+  fixture.cloudResponse = { cloud_project_ids: [], cloud_project_count: 0, max_cloud_projects: 8 }
+  await wrapper.findAll('[data-testid="server-cloud-project-catalog"] button')[0]!.trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('На сервере пока нет облачных проектов')
   await wrapper.get('input[autocomplete="off"]').setValue('wrong')
   await wrapper.get('form').trigger('submit')
   await flushPromises()
@@ -95,11 +118,11 @@ it('shows the bounded Web account, unlock, lock and logout flow without Note act
   expect(wrapper.get('[data-status]').attributes('data-status')).toBe('unlocked')
   expect(wrapper.text()).toContain('Ключ шифрования разблокирован')
   expect(wrapper.find('button[data-note-action]').exists()).toBe(false)
-  await wrapper.findAll('button')[0]!.trigger('click')
+  await wrapper.findAll('button').find(button => button.text().includes('Заблокировать ключ'))!.trigger('click')
   await flushPromises()
   expect(fixture.lock).toHaveBeenCalledOnce()
   expect(wrapper.get('[data-status]').attributes('data-status')).toBe('locked')
-  await wrapper.findAll('button')[1]!.trigger('click')
+  await wrapper.findAll('button').find(button => button.text().includes('Выйти из аккаунта'))!.trigger('click')
   await flushPromises()
   expect(fixture.logout).toHaveBeenCalledOnce()
   expect(wrapper.get('[data-status]').attributes('data-status')).toBe('logged_out')

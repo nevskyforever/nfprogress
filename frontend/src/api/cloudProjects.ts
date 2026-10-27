@@ -45,9 +45,9 @@ function authorization(accessToken: string): Headers {
 
 /** Metadata-only C8 API: it receives a project ID in the path and no content. */
 export const cloudProjectsApi = {
-  list(accessToken: string): Promise<CloudProjectsResponse> {
+  list(accessToken: string, signal?: AbortSignal): Promise<CloudProjectsResponse> {
     return apiRequest<CloudProjectsResponse>('/api/v1/cloud/projects', {
-      headers: authorization(accessToken),
+      headers: authorization(accessToken), signal,
     })
   },
 

@@ -145,6 +145,9 @@ backend_checks() {
 frontend_checks() {
   cd "$repo_root/frontend"
   npm test -- --run \
+    src/api/cloudProjects.spec.ts \
+    src/platform/web/cloudAccountSession.spec.ts \
+    src/components/settings/BrowserCloudAccountCard.spec.ts \
     src/platform/web/localDocuments.spec.ts \
     src/platform/web/localAuthority.spec.ts \
     src/cloud/documentCodec.spec.ts \

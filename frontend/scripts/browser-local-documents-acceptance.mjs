@@ -14,7 +14,7 @@ let records
 let offline = false
 
 async function launch() {
-  context = await chromium.launchPersistentContext(directory, { headless: true })
+  context = await chromium.launchPersistentContext(directory, { headless: true, locale: 'ru-RU' })
   await context.route(url => url.pathname.startsWith('/api/'), async route => {
     const request = route.request(), path = new URL(request.url()).pathname
     calls.push(path)
@@ -51,7 +51,7 @@ async function login(page) {
   await page.getByLabel('Пароль шифрования').fill('encryption-password')
   await page.getByRole('button', { name: 'Разблокировать' }).click()
   await page.locator('[data-status="unlocked"]').waitFor()
-  await page.getByRole('button', { name: 'Открыть зашифрованное локальное пространство' }).click()
+  await page.getByRole('button', { name: 'Открыть локальные тестовые проекты (не синхронизированы)' }).click()
   await page.getByTestId('encrypted-local-workspace').waitFor()
 }
 
