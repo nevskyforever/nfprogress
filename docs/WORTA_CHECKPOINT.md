@@ -1,5 +1,52 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-28 — WEB.ONLINE.02A — production reader composition audit / STOP
+
+Baseline `3ef704c5f4353fcfdf4d0921739ce2213fd052de` is independently accepted
+by Cloud run `40578946929` (**6/6 SUCCESS**, owner-reported). The accepted
+`WEB.CLOUD.READ.01` implementation is already present: authenticated catalog,
+account-wide bounded v3 pull, contiguous cursor/duplicate checks, canonical
+AEAD opening and a **Metadata-only preview**. It is not a full project reader.
+Desktop remains offline-first/SQLite; Web remains online-only/server-authoritative;
+IndexedDB v12 remains developer-only and is not a source for cloud projects.
+
+**WEB.ONLINE.02A implementation status: STOP before code.** The smallest missing
+production component is not another codec: it is a server-to-reader composition
+that can feed authenticated history into existing C21 owners while satisfying
+their source and proof lifecycle without treating the developer IndexedDB
+workspace as project authority. The current production Web path does not invoke
+`BrowserV10Recovery`, `BrowserV10Transport`, `BrowserStageApply`,
+`BrowserStageOrderApply`, or the Note apply/recovery owners. Those are bound to
+the complete durable inbox/source inventory and atomically write local owner
+heads/applied proofs. `cloudRead.ts` instead validates a bounded account feed
+and returns only the shared Metadata reducer result; it correctly rejects every
+other family. Feeding it a selected-project subset, or merely decoding more
+codecs, would omit C21 source/dependency/application evidence. Routing server
+projects through localProjects/localStages/localNotes would also violate the
+approved Online-Only source-of-truth boundary. Do not implement that bridge by
+reusing the legacy workspace or by fabricating in-memory proofs.
+
+| Family / concern | Existing owner and format | Current Web proof / Online-Only status | Production composition |
+| --- | --- | --- | --- |
+| Metadata | `projectMetadataCodec`; `metadataImportSnapshot` | `cloudRead.ts` authenticates account-wide order, AEAD, bootstrap and reducer dependencies; cover/conflict/deleted head reject. No apply proof is claimed. | Allowed only as explicit Metadata preview. |
+| Stage / StageOrder | `stageCodec`; `BrowserStageApply` / `BrowserStageOrderApply` | AEAD and dependency checks exist, but owners require complete durable inbox, Metadata/Stage certificates, local owner heads and atomic applied proofs. Tombstone membership and self-echo are guarded. | Not composable into server preview without a compatible C21 source/proof lifecycle. |
+| Legacy Note v2 / Content Note v3 / Resolution | Note codecs and Legacy/Content apply, `BrowserV10Recovery`, mixed recovery, resolution owners | Causal history, dependencies, source witnesses, forks/conflicts and historical Resolution-v3 transport joins are implemented in bounded local owners. Full production v10 dispatch/page replay and mixed source coverage/readiness remain incomplete; Note readiness is negative-only. | Blocked; no capability declaration, ACK or filtered replay. |
+| Maps / Documents | `mapCodec` / `documentCodec`; `MapSyncRuntime` / `DocumentSyncRuntime` | Family codecs and sync owners exist; those runtimes declare Note plus family reader capabilities and depend on durable inbox/apply state. They are not production Web read-only project readers. | Blocked by C21 owner composition and frozen server gates. |
+| Progress / Game | `progressCodec` / `gameCodec`; corresponding sync runtimes | Codecs and protected sync owners exist; runtimes declare family capabilities and use durable protocol state. `account_game` is account-scoped, not a project event. | Blocked; account-wide history cannot skip these events. |
+| Folder / project ordering | `accountCatalogCodec`; account-object crypto reader | Canonical AEAD decoder exists, but no composed Web account-catalog history projection/recovery owner is connected to cloud project opening. These account events precede/interrupt project histories in the shared cursor. | Blocked; cannot filter them out. |
+| Transport, devices, history | v2/v3 APIs, account registry, `BrowserV10Transport` | Current preview checks mode3, dense cursor from zero, identity uniqueness, registry stability and auth/key lease. ID0/ID1 compression and family gates remain server-authoritative; all-device readiness is not established by preview. V10 replay currently reconciles persisted inbox, not live pull pages. | Preserve gates; do not PUT capabilities, enable reader-ready, or ACK. |
+
+No protocol/schema/backend change, UI claim, or data write was made. Retain
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, Registration
+CLOSED, PUBLIC RELEASE BLOCKED, and C21/C22/C23/PF6.0/RC. The next minimum work
+needs an explicit C21-compatible source/proof contract for replaying full server
+history through existing owners in an online-only client, including restart,
+device/capability gates, account-wide mixed ordering and rejection semantics.
+Only after that contract is settled should a bounded production dispatcher/page
+replay slice be implemented. Recommended next slice: owner-reviewed C21
+online-source/proof compatibility contract, GPT-6 Sol / High. Official Web
+progress remains **89.36%**.
+
 ## 2026-10-27 — MVP6.0.WEB.CLOUD.READ.01 — bounded server Metadata read
 
 **LOCAL COMPLETE — BOUNDED READ-ONLY METADATA; FULL PROJECT OPEN PARTIAL;

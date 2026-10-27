@@ -7,6 +7,59 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-28 — WEB.ONLINE.02A production reader audit / STOP
+
+Baseline `3ef704c5f4353fcfdf4d0921739ce2213fd052de` was independently accepted
+by Cloud run `40578946929` (**6/6 SUCCESS**, owner-reported). WEB.CLOUD.READ.01
+is present and accepted as a bounded **Metadata-only preview**: it validates the
+whole bounded account v3 sequence, canonical AEAD, bootstrap/descriptor joins,
+Metadata history and registry/transport stability. This is not full project
+opening, project-content restoration, or C21 apply/recovery.
+
+WEB.ONLINE.02A stopped before implementation because the existing C21 owners
+are not composable with live server pull as a read-only Online-Only projection.
+`BrowserV10Recovery`/`BrowserV10Transport`, Stage/StageOrder apply and Note
+recovery are bound to a complete durable local inbox/source inventory and
+atomically record owner/applied proofs. The Online-Only catalog/read path must
+not promote the v12 developer workspace to project authority, nor invent
+ephemeral proofs in place of owner evidence. Adding codec dispatch alone would
+not authenticate dependencies, history, conflicts or applied state.
+
+| Scope | Existing support | Web production-read gap |
+| --- | --- | --- |
+| Metadata | Shared codec/reducer, AEAD, account-wide cursor and active bootstrap validation; bounded preview only | Not a complete project. Cover material, non-Metadata families and unresolved/deleted heads fail closed. |
+| Stage / StageOrder | Codecs and durable local apply owners check Metadata/Stage dependencies, history, tombstones, self-echo and owner-head CAS | Owners require IDB inbox and durable proofs; no online-only server projection/recovery path. |
+| Legacy/Content Notes and Resolution | Codecs, causal apply, mixed-source/recovery owners and historical transport join exist | Production server-page dispatch/replay, complete dependency/source coverage and truthful readiness are unfinished; Note readiness remains negative-only. |
+| Maps / Documents / Progress / Game | Canonical codecs and protected sync runtimes exist | Runtimes use durable protocol state and capability gates; not connected as production read-only owners. |
+| Folder/catalog account events | Canonical account crypto decoder exists | No composed account-history owner; account events cannot be removed before validating the shared cursor. |
+| Mixed history / transport | v3 pull, account registry and server-side ID0/ID1, family/device gates exist | Existing v10 recovery consumes persisted inbox; all-device readiness is not proved by Metadata preview. No capability PUT or ACK is permitted here. |
+
+Specific boundaries: Legacy-v2 and Content-v3 Note histories have distinct
+authenticated owners; mixed replay is not a production dispatcher. A Legacy
+Resolution carried by v3 has an exact retained-identity join only against
+persisted inbox evidence. Missing/dependent/orphan events are owner barriers,
+not skippable pages. Multi-project account ordering and sequence continuity are
+checked by Metadata preview, but no project can be projected past an unsupported
+account event. Source device/header and AEAD identities are checked by existing
+owners; this does not establish all-device readiness. ID0/ID1 support and
+compression-reader gates remain server-controlled. Unknown versions/families,
+deletions, conflicts and unsupported histories fail closed in their respective
+owners; there is no uniform production project reducer. Read cancellation,
+logout and AMK lock clear/abort the current Metadata preview, while the dormant
+v10 lifecycle applies to persisted inbox work, not a live cloud session.
+
+**Next minimum step:** settle a C21-compatible online source/proof contract for
+replaying complete server history through the existing owners, including restart,
+all-device/capability gates, mixed account ordering and safe refusal. Then
+implement only the bounded production dispatcher/page replay slice authorized
+by that contract (recommended model: GPT-6 Sol / High). No project-open UI or
+readiness claim until complete family and recovery requirements are met.
+Desktop offline-first/SQLite and Web
+online-only/server-authoritative remain unchanged. `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, Registration CLOSED,
+PUBLIC RELEASE BLOCKED, C21/C22/C23/PF6.0/RC mandatory; Web progress remains
+**89.36%**.
+
 **MVP target: full Desktop feature parity in Web is mandatory.** Reuse the
 existing shared Vue/TypeScript screens, Tiptap and Mind Elixir, business rules,
 models, codecs and E2EE cloud protocol. The required user actions include

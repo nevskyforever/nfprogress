@@ -19,9 +19,10 @@ remain intact for legacy testing and possible existing data; they are not
 automatically imported, promoted to cloud, or used as the online catalog.
 See [WEB ONLINE-ONLY architecture](web/WEB_ONLINE_ONLY_ARCHITECTURE.md).
 
-**Current path:** WEB.ONLINE.01 server catalog; .02 accepted E2EE server read;
-.03 accepted encrypted document writer; .04 Notes/Maps/Stages; .05
-Progress/Game/Settings; .06 Desktop↔Web compatibility and recovery acceptance.
+**Current path:** WEB.ONLINE.01 server catalog; .02 bounded accepted
+Metadata-only E2EE preview (not full project opening); .03 existing local
+encrypted Documents only (cloud writer not implemented); .04 Notes/Maps/Stages;
+.05 Progress/Game/Settings; .06 Desktop↔Web compatibility and recovery acceptance.
 Every step remains behind C21/C22/C23/PF6.0/RC gates.
 
 The current evidence matrix and implementation path are in
