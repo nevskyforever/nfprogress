@@ -7,6 +7,15 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+**MVP target: full Desktop feature parity in Web is mandatory.** Reuse the
+existing shared Vue/TypeScript screens, Tiptap and Mind Elixir, business rules,
+models, codecs and E2EE cloud protocol. The required user actions include
+projects/folders, project organization and archive, ordered/completable stages,
+project/stage text editing, Notes and their properties, mind maps and Note links,
+writing goals, progress/statistics/history, the full Game Mode, settings and
+personalization, and browser-supported import/export. Only genuine native-API
+differences may use browser equivalents; Web Lite is not an MVP substitute.
+
 **SUPERSEDED BY WEB ONLINE-ONLY DECISION:** the earlier plan for full offline Web
 parity, durable IndexedDB copies of all user data, offline queues/retry, and
 browser-only manuscript recovery. Historical acceptance records remain valid as
@@ -31,7 +40,7 @@ storage**, **E2EE**, **Desktop format compatibility**, and **gate status**.
 | Capability | User action in Web | Server path | Server stores data | E2EE verified | Desktop format compatible | Status / next work |
 | --- | --- | --- | --- | --- | --- | --- |
 | Cloud project catalog | IMPLEMENTED in developer account flow; IDs/count/limit, empty state, refresh, network error | `GET /api/v1/cloud/projects`, authenticated ordinary-user token via session | Server-owned catalog; no catalog persistence in IndexedDB | N/A: IDs and limits only | IDs are not names/content | Local fixture acceptance added; verify backend regression in prepush |
-| Project names/content | NOT IMPLEMENTED in target online flow | Existing opaque event/metadata owners, not composed into UI | Existing server protocol only | Components exist; end-to-end Web read not accepted | Existing codecs provide candidate formats | Wait for ONLINE.02 and C21 reader/security gates |
+| Project names/content | NOT IMPLEMENTED in target online flow | Existing opaque event/metadata owners, not composed into UI | Existing server protocol only | Components exist; end-to-end Web read not accepted | Existing codecs provide candidate formats | FASTTRACK.01 blocked by C21 reader/recovery gates below |
 | Stages and structure | NOT IMPLEMENTED in target online flow; legacy local CRUD remains dev-only | No Web cloud product flow | Not confirmed by this slice | Not verified in Web flow | Existing codecs/owners only | ONLINE.04 after accepted read path |
 | Project/stage documents | Editor component exists; server flow NOT IMPLEMENTED | No writer connected | No Web document write in this slice | Existing local M1.02 is not cloud E2EE acceptance | Desktop codec exists; cross-client Web flow unverified | ONLINE.03 after writer gates |
 | Notes and maps | Legacy/local developer experiences only | No cloud Note/Map writer connected | No Web write in this slice | Not verified as server flow | Existing codecs exist; Web compatibility unaccepted | ONLINE.04; keep C21 gates frozen |
@@ -39,6 +48,29 @@ storage**, **E2EE**, **Desktop format compatibility**, and **gate status**.
 | Account and legal access | IMPLEMENTED bounded login, legal acceptance and account key setup in developer flow | Auth/legal APIs | Server-owned identity/legal records | Key remains in client; no key sent with catalog request | N/A | Keep public registration CLOSED |
 
 ## Online critical path
+
+### FASTTRACK.01 — next user action: open a server project
+
+**Status: BLOCKED; no project-open code or mock success was added.** The
+existing `GET /api/v3/sync/encrypted/pull` is the correct opaque transport, but
+requires a registered device and negotiated v3 transport; if retained history
+requires compressed ID1 frames, compression-reader support is also required.
+The server also rejects pull when the account history includes
+families for which that device lacks the corresponding accepted capability.
+Because the feed has one account-wide sequence, filtering to a selected project
+before validating earlier events and dependencies would violate the existing
+source/history contract. `BrowserV10Recovery` is an isolated manual consumer of
+already persisted inbox pages, not an online Web reader; the normal session does
+not compose the production v10 dispatcher, page replay, dependency fetching,
+family readers or lifecycle orchestration. `BrowserNoteReaderReadiness` remains
+negative-only. The next concrete prerequisite is truthful C21.2.08 production
+reader/recovery orchestration with complete required-family coverage and
+accepted all-device readiness. Until that contract passes, do not declare reader
+capability, ACK, or show a project ID as an opened project.
+
+The backend's real API and security gates were exercised locally by the isolated
+PostgreSQL 16 backend acceptance (261 tests plus encrypted-blob backup/restore);
+those tests do not establish a browser-to-server project-open E2E.
 
 1. **WEB.ONLINE.01 — architecture and server catalog.** Bind the developer-only
    Web account flow to the authenticated server catalog. Keep local test projects

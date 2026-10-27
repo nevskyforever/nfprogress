@@ -1,5 +1,45 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-27 — MVP6.0.WEB.FASTTRACK.01 product priority and read gate
+
+**WORTA 6.0 DEVELOPMENT PRIORITY: FULL ONLINE WEB PARITY THROUGH EXISTING
+TYPESCRIPT CODE AND THE EXISTING E2EE CLOUD BACKEND.** Desktop remains
+offline-first on SQLite; Web is online-only, with permanent encrypted user data
+on the server and browser-side E2EE. All major Desktop user functions remain
+mandatory in Web. Reuse shared Vue/TypeScript UI, models, codecs and the existing
+cloud protocol; platform adapters should be limited to real platform API needs.
+Prioritize user scenarios over intermediate infrastructure, use LOCAL-FIRST
+verification, and keep Codex work focused and economical. No Web Lite milestone
+replaces full parity.
+
+**WEB.FASTTRACK.01 status: BLOCKED before project-open implementation.** The
+existing `GET /api/v3/sync/encrypted/pull` is the required opaque E2EE transport,
+but the normal Web account flow has no composed verified device/reader/recovery
+session. Server pull requires a registered device and negotiated v3 transport;
+if retained history requires compressed ID1 frames, the device must also prove
+compression-reader support. Once relevant v3 histories exist, the device needs
+each applicable accepted family capability (Note, Map, Document and Progress).
+The feed is account-sequenced, so selecting one project ID cannot
+isolate its events before validating preceding events and dependencies. The
+browser's `BrowserV10Recovery` remains an isolated manual consumer of already
+persisted inbox data, and `BrowserNoteReaderReadiness` is intentionally
+negative-only. Full C21.2.08 remains open: production v10 dispatch/page replay,
+dependency/orphan recovery, complete supported-family coverage, all-device
+readiness, restart/revocation orchestration and truthful capability evidence are
+not accepted. Declaring reader readiness, ACK, or capability here would bypass
+the frozen gate; opening a raw per-project subset would bypass source/history
+validation. No such bypass or plaintext API fallback was added.
+
+The actual server contract and existing bounded native/cloud coverage were
+checked by `scripts/maintenance/local_acceptance.sh backend`: 261 backend tests
+and the disposable PostgreSQL/encrypted-blob backup/restore test passed. This
+validates current APIs and gates, not a connected Web project-opening flow. The
+next implementation must compose an online, in-memory Web read path from the
+accepted shared protocol only after C21 reader/recovery has a truthful positive
+path. Official progress remains **89,36%**; `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, Registration CLOSED,
+PUBLIC RELEASE BLOCKED, and C21/C22/C23/PF6.0/RC remain mandatory.
+
 ## 2026-10-27 — MVP6.0.WEB.ONLINE.01R architecture decision
 
 **Решение владельца: WEB ONLINE-ONLY / SERVER-AUTHORITATIVE.** Desktop остаётся
@@ -54,9 +94,13 @@ C21/C22/C23/PF6.0/RC обязательны. LEGAL.ACCEPTANCE.02 и M1.02 ост
 проектные и этапные тексты, Notes, Progress со статистикой и историей,
 полный существующий Game Mode, а также остальные пользовательские функции,
 перечисленные в [матрице Desktop → Web](web/MVP6_0_FASTTRACK_ROADMAP.md).
-Локальное долговечное сохранение и офлайн-работа не зависят от доступности
-облака. Сохранность данных, E2EE и достоверное подтверждение синхронизации
-обязательны. Одной синхронизации Notes недостаточно для завершения MVP.
+Desktop сохраняет полную локальную работу и офлайн-функции независимо от
+облака. Web online-only: сервер является постоянным хранилищем, а браузер
+шифрует и расшифровывает пользовательские данные. Общий Vue/TypeScript UI,
+бизнес-логика, модели и совместимые форматы повторно используются там, где это
+поддерживается существующей архитектурой. Сохранность данных, E2EE и
+достоверное серверное подтверждение обязательны. Одной синхронизации Notes
+недостаточно для завершения MVP.
 
 **Правило планирования:** каждый следующий implementation stage должен либо
 приближать конкретный обязательный пользовательский сценарий MVP, либо
