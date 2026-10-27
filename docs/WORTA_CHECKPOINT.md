@@ -22,6 +22,50 @@
 задерживать пользовательский MVP. P0 безопасность, C21/C22/C23/PF6.0/RC и
 замороженные reader/writer gates нельзя упрощать ради скорости.
 
+## 2026-10-27 — MVP6.0.M1.02.CI.01 foundation Linux dependency reliability
+
+M1.02 — **LOCAL COMPLETE**, REMOTE ACCEPTANCE PENDING. Run `40504268151` на
+`3642130e57cbe8b655c7b87b320d8715a75c0dc5` завершился `5/6 SUCCESS`; единственный
+незелёный job — `PostgreSQL mandatory (foundation)`, отменённый 40-минутным
+timeout. Падения pytest не было: C21/historical Metadata test group прошёл за
+10:22, следующий тест был прерван timeout. В успешном run `40470606994` тот же
+foundation job занял 33:36, включая установку зависимостей за 8:14.
+
+Диагностика job log показала, что `apt-get update` занял около 23 секунд;
+установка загрузила 61,7 MB за 24:49. Обязательный WebKit runtime package
+размером 25,5 MB скачивался около 9:09, JavaScriptCore package размером 8,1 MB —
+около 2:50. Это нестабильная скорость загрузки Ubuntu Azure mirror, а не
+неисправность WORTA-тестов. `libwebkit2gtk-4.1-dev`,
+`libayatana-appindicator3-dev` и `librsvg2-dev` оставлены: они нужны Tauri/Wry
+для сборки Linux native bridge. `patchelf` удалён из apt install: он уже
+предустановлен на Ubuntu 24.04 runner и в логе был отмечен как актуальный.
+
+Три обязательных PostgreSQL matrix shards закреплены на `ubuntu-24.04`.
+Обновление apt индексов и установка разделены на timed GitHub steps. Установка
+использует `--no-install-recommends`, сохраняя все прямо указанные зависимости;
+из content-action package list удалены только `xvfb` и emoji font, уже
+предустановленные runner image. Добавлен официальный `actions/cache` (commit
+SHA pinned) для `/var/cache/apt/archives`, отдельно по shard; apt indexes не
+кэшируются и обновляются каждый run. Cache save выполняется сразу после apt
+install, до тяжёлых тестов. В локальном Ubuntu 24.04 amd64 package simulation
+(Docker amd64 emulation на Apple Silicon) оптимизированный список без
+recommends и повторного `patchelf` сократил число новых пакетов на чистом
+образе с 430 до 377 (53 пакета, 12,3%); runner уже содержит часть пакетов,
+поэтому это оценка графа, не замер CI runner. Кэш
+архивов cold на первом run; дальнейшее сокращение времени и запас до timeout
+пока ожидаются, а не измерены на GitHub.
+
+Покрытие тестов, Rust native bridge, PostgreSQL service, historical C21 и все
+шесть обязательных jobs сохранены; timeout остаётся 40 минут. Локально прошли
+workflow YAML/conditions, shell syntax, apt dependency simulation и
+`git diff --check`; GitHub Linux x86-64 Rust bridge не запускался локально, а
+повторная удалённая приёмка ещё не проведена. Не отмечать M1.02 как REMOTELY
+ACCEPTED до 6/6 SUCCESS. Официальный Web progress остаётся **89,36%**;
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, Registration
+CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC остаются обязательными.
+После независимой приёмки вернуться к Web WORTA: защищённые Notes и
+интеллект-карты.
+
 Текущий официальный Web progress — **89,36%**. `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`; регистрация CLOSED,
 PUBLIC RELEASE BLOCKED. Эти значения не изменяются за перепланирование.
