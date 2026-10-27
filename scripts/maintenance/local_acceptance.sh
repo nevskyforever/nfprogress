@@ -145,6 +145,9 @@ backend_checks() {
 frontend_checks() {
   cd "$repo_root/frontend"
   npm test -- --run \
+    src/platform/web/localDocuments.spec.ts \
+    src/platform/web/localAuthority.spec.ts \
+    src/cloud/documentCodec.spec.ts \
     src/platform/web/v10MixedRecovery.spec.ts \
     src/platform/web/postFMetadataBoundary.spec.ts \
     src/platform/web/historicalMetadataDependency.spec.ts \
@@ -192,6 +195,16 @@ frontend_checks() {
     return "$status"
   }
   node scripts/browser-encrypted-workspace-acceptance.mjs http://127.0.0.1:5173 || {
+    local status=$?
+    cleanup_vite
+    return "$status"
+  }
+  node scripts/browser-local-documents-acceptance.mjs http://127.0.0.1:5173 || {
+    local status=$?
+    cleanup_vite
+    return "$status"
+  }
+  node scripts/browser-local-document-migration-acceptance.mjs http://127.0.0.1:5173 || {
     local status=$?
     cleanup_vite
     return "$status"

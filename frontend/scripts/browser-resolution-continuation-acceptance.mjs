@@ -73,7 +73,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
   const object=await meta.keys.leaseForAccount(s.accountId).use(async amk=>{const o=await c21.encryptObjectBytes(amk,{userId:s.canonicalUserId,projectId:project,entityId:project,entityType:'project_metadata'},frame);try{return{crypto_version:1,aad_version:1,nonce:c21.encodeBase64Url(o.nonce),ciphertext:c21.encodeBase64Url(o.ciphertext)}}finally{o.nonce.fill(0);o.ciphertext.fill(0)}});frame.fill(0)
   await session.sync.commitInboundPage(s,0,JSON.stringify({protocol_version:3,encrypted_sync_version:3,items:[{event:reference,object}],next_cursor:sequence,has_more:false}));await session.metadata.apply(s,reference,meta.auth,meta.bindings,meta.keys)
   const dependencies={bootstrap_id:binding.bootstrap_id,metadata_event_id:mh.event_id,stage_event_ids:[]},parents={}
-  const fresh=(id,body)=>({id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',title:'DISPOSABLE_PLANNER_NOTE',content:body,checklist:[],color:'default',pinned:false,archived:false,sort_order:0,tags:[],created_at:stamp,updated_at:stamp,metadata:{}})
+  const fresh=(id,body)=>({id,project_id:project,stage_id:null,source_type:'project',source_map_id:null,source_node_id:null,content_format:'html',title:'DISPOSABLE_PLANNER_NOTE',content:body,checklist:[],color:'default',pinned:false,archived:false,sort_order:0,tags:[],created_at:stamp,updated_at:stamp,metadata:{}});
   {
    const id=`note-${protocol}`,values=[];let root
    for(let i=0;i<3;i++){
@@ -253,7 +253,7 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
    await context.close();await launch();await bind();historicalReopens++
    assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()});assert.deepEqual(await snapshot(),progressed)
    await context.close();await rm(copy,{recursive:true,force:true});copy=undefined;activeDirectory=directory;old=false;await launch();await bind()
-   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()});assert.deepEqual(await snapshot(),progressed)
+   assert.deepEqual(await schemaSnapshot(),{version:12,stores:[...names,'localStages','localDocuments'].sort()});assert.deepEqual(await snapshot(),progressed)
    assert.equal((await page.evaluate(()=>continuation.history(s))).resolutions,1)
    for(const d of descendants)assert.equal(await page.evaluate(sequence=>continuation.reconcile(s,sequence),d.sequence),'already_applied')
    assert.deepEqual(await snapshot(),progressed)
@@ -276,13 +276,13 @@ for(const protocol of [2,3])for(const strategy of ['choose_version','manual_merg
    assert.deepEqual(await schemaSnapshot(),{version:10,stores:[...names].sort()})
    await verifyOld()
    await context.close();old=false;await launch();await bind()
-   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()})
+   assert.deepEqual(await schemaSnapshot(),{version:12,stores:[...names,'localStages','localDocuments'].sort()})
    assert.deepEqual(await page.evaluate(()=>nativeRows('localStages')),[])
    await recover()
    const upgraded=await snapshot()
    await context.close();old=true;await launch()
    assert.equal(await page.evaluate(async scope=>{try{await c21.openBrowserPersistence(scope.canonicalUserId);return'opened'}catch(error){return error.code}},scope),'unsupported_version')
-   assert.deepEqual(await schemaSnapshot(),{version:11,stores:[...names,'localStages'].sort()})
+   assert.deepEqual(await schemaSnapshot(),{version:12,stores:[...names,'localStages','localDocuments'].sort()})
    assert.deepEqual(await snapshot(),upgraded)
    await context.close();old=false;await launch();await bind()
    assert.deepEqual(await snapshot(),upgraded)

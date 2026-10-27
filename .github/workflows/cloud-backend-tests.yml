@@ -6,6 +6,9 @@ on:
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
       - 'frontend/scripts/browser-persistence-acceptance.mjs'
+      - 'frontend/scripts/browser-local-documents-acceptance.mjs'
+      - 'frontend/scripts/browser-local-document-migration-acceptance.mjs'
+      - 'frontend/scripts/browser-cloud-account-harness.html'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -108,6 +111,9 @@ on:
       - 'frontend/package.json'
       - 'frontend/package-lock.json'
       - 'frontend/scripts/browser-persistence-acceptance.mjs'
+      - 'frontend/scripts/browser-local-documents-acceptance.mjs'
+      - 'frontend/scripts/browser-local-document-migration-acceptance.mjs'
+      - 'frontend/scripts/browser-cloud-account-harness.html'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -733,6 +739,27 @@ jobs:
         working-directory: frontend
       - run: npm test -- --run src/diagnostics/diagnostics.spec.ts src/diagnostics/desktop.spec.ts src/components/settings/DiagnosticsCard.spec.ts src/components/developer/DeveloperModeDialog.spec.ts src/api/game.native.spec.ts src/api/game.spec.ts src/api/documents.native.spec.ts src/pages/SettingsPage.spec.ts src/stores/projects.spec.ts
         working-directory: frontend
+      - name: Verify encrypted local Web Documents contracts
+        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts --maxWorkers=1
+        working-directory: frontend
+      - name: Verify encrypted Web Documents and v11 to v12 migration in Chromium
+        working-directory: frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin 508a1a98a3da8686e0b4168ba6d6d5b4dfd931a5
+          ./node_modules/.bin/vite --host 127.0.0.1 --port 5173 --strictPort > "$RUNNER_TEMP/web-documents-vite.log" 2>&1 &
+          vite_pid=$!
+          trap 'kill "$vite_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl --fail --silent http://127.0.0.1:5173/scripts/browser-cloud-account-harness.html >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:5173/scripts/browser-cloud-account-harness.html >/dev/null || { cat "$RUNNER_TEMP/web-documents-vite.log"; exit 1; }
+          node scripts/browser-local-documents-acceptance.mjs http://127.0.0.1:5173
+          node scripts/browser-local-document-migration-acceptance.mjs http://127.0.0.1:5173
       - run: npm run build
         working-directory: frontend
 

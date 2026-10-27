@@ -24,7 +24,7 @@ const harness = {
   failCrypto: false,
   pauseCrypto: false,
   resumeCrypto: null,
-  async createRecords(seedV10 = false) {
+  async createRecords(seedV10 = false, seedV11 = false) {
     for (const name of Object.keys(users)) {
       const amk = await generateAccountMasterKey()
       try {
@@ -41,6 +41,7 @@ const harness = {
           recovery: null,
         }
         if (seedV10 && name === 'one') await this.seedV10(amk)
+        if (seedV11 && name === 'one') await this.seedV11(amk)
       } finally { amk.fill(0) }
     }
     return structuredClone(this.records)
@@ -89,6 +90,35 @@ const harness = {
         tx.objectStore('accountBindings').add({ canonical_user_id: users.one, local_account_id: accountId, record_version: 1 })
         tx.objectStore('localProjects').add(projectRow)
         tx.objectStore('localNotes').add(noteRow)
+        tx.oncomplete = resolve; tx.onabort = () => reject(tx.error)
+      })
+    } finally { db.close() }
+  },
+  async seedV11(amk) {
+    const upgrade = indexedDB.open('worta-web', 11)
+    upgrade.onupgradeneeded = () => upgrade.result.createObjectStore('localStages', { keyPath: ['account_id', 'project_id', 'stage_id'] })
+    const db = await new Promise((resolve, reject) => { upgrade.onsuccess = () => resolve(upgrade.result); upgrade.onerror = () => reject(upgrade.error) })
+    try {
+      const identity = await new Promise((resolve, reject) => {
+        const read = db.transaction('identities').objectStore('identities').get(users.one)
+        read.onsuccess = () => resolve(read.result)
+        read.onerror = () => reject(read.error)
+      })
+      const projectId = 'v10-private-project', stageId = 'legacy-v11-stage', at = canonicalizeSyncTimestamp('2026-10-20T12:00:00Z')
+      const stage = { name: 'PRIVATE_V11_STAGE', goal: null, infinite: true, unit: 'symbols', status: 'активен', deadline: null,
+        personal_goal: 0, auto_freeze: true, streak_enabled: false, work_method: 'manual', created_at: at, completed_at: null }
+      const payload = { local_format: 1, kind: 'stage', account_id: identity.local_account_id, device_id: identity.device_id,
+        project_id: projectId, stage_id: stageId, revision: 1, sort_order: 0, updated_at: at, stage }
+      const bytes = localCanonicalBytes(payload)
+      const encrypted = await encryptObjectBytes(amk, { userId: users.one, projectId, entityId: stageId, entityType: 'stage' }, bytes)
+      const envelope = { crypto_version: 1, aad_version: 1, nonce: encodeBase64Url(encrypted.nonce), ciphertext: encodeBase64Url(encrypted.ciphertext) }
+      bytes.fill(0); encrypted.nonce.fill(0); encrypted.ciphertext.fill(0)
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(['localStages', 'cursors'], 'readwrite')
+        tx.objectStore('localStages').add({ record_version: 1, account_id: identity.local_account_id, device_id: identity.device_id,
+          project_id: projectId, stage_id: stageId, revision: 1, envelope })
+        tx.objectStore('cursors').add({ record_version: 1, account_id: identity.local_account_id, device_id: identity.device_id,
+          pull_cursor: 0, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 })
         tx.oncomplete = resolve; tx.onabort = () => reject(tx.error)
       })
     } finally { db.close() }

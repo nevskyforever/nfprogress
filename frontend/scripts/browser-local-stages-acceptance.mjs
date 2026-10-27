@@ -153,7 +153,7 @@ try {
   assert.equal(corruptAfter.version, 10)
   assert.deepEqual(corruptAfter.projects, corruptBefore.projects)
   assert.deepEqual(corruptAfter.notes, corruptBefore.notes)
-  console.log('Chromium local stages PASS: v10 to v11 preservation and atomic refusal, encrypted Stage CRUD/order, two projects, revision conflict, rollback, tamper rejection, lock/logout, account isolation, browser restart')
+  console.log('Chromium local stages PASS: v10 to v12 preservation and atomic refusal, encrypted Stage CRUD/order, two projects, revision conflict, rollback, tamper rejection, lock/logout, account isolation, browser restart')
 } finally {
   await context?.close()
   await rm(directory, { recursive: true, force: true })

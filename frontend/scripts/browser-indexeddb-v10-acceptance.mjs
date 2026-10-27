@@ -64,11 +64,12 @@ export async function acceptIndexedDbV10({origin,cases,profiles}){
    if(['identity','source','history','schema','cursor','bootstrap','intent-corrupt'].includes(variant)){
     assert.equal(opened,'corrupt_record',variant);assert.deepEqual(await snapshot(),before)
    }else{
-    assert.equal(opened,'opened',variant);const after=await snapshot();assert.equal(after.version,11);assert.equal(after.shape.length,13)
+    assert.equal(opened,'opened',variant);const after=await snapshot();assert.equal(after.version,12);assert.equal(after.shape.length,14)
     if(before){
-     assert.deepEqual(after.shape.filter(([name])=>name!=='localStages'),before.shape)
-     assert.deepEqual(Object.fromEntries(Object.entries(after.rows).filter(([name])=>name!=='localStages')),before.rows)
+     assert.deepEqual(after.shape.filter(([name])=>!['localStages','localDocuments'].includes(name)),before.shape)
+     assert.deepEqual(Object.fromEntries(Object.entries(after.rows).filter(([name])=>!['localStages','localDocuments'].includes(name))),before.rows)
      assert.deepEqual(after.rows.localStages,[])
+     assert.deepEqual(after.rows.localDocuments,[])
     }
     assert.equal(await page.evaluate(()=>new Promise(resolve=>{const q=indexedDB.open(c21.WEB_DATABASE_NAME,9);q.onerror=()=>resolve(q.error.name);q.onsuccess=()=>{q.result.close();resolve('unsafe')}})),'VersionError')
     if(variant!=='empty'){
@@ -85,7 +86,7 @@ export async function acceptIndexedDbV10({origin,cases,profiles}){
     if(variant!=='empty'&&variant!=='crypto')await page.evaluate(async scope=>{const meta=await c21.metadataFixture(session,scope);await session.proven.bind(meta.auth,meta.bindings,meta.keys).calculate(scope);await meta.keys.dispose()},scope)
     assert.deepEqual(await snapshot(),after)
    }
-   cases.push(`C21.2.08D ${variant}: native v9→v10→v11 format gate / atomic rollback / exact encrypted rows and schema / fresh key / disk reopen PASS`)
+   cases.push(`C21.2.08D ${variant}: native v9→v10→v12 format gate / atomic rollback / exact encrypted rows and schema / fresh key / disk reopen PASS`)
   }finally{await context?.close();await rm(directory,{recursive:true,force:true})}
  }
  assert.deepEqual(errors,[]);assert.deepEqual(http,[])

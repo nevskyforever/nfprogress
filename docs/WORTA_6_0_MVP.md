@@ -9,6 +9,22 @@ are in [MVP6.0 fast-track roadmap](web/MVP6_0_FASTTRACK_ROADMAP.md). Earlier
 Notes-only MVP wording below describes a restricted sync milestone, not the
 completion criterion for the owner's full product MVP.
 
+**MVP6.0.M1.02 local Documents (2026-10-27).** The owner independently
+accepted run `40470606994` at `508a1a98a3da8686e0b4168ba6d6d5b4dfd931a5`
+(6/6 mandatory jobs SUCCESS). The protected Web workspace now reuses the
+existing Tiptap `NFDocumentEditor` for one project manuscript and one
+manuscript per stage. IndexedDB `worta-web` v12 adds `localDocuments` without
+rewriting v11 project, stage, Note or C21 records. Titles and formatted JSON
+are AMK ciphertext; scoped owner checks, a writer lock and revision compare
+protect commits. Real Chromium acceptance covers a full profile restart,
+formatted text recovery, offline save and legacy v11 refusal on v12. Document
+sync is absent, and ordinary Web document routes still use the legacy API.
+Legal texts still require owner approval. Official Web progress stays
+**89,36%**; `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, Registration CLOSED, PUBLIC RELEASE BLOCKED and
+C21/C22/C23/PF6.0/RC remain mandatory. The next M1 slice is remaining
+local Notes/maps and other required offline data.
+
 ## LEGAL.ACCEPTANCE.01 — versioned private-beta acceptance
 
 Run `40358594637` was independently accepted with all six mandatory jobs
@@ -141,7 +157,7 @@ requires every registered device to truthfully satisfy the frozen Note predicate
 | Area | Existing tested component | Connected working user flow |
 | --- | --- | --- |
 | Desktop Notes | Native SQLite Notes and durable encrypted sync capture/seal/upload/pull/apply/ACK owners; bounded restart/conflict evidence | Desktop cloud session is Tauri-only; no accepted real backend + Web + desktop writing round trip |
-| Browser writing | Separate developer-only encrypted workspace in IndexedDB v11; basic project and Stage CRUD/order plus local project Notes after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and is not synced; project/stage manuscripts remain |
+| Browser writing | Separate developer-only encrypted workspace in IndexedDB v12; project and Stage CRUD/order, local Notes and AMK-encrypted project/stage manuscripts through Tiptap after unlock | Ordinary compatibility editor still uses its legacy plaintext API; encrypted workspace is local to one browser profile and documents are not synced |
 | Account and keys | Cloud auth, device identity, E2EE provisioning/unlock and account binding owners; MVP6.0.02 development Web login/unlock supplies a guarded scope to the MVP6.0.12 local encrypted editor | No production Web bootstrap or browser cloud sync; lock/logout invalidates retained repository handles |
 | Private account access | Administrator invitations plus LEGAL.ACCEPTANCE.01 exact-version beta warning, atomic activation/evidence and later server-side consent gate have local PostgreSQL/browser evidence | Final WORTA agreement/privacy/possible personal-data texts still need owner/legal approval; no production backend deployment, live invitation delivery or owner-authorized tester onboarding |
 | Encrypted transport | Authenticated v2/v3 APIs, opaque event storage, PostgreSQL backend and guarded reader/write endpoints have focused acceptance | No deployed production-shaped endpoint is connected to a browser Note writer and accepted inbound reader |
@@ -157,7 +173,7 @@ cloud sync or justify describing Web persistence as cloud synchronization.
 | User goal | Already works | Missing | Exact blocker | Next action |
 | --- | --- | --- | --- | --- |
 | Desktop local writing | Existing Tauri editor and SQLite | MVP smoke evidence on selected build | No MVP-specific baseline evidence in current records | Record exact build/profile and local-save restart result |
-| Browser local encrypted project/Stage/Note storage | MVP6.0.M1.01A adds additive `localStages` in v11 and protected multi-project UI; project, Stage/order and Notes ciphertext survives persistent-profile restart and lock/logout revokes access | Compatibility-data import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Next store/edit project and stage texts locally, then complete C21 truthful reader/writer gate before sync |
+| Browser local encrypted project/Stage/Note/document storage | M1.02 adds `localDocuments` in v12 and Tiptap project/stage editing; ciphertext survives persistent-profile restart and lock/logout revokes access | Compatibility-data import and user-facing sync are not implemented | Encrypted local data is isolated from legacy API data and other account scopes; no Mac↔Web transport | Complete remaining local Notes/maps and required offline data, then C21 truthful reader/writer gate before sync |
 | Account login and encryption | Backend auth, desktop key owners and MVP6.0.02 development Web login/unlock | Production Web bootstrap and sync composition | `cloudSession` remains Tauri-only; test Web card runs behind the development boundary | Keep account session isolated; connect durable Note path only after reader acceptance |
 | Private tester provisioning | One-time admin bootstrap guard, pending user creation, server-email invitation, single-use claim, versioned beta acceptance and admin status/revocation | Owner-approved final agreement/privacy/consent documents, deployment, configured SMTP, isolated staging verification and administrator action | Production schema/backend are not deployed and final legal texts remain draft; invite link cannot be issued to real testers yet | Obtain owner/legal approval for applicable documents, then review additive migration and mail configuration in authorized staging; retain CLOSED public registration |
 | Browser cloud upload and inbound apply | Encrypted APIs and bounded browser reader/apply owners | Production routing, complete reader lifecycle | Note gate requires all six fields; production dispatch/replay and histories incomplete | Implement the next accepted C21.2.08 reader slice; keep declaration off |

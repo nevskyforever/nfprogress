@@ -5,7 +5,7 @@ const scope = { canonicalUserId: '11111111-1111-4111-8111-111111111111', account
 const row = { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: 'p', bootstrap_id: '44444444-4444-4444-8444-444444444444', mode: 'import_remote', phase: 'captured', remote_state: 'active', initial_event_count: 0, initial_local_ordinal_hi: 0, remote_high_water: 0, initial_max_server_sequence: null, blocked_reason: null }
 describe('v4 to v5 imported Metadata migration validation', () => {
   it('keeps native lineage exactly without manufacturing authority/proof', () => {
-    expect(WEB_DATABASE_VERSION).toBe(11)
+    expect(WEB_DATABASE_VERSION).toBe(12)
     const rows = [structuredClone(row)], original = structuredClone(rows)
     validateBrowserV4ProjectState([scope], rows); expect(rows).toEqual(original)
     validateBrowserV4ProjectState([scope], [])

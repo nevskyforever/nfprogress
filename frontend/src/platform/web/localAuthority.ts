@@ -291,18 +291,20 @@ export class BrowserLocalAuthorityRuntime {
   private write(scope: BrowserSyncScope, guard: Guard, expected: LocalSourceToken | null, project: LocalProjectRecord, notes: LocalNoteRecord[], deletion = false, mutation?: NoteMutationPlan): Promise<number> {
     if (!guard.current()) fail('closed')
     let unsubscribe: (() => void) | undefined
-    return this.transaction<number>(scope, [...new Set(['localProjects','localNotes','legacyNoteIntents','legacyNoteHistory', ...(deletion ? ['projectBindings', 'localStages'] : []), ...(mutation ? this.writer!.mutationStores : [])])], 'readwrite', (tx, result, abort) => {
+    return this.transaction<number>(scope, [...new Set(['localProjects','localNotes','legacyNoteIntents','legacyNoteHistory', ...(deletion ? ['projectBindings', 'localStages', 'localDocuments'] : []), ...(mutation ? this.writer!.mutationStores : [])])], 'readwrite', (tx, result, abort) => {
       unsubscribe = this.auth.onInvalidated(() => abort(new BrowserPersistenceError('closed')))
       const commit = () => {
         const reads = notes.map(note => tx.objectStore('localNotes').index('identity').get([scope.accountId, note.note_id]))
         const binding = deletion ? tx.objectStore('projectBindings').get([scope.accountId, project.project_id]) : null
         const stages = deletion ? tx.objectStore('localStages').count(IDBKeyRange.bound([scope.accountId, project.project_id], [scope.accountId, project.project_id, []])) : null
-        const requests = [...reads, ...(binding ? [binding] : []), ...(stages ? [stages] : [])]
+        const documents = deletion ? tx.objectStore('localDocuments').count(IDBKeyRange.bound([scope.accountId, project.project_id], [scope.accountId, project.project_id, []])) : null
+        const requests = [...reads, ...(binding ? [binding] : []), ...(stages ? [stages] : []), ...(documents ? [documents] : [])]
         let ready = 0
         const finish = () => { if (++ready < requests.length) return; try {
           if (!guard.current()) fail('closed')
           if (binding?.result) fail('unsupported_local_source') // No cloud deletion/bootstrap semantics here.
           if (stages?.result) fail('unsupported_local_source') // A project with stages cannot become an orphaned source.
+          if (documents?.result) fail('unsupported_local_source') // A manuscript must not be orphaned.
           reads.forEach(read => { if (read.result) { const existing = validateLocalNoteRecord(read.result, scope, read.result.project_id); if (existing.project_id !== project.project_id) fail('conflicting_record') } })
           const persist = () => {
           const writes = [tx.objectStore('localProjects').put(project), ...notes.map(n => tx.objectStore('localNotes')[expected ? 'put' : 'add'](n))]

@@ -10,17 +10,34 @@ import type { LocalNoteSource, NativeLegacyNote, NativeLocalProject } from '@/pl
 import type { LocalStage } from '@/platform/web/localStages'
 import NoteCard from '@/components/notes/NoteCard.vue'
 import NoteEditorDialog from '@/components/notes/NoteEditorDialog.vue'
+import BrowserLocalDocumentEditor from './BrowserLocalDocumentEditor.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { ProjectNote, ProjectNotePatch } from '@/types/notes'
 import type { SupportedLanguage } from '@/types/api'
 
 const unavailableCopy: Record<SupportedLanguage, string> = {
-  ru: 'Тексты, прогресс и игровой режим в защищённом пространстве пока недоступны.',
-  en: 'Texts, progress, and game mode are not yet available in the encrypted workspace.',
-  es: 'Los textos, el progreso y el modo de juego aún no están disponibles en el espacio cifrado.',
-  de: 'Texte, Fortschritt und Spielmodus sind im verschlüsselten Arbeitsbereich noch nicht verfügbar.',
-  fr: 'Les textes, la progression et le mode jeu ne sont pas encore disponibles dans cet espace chiffré.',
-  pt_BR: 'Textos, progresso e modo de jogo ainda não estão disponíveis no espaço criptografado.',
+  ru: 'Прогресс и игровой режим в защищённом пространстве пока недоступны.',
+  en: 'Progress and game mode are not yet available in the encrypted workspace.',
+  es: 'El progreso y el modo de juego aún no están disponibles en el espacio cifrado.',
+  de: 'Fortschritt und Spielmodus sind im verschlüsselten Arbeitsbereich noch nicht verfügbar.',
+  fr: 'La progression et le mode jeu ne sont pas encore disponibles dans cet espace chiffré.',
+  pt_BR: 'O progresso e o modo de jogo ainda não estão disponíveis no espaço criptografado.',
+}
+const documentCopy: Record<SupportedLanguage, { project: string; stage: string }> = {
+  ru: { project: 'Открыть текст проекта', stage: 'Открыть текст этапа' },
+  en: { project: 'Open project text', stage: 'Open stage text' },
+  es: { project: 'Abrir texto del proyecto', stage: 'Abrir texto de la etapa' },
+  de: { project: 'Projekttext öffnen', stage: 'Etappentext öffnen' },
+  fr: { project: 'Ouvrir le texte du projet', stage: 'Ouvrir le texte de l’étape' },
+  pt_BR: { project: 'Abrir texto do projeto', stage: 'Abrir texto da etapa' },
+}
+const blockedOperationCopy: Record<SupportedLanguage, string> = {
+  ru: 'Операция заблокирована: есть связанный текст, этап или облачная привязка. Данные сохранены.',
+  en: 'This action is blocked by a linked text, stage, or cloud binding. Your data is unchanged.',
+  es: 'La acción está bloqueada por un texto, una etapa o un vínculo con la nube. Los datos no han cambiado.',
+  de: 'Diese Aktion ist durch einen verknüpften Text, eine Etappe oder Cloud-Bindung gesperrt. Die Daten bleiben unverändert.',
+  fr: 'Cette action est bloquée par un texte, une étape ou un lien cloud. Les données restent inchangées.',
+  pt_BR: 'Esta ação foi bloqueada por um texto, etapa ou vínculo com a nuvem. Os dados não foram alterados.',
 }
 
 const props = defineProps<{ session: BrowserCloudAccountSession }>()
@@ -41,6 +58,8 @@ const mutating = ref(false)
 const projectMissing = ref(false)
 const error = ref<string | null>(null)
 const editingNote = ref<ProjectNote | null>(null)
+const documentTarget = ref<{ projectId: string; stageId: string | null; label: string } | null>(null)
+const documentEditor = ref<{ canLeave: () => boolean } | null>(null)
 const autosaveStatus = ref<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle')
 const visibleError = computed(() => error.value)
 let writeQueue: Promise<void> = Promise.resolve()
@@ -87,6 +106,7 @@ function safeError(reason: unknown): string {
     if (reason.code === 'account_mismatch') return t('Аккаунт или проект не совпадает. Данные не изменены.')
     if (reason.code === 'conflicting_record') return t('Локальный проект с этим идентификатором уже существует. Он не был перезаписан.')
     if (reason.code === 'writer_busy') return t('Другая вкладка использует зашифрованное хранилище.')
+    if (reason.code === 'unsupported_local_source') return blockedOperationCopy[locale.language]
     return t('Не удалось открыть зашифрованное локальное хранилище. Данные не изменены.')
   }
   return t('Не удалось сохранить изменения.')
@@ -155,6 +175,16 @@ async function selectProject(id: string): Promise<void> {
   editingNote.value = null
   await loadWorkspace()
 }
+
+function openDocument(stage: LocalStage | null): void {
+  if (mutating.value || !projectId.value) return
+  documentTarget.value = { projectId: projectId.value, stageId: stage?.id ?? null,
+    label: stage ? `${projectName.value} / ${stage.name}` : projectName.value }
+}
+
+function canLeave(): boolean { return documentEditor.value?.canLeave() ?? true }
+function closeWorkspace(): void { if (canLeave()) emit('close') }
+defineExpose({ canLeave })
 
 async function renameProject(): Promise<void> {
   if (mutating.value || !projectId.value || !projectName.value.trim()) return
@@ -324,6 +354,7 @@ onBeforeUnmount(() => {
   stages.value = []
   projects.value = []
   editingNote.value = null
+  documentTarget.value = null
 })
 </script>
 
@@ -335,7 +366,7 @@ onBeforeUnmount(() => {
         <h3 id="encrypted-workspace-title">{{ t('Зашифрованное рабочее пространство') }}</h3>
         <span>{{ t('Не синхронизируется. Данные не переносятся из старого Web-хранилища.') }}</span>
       </div>
-      <button class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="emit('close')">
+      <button class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="closeWorkspace">
         {{ t('Закрыть рабочее пространство') }}
       </button>
     </header>
@@ -355,8 +386,11 @@ onBeforeUnmount(() => {
       </button>
     </form>
 
+    <BrowserLocalDocumentEditor v-else-if="documentTarget" ref="documentEditor" :key="`${documentTarget.projectId}:${documentTarget.stageId ?? 'project'}`"
+      :session="session" :project-id="documentTarget.projectId" :stage-id="documentTarget.stageId" :label="documentTarget.label" @close="documentTarget = null" />
     <div v-else-if="!error" class="encrypted-workspace__body">
       <h4>{{ projectName }}</h4>
+      <button class="nf-button encrypted-workspace__new-note" type="button" :disabled="mutating" @click="openDocument(null)">{{ documentCopy[locale.language].project }}</button>
       <nav class="encrypted-workspace__projects" :aria-label="t('Проекты')">
         <button v-for="item in projects" :key="item.id" class="nf-button" :class="item.id === projectId ? '' : 'nf-button--secondary'" type="button" :disabled="mutating" @click="selectProject(item.id)">{{ item.name }}</button>
       </nav>
@@ -385,6 +419,7 @@ onBeforeUnmount(() => {
             </template>
             <template v-else>
               <strong>{{ stage.name }}</strong>
+              <button class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="openDocument(stage)">{{ documentCopy[locale.language].stage }}</button>
               <button class="nf-button nf-button--secondary" type="button" :disabled="mutating" @click="editingStageId = stage.id; editingStageName = stage.name">{{ t('Переименовать') }}</button>
               <button class="nf-button nf-button--secondary" type="button" :disabled="mutating || index === 0" :aria-label="`${t('Выше')}: ${stage.name}`" @click="moveStage(index, -1)">↑</button>
               <button class="nf-button nf-button--secondary" type="button" :disabled="mutating || index === stages.length - 1" :aria-label="`${t('Ниже')}: ${stage.name}`" @click="moveStage(index, 1)">↓</button>

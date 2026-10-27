@@ -152,14 +152,16 @@ export class BrowserLocalStagesRuntime {
   /** Compare the whole stage inventory and project source before every write. */
   private async write(scope: BrowserSyncScope, projectId: string, expected: StageRow[], next: StageRow[], removed: string[], token: LocalSourceToken, current: () => boolean): Promise<void> {
     if (!current()) fail('closed')
-    await this.transaction<void>(scope, ['localProjects', 'localNotes', 'localStages', 'projectBindings'], 'readwrite', (tx, result, abort) => {
+    await this.transaction<void>(scope, ['localProjects', 'localNotes', 'localStages', 'projectBindings', ...(removed.length ? ['localDocuments'] : [])], 'readwrite', (tx, result, abort) => {
       assertLocalSourceInTransaction(tx, scope, token, () => {
         const request = tx.objectStore('localStages').getAll(range(scope, projectId))
         const binding = tx.objectStore('projectBindings').get([scope.accountId, projectId])
+        const documents = removed.map(id => tx.objectStore('localDocuments').get([scope.accountId, projectId, `stage:${id}`]))
         let received = 0
-        const finish = () => { if (++received !== 2) return; try {
+        const finish = () => { if (++received !== 2 + documents.length) return; try {
           if (!current()) fail('closed')
           if (binding.result) fail('unsupported_local_source')
+          if (documents.some(document => document.result)) fail('unsupported_local_source')
           const rows = request.result.map(value => validateRow(value, scope, projectId))
           if (!same(rows, expected)) fail('stale_source')
           const store = tx.objectStore('localStages')
@@ -169,6 +171,7 @@ export class BrowserLocalStagesRuntime {
           result(undefined)
         } catch (error) { abort(error) } }
         request.onsuccess = finish; binding.onsuccess = finish
+        documents.forEach(document => { document.onsuccess = finish })
       }, abort)
     })
   }
