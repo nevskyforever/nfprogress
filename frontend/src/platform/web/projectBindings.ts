@@ -5,6 +5,15 @@ import { immutableWireIdentity, snapshotBrowserSyncScope, type BrowserSyncScope,
 export interface BrowserProjectBinding extends CloudProjectBootstrapRecord { record_version: 1 }
 export interface BrowserProjectPreparation { project_id: string; mode: 'upload_existing' }
 export interface BrowserRemoteProjectImport { project_id: string; bootstrap_id: string; remote_state: 'active'; remote_high_water: number }
+/** Record preparation only; remote provenance must still be established by the importing owner. */
+export function prepareBrowserRemoteProjectImport(scope: BrowserSyncScope, descriptor: BrowserRemoteProjectImport): BrowserProjectBinding {
+  scope = snapshotBrowserSyncScope(scope)
+  if (!exact(descriptor, ['project_id','bootstrap_id','remote_state','remote_high_water']) || descriptor.remote_state !== 'active' || !safe(descriptor.remote_high_water)) fail()
+  project(descriptor.project_id); bootstrap(descriptor.bootstrap_id)
+  return validateBrowserProjectBinding({ record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: descriptor.project_id,
+    bootstrap_id: descriptor.bootstrap_id, mode: 'import_remote', phase: 'captured', remote_state: 'active', initial_event_count: 0,
+    initial_local_ordinal_hi: 0, remote_high_water: descriptor.remote_high_water, initial_max_server_sequence: null, blocked_reason: null }, scope)
+}
 export interface BrowserProjectRegistration { remote_state: 'initializing' | 'active'; remote_high_water: number }
 export type BrowserProjectReadinessCode = 'missing_lineage' | 'registration_required' | 'capture_proof_unavailable' | 'ack_proof_unavailable' | 'bootstrap_completion_unavailable' | 'registry_reconciliation_required'
 export interface BrowserProjectReadiness { ready: false; code: BrowserProjectReadinessCode; required_cursor: number | null }
@@ -105,11 +114,7 @@ export class BrowserProjectBindings {
   /** Explicit authenticated-registry import primitive, not authentication of a caller's DTO; no network/shell creation. */
   importRemote(scope: BrowserSyncScope, descriptor: BrowserRemoteProjectImport): Promise<BrowserProjectBinding> {
     scope = snapshotBrowserSyncScope(scope)
-    if (!exact(descriptor, ['project_id','bootstrap_id','remote_state','remote_high_water']) || descriptor.remote_state !== 'active' || !safe(descriptor.remote_high_water)) fail()
-    project(descriptor.project_id); bootstrap(descriptor.bootstrap_id)
-    return this.create(scope, { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: descriptor.project_id,
-      bootstrap_id: descriptor.bootstrap_id, mode: 'import_remote', phase: 'captured', remote_state: 'active', initial_event_count: 0,
-      initial_local_ordinal_hi: 0, remote_high_water: descriptor.remote_high_water, initial_max_server_sequence: null, blocked_reason: null }, 'import')
+    return this.create(scope, prepareBrowserRemoteProjectImport(scope, descriptor), 'import')
   }
   read(scope: BrowserSyncScope, projectId: string): Promise<BrowserProjectBinding | null> {
     scope = snapshotBrowserSyncScope(scope); project(projectId)

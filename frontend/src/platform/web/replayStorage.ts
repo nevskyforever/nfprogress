@@ -1,11 +1,16 @@
+import { assertReplayMetadataTransition, migrateReplayV1, scheduleReplaySnapshot, type ReplaySnapshot } from './replayInventory'
+import type { NormalUserAuthRuntime } from '@/auth/userAuth'
+import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
+import type { RuntimeKeyContext } from '@/auth/keyContext'
+import { composeReplayMetadata, type ReplayMetadataResult } from './replayMetadata'
 import { BrowserPersistenceError, persistenceError, runBrowserTransaction } from './persistence'
-import { BrowserSyncDurability, snapshotBrowserSyncScope, validateBrowserInboxRecord, validateBrowserSyncCursor,
+import { BrowserSyncDurability, snapshotBrowserSyncScope,
   type BrowserReceivedInboxRecord, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
-import { REPLAY_LIMITS, prepareReplayPage, replayAnchor, replayExact, replaySame, replayUuid,
-  validateReplayManifest, type ReplayAnchor, type ReplayManifest } from './replayRecords'
+import { REPLAY_LIMITS, prepareReplayPage, replayAnchor, replaySame, replayUuid,
+  type ReplayAnchor, type ReplayManifest } from './replayRecords'
 
 export const REPLAY_DATABASE_NAME = 'worta-web-replay'
-export const REPLAY_DATABASE_VERSION = 1
+export const REPLAY_DATABASE_VERSION = 2
 type Schema = readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]
 const schema: readonly Schema[] = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
@@ -23,14 +28,13 @@ const schema: readonly Schema[] = [
   ['replayManifest', ['account_id', 'device_id'], []],
 ]
 const names = schema.map(([name]) => name)
-const emptyStores = names.filter(name => !['identities', 'accountBindings', 'inbox', 'cursors', 'replayManifest'].includes(name))
 function fail(): never { throw new BrowserPersistenceError('corrupt_record') }
 const range = (account: string) => IDBKeyRange.bound([account], [account, []])
-export interface ReplaySnapshot { manifest: ReplayManifest | null; rows: BrowserReceivedInboxRecord[] }
+export type { ReplaySnapshot } from './replayInventory'
 
-function validateSchema(database: IDBDatabase): void {
-  if (database.version !== 1 || !replaySame([...database.objectStoreNames].sort(), [...names].sort())) throw new BrowserPersistenceError('unsupported_version')
-  const transaction = database.transaction(names, 'readonly')
+function validateSchema(database: IDBDatabase, upgrade?: IDBTransaction): void {
+  if (!upgrade && database.version !== 2 || !replaySame([...database.objectStoreNames].sort(), [...names].sort())) throw new BrowserPersistenceError('unsupported_version')
+  const transaction = upgrade ?? database.transaction(names, 'readonly')
   for (const [name, path, indexes] of schema) {
     const store = transaction.objectStore(name)
     if (!replaySame(store.keyPath, path) || store.autoIncrement || store.indexNames.length !== indexes.length) fail()
@@ -42,7 +46,7 @@ function validateSchema(database: IDBDatabase): void {
   }
 }
 
-function openDatabase(signal: AbortSignal): Promise<IDBDatabase> {
+function openDatabase(signal: AbortSignal, current: () => boolean): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest, failed = false
     const stop = (error: unknown) => { failed = true; signal.removeEventListener('abort', cancel); try { request?.transaction?.abort() } catch { /* Already aborted. */ } reject(persistenceError(error)) }
@@ -54,7 +58,12 @@ function openDatabase(signal: AbortSignal): Promise<IDBDatabase> {
     request.onerror = () => stop(request.error)
     request.onupgradeneeded = event => {
       try {
-        if (failed || signal.aborted || event.oldVersion !== 0) throw new BrowserPersistenceError('unsupported_version')
+        if (failed || signal.aborted || !current() || ![0, 1].includes(event.oldVersion)) throw new BrowserPersistenceError('unsupported_version')
+        if (event.oldVersion === 1) {
+          validateSchema(request.result, request.transaction!)
+          migrateReplayV1(request.transaction!, names, () => { if (signal.aborted || !current()) throw new BrowserPersistenceError('closed') }, stop)
+          return
+        }
         for (const [name, keyPath, indexes] of schema) {
           const store = request.result.createObjectStore(name, { keyPath })
           for (const [index, path, unique] of indexes) store.createIndex(index, path, { unique })
@@ -70,7 +79,7 @@ function openDatabase(signal: AbortSignal): Promise<IDBDatabase> {
   })
 }
 
-/** Separate ciphertext staging DB. Compatibility owner/source stores remain empty in slice 1. */
+/** Separate reconstructible encrypted replay cache; only the bounded Metadata owner may add proofs. */
 class BrowserReplayStorage {
   private closed = false
   private readonly active = new Set<IDBTransaction>()
@@ -100,59 +109,43 @@ class BrowserReplayStorage {
     }).then(value => { this.check(); return value }).catch(error => { this.check(); throw error })
   }
   private load(tx: IDBTransaction, result: (value: ReplaySnapshot) => void, abort: (error: unknown) => void): void {
-    const s = this.scope, bound = range(s.accountId), rows: BrowserReceivedInboxRecord[] = []
-    const identity = tx.objectStore('identities').get(s.canonicalUserId), alias = tx.objectStore('identities').index('local_account_id').get(s.accountId)
-    const binding = tx.objectStore('accountBindings').get(s.accountId), cursors = tx.objectStore('cursors').getAll(bound)
-    const manifests = tx.objectStore('replayManifest').getAll(bound), counts = emptyStores.map(name => tx.objectStore(name).count(bound))
-    let pending = 6 + counts.length, bytes = 0
-    const finish = () => {
-      try {
-        this.check(); if (--pending) return
-        if (counts.some(request => request.result !== 0) || cursors.result.length > 1 || manifests.result.length > 1) fail()
-        const i: unknown = identity.result, b: unknown = binding.result
-        if (i === undefined ? b !== undefined || alias.result !== undefined : !replayExact(i, ['record_version', 'canonical_user_id', 'local_account_id', 'device_id'])
-          || i.record_version !== 1 || i.canonical_user_id !== s.canonicalUserId || i.local_account_id !== s.accountId || i.device_id !== s.deviceId
-          || !replaySame(alias.result, i) || !replayExact(b, ['record_version', 'local_account_id', 'canonical_user_id'])
-          || b.record_version !== 1 || b.local_account_id !== s.accountId || b.canonical_user_id !== s.canonicalUserId) fail()
-        const manifest = manifests.result.length ? validateReplayManifest(manifests.result[0], s) : null
-        const checkpoint = validateBrowserSyncCursor(cursors.result[0], s)
-        if (checkpoint.ack_cursor !== 0 || checkpoint.proven_prefix !== 0 || checkpoint.next_local_ordinal !== 1
-          || checkpoint.pull_cursor !== rows.length || !manifest && (rows.length || cursors.result.length)
-          || manifest && (i === undefined || !cursors.result.length || manifest.receive_cursor !== rows.length)) fail()
-        let ciphertextBytes = 0
-        const ids = new Set<string>()
-        for (const [index, row] of rows.entries()) {
-          if (row.server_sequence !== index + 1 || ids.has(row.event_id)) fail()
-          ids.add(row.event_id)
-          const wire = JSON.parse(row.wire_item) as { object: { ciphertext: string } }
-          ciphertextBytes += Math.floor(wire.object.ciphertext.length * 3 / 4)
-        }
-        if (manifest && (ciphertextBytes !== manifest.ciphertext_bytes || bytes + new TextEncoder().encode(JSON.stringify(manifest)).length + REPLAY_LIMITS.controlReserveBytes > REPLAY_LIMITS.inventoryBytes)) fail()
-        result({ manifest, rows })
-      } catch (error) { abort(error) }
-    }
-    for (const request of [identity, alias, binding, cursors, manifests, ...counts]) request.onsuccess = finish
-    const scan = tx.objectStore('inbox').openCursor(bound)
-    scan.onsuccess = () => {
-      try {
-        this.check(); const cursor = scan.result
-        if (!cursor) { finish(); return }
-        if (rows.length >= REPLAY_LIMITS.events) fail()
-        const row = validateBrowserInboxRecord(cursor.value, s)
-        if (row.record_version !== 1 || row.state !== 'received' || row.protocol_version !== 3 || !replaySame(cursor.primaryKey, [s.accountId, row.server_sequence])) fail()
-        bytes += new TextEncoder().encode(JSON.stringify(row)).length
-        if (bytes > REPLAY_LIMITS.inventoryBytes) fail()
-        rows.push(row); cursor.continue()
-      } catch (error) { abort(error) }
-    }
+    scheduleReplaySnapshot(tx, this.scope, () => this.check(), result, abort)
   }
   read(): Promise<ReplaySnapshot> { return this.run('readonly', (tx, result, abort) => this.load(tx, result, abort)) }
+  applyMetadata(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<ReplayMetadataResult> {
+    const stop = () => { void this.close() }
+    const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
+    return composeReplayMetadata({ read: () => this.read(), transaction: (expected, sequence, server) => async (scope, _stores, mode, schedule) => {
+      if (!replaySame(scope, this.scope)) fail()
+      if (mode === 'readwrite') await server()
+      return this.run(mode, (tx, result, abort) => this.load(tx, before => {
+        try {
+          if (!replaySame(before, expected)) throw new BrowserPersistenceError('stale_authority')
+          schedule(tx, value => {
+            try {
+              this.check()
+              if (mode === 'readonly') { result(value); return }
+              if (value === 'applied') {
+                const manifest = before.manifest!
+                if (manifest.revision === Number.MAX_SAFE_INTEGER) fail()
+                tx.objectStore('replayManifest').put({ ...manifest, metadata_cursor: sequence, revision: manifest.revision + 1 })
+              }
+              this.load(tx, after => {
+                try { assertReplayMetadataTransition(before, after, sequence, value); result(value) } catch (error) { abort(error) }
+              }, abort)
+            } catch (error) { abort(error) }
+          }, abort)
+        } catch (error) { abort(error) }
+      }, abort))
+    } }, this.scope, this.signal, () => { try { this.check(); return true } catch { return false } }, auth, bindings, keys).finally(() => { unAuth(); unKey() })
+  }
   async start(input: ReplayAnchor): Promise<ReplaySnapshot> {
     const anchor = replayAnchor(input.registry, input.transport), s = this.scope
     await this.run('readwrite', (tx, result, abort) => this.load(tx, old => {
       try {
         if (old.manifest && replaySame(old.manifest.anchor, anchor)) { result(undefined); return }
         if (old.manifest) {
+          if (old.manifest.metadata_cursor) throw new BrowserPersistenceError('stale_authority')
           const prior = old.manifest.anchor
           if (anchor.registry.current_cursor < prior.registry.current_cursor || anchor.transport.cutover_epoch < prior.transport.cutover_epoch) throw new BrowserPersistenceError('stale_cursor')
           if (prior.registry.projects.some(project => !replaySame(project, anchor.registry.projects.find(next => next.project_id === project.project_id)))) throw new BrowserPersistenceError('stale_lineage')
@@ -162,7 +155,7 @@ class BrowserReplayStorage {
         tx.objectStore('identities').put({ record_version: 1, canonical_user_id: s.canonicalUserId, local_account_id: s.accountId, device_id: s.deviceId })
         tx.objectStore('accountBindings').put({ record_version: 1, local_account_id: s.accountId, canonical_user_id: s.canonicalUserId })
         tx.objectStore('cursors').put({ record_version: 1, account_id: s.accountId, device_id: s.deviceId, pull_cursor: 0, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 })
-        const manifest: ReplayManifest = { record_version: 1, contract_version: 1, account_id: s.accountId, canonical_user_id: s.canonicalUserId, device_id: s.deviceId,
+        const manifest: ReplayManifest = { record_version: 2, contract_version: 2, metadata_cursor: 0, account_id: s.accountId, canonical_user_id: s.canonicalUserId, device_id: s.deviceId,
           generation: crypto.randomUUID(), anchor, receive_cursor: 0, ciphertext_bytes: 0, phase: 'receiving', revision: 1 }
         tx.objectStore('replayManifest').put(manifest); result(undefined)
       } catch (error) { abort(error) }
@@ -218,7 +211,7 @@ class BrowserReplayStorage {
   }
 }
 
-export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close'>
+export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata'>
 
 export async function openBrowserReplayStorage(input: BrowserSyncScope, signal: AbortSignal, current: () => boolean): Promise<ReplayStorage> {
   const scope = snapshotBrowserSyncScope(input)
@@ -234,7 +227,7 @@ export async function openBrowserReplayStorage(input: BrowserSyncScope, signal: 
   try { flight = navigator.locks.request(`${REPLAY_DATABASE_NAME}:writer`, { mode: 'exclusive', ifAvailable: true }, async lock => {
     if (controller.signal.aborted || !current()) throw new BrowserPersistenceError('closed')
     if (!lock) throw new BrowserPersistenceError('writer_busy')
-    const db = await openDatabase(controller.signal)
+    const db = await openDatabase(controller.signal, current)
     if (controller.signal.aborted || !current()) { db.close(); throw new BrowserPersistenceError('closed') }
     let release!: () => void
     const held = new Promise<void>(yes => { release = yes })

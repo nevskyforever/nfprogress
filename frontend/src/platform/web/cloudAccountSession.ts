@@ -1,3 +1,4 @@
+import type { ReplayMetadataResult } from './replayMetadata'
 import { accountCryptoApi, type AccountCryptoTransport } from '@/api/accountCrypto'
 import { cloudProjectsApi, type CloudProjectsResponse } from '@/api/cloudProjects'
 import { legalDocumentsApi, type LegalDocument, type LegalDocumentConfirmation,
@@ -13,7 +14,7 @@ import type { BrowserLocalStagesRuntime } from './localStages'
 import type { BrowserLocalDocumentsRuntime } from './localDocuments'
 import type { BrowserSyncScope } from './syncDurability'
 import { readBrowserCloudProject, BrowserCloudReadError, type BrowserCloudProjectRead } from './cloudRead'
-import { receiveBrowserAccountHistory, type BrowserAccountReceiveResult } from './replayReceiver'
+import { withReceivedBrowserAccountHistory, receiveBrowserAccountHistory, type BrowserAccountReceiveResult } from './replayReceiver'
 
 type BrowserStorage = Awaited<ReturnType<typeof openBrowserPersistence>>
 type BrowserIdentity = { readonly local_account_id: string; readonly device_id: string }
@@ -125,6 +126,19 @@ export class BrowserCloudAccountSession {
       scope: { accountId: identity.local_account_id, deviceId: identity.device_id, canonicalUserId: context.userId },
       signal: AbortSignal.any([signal, this.controller.signal]),
       current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context) })
+  }
+
+  /** Bounded peer Metadata only. Fresh server reconciliation is mandatory on every call. */
+  async applyCloudAccountMetadata(signal: AbortSignal): Promise<ReplayMetadataResult> {
+    this.assertWeb()
+    const identity = this.identity, context = this.auth.requireContext(), generation = this.generation
+    const keys = this.keys, bindings = this.bindings, lease = identity && keys?.leaseForAccount(identity.local_account_id)
+    if (this.status !== 'unlocked' || !identity || !lease || !keys || !bindings || !this.controller) throw new BrowserCloudReadError('key_locked')
+    return withReceivedBrowserAccountHistory({ auth: this.auth, lease,
+      scope: { accountId: identity.local_account_id, deviceId: identity.device_id, canonicalUserId: context.userId },
+      signal: AbortSignal.any([signal, this.controller.signal]),
+      current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context)
+    }, storage => storage.applyMetadata(this.auth, bindings, keys))
   }
 
   /** Explicit user action: identity registration only, never reader readiness. */

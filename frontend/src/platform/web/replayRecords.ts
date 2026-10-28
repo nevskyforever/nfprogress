@@ -11,9 +11,10 @@ export class BrowserReplayError extends Error {
 }
 export interface ReplayAnchor { registry: CloudProjectBootstrapListResponse; transport: V2Capabilities }
 export interface ReplayManifest {
-  record_version: 1; contract_version: 1; account_id: string; canonical_user_id: string; device_id: string
+  record_version: 1 | 2; contract_version: 1 | 2; account_id: string; canonical_user_id: string; device_id: string
   generation: string; anchor: ReplayAnchor; receive_cursor: number; ciphertext_bytes: number
   phase: 'receiving' | 'received'; revision: number
+  metadata_cursor?: number
 }
 export const replaySame = (a: unknown, b: unknown): boolean => immutableWireIdentity(a) === immutableWireIdentity(b)
 export const replayExact = (v: unknown, keys: readonly string[]): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -30,16 +31,17 @@ export function replayAnchor(registry: unknown, transport: unknown): ReplayAncho
   return anchor
 }
 
-export function validateReplayManifest(value: unknown, scope: BrowserSyncScope): ReplayManifest {
+export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, version: 1 | 2 = 2): ReplayManifest {
   try {
-    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision'])
-      || value.record_version !== 1 || value.contract_version !== 1 || value.account_id !== scope.accountId
+    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision', ...(version === 2 ? ['metadata_cursor'] : [])])
+      || value.record_version !== version || value.contract_version !== version || value.account_id !== scope.accountId
       || value.canonical_user_id !== scope.canonicalUserId || value.device_id !== scope.deviceId || !replayUuid(value.generation)
       || !safe(value.receive_cursor) || !safe(value.ciphertext_bytes) || value.ciphertext_bytes > REPLAY_LIMITS.ciphertextBytes
       || !safe(value.revision, 1) || !['receiving', 'received'].includes(value.phase as string)
       || !replayExact(value.anchor, ['registry', 'transport'])) throw new Error()
     const anchor = replayAnchor(value.anchor.registry, value.anchor.transport)
     if (value.receive_cursor > anchor.registry.current_cursor || value.phase === 'received' && value.receive_cursor !== anchor.registry.current_cursor) throw new Error()
+    if (version === 2 && (!safe(value.metadata_cursor) || value.metadata_cursor > value.receive_cursor)) throw new Error()
     return structuredClone(value) as unknown as ReplayManifest
   } catch { throw new BrowserPersistenceError('corrupt_record') }
 }

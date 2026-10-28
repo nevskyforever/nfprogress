@@ -1,3 +1,4 @@
+import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import { timestamp } from '@/cloud/projectMetadataCodec'
 import type { V3Descriptor } from '@/api/encryptedSyncV3'
 import { BrowserPersistenceError } from './persistence'
@@ -15,6 +16,8 @@ export interface BrowserMetadataHead {
   owner_id: string; bootstrap_id: string; tip_event_ids: string[]; history: BrowserMetadataProof[]
 }
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v)
+// Proof references retain exact server wire. Only the payload timestamps are canonical.
+const wireTimestamp = (value: unknown): boolean => { try { return typeof value === 'string' && timestamp(canonicalizeSyncTimestamp(value)) } catch { return false } }
 const positive = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) > 0
 const exact = (v: unknown, keys: string[]): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).sort().join(',') === keys.sort().join(',')
 function fail(): never { throw new BrowserPersistenceError('corrupt_record') }
@@ -32,7 +35,7 @@ export function validateBrowserMetadataProof(value: unknown, scope: BrowserSyncS
     || d.event_id !== p.event_id || d.device_id !== p.source_device_id || d.server_sequence !== p.server_sequence
     || d.project_id !== p.project_id || d.entity_id !== p.project_id || d.entity_type !== 'project_metadata'
     || d.revision !== p.revision || d.operation !== (p.operation === 'delete' ? 'delete' : 'upsert')
-    || !timestamp(d.updated_at)
+    || !wireTimestamp(d.updated_at)
     || (p.operation === 'delete' ? d.deleted_at !== d.updated_at : d.deleted_at !== null)) fail()
   if (p.operation === 'create' && (p.revision !== 1 || p.generation !== 1 || p.parent_event_ids.length)) fail()
   if (['update','delete'].includes(p.operation) && p.parent_event_ids.length !== 1) fail()

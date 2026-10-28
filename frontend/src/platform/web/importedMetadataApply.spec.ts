@@ -1,3 +1,4 @@
+import { cloudProjectsApi } from '@/api/cloudProjects'
 import type { V3Descriptor } from '@/api/encryptedSyncV3'
 // @vitest-environment node
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -41,7 +42,8 @@ async function setup(changeEvent?: (e: ProjectMetadataEvent) => void) {
     const store = (name: string) => ({
       get: () => read(name === 'projectBindings' ? pending.binding : name === 'ownerHeads' ? pending.head : name === 'cursors' ? pending.cursor : undefined),
       getAll: () => read(name === 'outbox' ? pending.outbox : pending.receipts),
-      index: () => ({ get: (key: unknown[]) => read(find(key)) }),
+      index: () => ({ get: (key: unknown[]) => read(name === 'projectBindings' ? pending.binding : find(key)) }),
+      add: (row: unknown) => { pending.binding = structuredClone(row); return read(undefined) },
       put: (row: unknown) => {
         if (name === 'ownerHeads') pending.head = structuredClone(row)
         else { const index = pending.inbox.findIndex(value => (value as { event_id: string }).event_id === (row as { event_id: string }).event_id); pending.inbox[index] = structuredClone(row) }
@@ -68,9 +70,52 @@ async function setup(changeEvent?: (e: ProjectMetadataEvent) => void) {
     db.inbox.push({ ...row, event_id: eventId, server_sequence: descriptor.server_sequence, wire_item: JSON.stringify({ event: descriptor, object: { crypto_version: 1, aad_version: 1, nonce: encodeBase64Url(envelope.nonce), ciphertext: encodeBase64Url(envelope.ciphertext) } }) })
     return descriptor
   }
-  return { runtime, auth, lease, history, wire, row, prepare, add, db, lock: () => { current = false }, copies }
+  return { runtime, auth, lease, bindings, history, wire, row, prepare, add, db, lock: () => { current = false }, copies }
 }
 describe('imported Metadata verification and opaque authority contract', () => {
+  const registry = () => ({ current_cursor: 1, projects: [{ project_id: 'p', bootstrap_id: boot, origin_device_id: peer,
+    state: 'active' as const, initial_event_count: 0, initial_max_server_sequence: 0 }] })
+  it('admits peer genesis only through fresh registry, AEAD and the real atomic owner commit', async () => {
+    const h = await setup(); h.db.binding = undefined
+    const request = vi.spyOn(cloudProjectsApi, 'listBootstraps').mockResolvedValue(registry())
+    try {
+      const token = await h.runtime.prepareVerifiedRemoteGenesis(scope, reference(), h.auth, h.bindings as never, { leaseForAccount: () => h.lease } as never)
+      expect(h.db.binding).toBeUndefined(); expect(h.db.head).toBeUndefined()
+      await expect(h.runtime.commitVerifiedImportedMetadataApply(scope, token)).resolves.toBe('applied')
+      expect(h.db.binding).toMatchObject({ mode: 'import_remote', remote_high_water: 1, bootstrap_id: boot })
+      expect(h.db.inbox[0]).toMatchObject({ state: 'applied', applied_proof: { event_id: id } })
+      expect(h.db.head).toMatchObject({ history: [{ event_id: id }] })
+      expect(request).toHaveBeenCalledTimes(1)
+    } finally { request.mockRestore() }
+  })
+  it.each(['origin', 'bootstrap', 'inactive', 'missing', 'non_genesis'] as const)('refuses invalid genesis admission: %s', async kind => {
+    const h = await setup(); h.db.binding = undefined
+    const response = registry()
+    if (kind === 'origin') response.projects[0]!.origin_device_id = scope.deviceId
+    if (kind === 'bootstrap') response.projects[0]!.bootstrap_id = peer
+    if (kind === 'inactive') Object.assign(response.projects[0]!, { state: 'blocked' })
+    if (kind === 'missing') response.projects = []
+    const request = vi.spyOn(cloudProjectsApi, 'listBootstraps').mockResolvedValue(response)
+    try {
+      const ref = kind === 'non_genesis' ? await h.add('update', [id], 2, 2) : reference()
+      await expect(h.runtime.prepareVerifiedRemoteGenesis(scope, ref, h.auth, h.bindings as never, { leaseForAccount: () => h.lease } as never)).rejects.toThrow()
+      expect(h.db.binding).toBeUndefined(); expect(h.db.head).toBeUndefined()
+      expect(h.db.inbox.every(row => (row as { state: string }).state === 'received')).toBe(true)
+    } finally { request.mockRestore() }
+  })
+  it('retains real API timestamp spelling while comparing authenticated time at full microsecond precision', async () => {
+    const h = await setup(), reference = { ...h.wire.event, updated_at: '2026-10-12T00:00:00Z' }
+    h.row.wire_item = JSON.stringify({ ...h.wire, event: reference }); h.db.inbox[0] = h.row
+    await h.runtime.commitVerifiedImportedMetadataApply(scope, await h.prepare(reference))
+    expect(h.db.head).toMatchObject({ history: [{ reference: { updated_at: reference.updated_at } }] })
+    expect((h.db.inbox[0] as { wire_item: string }).wire_item).toBe(h.row.wire_item)
+  })
+  it('rejects a one-microsecond descriptor drift without changing wire or creating authority', async () => {
+    const h = await setup(), reference = { ...h.wire.event, updated_at: '2026-10-12T00:00:00.000001Z' }
+    h.row.wire_item = JSON.stringify({ ...h.wire, event: reference }); h.db.inbox[0] = h.row
+    await expect(h.prepare(reference)).rejects.toMatchObject({ code: 'conflicting_record' })
+    expect(h.db.head).toBeUndefined()
+  })
   it('commits only authenticated native genesis and exact token replay', async () => {
     const h = await setup(), token = await h.prepare()
     await expect(h.runtime.commitVerifiedImportedMetadataApply(scope, token)).resolves.toBe('applied')

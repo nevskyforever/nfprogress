@@ -1,9 +1,10 @@
 # WEB.ONLINE.02B — C21 Online-Only source/proof contract
 
-**Status: DESIGN COMPLETE. Slice 1 implementation is recorded below; later slices remain deferred.**
-Reviewed against clean `6.0` baseline
-`57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28. No production code,
-migration, capability, writer, ACK or release change is part of this task.
+**Status: DESIGN COMPLETE. Slice 1 independently accepted; slice 2 Metadata-only composition implemented locally. Later slices remain deferred.**
+The original design review used clean `6.0` baseline
+`57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28, and introduced no
+production code or migration. Subsequent explicitly authorized implementation
+records follow. No capability, writer, ACK or release activation is authorized.
 The preceding implementation at `3ef704c5` was independently accepted by
 owner-reported Cloud run `40578946929`, 6/6 SUCCESS. No CI was queried here.
 
@@ -28,6 +29,108 @@ original design sections below distinguish the future full owner composition
 from this implemented receipt-only layer. Future owner records must have an
 explicit schema/record compatibility decision before v1's received-only refusal
 is broadened. No later slice is implicitly authorized.
+
+## Slice 2 implementation record — WEB.ONLINE.02B.02, 2026-10-28
+
+Starting `6.0` SHA `bdfb5601d2d4b512fc76e424c5b0db1ae87dc67c` was clean.
+Owner-reported independent run **40601063694: 6/6 SUCCESS** accepts slice 1 at
+that SHA. The historical slice-1 “CI pending” statements above describe its
+publication state; this record supersedes them. No Actions polling occurred.
+
+### Compatibility decision and exact record authority
+
+Replay schema **v2** retains the same thirteen physical stores/key paths/indexes.
+Only manifest record/contract versions become 2, adding `metadata_cursor`:
+a contiguous account-prefix *derived journal*, never an ACK, source revision,
+owner certificate, `proven_prefix`, or opening authority. Native versionchange
+validates all accounts and all v1 records before any manifest update. Ciphertext,
+nonce, wire/receive protocol, identities, generation, cursors and other records
+are preserved byte-for-byte. An interrupted/quota/corrupt migration aborts the
+entire upgrade, including native database version. Genuine pinned v1 code refuses
+v2. Unknown versions/schemas refuse without cleanup. No `worta-web` v12, SQLite
+or PostgreSQL schema/data migration is part of this slice.
+
+The runtime admits exactly received inbox record1 and real Metadata applied
+record2, existing `BrowserProjectBinding` import records and existing Metadata
+owner heads. All source/outbound/receipt/Note compatibility stores remain empty.
+Validation joins every applied inbox proof to the exact head history and every
+head to an active imported binding/bootstrap, and checks the whole dense prefix.
+Merely allowing nonempty stores is insufficient: pre/post owner transactions
+validate all thirteen stores, full expected inventory, generation and exact
+permitted record delta under the existing aggregate size bounds.
+
+`BrowserCloudAccountSession.applyCloudAccountMetadata()` first uses the slice-1
+receiver, holding its writer lease through server reconciliation and owner apply.
+The full account history must be supported Metadata-only before applying any new
+event; there is no project filtering or jumping over unsupported earlier events.
+Fresh registry/mode equality and an empty tail pull through the real device/family
+gates are required before each owner write and again before publishing a result.
+Account/device identity, auth epoch, AMK lease, replay generation and cancellation
+are rechecked throughout. No automatic startup, UI action or capability change.
+
+The genuine `BrowserImportedMetadataApply` already supports first create with a
+proper import binding. Its new narrow genesis preparation authenticates active
+registry/origin/bootstrap and the real AEAD genesis, then mints the same private,
+owner-bound plan. Existing `BrowserProjectBindings.importRemote` record preparation
+is shared, with no local project or source creation. The private owner commit adds
+the import binding **with** the real head and inbox applied proof; the adapter adds
+the derived manifest journal in that same strict native transaction. Subsequent
+updates use the existing transition, parents/tips/revision/generation and retained
+wire checks. No new reducer, source/bootstrap seed owner, fake source revision,
+new proof format or protocol change was needed. Historical handoff's pre-existing
+head requirement remains unchanged.
+
+Real API integration exposed a representation mismatch: server descriptor time
+`…00Z` and canonical AEAD header time `…00.000000Z` represent the same instant.
+The owner now uses the existing full-microsecond timestamp comparison contract,
+as the existing preview does. Proof references and their digest retain original
+server spelling. Invalid time and even one microsecond of actual drift reject;
+there is no rounding, wire rewriting or reduced identity check.
+
+Every success reloads durable records and reauthenticates real Metadata prefix
+proofs using `prepareMetadataPrefix(force=true)`. Restart repeats authorization,
+AMK unlock, zero-origin exact server-wire reconciliation, registry/mode/device
+gates and owner-proof AEAD verification. Already applied rows are not rewritten.
+A lost commit response is an error to its stale caller; a later fresh call reads
+and reauthenticates the real committed outcome, then continues at the next event.
+Quota/abort/context loss before commit rolls back binding/head/proof/journal
+atomically. Corrupt matching head/inbox proof DTOs are not valid certificates.
+
+### Deliberate cohort and publication boundary
+
+Supported: bounded (200 events / 32 MiB) Metadata-only account snapshots, active
+bootstrap, coverless peer-origin create and linear updates, multiple projects
+and pages. The whole supported chain is authored by the registered bootstrap
+origin, distinct from this browser's device. Other source devices, self-echo,
+missing parents, conflicting tips, cover/delete/unsupported generation or family
+refuse. Valid already committed prefix proofs may remain after a later event
+fails; no failed event gains an applied proof and no partial project is exposed.
+
+If the server snapshot advances after owner records exist, this slice refuses
+`stale_authority` and preserves those records. It does **not** clear owned proofs
+using slice-1's owner-free cache rebuild. A future separately accepted refresh/
+structural adapter must define advancement; this task implements no later slice.
+
+The diagnostic result is `metadata_owner_applied` with the actual owner-proof
+count, **projectOpened=false** and every readiness/writer flag false. It exposes
+no project plaintext projection. The original receipt-only API still means
+`received_ciphertext` / `ownerProofs=0`; it refuses `metadata_owner_state_present`
+on an owner-bearing generation instead of mislabelling it. Full project open,
+Notes/Maps/Documents/Stage editing, source seed, ACK/push/capabilities/writer/
+cutover and public release remain blocked. Existing Metadata-only preview stays
+unchanged. Server authority, E2EE/AEAD and the frozen C21 formats are retained.
+
+Local acceptance **PASS**: full prepush with 631 Vitest/23 files, typecheck/
+build, six frontend Chromium scripts, 264 isolated PostgreSQL backend tests and
+one real backup/restore. The new API/Chromium owner test has **47 scenarios**,
+including genuine 102-event history, migration rollback, native restart and
+forbidden-write warm replay; existing 17 storage and 10 receiver API scenarios
+remain. ESLint/YAML/shell/Python/diff and six-job configuration checks pass.
+No local Linux/x86-64 frontend acceptance is claimed. Independent CI of the
+new commit is **PENDING**. Official progress remains **89.36%**. Next authorized
+slice remains 3's structural/source foundation, one bounded owner cohort at a
+time, including an explicit owned-generation advancement decision before
+accepting a changed server snapshot. Recommended model: **GPT-6 Sol / High**.
 
 ## 1. Decision and authority
 
@@ -70,7 +173,7 @@ in a normal browser. AEAD/codecs alone never establish an applied outcome.
 | Owner / status | Required history and dependencies | Durable application evidence today | Reuse and missing production work |
 | --- | --- | --- | --- |
 | Metadata preview — implemented | `cloudRead.ts`, `canonicalReaders.ts`, `metadataImportSnapshot.ts`: complete bounded account feed, bootstrap, exact descriptor/header joins, causal Metadata history | None; returned Metadata is a read-only view, not apply proof | Reuse transport, AEAD and reducer unchanged. Keep preview distinct from all project-read results. Covers, unsupported families, conflicts and deleted head reject. |
-| Imported Metadata — LOCAL | `importedMetadataApply.ts`, `metadataPrefixProof.ts`: original inbox wire, import binding, full Metadata parents/tips, bootstrap, no incompatible local publication | Metadata `ownerHeads` history plus `inbox.applied_proof`, committed together | Reuse owner and validators with an isolated transaction adapter. Ordinary coverless chain is narrower than all forms accepted by the preview reducer. Private post-F handoff has its own source/inventory checks. |
+| Imported Metadata — LOCAL | `importedMetadataApply.ts`, `metadataPrefixProof.ts`: original inbox wire, import binding, full Metadata parents/tips, bootstrap, no incompatible local publication | Metadata `ownerHeads` history plus `inbox.applied_proof`, committed together | Slice 2 now composes this real owner through replay v2 for the bounded peer-origin, coverless ordinary chain; see its implementation record above. This is narrower than all forms accepted by the preview reducer. Private post-F handoff has its own source/inventory checks. |
 | Stage — LOCAL | `stageApply.ts`: Metadata proof/certificate, same project/bootstrap, exact parent/tip/revision and original peer wire | Stage owner head plus inbox record5 `stage_proven`, one transaction | Reuse existing create/update/read owner. Delete, self-echo and competing heads are barriers; Stage codec support does not remove these limits. Mixed v10 admission still needs complete-inventory guarding. |
 | StageOrder — LOCAL | `stageOrderApply.ts`: Metadata plus all Stage heads, ancestry coverage and exact membership; unapplied Stage rows and tombstones are checked | StageOrder owner head plus inbox record6 `stage_order_proven` | Reuse existing owner. Missing/foreign Stage, changed membership, tombstone child manifest and unsupported history block. |
 | Legacy ordinary Note — LOCAL | `noteTransport.ts`, `legacyNoteApply.ts`, `localAuthority.ts`: Legacy plaintext codec over original v2/v3 receive identity, initial cohort, causal candidates/head, membership, source CAS, real own receipts if needed | Encrypted project/Note source, candidate/head history, applied/conflict inbox proof and source revision in the owner's transaction | Reuse source/causal/historical kernels extracted by Z2B1/B2/B2C. Cache-only replay seeding below is not implemented; historical Z2A virtual-inventory/batch work is also unfinished. Do not call local CRUD to manufacture authority. |
@@ -413,9 +516,9 @@ measuring duration. No capability/gate activation is implicit in these slices.
 | 5. Native family owner cores/adapters | One family per task: shared core extraction and browser execution/storage feasibility, then account catalog, Documents/Maps, Progress and Game in actual dependency order | Desktop behavior and real producer outputs match; owner parity/negative cases, encrypted browser records and atomic ledger/projection/reward joins. Cannot count a codec or Tauri mock as browser owner support. |
 | 6. Complete read-only project publication | Coverage/closure for every encountered family and auxiliary material, stable server checks, correct UI and lifecycle | Real Chromium/FastAPI/PostgreSQL server replay, cold cache and restart, all required project data restored; mixed unsupported account history blocks; network has no plaintext/ACK/push/declaration. Full-read acceptance still does not authorize writer or release. |
 
-After slice 1's local/independent acceptance, the next minimum implementation
-is **slice 2**, the real imported Metadata owner composition and compatibility
-guard. It must retain Metadata-only semantics. Recommended model:
+After the Metadata-only slice 2, the next minimum implementation is **slice 3**,
+structural/source foundation in separately bounded cohorts. Owned-generation
+advancement must be specified before accepting a changed server snapshot. Recommended model:
 **GPT-6 Sol / High**. Native shared-core feasibility and any positive Note
 capability lifecycle are separate later tasks, never hidden inside storage work.
 

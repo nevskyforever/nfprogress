@@ -1,3 +1,4 @@
+import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp'
 import {currentBrowserDevice,type VerifiedBrowserDevice} from './deviceRegistration'
 import {resolutionInventoryStores,scheduleResolutionInventory,MAX_PLANNER_ROWS,MAX_PLANNER_INVENTORY_BYTES,type ResolutionInventorySnapshot} from './resolutionPlanner'
 import {readFutureInboxRecord,boundResolutionJson} from './resolutionRecords'
@@ -12,12 +13,16 @@ import { BrowserPersistenceError, type BrowserPersistenceCode } from './persiste
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
 import { validateBrowserSyncCursor, immutableWireIdentity, snapshotBrowserSyncScope, validateBrowserRetainedHistory, validateBrowserStoredUploadPair, type BrowserSyncScope, type BrowserSyncTransaction, BrowserSyncDurability, type BrowserRetainedEncryptedHistory } from './syncDurability'
 import { validateBrowserMetadataHead, type BrowserMetadataHead, type BrowserMetadataProof } from './metadataApplyRecords'
+import { cloudProjectsApi } from '@/api/cloudProjects'
+import { validateAccountRegistry } from './accountRegistry'
+import { prepareBrowserRemoteProjectImport } from './projectBindings'
 
 /** Tokens have no public data/constructor; only the authenticated reader can mint one. */
 export interface VerifiedImportedMetadataPlan { readonly verifiedImportedMetadata: unique symbol }
 interface Plan {
   owner: BrowserImportedMetadataApply; scope: BrowserSyncScope; binding: BrowserProjectBinding; expected: BrowserMetadataHead | null; proof: BrowserMetadataProof
   retained: BrowserRetainedEncryptedHistory[]; current: () => boolean; auth: NormalUserAuthRuntime
+  admission?: boolean
 }
 const plans = new WeakMap<object, Plan>()
 const same = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b)
@@ -26,7 +31,7 @@ export function metadataProofFor(scope: BrowserSyncScope, reference: V3Descripto
   const h = event.header
   if (reference.entity_type !== 'project_metadata' || reference.project_id !== h.project_id || reference.entity_id !== h.entity_id
     || reference.event_id !== h.event_id || reference.device_id !== h.device_id || reference.revision !== h.revision
-    || reference.updated_at !== h.updated_at || reference.deleted_at !== event.deleted_at
+    || canonicalizeSyncTimestamp(reference.updated_at) !== h.updated_at || (reference.deleted_at === null ? null : canonicalizeSyncTimestamp(reference.deleted_at)) !== event.deleted_at
     || reference.operation !== (h.operation === 'delete' ? 'delete' : 'upsert') || h.account_id !== scope.canonicalUserId) fail('conflicting_record')
   // Native explicit null has no material dependency. A non-null reference cannot be applied here.
   if (event.metadata?.cover_reference != null) fail('cover_material_unavailable')
@@ -59,18 +64,21 @@ function scheduleMetadataOwnerCommit(scope:BrowserSyncScope,plan:Plan,tx:IDBTran
   const local = tx.objectStore('outbox').getAll(IDBKeyRange.bound([scope.accountId], [scope.accountId, []]))
   const localReceipts = tx.objectStore('receipts').getAll(IDBKeyRange.bound([scope.accountId], [scope.accountId, []]))
   const cursor = tx.objectStore('cursors').get([scope.accountId, scope.deviceId])
+  const bootstrap = plan.admission ? tx.objectStore('projectBindings').index('bootstrap').get([scope.accountId, plan.binding.bootstrap_id]) : null
   const reads = plan.retained.map(entry => ({ entry,
     out: tx.objectStore('outbox').get([scope.accountId, entry.reference.event_id]),
     receipt: tx.objectStore('receipts').get([scope.accountId, entry.reference.event_id]),
     inbox: tx.objectStore('inbox').index('event').get([scope.accountId, entry.reference.event_id]) }))
-  const requests = [lineage, head, local, localReceipts, cursor, ...reads.flatMap(r => [r.out, r.receipt, r.inbox])]
+  const requests = [lineage, head, local, localReceipts, cursor, ...(bootstrap ? [bootstrap] : []), ...reads.flatMap(r => [r.out, r.receipt, r.inbox])]
   let ready = 0
   const finish = () => {
     if (++ready !== requests.length) return
     try {
       if (!current()) fail('closed')
-      if (!lineage.result) fail('missing_history')
-      const binding = validateBrowserProjectBinding(lineage.result, scope)
+      const importing = plan.admission && lineage.result === undefined
+      if (!lineage.result && !importing) fail('missing_history')
+      if (importing && bootstrap?.result !== undefined) fail('conflicting_record')
+      const binding = validateBrowserProjectBinding(importing ? plan.binding : lineage.result, scope)
       if (binding.mode !== 'import_remote' || binding.phase !== 'captured' || binding.remote_state !== 'active') fail('ineligible_lineage')
       if (binding.project_id !== plan.proof.project_id || binding.bootstrap_id !== plan.proof.bootstrap_id) fail('conflicting_record')
       const state = validateBrowserSyncCursor(cursor.result, scope)
@@ -102,6 +110,7 @@ function scheduleMetadataOwnerCommit(scope:BrowserSyncScope,plan:Plan,tx:IDBTran
       const applied = { ...row, record_version: 2, state: 'applied', applied_proof: plan.proof }
       if (predicted && (!same(next, predicted.head) || !same(applied, predicted.row))) fail('conflicting_record')
       const writes = [tx.objectStore('ownerHeads').put(next), tx.objectStore('inbox').put(applied)]
+      if (importing) writes.push(tx.objectStore('projectBindings').add(plan.binding))
       writes.forEach(write => { write.onsuccess = () => { if (!current()) abort(new BrowserPersistenceError('closed')) } })
       result('applied')
     } catch (error) { abort(error) }
@@ -120,6 +129,31 @@ export class BrowserImportedMetadataApply {
     })
   }
   async prepareVerified(scope: BrowserSyncScope, reference: V3Descriptor, auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<VerifiedImportedMetadataPlan> {
+    return this.prepareInternal(scope, reference, auth, bindings, keys)
+  }
+  /** Fresh registry + authenticated first create. Binding is committed only with the real owner outcome. */
+  async prepareVerifiedRemoteGenesis(scope: BrowserSyncScope, reference: V3Descriptor, auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, signal?: AbortSignal): Promise<VerifiedImportedMetadataPlan> {
+    scope = snapshotBrowserSyncScope(scope); reference = structuredClone(reference)
+    const context = auth.requireContext()
+    const response = await auth.authorized(token => cloudProjectsApi.listBootstraps(token, signal))
+    if (!auth.isCurrent(context)) fail('closed')
+    const registry = validateAccountRegistry(response.value), remote = registry.projects.find(project => project.project_id === reference.project_id)
+    if (!remote || remote.state !== 'active' || !remote.bootstrap_id || remote.origin_device_id !== reference.device_id || reference.device_id === scope.deviceId) fail('ineligible_lineage')
+    const lineage = prepareBrowserRemoteProjectImport(scope, { project_id: remote.project_id, bootstrap_id: remote.bootstrap_id,
+      remote_state: 'active', remote_high_water: registry.current_cursor })
+    const token = await this.prepareInternal(scope, reference, auth, bindings, keys, lineage), plan = plans.get(token)!
+    if (!auth.isCurrent(context)) { plans.delete(token); fail('closed') }
+    if (plan.expected !== null || plan.proof.operation !== 'create' || plan.proof.revision !== 1 || plan.proof.generation !== 1) { plans.delete(token); fail('missing_history') }
+    plan.admission = true
+    return token
+  }
+  /** Bounded ordinary-only composition; existing broad family entry remains unchanged. */
+  async prepareVerifiedOrdinary(scope: BrowserSyncScope, reference: V3Descriptor, auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<VerifiedImportedMetadataPlan> {
+    const token = await this.prepareVerified(scope, reference, auth, bindings, keys), plan = plans.get(token)!
+    if (!['create', 'update'].includes(plan.proof.operation)) { plans.delete(token); fail('metadata_rejected') }
+    return token
+  }
+  private async prepareInternal(scope: BrowserSyncScope, reference: V3Descriptor, auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, admission?: BrowserProjectBinding): Promise<VerifiedImportedMetadataPlan> {
     scope = snapshotBrowserSyncScope(scope); reference = structuredClone(reference)
     const binding = await bindings.ensureForCurrentUser(scope.accountId), context = binding.context
     const lease = keys.leaseForAccount(scope.accountId)
@@ -128,6 +162,10 @@ export class BrowserImportedMetadataApply {
     const lineage = await this.transaction<BrowserProjectBinding>(scope, ['projectBindings'], 'readonly', (tx, result, abort) => {
       const read = tx.objectStore('projectBindings').get([scope.accountId, reference.project_id])
       read.onsuccess = () => { try {
+        if (admission) {
+          if (read.result !== undefined) fail('conflicting_record')
+          result(validateBrowserProjectBinding(admission, scope)); return
+        }
         if (!read.result) fail('missing_history')
         result(validateBrowserProjectBinding(read.result, scope))
       } catch (error) { abort(error) } }
@@ -213,9 +251,9 @@ export function bindPrivateMetadataHandoff(transaction:BrowserSyncTransaction,pr
  return Object.freeze({
   prepare:(input:BrowserSyncScope,sequence:number):Promise<PrivateMetadataHandoffPlan>=>sanitized(async()=>{
    const {scope,lease,current}=await guard(input),before=await load(scope,current)
-   const row=readFutureInboxRecord(before.rows.find((r:any)=>r.server_sequence===sequence),scope),wire=JSON.parse(row.wire_item)
+   const row=readFutureInboxRecord(before.rows.find((r)=> (r as {server_sequence:number}).server_sequence===sequence),scope),wire=JSON.parse(row.wire_item)
    if(row.state!=='received'||wire.event.entity_type!=='project_metadata')fail('metadata_rejected')
-   if(!before.owners.some((h:any)=>h.owner_kind==='project_metadata'&&h.owner_id===wire.event.project_id))throw new PrivateMetadataHandoffError('unsupported_create_baseline')
+   if(!before.owners.some((h)=> (h as {owner_kind:string}).owner_kind==='project_metadata'&&(h as {owner_id:string}).owner_id===wire.event.project_id))throw new PrivateMetadataHandoffError('unsupported_create_baseline')
    await lease.use(amk=>authenticatePrivateMetadataSource(scope,before,amk,current,{kind:'pending',sequence}))
    const ownerToken=await owner.prepareVerified(scope,wire.event,auth,bindings,keys),p=plans.get(ownerToken)
    try{
@@ -224,9 +262,9 @@ export function bindPrivateMetadataHandoff(transaction:BrowserSyncTransaction,pr
     await lease.use(amk=>authenticatePrivateMetadataSource(scope,before,amk,current,{kind:'prediction',sequence,proof:p.proof}))
     // Private prediction only, never passed to public historical readers as durable evidence.
     const after=structuredClone(before)
-    const index=after.owners.findIndex((h:any)=>h.owner_kind==='project_metadata'&&h.owner_id===p.proof.project_id)
+    const index=after.owners.findIndex((h)=> (h as {owner_kind:string}).owner_kind==='project_metadata'&&(h as {owner_id:string}).owner_id===p.proof.project_id)
     if(index<0)throw new PrivateMetadataHandoffError('unsupported_create_baseline')
-    after.owners[index]=head;after.rows[after.rows.findIndex((r:any)=>r.server_sequence===sequence)]=applied
+    after.owners[index]=head;after.rows[after.rows.findIndex((r)=> (r as {server_sequence:number}).server_sequence===sequence)]=applied
     boundedPrediction(after)
     if(!current()||!same(await load(scope,current),before))fail('stale_source')
     const token=Object.freeze({}) as PrivateMetadataHandoffPlan
@@ -264,7 +302,7 @@ export function bindPrivateMetadataHandoff(transaction:BrowserSyncTransaction,pr
    finally{activeAbort=undefined;unAuth();unKey()}
   },
   replay:(input:BrowserSyncScope,sequence:number)=>sanitized(async()=>{
-   const {scope,lease,current}=await guard(input),v=await load(scope,current),row=readFutureInboxRecord(v.rows.find((r:any)=>r.server_sequence===sequence),scope)
+   const {scope,lease,current}=await guard(input),v=await load(scope,current),row=readFutureInboxRecord(v.rows.find((r)=> (r as {server_sequence:number}).server_sequence===sequence),scope)
    if(row.state!=='applied'||JSON.parse(row.wire_item).event.entity_type!=='project_metadata')fail('metadata_rejected')
    await lease.use(amk=>authenticatePrivateMetadataSource(scope,v,amk,current,{kind:'durable'}))
    if(!current()||!same(await load(scope,current),v))fail('stale_source')

@@ -1,5 +1,96 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+
+## 2026-10-28 — WEB.ONLINE.02B.02 — Imported Metadata owner / replay composition
+
+**LOCAL COMPLETE — METADATA ONLY;
+FULL PROJECT OPEN BLOCKED; NEW INDEPENDENT CI PENDING.**
+Clean branch `6.0`, starting SHA `bdfb5601d2d4b512fc76e424c5b0db1ae87dc67c`.
+The owner independently accepted that baseline: GitHub Actions **40601063694 —
+all six mandatory jobs SUCCESS**. This supersedes slice 1's historical pending
+status below. No CI polling.
+
+Slice 1 already supplied exact encrypted receipt, pagination and fresh server
+prefix reconciliation. This slice composes **the actual Imported Metadata owner**,
+not the Metadata preview reducer, with the isolated replay transaction adapter.
+The [source/proof contract](web/WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md#slice-2-implementation-record--webonline02b02-2026-10-28)
+records the compatibility decision, record creators, atomicity and cohort.
+
+`worta-web-replay` **v1 → v2** keeps all thirteen physical stores. A native atomic
+versionchange validates the complete old inventory, changes only manifest
+versions and adds technical `metadata_cursor=0`. Original ciphertext/nonce/wire,
+identities, generation and receive cursors survive. Genuine pinned v1 refuses v2;
+quota/abort/corrupt migration leaves v1 and its bytes intact. Developer `worta-web`
+**v12**, Desktop SQLite and PostgreSQL are unchanged; no local data promotion.
+
+The narrow authenticated genesis entry shares existing import-binding record
+preparation. Fresh active registry/origin/bootstrap plus genuine AEAD create
+produce the owner's private plan. Its **real commit** atomically writes imported
+binding + owner head + applied inbox proof; the adapter writes the derived
+manifest journal in the same strict transaction. Ordinary updates retain the
+existing causal transition and owner-bound tokens. No source revisions or fake
+proofs are minted. The first-create prohibition belonged to historical handoff;
+that handoff's semantics remain unchanged. Actual API timestamps required using
+the existing full-microsecond semantic timestamp contract in the owner, retaining
+exact raw descriptor spelling/digest; a one-microsecond mismatch still refuses.
+
+Full account/generation inventory CAS, fresh registry/mode and device-gated tail
+pull guard every owner write. Restart reauthorizes, unlocks AMK, compares all
+original wire with server history and reauthenticates durable owner proofs.
+Repeated replay is read-only for applied rows. Lost commit response recovers via
+actual durable records. Late logout/lock/account change/abort cannot report
+success. All plaintext remains transient; no plaintext projection is stored.
+
+Supported cohort: coverless ordinary create/linear updates from another device
+that is the bootstrap origin, multiple projects/pages, bounded complete
+Metadata-only history. Unsupported earlier family, self-echo/other source,
+missing parents, forks, cover/delete/generation reject without false proofs.
+A valid committed prefix can remain after a later event fails, never an opened
+partial project. Changed server snapshot with existing owner proofs refuses
+`stale_authority`, preserving owned data; no unapproved generation refresh.
+
+The explicit diagnostic returns `metadata_owner_applied`, actual proof count and
+**projectOpened=false**. Existing receipt-only API still means zero proofs and
+refuses owner-bearing generations. Existing Metadata preview/UI are unchanged.
+No source seed, Stage/StageOrder/Notes/Maps/Documents owner composition,
+auto-bootstrap, ACK, push, capability declaration, writer or public opening.
+
+LOCAL-FIRST **PASS**: focused owner/recovery regressions **225 tests / eight
+Vitest files**. Full `bash scripts/maintenance/local_acceptance.sh prepush`
+**PASS**: **631 Vitest / 23 files**, typecheck, production build, all six frontend
+Chromium scripts (including **17** replay storage scenarios and real legacy-v12
+preservation), **264 backend tests** against task-owned Docker PostgreSQL 16,
+and **one** real PostgreSQL/encrypted-blob backup/restore. The task-owned container
+was stopped by the runner. No SKIP is counted as PASS.
+
+The new genuine-producer Chromium/FastAPI/PostgreSQL test passes **47 scenarios**:
+102 server events / two projects / two pages, exact real heads/applied proofs,
+full profile restart, forbidden-write instrumentation on warm replay, lost
+commit response, v1 migration/rollback and pinned old client refusal, registry/
+device gates, account/lock/logout/abort/generation CAS, quota, corruption,
+header/bootstrap/foreign identity, missing parents/forks/cover/delete/generation,
+unsupported mixed history, genuine self-echo refusal, raw-wire preservation and
+idempotent negative retry. Existing **10-scenario** receiver API acceptance is
+retained. Read/apply requests have no user plaintext, ACK, push or declaration;
+fixture-only uploads use genuine producers through the isolated API.
+
+Changed-file ESLint, workflow YAML/six-job launch configuration, shell/Python
+syntax and `git diff --check` **PASS**. Local checks ran on macOS arm64 with
+Docker PostgreSQL 16; Linux/x86-64 frontend timing/compatibility **NOT RUN** and
+left to independent CI. Focused API/Chromium measurement was **28.73s** locally;
+final acceptance was repeated inside prepush. A 2-minute Linux budget allowance
+is an estimate, not a measured CI result.
+Foundation has no new work. The bounded browser/API test joins existing
+content-action; pinned v1 source is fetched there. Six job names, existing tests
+and 40-minute limits remain. Local arm64 timing is not Linux/x86-64 acceptance.
+
+Progress **89.36%**, pending formal reassessment; partial Metadata application
+closes no full-project criterion. `ready=false`, `declarationAllowed=false`,
+`writerAuthorized=false`, `projectOpened=false`, Registration CLOSED,
+PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC remain mandatory. Next minimum slice:
+structural/source foundation under slice 3, with a separate explicit decision on
+owned-generation advancement. Recommended model: **GPT-6 Sol / High**.
+
 ## 2026-10-28 — WEB.ONLINE — isolated replay receipt, 02B implementation slice 1
 
 Baseline `a092ed2e84ceb18836d83dbec7118e060d8d07f4`, clean branch `6.0`.

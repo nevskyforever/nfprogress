@@ -7,7 +7,7 @@ import type { AuthoritativeKeyContextLease } from '@/auth/keyContext'
 import { BrowserPersistenceError } from './persistence'
 import { snapshotBrowserSyncScope, type BrowserSyncScope } from './syncDurability'
 import { BrowserReplayError, REPLAY_LIMITS, prepareReplayPage, replayAnchor, replaySame } from './replayRecords'
-import { openBrowserReplayStorage } from './replayStorage'
+import { openBrowserReplayStorage, type ReplaySnapshot, type ReplayStorage } from './replayStorage'
 
 export interface BrowserAccountReceiveResult {
   readonly kind: 'received_ciphertext'; readonly cursor: number; readonly events: number; readonly generation: string
@@ -15,11 +15,13 @@ export interface BrowserAccountReceiveResult {
   readonly projectOpened: false; readonly ownerProofs: 0
 }
 
-/** Explicit account-wide ciphertext staging, not owner apply or project opening. */
-export async function receiveBrowserAccountHistory(input: {
+interface ReceiveInput {
   auth: NormalUserAuthRuntime; lease: AuthoritativeKeyContextLease; scope: BrowserSyncScope
   signal: AbortSignal; current: () => boolean; openStorage?: typeof openBrowserReplayStorage
-}): Promise<BrowserAccountReceiveResult> {
+}
+
+/** Keeps the isolated writer lease through receipt reconciliation and its bounded owner consumer. */
+export async function withReceivedBrowserAccountHistory<T>(input: ReceiveInput, consume: (storage: ReplayStorage, snapshot: ReplaySnapshot) => Promise<T>): Promise<T> {
   const { auth, lease } = input, scope = snapshotBrowserSyncScope(input.scope), context = auth.requireContext()
   const controller = new AbortController(), signal = AbortSignal.any([input.signal, controller.signal])
   const unsubscribe = auth.onInvalidated(() => controller.abort())
@@ -75,8 +77,7 @@ export async function receiveBrowserAccountHistory(input: {
     const afterMode = await request(token => encryptedSyncV2Api.capabilities(token, signal))
     if (!replaySame(replayAnchor(afterRegistry, afterMode), anchor)) fail('server_changed')
     check(); snapshot = await storage.finish(snapshot); check()
-    return { kind: 'received_ciphertext', cursor: since, events: snapshot.rows.length, generation: snapshot.manifest!.generation,
-      ready: false, declarationAllowed: false, writerAuthorized: false, projectOpened: false, ownerProofs: 0 }
+    const result = await consume(storage, snapshot); check(); return result
   } catch (error) {
     check()
     if (error instanceof BrowserReplayError || error instanceof BrowserPersistenceError) throw error
@@ -89,4 +90,13 @@ export async function receiveBrowserAccountHistory(input: {
     }
     return fail(error instanceof SyntaxError || error instanceof TypeError ? 'invalid_history' : 'connection_failed')
   } finally { unsubscribe(); controller.abort(); await storage?.close() }
+}
+
+/** Receipt-only result never labels existing owner proofs as zero. */
+export function receiveBrowserAccountHistory(input: ReceiveInput): Promise<BrowserAccountReceiveResult> {
+  return withReceivedBrowserAccountHistory(input, async (_storage, snapshot) => {
+    if (snapshot.manifest!.metadata_cursor) throw new BrowserReplayError('metadata_owner_state_present')
+    return { kind: 'received_ciphertext', cursor: snapshot.manifest!.receive_cursor, events: snapshot.rows.length, generation: snapshot.manifest!.generation,
+      ready: false, declarationAllowed: false, writerAuthorized: false, projectOpened: false, ownerProofs: 0 }
+  })
 }

@@ -131,6 +131,7 @@ backend_checks() {
     tests/test_cloud_projects.py \
     tests/test_web_cloud_read.py \
     tests/test_web_replay.py \
+    tests/test_web_replay_metadata.py \
     tests/test_cloud_encrypted_schema.py \
     tests/test_cloud_encrypted_sync.py \
     tests/test_cloud_encrypted_sync_v2.py \
@@ -150,6 +151,11 @@ frontend_checks() {
     src/api/cloudProjects.spec.ts \
     src/platform/web/cloudRead.spec.ts \
     src/platform/web/replayReceiver.spec.ts \
+    src/platform/web/importedMetadataApply.spec.ts \
+    src/platform/web/importedMetadataMigration.spec.ts \
+    src/platform/web/metadataPrefixProof.spec.ts \
+    src/platform/web/projectBindings.spec.ts \
+    src/platform/web/syncDurability.spec.ts \
     src/cloud/projectMetadataMigrationRuntime.spec.ts \
     src/platform/web/cloudAccountSession.spec.ts \
     src/components/settings/BrowserCloudAccountCard.spec.ts \

@@ -12,6 +12,9 @@ on:
       - 'frontend/scripts/browser-cloud-read-acceptance.mjs'
       - 'frontend/scripts/browser-replay-storage-acceptance.mjs'
       - 'frontend/scripts/browser-replay-receiver-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-metadata-acceptance.mjs'
+      - 'frontend/scripts/replay-metadata-fixture.mjs'
+      - 'frontend/scripts/replay-v1-fixture.mjs'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -52,6 +55,7 @@ on:
       - 'tests/test_cloud_*.py'
       - 'tests/test_web_cloud_read.py'
       - 'tests/test_web_replay.py'
+      - 'tests/test_web_replay_metadata.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -122,6 +126,9 @@ on:
       - 'frontend/scripts/browser-cloud-read-acceptance.mjs'
       - 'frontend/scripts/browser-replay-storage-acceptance.mjs'
       - 'frontend/scripts/browser-replay-receiver-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-metadata-acceptance.mjs'
+      - 'frontend/scripts/replay-metadata-fixture.mjs'
+      - 'frontend/scripts/replay-v1-fixture.mjs'
       - 'frontend/scripts/browser-content-intent-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-readers-acceptance.mjs'
       - 'frontend/scripts/browser-resolution-planner-acceptance.mjs'
@@ -162,6 +169,7 @@ on:
       - 'tests/test_cloud_*.py'
       - 'tests/test_web_cloud_read.py'
       - 'tests/test_web_replay.py'
+      - 'tests/test_web_replay_metadata.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -262,6 +270,7 @@ jobs:
               tests/test_cloud_c18_content_note_gate.py
               tests/test_web_cloud_read.py
               tests/test_web_replay.py
+              tests/test_web_replay_metadata.py
               tests/test_cloud_c18_content_note_acceptance.py
               tests/test_cloud_c18_map_gate.py
               tests/test_cloud_c18_map_acceptance.py
@@ -295,6 +304,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Native v1 client compatibility proof; do not replace it with a reconstructed schema.
+      # New bounded owner test measured ~29s on local arm64; reserve 2m on Linux.
+      # It runs only in content-action. Foundation coverage/load and 40m limits stay unchanged.
+      - name: Fetch pinned replay v1 acceptance source
+        if: matrix.shard == 'content-action'
+        run: git fetch --no-tags --depth=1 origin bdfb5601d2d4b512fc76e424c5b0db1ae87dc67c
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7

@@ -7,6 +7,55 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+
+## 2026-10-28 — WEB.ONLINE.02B.02: actual Imported Metadata owner
+
+**METADATA-ONLY LOCAL COMPLETE;
+FULL PROJECT OPEN BLOCKED; NEW CI PENDING.** Clean starting SHA
+`bdfb5601d2d4b512fc76e424c5b0db1ae87dc67c`, branch `6.0`, independently
+accepted by owner-reported **40601063694 — 6/6 SUCCESS**. No Actions polling.
+
+Slice 2 now binds `BrowserImportedMetadataApply` and real prefix proof
+reauthentication to isolated `worta-web-replay` **schema v2**. The atomic v1→v2
+migration changes manifests only and preserves all original encrypted wire and
+technical state. Old native v1 clients refuse v2. Corrupt/aborted/quota migrations
+roll back; v12/SQLite/PostgreSQL are unchanged.
+
+The supported path authenticates peer-origin, active-bootstrap, coverless
+Metadata genesis and ordinary linear updates across projects/pages. Existing
+owner tokens/transition/proof formats are reused. Import binding, real owner
+head, applied inbox proof and derived replay journal commit atomically with
+full account inventory/generation CAS and fresh server registry/mode/device
+checks. Durable proofs are cryptographically reauthenticated after complete
+server-prefix reconciliation on every restart, without duplicate application.
+The shared timestamp contract handles exact server timestamp representation
+without changing raw wire or accepting any actual time mismatch.
+
+This is an explicit restricted diagnostic, not a new project UI or sync engine.
+`projectOpened=false`; receipt-only still means zero proofs. Unsupported family,
+self-echo/source, fork, missing parent, cover/delete/generation, stale server,
+key/session/context loss and bad proofs refuse. Owned-generation snapshot growth
+is blocked and preserves proofs, pending a separate refresh contract. No source
+seed, structural/Note/native-family composition, ACK/push/capability/writer.
+
+See the [contract implementation record](WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md#slice-2-implementation-record--webonline02b02-2026-10-28)
+and checkpoint for exact local evidence. Full prepush **PASS**: 631 Vitest /
+23 files, typecheck/build, six frontend Chromium scripts, 264 Docker PostgreSQL
+backend tests and one real encrypted-blob/PostgreSQL restore test. New owner API
+acceptance: **47** real Chromium scenarios, including native v1→v2 migration,
+full restart and no repeat writes; existing 17 native replay and 10 receiver API
+scenarios remain. Changed ESLint/static/diff checks pass. Focused arm64 API run
+measured 28.73s; Linux/x86-64 compatibility/timing is NOT RUN locally. No work
+is added to foundation; existing content-action carries the bounded real API
+acceptance. All six jobs and 40-minute timeouts remain.
+
+Progress stays **89.36%** until a formal reassessment. `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, `projectOpened=false`,
+Registration CLOSED, PUBLIC RELEASE BLOCKED, C21/C22/C23/PF6.0/RC unchanged.
+Next minimum: slice 3 structural/source foundation, separately bounded, with
+owned-generation advancement explicitly specified before changed snapshots.
+Recommended model: **GPT-6 Sol / High**. No later slice started.
+
 ## 2026-10-28 — 02B implementation slice 1: isolated ciphertext receipt
 
 **LOCAL COMPLETE — CIPHERTEXT RECEIPT; INDEPENDENT CI PENDING;
