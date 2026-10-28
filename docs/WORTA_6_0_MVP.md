@@ -1,5 +1,10 @@
 # WORTA 6.0 MVP — Desktop offline-first + Web online-only E2EE cloud
 
+Актуальный продуктовый порядок из шести пользовательских этапов утверждён в
+[checkpoint](WORTA_CHECKPOINT.md#worta-60--утверждённый-упрощённый-план-завершения-mvp).
+Нижеприведённые WEB.ONLINE задачи и прежние статусы остаются технической историей;
+текущую готовность Desktop, Cloud и Web показывает checkpoint.
+
 ## Owner decision: WEB ONLINE-ONLY (2026-10-27)
 
 This policy supersedes every earlier future requirement in this document for
@@ -19,7 +24,7 @@ remain intact for legacy testing and possible existing data; they are not
 automatically imported, promoted to cloud, or used as the online catalog.
 See [WEB ONLINE-ONLY architecture](web/WEB_ONLINE_ONLY_ARCHITECTURE.md).
 
-**Current path:** WEB.ONLINE.01 server catalog; .02 bounded accepted
+**Historical technical task sequence:** WEB.ONLINE.01 server catalog; .02 bounded accepted
 Metadata-only E2EE preview (not full project opening); .03 existing local
 encrypted Documents only (cloud writer not implemented); .04 Notes/Maps/Stages;
 .05 Progress/Game/Settings; .06 Desktop↔Web compatibility and recovery acceptance.

@@ -1,5 +1,12 @@
 # WORTA 6.0 — Web Online-Only roadmap
 
+Актуальный продуктовый порядок из шести пользовательских этапов утверждён в
+[checkpoint](../WORTA_CHECKPOINT.md#worta-60--утверждённый-упрощённый-план-завершения-mvp).
+Ниже сохранены технические срезы и их исторические статусы. Матрица функций и
+старый critical path описывают состояние на момент их составления: уже
+реализованные receipt, Metadata и Structural replay не являются новой задачей.
+Полное открытие проекта, запись Web и сквозная приёмка пока не подтверждены.
+
 **Owner decision, 2026-10-27: WEB ONLINE-ONLY / SERVER-AUTHORITATIVE.** Desktop
 remains offline-first on SQLite with optional cloud sync. Web requires server
 connectivity. E2EE remains client-side; the server is authoritative for
