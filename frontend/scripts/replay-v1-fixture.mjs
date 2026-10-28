@@ -19,3 +19,5 @@ async function replayClientFixture(revision, modules, entry) {
 export const replayV1Fixture = () => replayClientFixture('bdfb5601d2d4b512fc76e424c5b0db1ae87dc67c', ['replayRecords.ts', 'replayStorage.ts'], 'replayStorage.ts')
 export const replayV2Fixture = () => replayClientFixture('3cb31ff63546d8be388013184a168c2babe88678',
   ['cloudAccountSession.ts', 'replayReceiver.ts', 'replayStorage.ts', 'replayRecords.ts', 'replayInventory.ts', 'replayMetadata.ts'], 'cloudAccountSession.ts')
+export const replayV3Fixture = () => replayClientFixture('57abfbc785c9e8c849e2b6fbc9f78208ab7b47a8',
+  ['replayStorage.ts', 'replayRecords.ts', 'replayInventory.ts', 'replayMetadata.ts'], 'replayStorage.ts')

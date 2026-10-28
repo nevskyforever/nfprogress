@@ -12,6 +12,7 @@ import { BrowserImportedMetadataApply } from './importedMetadataApply'
 import { prepareMetadataPrefix, verifiedMetadataSequences } from './metadataPrefixProof'
 import { BrowserReplayError, prepareReplayPage, replayAnchor, replaySame } from './replayRecords'
 import type { ReplaySnapshot } from './replayInventory'
+import type { AccountMasterKey } from '@/crypto'
 
 export interface ReplayMetadataResult {
   readonly kind: 'metadata_owner_applied'; readonly cursor: number; readonly ownerProofs: number; readonly projects: number
@@ -23,6 +24,26 @@ export interface ReplayStructuralResult extends Omit<ReplayMetadataResult, 'kind
 interface MetadataPort {
   read(): Promise<ReplaySnapshot>
   transaction(expected: ReplaySnapshot, sequence: number, server: () => Promise<void>): BrowserSyncTransaction
+}
+
+/** Force the genuine owner certificates over every retained applied row. */
+export async function reauthenticateReplayOwners(scope: BrowserSyncScope, snapshot: ReplaySnapshot, amk: AccountMasterKey,
+  current: () => boolean, structural = true): Promise<void> {
+  const inventory = { rows: snapshot.rows, bindings: snapshot.bindings, owners: snapshot.owners, out: [], receipts: [], history: [],
+    cursor: { pull_cursor: snapshot.manifest!.receive_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 } }
+  const meta = await prepareMetadataPrefix(scope, inventory, amk, current, true)
+  const certificates = new Map<string, ReadonlySet<number>>([['applied', verifiedMetadataSequences(meta, scope, inventory)]])
+  if (structural) {
+    certificates.set('stage_proven', stageSequences(await prepareStagePrefix(scope, inventory, amk, current, meta, true), scope, inventory))
+    certificates.set('stage_order_proven', stageOrderSequences(await prepareStageOrderPrefix(scope, inventory, amk, current, meta, true), scope, inventory))
+  }
+  let authenticated = 0
+  for (const row of snapshot.rows) if (row.state !== 'received') {
+    if (!certificates.get(row.state)?.has(row.server_sequence)) throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
+    authenticated++
+  }
+  if (authenticated !== snapshot.manifest!.applied_cursor) throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
+  if (!current()) throw new BrowserReplayError('session_closed')
 }
 
 /** No reducer: the existing Metadata/Structural commits and prefix verifiers own every outcome. */
@@ -72,23 +93,7 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
   }
   const reauthenticate = async () => {
     check()
-    const inventory = { rows: snapshot.rows, bindings: snapshot.bindings, owners: snapshot.owners, out: [], receipts: [], history: [],
-      cursor: { pull_cursor: snapshot.manifest!.receive_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 } }
-    await lease!.use(async amk => {
-      const alive = () => { try { check(); return true } catch { return false } }
-      const meta = await prepareMetadataPrefix(scope, inventory, amk, alive, true)
-      const certificates = new Map<string, ReadonlySet<number>>([['applied', verifiedMetadataSequences(meta, scope, inventory)]])
-      if (structural) {
-        certificates.set('stage_proven', stageSequences(await prepareStagePrefix(scope, inventory, amk, alive, meta, true), scope, inventory))
-        certificates.set('stage_order_proven', stageOrderSequences(await prepareStageOrderPrefix(scope, inventory, amk, alive, meta, true), scope, inventory))
-      }
-      let authenticated = 0
-      for (const row of snapshot.rows) if (row.state !== 'received') {
-        if (!certificates.get(row.state)?.has(row.server_sequence)) throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
-        authenticated++
-      }
-      if (authenticated !== snapshot.manifest!.applied_cursor) throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
-    })
+    await lease!.use(amk => reauthenticateReplayOwners(scope, snapshot, amk, () => { try { check(); return true } catch { return false } }, structural))
     check()
   }
   await reauthenticate()

@@ -14,6 +14,8 @@ on:
       - 'frontend/scripts/browser-replay-receiver-acceptance.mjs'
       - 'frontend/scripts/browser-replay-metadata-acceptance.mjs'
       - 'frontend/scripts/browser-replay-structural-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-source-seed-acceptance.mjs'
+      - 'frontend/scripts/replay-source-seed-fixture.mjs'
       - 'frontend/scripts/replay-structural-fixture.mjs'
       - 'frontend/scripts/replay-metadata-fixture.mjs'
       - 'frontend/scripts/replay-v1-fixture.mjs'
@@ -59,6 +61,7 @@ on:
       - 'tests/test_web_replay.py'
       - 'tests/test_web_replay_metadata.py'
       - 'tests/test_web_replay_structural.py'
+      - 'tests/test_web_replay_source_seed.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -131,6 +134,8 @@ on:
       - 'frontend/scripts/browser-replay-receiver-acceptance.mjs'
       - 'frontend/scripts/browser-replay-metadata-acceptance.mjs'
       - 'frontend/scripts/browser-replay-structural-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-source-seed-acceptance.mjs'
+      - 'frontend/scripts/replay-source-seed-fixture.mjs'
       - 'frontend/scripts/replay-structural-fixture.mjs'
       - 'frontend/scripts/replay-metadata-fixture.mjs'
       - 'frontend/scripts/replay-v1-fixture.mjs'
@@ -176,6 +181,7 @@ on:
       - 'tests/test_web_replay.py'
       - 'tests/test_web_replay_metadata.py'
       - 'tests/test_web_replay_structural.py'
+      - 'tests/test_web_replay_source_seed.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -278,6 +284,7 @@ jobs:
               tests/test_web_replay.py
               tests/test_web_replay_metadata.py
               tests/test_web_replay_structural.py
+              tests/test_web_replay_source_seed.py
               tests/test_cloud_c18_content_note_acceptance.py
               tests/test_cloud_c18_map_gate.py
               tests/test_cloud_c18_map_acceptance.py
@@ -315,11 +322,12 @@ jobs:
       # Native v1 client compatibility proof; do not replace it with a reconstructed schema.
       # Bounded Metadata/Structural API tests measured ~29s/~35s on arm64; allow 2m each on Linux.
       # It runs only in content-action. Foundation coverage/load and 40m limits stay unchanged.
-      - name: Fetch pinned replay v1 and v2 acceptance sources
+      - name: Fetch pinned replay v1, v2 and v3 acceptance sources
         if: matrix.shard == 'content-action'
         run: |
           git fetch --no-tags --depth=1 origin bdfb5601d2d4b512fc76e424c5b0db1ae87dc67c
           git fetch --no-tags --depth=1 origin 3cb31ff63546d8be388013184a168c2babe88678
+          git fetch --no-tags --depth=1 origin 57abfbc785c9e8c849e2b6fbc9f78208ab7b47a8
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
@@ -795,7 +803,7 @@ jobs:
       - run: npm test -- --run src/diagnostics/diagnostics.spec.ts src/diagnostics/desktop.spec.ts src/components/settings/DiagnosticsCard.spec.ts src/components/developer/DeveloperModeDialog.spec.ts src/api/game.native.spec.ts src/api/game.spec.ts src/api/documents.native.spec.ts src/pages/SettingsPage.spec.ts src/stores/projects.spec.ts
         working-directory: frontend
       - name: Verify encrypted local Web Documents contracts
-        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts src/platform/web/replayStructural.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts src/platform/web/replayStructural.spec.ts src/platform/web/replaySourceSeed.spec.ts --maxWorkers=1
         working-directory: frontend
       - name: Verify encrypted Web Documents and v11 to v12 migration in Chromium
         working-directory: frontend

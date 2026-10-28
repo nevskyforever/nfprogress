@@ -49,9 +49,9 @@ beforeEach(async () => {
   // Unit tests cover receiver orchestration only. Native IDB atomicity/schema
   // and restart are exercised by the real Chromium/PostgreSQL acceptance.
   store = {
-    applyMetadata: vi.fn(), applyStructure: vi.fn(),
+    applyMetadata: vi.fn(), applyStructure: vi.fn(), seedNoteSource: vi.fn(),
     start: vi.fn(async () => {
-      state.manifest ??= { record_version: 3, contract_version: 3, metadata_cursor: 0, applied_cursor: 0, account_id: scope.accountId, canonical_user_id: scope.canonicalUserId,
+      state.manifest ??= { record_version: 4, contract_version: 4, metadata_cursor: 0, applied_cursor: 0, source_seeds: [], account_id: scope.accountId, canonical_user_id: scope.canonicalUserId,
         device_id: scope.deviceId, generation: crypto.randomUUID(), anchor, receive_cursor: 0, ciphertext_bytes: 0, phase: 'receiving', revision: 1 }
       return structuredClone(state)
     }),
@@ -159,7 +159,7 @@ describe('Online-Only ciphertext receiver, without apply proofs', () => {
     await run()
     const original = state.manifest!
     expect(validateReplayManifest(original, scope)).toEqual(original)
-    for (const invalid of [{ ...original, record_version: 4 }, { ...original, account_id: crypto.randomUUID() }, { ...original, content: 'PLAINTEXT' },
+    for (const invalid of [{ ...original, record_version: 3 }, { ...original, account_id: crypto.randomUUID() }, { ...original, content: 'PLAINTEXT' },
       { ...original, receive_cursor: 4 }, { ...original, ciphertext_bytes: -1 }, { ...original, revision: Number.MAX_SAFE_INTEGER + 1 }]) {
       expect(() => validateReplayManifest(invalid, scope)).toThrow()
     }

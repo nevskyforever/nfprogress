@@ -16,6 +16,41 @@ it does not require offline-first runtime behavior in Web.
 
 
 
+## 2026-10-28 — WEB.ONLINE.02B.03B: private encrypted Note source seed
+
+**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**
+Baseline `57abfbc785c9e8c849e2b6fbc9f78208ab7b47a8` and owner-reported
+**40675867782 — 6/6 SUCCESS** accept 03A. The separate published documentation
+commit `77a8d349` establishes the six user-facing MVP stages in the checkpoint;
+03B is an internal part of stage 2, not a new product milestone.
+
+The existing account receiver plus real Metadata/Structural certificate checks
+now permit one private, server-derived Note source seed. Genuine Metadata genesis
+and the initial Legacy Note cohort are authenticated against active bootstrap,
+origin device, project, account, count/max sequence and full retained history.
+The shared Metadata head validator rejects fork/delete, foreign origin and
+nonlinear later Metadata; additional Notes outside the cohort also reject.
+Initial Notes before Metadata are supported for seed verification only. Existing
+AMK local-source helpers encrypt the empty source; its technical seed reference
+and source commit atomically under fresh server checks and full inventory CAS.
+Restart reauthenticates server wire, source AEAD and owner proofs without a write.
+Replay **v4** migrates v1/v2/v3 manifests while preserving wire/proofs; pinned
+v3 refuses v4 and failed migrations roll back. Developer v12, SQLite and
+PostgreSQL are unchanged. No Note event is applied, no cursor/ACK advances,
+and no source is exposed through the local workspace or project UI.
+
+Local prepush passed **816 Vitest / 29 files**, typecheck/build, six frontend
+Chromium scripts, **266 isolated PostgreSQL backend tests** and backup/restore.
+Focused seed Vitest passed **18** cases; the
+real API/Chromium test passed **19 scenarios** with 104 events/two projects,
+rollback, restart, idempotence, corruption and no plaintext/HTTP writes.
+ESLint, static/workflow/six-job checks and diff check pass; Linux/x86-64 remains
+unverified locally. Official progress **89,36%**; all readiness/writer/open
+flags false, Registration CLOSED, PUBLIC RELEASE BLOCKED, C21/C22/C23/PF6.0/RC
+mandatory. Next internal slice of user stage 2: genuine Legacy Note owner for the
+initial seed cohort, including events before Metadata, without fake dependency
+proofs or premature project opening. Recommended: **GPT-6 Sol / High**.
+
 ## 2026-10-28 — WEB.ONLINE.02B.03A: genuine Structural replay
 
 **LOCAL COMPLETE; FULL PROJECT OPEN BLOCKED; NEW CI PENDING.**

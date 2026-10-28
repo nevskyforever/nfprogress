@@ -6,17 +6,18 @@ import { replayCoverage } from './replayInventory'
 import { replayAnchor, validateReplayManifest, type ReplayManifest } from './replayRecords'
 import type { BrowserInboxRecord } from './syncDurability'
 
-const manifest = (): ReplayManifest => ({ record_version: 3, contract_version: 3, metadata_cursor: 1, applied_cursor: 2,
+const manifest = (): ReplayManifest => ({ record_version: 4, contract_version: 4, metadata_cursor: 1, applied_cursor: 2, source_seeds: [],
   account_id: scope.accountId, device_id: scope.deviceId, canonical_user_id: scope.canonicalUserId, generation: crypto.randomUUID(),
   anchor: replayAnchor({ current_cursor: 3, projects: [] }, { supported_transport_version: 2, writer_transport_version: 3, cutover_epoch: 1 }),
   receive_cursor: 3, ciphertext_bytes: 0, phase: 'received', revision: 5 })
-it('v3 coverage validates separately from Metadata, retaining v2 only for migration', () => {
+it('v4 coverage validates separately from Metadata, retaining v2/v3 only for migration', () => {
   const state = manifest(); expect(validateReplayManifest(state, scope)).toEqual(state)
-  const old = { ...state, record_version: 2, contract_version: 2 }; delete old.applied_cursor
+  const old = { ...state, record_version: 2, contract_version: 2 }; delete old.applied_cursor; delete old.source_seeds
   expect(validateReplayManifest(old, scope, 2)).toEqual(old)
+  expect(validateReplayManifest({ ...old, record_version: 3, contract_version: 3, applied_cursor: 2 }, scope, 3)).toMatchObject({ applied_cursor: 2 })
   expect(() => validateReplayManifest(old, scope)).toThrow()
 })
-it.each([{ applied_cursor: -1 }, { applied_cursor: 4 }, { metadata_cursor: 3 }, { record_version: 4 }, { ack: 1 }])('rejects invalid coverage/authority %j', change => {
+it.each([{ applied_cursor: -1 }, { applied_cursor: 4 }, { metadata_cursor: 3 }, { record_version: 3 }, { ack: 1 }])('rejects invalid coverage/authority %j', change => {
   expect(() => validateReplayManifest({ ...manifest(), ...change }, scope)).toThrow()
 })
 it.each(['stage_proven', 'stage_order_proven', 'applied'] as const)('a later %s commit cannot turn Structural coverage into Metadata-prefix authority', state => {

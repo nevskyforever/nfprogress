@@ -47,6 +47,45 @@ function proof(scope: BrowserSyncScope, token: LocalSourceToken): SourceProof {
   return p
 }
 
+/** Shared local-source envelope for the private replay seed and existing local owner. */
+export async function sealEmptyLocalProject(scope: BrowserSyncScope, project: NativeLocalProject, amk: AccountMasterKey): Promise<LocalProjectRecord> {
+  const checked = validateLocalProject(project)
+  const payload: LocalProjectPayload = { local_format: 1, kind: 'project', account_id: scope.accountId, device_id: scope.deviceId,
+    project_id: checked.id, source_revision: 1, deleted_at: null, project: checked, member_ids: [] }
+  const bytes = localCanonicalBytes(payload)
+  let nonce: Uint8Array | undefined, ciphertext: Uint8Array | undefined
+  try {
+    const sealed = await encryptObjectBytes(amk, { userId: scope.canonicalUserId, projectId: checked.id,
+      entityId: checked.id, entityType: 'project_metadata' }, bytes)
+    nonce = sealed.nonce; ciphertext = sealed.ciphertext
+    return { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: checked.id,
+      source_revision: 1, deleted: false, envelope: { crypto_version: 1, aad_version: 1,
+        nonce: encodeBase64Url(nonce), ciphertext: encodeBase64Url(ciphertext) } }
+  } finally { bytes.fill(0); nonce?.fill(0); ciphertext?.fill(0) }
+}
+
+/** Reauthenticate a cache-only seed without exposing it through local CRUD. */
+export async function openEmptyLocalProject(scope: BrowserSyncScope, raw: unknown, amk: AccountMasterKey): Promise<NativeLocalProject> {
+  const row = validateLocalProjectRecord(raw, scope)
+  if (row.deleted || row.source_revision !== 1) fail('corrupt_record')
+  let nonce: Uint8Array | undefined, ciphertext: Uint8Array | undefined, bytes: Uint8Array | undefined
+  try {
+    nonce = decodeBase64Url(row.envelope.nonce); ciphertext = decodeBase64Url(row.envelope.ciphertext)
+    bytes = await decryptObjectBytes(amk, { userId: scope.canonicalUserId, projectId: row.project_id,
+      entityId: row.project_id, entityType: 'project_metadata' }, { ...row.envelope, nonce, ciphertext })
+    const rawPayload = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+    const payload: unknown = JSON.parse(rawPayload)
+    if (canonical(payload) !== rawPayload || !localExact(payload, ['local_format','kind','account_id','device_id','project_id','source_revision','deleted_at','project','member_ids'])) fail('corrupt_record')
+    const p = payload as unknown as LocalProjectPayload
+    if (p.local_format !== 1 || p.kind !== 'project' || p.account_id !== scope.accountId || p.device_id !== scope.deviceId
+      || p.project_id !== row.project_id || p.source_revision !== 1 || p.deleted_at !== null || !same(p.member_ids, [])) fail('corrupt_record')
+    const project = validateLocalProject(p.project)
+    if (project.id !== row.project_id) fail('corrupt_record')
+    return project
+  } catch { return fail('corrupt_record') }
+  finally { nonce?.fill(0); ciphertext?.fill(0); bytes?.fill(0) }
+}
+
 /** Pure local projection calculation. A caller must still prove its source and Note authority. */
 function planPeerSourceTransition(scope: BrowserSyncScope, opened: Opened, sourceRevision: number, incoming: NoteSyncPlaintext, content: boolean): PeerSourceTransition {
   const before = opened.project
@@ -278,7 +317,9 @@ export class BrowserLocalAuthorityRuntime {
     const guard = await this.guard(scope)
     return guard.lease.use(async amk => {
       const payload: LocalProjectPayload = { local_format: 1, kind: 'project', account_id: scope.accountId, device_id: scope.deviceId, project_id: project.id, source_revision: 1, deleted_at: null, project, member_ids: sources.map(n => n.note.id) }
-      const p: LocalProjectRecord = { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: project.id, source_revision: 1, deleted: false, envelope: await this.seal(scope, project.id, 'project', payload, amk) }
+      const p: LocalProjectRecord = sources.length === 0 ? await sealEmptyLocalProject(scope, project, amk)
+        : { record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, project_id: project.id, source_revision: 1,
+          deleted: false, envelope: await this.seal(scope, project.id, 'project', payload, amk) }
       const notes: LocalNoteRecord[] = []
       for (const source of sources) notes.push(await this.noteRow(scope, source, 1, amk))
       return this.write(scope, guard, null, p, notes)

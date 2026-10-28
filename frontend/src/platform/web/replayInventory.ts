@@ -4,10 +4,12 @@ import { validateBrowserProjectBinding, type BrowserProjectBinding } from './pro
 import type { BrowserMetadataHead, BrowserMetadataProof } from './metadataApplyRecords'
 import { validateBrowserOwnerHead, stageOwnerId, type BrowserStageHead, type BrowserStageProof } from './stageRecords'
 import type { BrowserStageOrderHead, BrowserStageOrderProof } from './stageOrderRecords'
+import { validateLocalProjectRecord, type LocalProjectRecord } from './localAuthorityRecords'
 import { REPLAY_LIMITS, replayExact, replaySame, replayUuid, validateReplayManifest, type ReplayManifest } from './replayRecords'
 
 export interface ReplaySnapshot {
   manifest: ReplayManifest | null; rows: BrowserInboxRecord[]; bindings: BrowserProjectBinding[]; owners: Array<BrowserMetadataHead | BrowserStageHead | BrowserStageOrderHead>
+  sources?: LocalProjectRecord[]
 }
 /** Derived coverage is never a qualified cursor or owner certificate. */
 export function replayCoverage(manifest: ReplayManifest, row: BrowserInboxRecord) {
@@ -30,28 +32,30 @@ export function assertReplayOwnerTransition(before: ReplaySnapshot, after: Repla
   const ownerId = proof.owner_kind === 'stage' ? stageOwnerId(proof.project_id, proof.stage_id) : proof.project_id
   const other = (head: ReplaySnapshot['owners'][number]) => head.owner_kind !== proof.owner_kind || head.owner_id !== ownerId
   if (!replaySame(before.owners.filter(other), after.owners.filter(other))) fail()
+  if (!replaySame(before.sources, after.sources)) fail()
   const oldBinding = before.bindings.find(binding => binding.project_id === proof.project_id)
   if (proof.owner_kind !== 'project_metadata' || oldBinding) {
     if (!replaySame(before.bindings, after.bindings)) fail()
   } else if (!replaySame(before.bindings, after.bindings.filter(binding => binding.project_id !== proof.project_id))) fail()
 }
-export const replayEmptyStores = ['outbox', 'receipts', 'localProjects', 'localNotes', 'legacyNoteHistory', 'legacyNoteIntents']
+export const replayEmptyStores = ['outbox', 'receipts', 'localNotes', 'legacyNoteHistory', 'legacyNoteIntents']
 function fail(): never { throw new BrowserPersistenceError('corrupt_record') }
 const range = (account: string) => IDBKeyRange.bound([account], [account, []])
 
 /** Complete account snapshot, with structural joins only. Crypto is owned by the existing family certificates. */
 export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, check: () => void,
-  result: (snapshot: ReplaySnapshot) => void, abort: (error: unknown) => void, version: 1 | 2 | 3 = 3): void {
+  result: (snapshot: ReplaySnapshot) => void, abort: (error: unknown) => void, version: 1 | 2 | 3 | 4 = 4): void {
   const bound = range(s.accountId), rows: BrowserInboxRecord[] = []
   const identity = tx.objectStore('identities').get(s.canonicalUserId), alias = tx.objectStore('identities').index('local_account_id').get(s.accountId)
   const binding = tx.objectStore('accountBindings').get(s.accountId), cursors = tx.objectStore('cursors').getAll(bound)
   const manifests = tx.objectStore('replayManifest').getAll(bound), bindings = tx.objectStore('projectBindings').getAll(bound), owners = tx.objectStore('ownerHeads').getAll(bound)
+  const projects = tx.objectStore('localProjects').getAll(bound)
   const counts = replayEmptyStores.map(name => tx.objectStore(name).count(bound))
-  let pending = 8 + counts.length, bytes = 0
+  let pending = 9 + counts.length, bytes = 0
   const finish = () => {
     try {
       check(); if (--pending) return
-      if (counts.some(request => request.result !== 0) || cursors.result.length > 1 || manifests.result.length > 1
+      if (counts.some(request => request.result !== 0) || version < 4 && projects.result.length || cursors.result.length > 1 || manifests.result.length > 1
         || bindings.result.length > 200 || owners.result.length > 200 || version === 1 && (bindings.result.length || owners.result.length)) fail()
       const i: unknown = identity.result, b: unknown = binding.result
       if (i === undefined ? b !== undefined || alias.result !== undefined : !replayExact(i, ['record_version', 'canonical_user_id', 'local_account_id', 'device_id'])
@@ -59,11 +63,22 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         || !replaySame(alias.result, i) || !replayExact(b, ['record_version', 'local_account_id', 'canonical_user_id'])
         || b.record_version !== 1 || b.local_account_id !== s.accountId || b.canonical_user_id !== s.canonicalUserId) fail()
       const manifest = manifests.result.length ? validateReplayManifest(manifests.result[0], s, version) : null
-      const checkpoint = validateBrowserSyncCursor(cursors.result[0], s), metadata = manifest?.metadata_cursor ?? 0, applied = version === 3 ? manifest?.applied_cursor ?? 0 : metadata
+      const checkpoint = validateBrowserSyncCursor(cursors.result[0], s), metadata = manifest?.metadata_cursor ?? 0, applied = version >= 3 ? manifest?.applied_cursor ?? 0 : metadata
       if (checkpoint.ack_cursor !== 0 || checkpoint.proven_prefix !== 0 || checkpoint.next_local_ordinal !== 1
-        || checkpoint.pull_cursor !== rows.length || !manifest && (rows.length || cursors.result.length || bindings.result.length || owners.result.length)
+        || checkpoint.pull_cursor !== rows.length || !manifest && (rows.length || cursors.result.length || bindings.result.length || owners.result.length || projects.result.length)
         || manifest && (i === undefined || !cursors.result.length || manifest.receive_cursor !== rows.length)) fail()
       const imported = bindings.result.map(raw => validateBrowserProjectBinding(raw, s)), heads = owners.result.map(raw => validateBrowserOwnerHead(raw, s))
+      const sources = projects.result.map(raw => validateLocalProjectRecord(raw, s))
+      if (sources.length !== (manifest?.source_seeds?.length ?? 0) || sources.some(row => row.deleted || row.source_revision !== 1
+        || !manifest?.source_seeds?.some(seed => seed.project_id === row.project_id))
+        || new Set(sources.map(row => row.project_id)).size !== sources.length) fail()
+      for (const seed of manifest?.source_seeds ?? []) {
+        const genesis = rows.find(row => row.event_id === seed.genesis_event_id)
+        if (!genesis || !sources.some(source => source.project_id === seed.project_id)) fail()
+        const descriptor = JSON.parse(genesis.wire_item).event
+        if (descriptor.entity_type !== 'project_metadata' || descriptor.project_id !== seed.project_id
+          || descriptor.device_id !== seed.origin_device_id || descriptor.revision !== 1) fail()
+      }
       if (version < 3 && heads.some(head => head.owner_kind !== 'project_metadata')) fail()
       let ciphertextBytes = 0
       const ids = new Set<string>()
@@ -106,12 +121,12 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         const genesis = head.history.find(proof => proof.operation === 'create')
         if (!genesis || genesis.source_device_id !== manifest!.anchor.registry.projects.find(record => record.project_id === project)?.origin_device_id) fail()
       }
-      bytes += new TextEncoder().encode(JSON.stringify({ manifest, imported, heads })).length + REPLAY_LIMITS.controlReserveBytes
+      bytes += new TextEncoder().encode(JSON.stringify({ manifest, imported, heads, sources })).length + REPLAY_LIMITS.controlReserveBytes
       if (manifest && (ciphertextBytes !== manifest.ciphertext_bytes || bytes > REPLAY_LIMITS.inventoryBytes)) fail()
-      result({ manifest, rows, bindings: imported, owners: heads })
+      result({ manifest, rows, bindings: imported, owners: heads, sources })
     } catch (error) { abort(error) }
   }
-  for (const request of [identity, alias, binding, cursors, manifests, bindings, owners, ...counts]) request.onsuccess = finish
+  for (const request of [identity, alias, binding, cursors, manifests, bindings, owners, projects, ...counts]) request.onsuccess = finish
   const scan = tx.objectStore('inbox').openCursor(bound)
   scan.onsuccess = () => {
     try {
@@ -119,7 +134,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       if (!cursor) { finish(); return }
       if (rows.length >= REPLAY_LIMITS.events) fail()
       const row = validateBrowserInboxRecord(cursor.value, s)
-      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version === 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6))
+      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version >= 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6))
         || row.protocol_version !== 3 || !replaySame(cursor.primaryKey, [s.accountId, row.server_sequence])) fail()
       bytes += new TextEncoder().encode(JSON.stringify(row)).length
       if (bytes > REPLAY_LIMITS.inventoryBytes) fail()
@@ -129,7 +144,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
 }
 
 /** Versionchange has no HTTP/crypto and never invents bindings, heads or applied outcomes. */
-export function migrateReplay(tx: IDBTransaction, names: readonly string[], check: () => void, abort: (error: unknown) => void, version: 1 | 2): void {
+export function migrateReplay(tx: IDBTransaction, names: readonly string[], check: () => void, abort: (error: unknown) => void, version: 1 | 2 | 3): void {
   const all = new Map<string, unknown[]>(); let remaining = names.length, bytes = 0
   const validate = () => {
     try {
@@ -149,7 +164,8 @@ export function migrateReplay(tx: IDBTransaction, names: readonly string[], chec
       const updates: ReplayManifest[] = []
       for (const scope of scopes) scheduleReplaySnapshot(tx, scope, check, snapshot => {
         try {
-          if (snapshot.manifest) updates.push({ ...snapshot.manifest, record_version: 3, contract_version: 3, metadata_cursor: snapshot.manifest.metadata_cursor ?? 0, applied_cursor: snapshot.manifest.metadata_cursor ?? 0 })
+          if (snapshot.manifest) updates.push({ ...snapshot.manifest, record_version: 4, contract_version: 4, metadata_cursor: snapshot.manifest.metadata_cursor ?? 0,
+            applied_cursor: snapshot.manifest.applied_cursor ?? snapshot.manifest.metadata_cursor ?? 0, source_seeds: [] })
           if (--pending) return
           check()
           for (const manifest of updates) tx.objectStore('replayManifest').put(manifest)

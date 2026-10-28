@@ -3,14 +3,17 @@ import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { RuntimeKeyContext } from '@/auth/keyContext'
 import { composeReplayMetadata, type ReplayMetadataResult, type ReplayStructuralResult } from './replayMetadata'
+import { seedReplayNoteSource, type ReplaySourceSeedResult } from './replaySourceSeed'
+import type { LocalProjectRecord } from './localAuthorityRecords'
 import { BrowserPersistenceError, persistenceError, runBrowserTransaction } from './persistence'
 import { BrowserSyncDurability, snapshotBrowserSyncScope,
   type BrowserReceivedInboxRecord, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability'
 import { REPLAY_LIMITS, prepareReplayPage, replayAnchor, replaySame, replayUuid,
   type ReplayAnchor, type ReplayManifest } from './replayRecords'
+import type { ReplaySourceSeedReference } from './replayRecords'
 
 export const REPLAY_DATABASE_NAME = 'worta-web-replay'
-export const REPLAY_DATABASE_VERSION = 3
+export const REPLAY_DATABASE_VERSION = 4
 type Schema = readonly [string, string | string[], ReadonlyArray<readonly [string, string | string[], boolean]>]
 const schema: readonly Schema[] = [
   ['identities', 'canonical_user_id', [['local_account_id', 'local_account_id', true], ['device_id', 'device_id', true]]],
@@ -33,7 +36,7 @@ const range = (account: string) => IDBKeyRange.bound([account], [account, []])
 export type { ReplaySnapshot } from './replayInventory'
 
 function validateSchema(database: IDBDatabase, upgrade?: IDBTransaction): void {
-  if (!upgrade && database.version !== 3 || !replaySame([...database.objectStoreNames].sort(), [...names].sort())) throw new BrowserPersistenceError('unsupported_version')
+  if (!upgrade && database.version !== REPLAY_DATABASE_VERSION || !replaySame([...database.objectStoreNames].sort(), [...names].sort())) throw new BrowserPersistenceError('unsupported_version')
   const transaction = upgrade ?? database.transaction(names, 'readonly')
   for (const [name, path, indexes] of schema) {
     const store = transaction.objectStore(name)
@@ -58,8 +61,8 @@ function openDatabase(signal: AbortSignal, current: () => boolean): Promise<IDBD
     request.onerror = () => stop(request.error)
     request.onupgradeneeded = event => {
       try {
-        if (failed || signal.aborted || !current() || ![0, 1, 2].includes(event.oldVersion)) throw new BrowserPersistenceError('unsupported_version')
-        if (event.oldVersion === 1 || event.oldVersion === 2) {
+        if (failed || signal.aborted || !current() || ![0, 1, 2, 3].includes(event.oldVersion)) throw new BrowserPersistenceError('unsupported_version')
+        if (event.oldVersion === 1 || event.oldVersion === 2 || event.oldVersion === 3) {
           validateSchema(request.result, request.transaction!)
           migrateReplay(request.transaction!, names, () => { if (signal.aborted || !current()) throw new BrowserPersistenceError('closed') }, stop, event.oldVersion)
           return
@@ -118,6 +121,27 @@ class BrowserReplayStorage {
   applyStructure(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<ReplayStructuralResult> {
     return this.applyOwners(auth, bindings, keys, true) as Promise<ReplayStructuralResult>
   }
+  seedNoteSource(projectId: string, auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding,
+    keys: RuntimeKeyContext): Promise<ReplaySourceSeedResult> {
+    const stop = () => { void this.close() }
+    const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
+    return seedReplayNoteSource({ read: () => this.read(), commit: async (expected: ReplaySnapshot, row: LocalProjectRecord,
+      reference: ReplaySourceSeedReference, server: () => Promise<void>) => {
+      await server()
+      await this.run('readwrite', (tx, result, abort) => this.load(tx, before => {
+        try {
+          if (!replaySame(before, expected) || !before.manifest || before.manifest.revision === Number.MAX_SAFE_INTEGER
+            || before.sources?.some(source => source.project_id === row.project_id)
+            || before.manifest.source_seeds?.some(seed => seed.project_id === row.project_id)) throw new BrowserPersistenceError('stale_authority')
+          const writes = [tx.objectStore('localProjects').add(row), tx.objectStore('replayManifest').put({ ...before.manifest,
+            source_seeds: [...before.manifest.source_seeds!, reference], revision: before.manifest.revision + 1 })]
+          writes.forEach(write => { write.onsuccess = () => { try { this.check() } catch (error) { abort(error) } } })
+          result(undefined)
+        } catch (error) { abort(error) }
+      }, abort))
+    } }, this.scope, projectId, this.signal, () => { try { this.check(); return true } catch { return false } },
+    auth, bindings, keys).finally(() => { unAuth(); unKey() })
+  }
   private applyOwners(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural: boolean) {
     const stop = () => { void this.close() }
     const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
@@ -154,7 +178,7 @@ class BrowserReplayStorage {
       try {
         if (old.manifest && replaySame(old.manifest.anchor, anchor)) { result(undefined); return }
         if (old.manifest) {
-          if (old.manifest.applied_cursor) throw new BrowserPersistenceError('stale_authority')
+          if (old.manifest.applied_cursor || old.manifest.source_seeds?.length) throw new BrowserPersistenceError('stale_authority')
           const prior = old.manifest.anchor
           if (anchor.registry.current_cursor < prior.registry.current_cursor || anchor.transport.cutover_epoch < prior.transport.cutover_epoch) throw new BrowserPersistenceError('stale_cursor')
           if (prior.registry.projects.some(project => !replaySame(project, anchor.registry.projects.find(next => next.project_id === project.project_id)))) throw new BrowserPersistenceError('stale_lineage')
@@ -164,7 +188,7 @@ class BrowserReplayStorage {
         tx.objectStore('identities').put({ record_version: 1, canonical_user_id: s.canonicalUserId, local_account_id: s.accountId, device_id: s.deviceId })
         tx.objectStore('accountBindings').put({ record_version: 1, local_account_id: s.accountId, canonical_user_id: s.canonicalUserId })
         tx.objectStore('cursors').put({ record_version: 1, account_id: s.accountId, device_id: s.deviceId, pull_cursor: 0, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 })
-        const manifest: ReplayManifest = { record_version: 3, contract_version: 3, metadata_cursor: 0, applied_cursor: 0, account_id: s.accountId, canonical_user_id: s.canonicalUserId, device_id: s.deviceId,
+        const manifest: ReplayManifest = { record_version: 4, contract_version: 4, metadata_cursor: 0, applied_cursor: 0, source_seeds: [], account_id: s.accountId, canonical_user_id: s.canonicalUserId, device_id: s.deviceId,
           generation: crypto.randomUUID(), anchor, receive_cursor: 0, ciphertext_bytes: 0, phase: 'receiving', revision: 1 }
         tx.objectStore('replayManifest').put(manifest); result(undefined)
       } catch (error) { abort(error) }
@@ -220,7 +244,7 @@ class BrowserReplayStorage {
   }
 }
 
-export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata' | 'applyStructure'>
+export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata' | 'applyStructure' | 'seedNoteSource'>
 
 export async function openBrowserReplayStorage(input: BrowserSyncScope, signal: AbortSignal, current: () => boolean): Promise<ReplayStorage> {
   const scope = snapshotBrowserSyncScope(input)

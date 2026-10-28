@@ -10,12 +10,17 @@ export class BrowserReplayError extends Error {
   constructor(readonly code: string) { super(`browser_replay_${code}`) }
 }
 export interface ReplayAnchor { registry: CloudProjectBootstrapListResponse; transport: V2Capabilities }
+export interface ReplaySourceSeedReference {
+  project_id: string; bootstrap_id: string; origin_device_id: string; genesis_event_id: string
+  initial_event_count: number; initial_max_server_sequence: number
+}
 export interface ReplayManifest {
-  record_version: 1 | 2 | 3; contract_version: 1 | 2 | 3; account_id: string; canonical_user_id: string; device_id: string
+  record_version: 1 | 2 | 3 | 4; contract_version: 1 | 2 | 3 | 4; account_id: string; canonical_user_id: string; device_id: string
   generation: string; anchor: ReplayAnchor; receive_cursor: number; ciphertext_bytes: number
   phase: 'receiving' | 'received'; revision: number
   metadata_cursor?: number
   applied_cursor?: number
+  source_seeds?: ReplaySourceSeedReference[]
 }
 export const replaySame = (a: unknown, b: unknown): boolean => immutableWireIdentity(a) === immutableWireIdentity(b)
 export const replayExact = (v: unknown, keys: readonly string[]): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
@@ -32,9 +37,9 @@ export function replayAnchor(registry: unknown, transport: unknown): ReplayAncho
   return anchor
 }
 
-export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, version: 1 | 2 | 3 = 3): ReplayManifest {
+export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, version: 1 | 2 | 3 | 4 = 4): ReplayManifest {
   try {
-    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision', ...(version >= 2 ? ['metadata_cursor'] : []), ...(version === 3 ? ['applied_cursor'] : [])])
+    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision', ...(version >= 2 ? ['metadata_cursor'] : []), ...(version >= 3 ? ['applied_cursor'] : []), ...(version === 4 ? ['source_seeds'] : [])])
       || value.record_version !== version || value.contract_version !== version || value.account_id !== scope.accountId
       || value.canonical_user_id !== scope.canonicalUserId || value.device_id !== scope.deviceId || !replayUuid(value.generation)
       || !safe(value.receive_cursor) || !safe(value.ciphertext_bytes) || value.ciphertext_bytes > REPLAY_LIMITS.ciphertextBytes
@@ -43,7 +48,23 @@ export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, 
     const anchor = replayAnchor(value.anchor.registry, value.anchor.transport)
     if (value.receive_cursor > anchor.registry.current_cursor || value.phase === 'received' && value.receive_cursor !== anchor.registry.current_cursor) throw new Error()
     if (version >= 2 && (!safe(value.metadata_cursor) || value.metadata_cursor > value.receive_cursor)) throw new Error()
-    if (version === 3 && (!safe(value.applied_cursor) || value.applied_cursor > value.receive_cursor || (value.metadata_cursor as number) > value.applied_cursor)) throw new Error()
+    if (version >= 3 && (!safe(value.applied_cursor) || value.applied_cursor > value.receive_cursor || (value.metadata_cursor as number) > value.applied_cursor)) throw new Error()
+    if (version === 4) {
+      if (!Array.isArray(value.source_seeds) || value.source_seeds.length > 200) throw new Error()
+      const projects = new Set<string>()
+      for (const seed of value.source_seeds) {
+        if (!replayExact(seed, ['project_id','bootstrap_id','origin_device_id','genesis_event_id','initial_event_count','initial_max_server_sequence'])
+          || typeof seed.project_id !== 'string' || !seed.project_id.length || seed.project_id.length > 512
+          || ![seed.bootstrap_id, seed.origin_device_id, seed.genesis_event_id].every(replayUuid)
+          || !safe(seed.initial_event_count) || !safe(seed.initial_max_server_sequence)
+          || (seed.initial_event_count === 0) !== (seed.initial_max_server_sequence === 0)
+          || seed.initial_max_server_sequence > value.receive_cursor || projects.has(seed.project_id)) throw new Error()
+        const remote = anchor.registry.projects.find(project => project.project_id === seed.project_id)
+        if (!remote || remote.state !== 'active' || remote.bootstrap_id !== seed.bootstrap_id || remote.origin_device_id !== seed.origin_device_id
+          || remote.initial_event_count !== seed.initial_event_count || remote.initial_max_server_sequence !== seed.initial_max_server_sequence) throw new Error()
+        projects.add(seed.project_id)
+      }
+    }
     return structuredClone(value) as unknown as ReplayManifest
   } catch { throw new BrowserPersistenceError('corrupt_record') }
 }

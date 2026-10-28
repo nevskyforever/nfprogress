@@ -1,6 +1,6 @@
 # WEB.ONLINE.02B — C21 Online-Only source/proof contract
 
-**Status: DESIGN COMPLETE. Slices 1/2 independently accepted; slice 3A Structural composition implemented locally. Later slices remain deferred.**
+**Status: DESIGN COMPLETE. Slices 1/2/3A independently accepted; slice 3B private Note source seed implemented locally. Later slices remain deferred.**
 The original design review used clean `6.0` baseline
 `57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28, and introduced no
 production code or migration. Subsequent explicitly authorized implementation
@@ -158,6 +158,55 @@ Metadata acceptance remains; independent new-commit CI is pending. 03B remains
 necessary: private encrypted seed from authenticated origin/cohort/mapping and
 real owner evidence, never ordinary local CRUD or synthetic source revisions.
 No full project, Note owner, writer, ACK, declaration or release is authorized.
+
+## Slice 3B implementation — 2026-10-28
+
+Owner-reported independent acceptance of 03A: `57abfbc785c9e8c849e2b6fbc9f78208ab7b47a8`,
+run **40675867782 — 6/6 SUCCESS**. A concurrent, published documentation commit
+`77a8d349` introduced the six user-facing MVP stages in the checkpoint; this
+source seed is a bounded internal step within stage 2.
+
+Replay **v4** uses the existing `localProjects` store only for an encrypted,
+initial empty Note source. The manifest gains `source_seeds` references to the
+active bootstrap, origin, genuine Metadata genesis and initial Legacy Note
+count/max sequence. Source record validation and a strict manifest/source join
+reject extra or missing records; other compatibility stores remain empty.
+V1/v2/v3→v4 native upgrade validates complete old inventories and rewrites only
+manifest versions/fields. Received ciphertext and all real Metadata/Stage/
+StageOrder proof records remain unchanged. Failed/quota upgrades roll back the
+native version and bytes. A genuine pinned v3 client refuses v4. No migration of
+developer `worta-web` v12, SQLite or PostgreSQL occurs.
+
+The private owner reads only the complete server-reconciled account history,
+authenticates active bootstrap and full initial Legacy Note cohort with the
+existing Note transport codec, and authenticates the genuine Metadata genesis
+and supported linear Metadata history with the existing Metadata codec/proof
+rules and transient shared head validator. Fork/delete, foreign Metadata source
+and Note material beyond the initial cohort reject. Notes before genesis are permitted
+for seed evidence; they do not gain Metadata dependency or applied status.
+Project fields derive only from genesis; the empty source has revision 1 and
+`payload={}`. Existing AMK local-source seal/open helpers encrypt it. The
+replay adapter checks fresh registry, transport and empty server tail, then
+commits source plus reference in a single strict transaction after full
+inventory/generation CAS. Server/session/key checks and source/proof AEAD
+reauthentication run again after commit and on restart. Duplicate calls do not
+rewrite; a lost response is reconciled by reopening genuine durable state.
+
+The result `encrypted_note_source_seed` keeps `projectOpened=false` and all
+readiness/writer flags false. No Note event is applied, no owner proof or cursor
+is fabricated, and no ACK, push, capability or UI path is enabled. Unsupported
+bootstrap/cohort, ciphertext, source mutation, registry drift, missing history,
+logout and key loss fail without a new seed. Existing C21 Note owners still need
+their own per-event source/history/proof commits. In particular the earlier
+Legacy Note events cannot be declared applied merely because the later Metadata
+genesis was authenticated for seeding. Full project opening remains blocked.
+
+Local evidence: focused **18 seed Vitest**, real Chromium/FastAPI/PostgreSQL
+**19 scenarios** over 104 genuine events/two projects, full prepush **816 Vitest/
+29 files**, 266 isolated PostgreSQL
+backend tests, typecheck/build and encrypted-blob backup/restore. Changed ESLint,
+workflow/static and diff checks pass. Independent new-commit CI is pending;
+Linux/x86-64 is not locally established.
 
 ## 1. Decision and authority
 

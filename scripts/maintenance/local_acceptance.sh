@@ -133,6 +133,7 @@ backend_checks() {
     tests/test_web_replay.py \
     tests/test_web_replay_metadata.py \
     tests/test_web_replay_structural.py \
+    tests/test_web_replay_source_seed.py \
     tests/test_cloud_encrypted_schema.py \
     tests/test_cloud_encrypted_sync.py \
     tests/test_cloud_encrypted_sync_v2.py \
@@ -153,6 +154,7 @@ frontend_checks() {
     src/platform/web/cloudRead.spec.ts \
     src/platform/web/replayReceiver.spec.ts \
     src/platform/web/replayStructural.spec.ts \
+    src/platform/web/replaySourceSeed.spec.ts \
     src/platform/web/stageApply.spec.ts \
     src/platform/web/stageOrderApply.spec.ts \
     src/platform/web/stagePrefix.spec.ts \
