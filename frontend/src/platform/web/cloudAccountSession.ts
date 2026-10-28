@@ -1,4 +1,4 @@
-import type { ReplayMetadataResult } from './replayMetadata'
+import type { ReplayMetadataResult, ReplayStructuralResult } from './replayMetadata'
 import { accountCryptoApi, type AccountCryptoTransport } from '@/api/accountCrypto'
 import { cloudProjectsApi, type CloudProjectsResponse } from '@/api/cloudProjects'
 import { legalDocumentsApi, type LegalDocument, type LegalDocumentConfirmation,
@@ -139,6 +139,19 @@ export class BrowserCloudAccountSession {
       signal: AbortSignal.any([signal, this.controller.signal]),
       current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context)
     }, storage => storage.applyMetadata(this.auth, bindings, keys))
+  }
+
+  /** Bounded account-wide Metadata/Stage/StageOrder composition. Fresh server reconciliation is mandatory on every call. */
+  async applyCloudAccountStructure(signal: AbortSignal): Promise<ReplayStructuralResult> {
+    this.assertWeb()
+    const identity = this.identity, context = this.auth.requireContext(), generation = this.generation
+    const keys = this.keys, bindings = this.bindings, lease = identity && keys?.leaseForAccount(identity.local_account_id)
+    if (this.status !== 'unlocked' || !identity || !lease || !keys || !bindings || !this.controller) throw new BrowserCloudReadError('key_locked')
+    return withReceivedBrowserAccountHistory({ auth: this.auth, lease,
+      scope: { accountId: identity.local_account_id, deviceId: identity.device_id, canonicalUserId: context.userId },
+      signal: AbortSignal.any([signal, this.controller.signal]),
+      current: () => !this.disposed && this.generation === generation && this.auth.isCurrent(context)
+    }, storage => storage.applyStructure(this.auth, bindings, keys))
   }
 
   /** Explicit user action: identity registration only, never reader readiness. */

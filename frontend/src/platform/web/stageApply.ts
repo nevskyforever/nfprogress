@@ -1,3 +1,4 @@
+import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp';
 import type { NormalUserAuthRuntime } from '@/auth/userAuth';
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding';
 import type { RuntimeKeyContext } from '@/auth/keyContext';
@@ -57,7 +58,7 @@ async function proofFor(scope: BrowserSyncScope, row: BrowserInboxRecord, e: Str
     fail('unsupported_local_source');
   if (h.device_id === scope.deviceId)
     fail('self_echo_unavailable');
-  if (h.account_id !== scope.canonicalUserId || h.project_id !== w.project_id || h.entity_id !== w.entity_id || h.device_id !== w.device_id || h.event_id !== row.event_id || h.revision !== w.revision || h.updated_at !== w.updated_at || e.deleted_at !== w.deleted_at || w.operation !== 'upsert')
+  if (h.account_id !== scope.canonicalUserId || h.project_id !== w.project_id || h.entity_id !== w.entity_id || h.device_id !== w.device_id || h.event_id !== row.event_id || h.revision !== w.revision || h.updated_at !== canonicalizeSyncTimestamp(w.updated_at) || e.deleted_at !== w.deleted_at || w.operation !== 'upsert')
     fail();
   return validateStageProof({ record_version: 1, owner_kind: 'stage', account_id: scope.accountId, project_id: h.project_id, stage_id: h.entity_id, bootstrap_id: h.bootstrap_id, event_id: h.event_id, source_device_id: h.device_id, server_sequence: row.server_sequence, operation: h.operation, revision: h.revision, generation: h.generation, parent_event_ids: h.parent_event_ids, metadata_event_id: h.metadata_event_id, codec_version: e.version, protocol_version: 3, wire_digest: await structuralWireDigest(row), reference: w }, scope);
 }

@@ -1,6 +1,6 @@
 # WEB.ONLINE.02B — C21 Online-Only source/proof contract
 
-**Status: DESIGN COMPLETE. Slice 1 independently accepted; slice 2 Metadata-only composition implemented locally. Later slices remain deferred.**
+**Status: DESIGN COMPLETE. Slices 1/2 independently accepted; slice 3A Structural composition implemented locally. Later slices remain deferred.**
 The original design review used clean `6.0` baseline
 `57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28, and introduced no
 production code or migration. Subsequent explicitly authorized implementation
@@ -131,6 +131,33 @@ new commit is **PENDING**. Official progress remains **89.36%**. Next authorized
 slice remains 3's structural/source foundation, one bounded owner cohort at a
 time, including an explicit owned-generation advancement decision before
 accepting a changed server snapshot. Recommended model: **GPT-6 Sol / High**.
+
+## Slice 3A implementation — 2026-10-28
+
+Owner-reported slice-2 acceptance: `3cb31ff`, run **40610547517 — 6/6 SUCCESS**.
+`BrowserStageApply` and `BrowserStageOrderApply` now join the same account-feed
+composition and actual strict transaction adapter as Imported Metadata.
+Replay v3 keeps the thirteen stores and original Metadata proof formats;
+v2→v3 validates/preserves every old record and adds manifest `applied_cursor`
+initialized from the genuine v2 prefix. Direct v1→v3 receipt migration remains.
+`metadata_cursor` still denotes only the initial Metadata-only account prefix.
+Mixed derived coverage must exactly join real inbox2/5/6 proofs and corresponding
+owner histories with earlier dependency sequences. Neither journal authorizes
+ACK/readiness/opening. Force-reauthentication uses all three existing owners'
+certificates; full inventory/generation CAS and fresh server/device gates remain.
+Stage membership must be complete before its first StageOrder; later new Stage
+identities are a rejected cohort under current full-membership reauthentication.
+Existing Metadata-only entry/result remains restricted; the new diagnostic is
+`structural_owners_applied`, always `projectOpened=false` and all readiness/
+writer flags false. V12, SQLite/PostgreSQL, UI and source stores are untouched.
+Local prepush passed: 798 Vitest/28 files, typecheck/build, six frontend browser
+scripts, 265 backend tests and real backup/restore. New Structural API acceptance
+has 43 genuine Chromium scenarios, including exact readonly winner restoration,
+v2/v3 migration and both owner families' rollback/reauthentication. Existing
+Metadata acceptance remains; independent new-commit CI is pending. 03B remains
+necessary: private encrypted seed from authenticated origin/cohort/mapping and
+real owner evidence, never ordinary local CRUD or synthetic source revisions.
+No full project, Note owner, writer, ACK, declaration or release is authorized.
 
 ## 1. Decision and authority
 
@@ -516,9 +543,10 @@ measuring duration. No capability/gate activation is implicit in these slices.
 | 5. Native family owner cores/adapters | One family per task: shared core extraction and browser execution/storage feasibility, then account catalog, Documents/Maps, Progress and Game in actual dependency order | Desktop behavior and real producer outputs match; owner parity/negative cases, encrypted browser records and atomic ledger/projection/reward joins. Cannot count a codec or Tauri mock as browser owner support. |
 | 6. Complete read-only project publication | Coverage/closure for every encountered family and auxiliary material, stable server checks, correct UI and lifecycle | Real Chromium/FastAPI/PostgreSQL server replay, cold cache and restart, all required project data restored; mixed unsupported account history blocks; network has no plaintext/ACK/push/declaration. Full-read acceptance still does not authorize writer or release. |
 
-After the Metadata-only slice 2, the next minimum implementation is **slice 3**,
-structural/source foundation in separately bounded cohorts. Owned-generation
-advancement must be specified before accepting a changed server snapshot. Recommended model:
+With Stage/StageOrder composition implemented in **3A**, the next minimum is
+**03B**, the private encrypted source-seed owner under section 6. No ordinary
+local initializer or synthetic revision qualifies. Owned-generation advancement
+must still be specified before accepting a changed server snapshot. Recommended model:
 **GPT-6 Sol / High**. Native shared-core feasibility and any positive Note
 capability lifecycle are separate later tasks, never hidden inside storage work.
 

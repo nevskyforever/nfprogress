@@ -1,5 +1,121 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## Утверждённый владельцем сценарий MVP: Desktop ↔ Cloud ↔ Web
+
+Это целевая продуктовая приёмка MVP, а не утверждение, что перечисленные
+возможности уже реализованы или приняты. **Desktop остаётся offline-first**:
+локальные проекты создаются и хранятся в SQLite и доступны без сети. Подключение
+существующего проекта к облаку выполняется пользователем вручную через уже
+разработанный `upload-existing`; локальные проекты не отправляются автоматически
+без согласия. Desktop также должен находить и скачивать в SQLite облачные проекты,
+созданные в Web или на другом устройстве, сохранять их для офлайн-работы и затем
+синхронизировать изменения в обе стороны.
+
+**Web остаётся online-only**: пользовательские проекты создаются непосредственно
+в облаке либо открываются из него; целевые функции включают создание облачного
+проекта и полноценное открытие и редактирование существующего. Браузер не получает
+отдельной функции загрузки локальных Desktop-проектов. Сервер является постоянным
+источником зашифрованных облачных данных, соединение с ним обязательно.
+
+Обязательные сквозные MVP-сценарии: **Desktop → Cloud → Web**;
+**Web → Cloud → Desktop**; двусторонняя синхронизация
+**Desktop ↔ Cloud ↔ Web**; сохранение всех поддерживаемых данных (проекты,
+этапы, документы, заметки, карты, прогресс, игровой режим, папки и связи);
+безопасное восстановление после прерывания и сохранение конфликтующих версий по
+действующим контрактам. Реализацию строить на существующих механизмах и проверках
+C16/C18/C21, без отдельной системы синхронизации.
+
+Критерий MVP — полноценная работа задуманного функционала, достаточная для начала
+личного тестирования. До него безопасность и целостность данных обязательны;
+последующие обнаруженные ошибки исправляются отдельно. Этот целевой сценарий не
+меняет текущий статус срезов, официальный прогресс **89,36%** или readiness,
+security и release gates.
+
+
+
+## 2026-10-28 — WEB.ONLINE.02B.03A — Stage / StageOrder replay owners
+
+**LOCAL COMPLETE — STRUCTURAL ONLY;
+FULL PROJECT OPEN BLOCKED; NEW INDEPENDENT CI PENDING.** Clean `6.0` HEAD
+and `origin/6.0` matched `3cb31ff63546d8be388013184a168c2babe88678`.
+Owner-reported independent acceptance: slice 1 `bdfb5601`, run **40601063694 —
+6/6 SUCCESS**; slice 2 `3cb31ff`, run **40610547517 — 6/6 SUCCESS**.
+This supersedes the previous slice's historical pending status. No CI polling.
+
+`applyCloudAccountStructure()` extends the existing receiver/replay composition.
+One complete bounded account feed is dispatched in real server order to genuine
+`BrowserImportedMetadataApply`, `BrowserStageApply` and `BrowserStageOrderApply`.
+Existing opaque prepare/commit tokens, frozen codecs/AEAD, Metadata/Stage prefix
+certificates, causal heads and full Stage membership/reference coverage are
+reused. No reducer, second sync engine, plaintext projection or extra family pull.
+
+Only `worta-web-replay` upgrades **v2→v3** (also direct v1→v3). All thirteen
+physical stores/key paths remain. Native versionchange validates all old records
+and changes manifests only; original encrypted wire, generation, cursors and
+real Metadata bindings/heads/proofs survive. V2's exact applied Metadata prefix
+initializes `applied_cursor`; `metadata_cursor` remains only the initial all-
+Metadata prefix and never advances for Structural proofs. New mixed coverage is
+strictly joined to real inbox5/6 and owner heads, with earlier dependency
+sequences. Neither journal is an ACK, qualified cursor or opening authority.
+Unknown versions/corruption refuse without cleanup. V12/SQLite/PostgreSQL remain
+unchanged. Quota/abort migration preserves the native old version and bytes;
+a genuine pinned v2 client refuses v3 without changes.
+
+Owner head, inbox proof and derived coverage commit in one strict native
+transaction with full account inventory/generation CAS and unchanged dependency
+records. Fresh registry/mode/device-gated tail checks guard every commit.
+Restart reauthorizes, unlocks AMK, compares all original server wire and forces
+real Metadata/Stage/StageOrder proof reauthentication; exact replay performs no
+mutations. Transport timestamp spelling uses the existing microsecond contract,
+retaining original references/digests and rejecting actual time drift.
+
+Supported: peer-origin coverless Metadata plus ordinary Stage create/update and
+complete StageOrder create/reorder, several projects/pages, stable Stage
+membership once ordering begins. Later Stage identity introduction after an order
+is explicitly unsupported under the current owner's full-set reauthentication
+contract. Delete/fork, missing Metadata/Stage/parents, omitted membership,
+unknown versions, forged proofs and stale session/server state refuse. Failed
+events never gain a proof or coverage; an earlier genuine committed prefix may
+remain. Owner-bearing generation advancement stays blocked and preserves data.
+No UI change, source seed or Note source revision is introduced.
+
+LOCAL-FIRST **PASS**: focused **197 Vitest tests / six files**; full
+`bash scripts/maintenance/local_acceptance.sh prepush` **PASS** with **798 Vitest /
+28 files**, typecheck, production build, all six frontend Chromium scripts,
+**265 PostgreSQL/backend tests** and **one** real PostgreSQL/encrypted-blob
+backup/restore. Task-owned PostgreSQL 16 containers were stopped. Changed-file
+ESLint, workflow YAML/six-job launch configuration, shell/Python syntax and
+`git diff --check` pass. No SKIP is counted as PASS.
+
+New real Chromium/FastAPI/PostgreSQL Structural acceptance: **43 scenarios**,
+genuine 102-event/two-page/two-project feed, 92 Metadata/6 Stage/4 StageOrder
+proofs, create/update and exact reorder, quota/abort/lock for both owners,
+concurrent Stage head CAS, lost Order commit response, browser profile restart,
+forbidden mutation on warm replay, matching forged proofs, unsupported version/
+late membership/delete/fork and missing/foreign dependencies, lifecycle/server
+failures, exact raw preservation and idempotent negative retry. V2→v3 uses
+frozen real v2 session/receiver/storage and real Metadata owner commits; migration
+preservation, corruption/quota/abort and genuine old-client refusal pass. Existing
+**47 Metadata**, **17 native replay** and **10 receiver API** scenarios remain.
+After the full prepush, focused Structural acceptance was repeated with explicit
+readonly genuine `Stage.read` / `StageOrder.read` assertions: edited Stage values
+and exact `b → a` winners survived restart; replay and v12 bytes stayed unchanged.
+Final focused duration **34.73s** on macOS arm64. Linux/x86-64 frontend timing/
+compatibility **NOT RUN** locally; independent new-commit CI remains pending.
+The extra Linux budget allowance is an estimate, not measured CI evidence. The bounded new API test
+joins existing content-action; foundation gets no new work. All six mandatory
+jobs/names/40-minute limits and previous Metadata acceptance remain.
+
+All flags remain false: `ready`, `declarationAllowed`, `writerAuthorized`,
+`projectOpened`. Registration CLOSED, PUBLIC RELEASE BLOCKED;
+C21/C22/C23/PF6.0/RC mandatory. Progress **89.36%** pending formal reassessment.
+Next minimum: **WEB.ONLINE.02B.03B**, the separately accepted private encrypted
+source-seed owner. Its input is exact original history, fresh active registry,
+replay generation and reauthenticated Metadata/Structural proofs. It must prove
+cohort/source mapping and atomic protected seed under the existing 02B contract,
+including Legacy Notes preceding Metadata; ordinary local CRUD/source counters
+cannot substitute. Source compatibility stores still remain empty here.
+Recommended model: **GPT-6 Sol / High**. No next slice started.
 
 ## 2026-10-28 — WEB.ONLINE.02B.02 — Imported Metadata owner / replay composition
 

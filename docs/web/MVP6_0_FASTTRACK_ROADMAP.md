@@ -8,6 +8,52 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+
+## 2026-10-28 — WEB.ONLINE.02B.03A: genuine Structural replay
+
+**LOCAL COMPLETE; FULL PROJECT OPEN BLOCKED; NEW CI PENDING.**
+Baseline `3cb31ff63546d8be388013184a168c2babe88678`, clean `6.0` and matching
+origin. Independent acceptance: slice 1 run **40601063694**, slice 2 run
+**40610547517**, both **6/6 SUCCESS**. New commit CI remains pending.
+
+The existing account receiver now has one ordered Metadata/Stage/StageOrder
+dispatcher, calling the actual owners' opaque prepare/commit paths. Real earlier
+Metadata proofs qualify Stage; authenticated Stage heads, exact membership and
+reference coverage qualify StageOrder. No new reducer, editor or sync engine.
+Strict atomic head/inbox/journal writes use complete inventory/generation CAS;
+restart performs fresh server reconciliation and force-reauthenticates every
+owner family, without repeated writes. No plaintext payload projection persists.
+
+Only isolated replay **v3** is introduced: validate/preserve genuine v2 Metadata
+state (and v1 receipt), change manifests only, add derived `applied_cursor`.
+`metadata_cursor` remains the initial Metadata-only prefix. Actual Structural
+proofs stay inbox5/6 and their original heads, without schema/proof substitution.
+Migration rollback/old client refusal preserve bytes. V12, SQLite and PostgreSQL
+remain unchanged.
+
+Ordinary create/update, two stages, exact order/reorder, projects/pages and
+restart are supported for the peer-origin cohort. Later new Stage membership
+after ordering, delete/fork, missing dependencies, omitted Stage, stale context/
+server or bad proofs reject. Existing owned-generation growth refusal remains.
+Full prepush **PASS**: **798 Vitest / 28 files**, typecheck/build, all six
+frontend Chromium scripts, **265 PostgreSQL/backend tests** and one real
+backup/restore. Focused owners: **197 tests / six files**. New real Chromium/
+FastAPI/PostgreSQL acceptance: **43 scenarios**, including genuine v2 Metadata
+migration, real Structural proofs, native rollback/restart and no repeat writes;
+existing 47 Metadata, 17 storage and 10 receiver scenarios remain. Final focused
+repeat after prepush also reads exact edited Stage winners and `b → a` order
+through actual readonly owners. ESLint/static/six-job/diff checks pass. Final
+focused arm64 duration 34.73s; Linux/x86-64 is NOT RUN locally. Existing six jobs,
+40-minute budgets and Metadata/browser checks are retained; foundation unchanged.
+
+Official progress **89.36%**; no complete-project criterion is closed. All
+readiness/writer/open flags remain false, Registration CLOSED, PUBLIC RELEASE
+BLOCKED and C21/C22/C23/PF6.0/RC mandatory. Next minimum: **03B private encrypted
+source seed**, fed by original history, fresh registry/generation and real
+Metadata/Structural proofs, with atomic cohort/mapping/source validation.
+No local CRUD initializer or synthetic revision is a substitute. Recommended:
+**GPT-6 Sol / High**. No next task started; new independent CI still required.
+
 ## 2026-10-28 — WEB.ONLINE.02B.02: actual Imported Metadata owner
 
 **METADATA-ONLY LOCAL COMPLETE;

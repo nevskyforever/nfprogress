@@ -1,3 +1,4 @@
+import { canonicalizeSyncTimestamp } from '@/cloud/syncTimestamp';
 import type { NormalUserAuthRuntime } from '@/auth/userAuth';
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding';
 import type { RuntimeKeyContext } from '@/auth/keyContext';
@@ -12,6 +13,7 @@ import { validateStageHead } from './stageRecords';
 import { validateStageOrderProof, validateStageOrderHead, proveStageReferenceCoverage, type BrowserStageOrderProof, type BrowserStageOrderHead } from './stageOrderRecords';
 import { snapshotBrowserSyncScope, validateBrowserInboxRecord, immutableWireIdentity, type BrowserInboxRecord, type BrowserSyncScope, type BrowserSyncTransaction } from './syncDurability';
 import { PREFIX_STORES, type BrowserPrefixInventory } from './provenPrefixRecords';
+type HeadIdentity = { owner_kind: string; owner_id: string; project_id: string; stage_id: string; history?: Array<{ event_id: string; operation: string }>; tip_event_ids?: string[] };
 const same = (a: unknown, b: unknown) => immutableWireIdentity(a) === immutableWireIdentity(b);
 function fail(code: BrowserPersistenceCode = 'corrupt_record'): never {
   throw new BrowserPersistenceError(code);
@@ -32,15 +34,15 @@ async function proofFor(scope: BrowserSyncScope, row: BrowserInboxRecord, e: Str
     fail('unsupported_local_source');
   if (h.device_id === scope.deviceId)
     fail('self_echo_unavailable');
-  if (h.account_id !== scope.canonicalUserId || h.project_id !== w.project_id || h.entity_id !== w.entity_id || h.device_id !== w.device_id || h.event_id !== row.event_id || h.revision !== w.revision || h.updated_at !== w.updated_at || e.deleted_at !== w.deleted_at || w.operation !== 'upsert')
+  if (h.account_id !== scope.canonicalUserId || h.project_id !== w.project_id || h.entity_id !== w.entity_id || h.device_id !== w.device_id || h.event_id !== row.event_id || h.revision !== w.revision || h.updated_at !== canonicalizeSyncTimestamp(w.updated_at) || e.deleted_at !== w.deleted_at || w.operation !== 'upsert')
     fail();
   return validateStageOrderProof({ record_version: 1, owner_kind: 'stage_order', entity_id: 'stage_order', account_id: scope.accountId, project_id: h.project_id, bootstrap_id: h.bootstrap_id, event_id: h.event_id, source_device_id: h.device_id, server_sequence: row.server_sequence, operation: h.operation, revision: h.revision, generation: h.generation, parent_event_ids: h.parent_event_ids, metadata_event_id: h.metadata_event_id, codec_version: e.version, protocol_version: 3, wire_digest: await structuralWireDigest(row), reference: w, stage_dependencies: Object.keys(e.stage_heads!).sort().map(stage_id => ({ stage_id, event_ids: e.stage_heads![stage_id]! })) }, scope);
 }
 async function dependencies(scope: BrowserSyncScope, v: BrowserPrefixInventory, p: BrowserStageOrderProof, amk: AccountMasterKey, current: () => boolean, meta: VerifiedMetadataPrefix, fresh: boolean) {
   structuralMetadataDependency(scope, v, { ...p, stage_id: 'stage_order' }, meta, fresh, 'stage_order');
-  const raw = v.owners.filter(h => (h as any).owner_kind === 'stage' && (h as any).project_id === p.project_id);
-  for (const h of raw as any[])
-    if (h.history?.some((r: any) => h.tip_event_ids?.includes(r.event_id) && r.operation === 'delete'))
+  const raw = v.owners.filter(h => (h as HeadIdentity).owner_kind === 'stage' && (h as HeadIdentity).project_id === p.project_id);
+  for (const h of raw as HeadIdentity[])
+    if (h.history?.some((r: { event_id: string; operation: string }) => h.tip_event_ids?.includes(r.event_id) && r.operation === 'delete'))
       fail('stage_tombstone_child_manifest_incomplete');
   const heads = raw.map(h => validateStageHead(h, scope));
   if (heads.some(h => h.bootstrap_id !== p.bootstrap_id))
@@ -49,7 +51,7 @@ async function dependencies(scope: BrowserSyncScope, v: BrowserPrefixInventory, 
   for (const d of p.stage_dependencies) {
     const h = heads.find(h => h.stage_id === d.stage_id);
     if (!h) {
-      if (v.owners.some(h => (h as any).owner_kind === 'stage' && (h as any).stage_id === d.stage_id))
+      if (v.owners.some(h => (h as HeadIdentity).owner_kind === 'stage' && (h as HeadIdentity).stage_id === d.stage_id))
         fail('stage_order_foreign_stage');
       fail('stage_dependency_missing');
     }
@@ -91,7 +93,7 @@ export function stageOrderSequences(token: VerifiedStageOrderPrefix | undefined,
 export async function prepareStageOrderPrefix(scope: BrowserSyncScope, v: BrowserPrefixInventory, amk: AccountMasterKey, current: () => boolean, meta: VerifiedMetadataPrefix, force = false, replayHistory = false): Promise<VerifiedStageOrderPrefix> {
   const safe = new Set<number>();
   for (const raw of v.owners) {
-    if ((raw as any).owner_kind !== 'stage_order')
+    if ((raw as HeadIdentity).owner_kind !== 'stage_order')
       continue;
     const h = validateStageOrderHead(raw, scope);
     for (const p of h.history) {
@@ -166,7 +168,7 @@ export class BrowserStageOrderRuntime {
     return lease.use(async (amk) => {
       const event = await open(scope, row, amk), proof = await proofFor(scope, row, event), meta = await prepareMetadataPrefix(scope, v, amk, current, true), replay = row.state === 'stage_order_proven';
       await dependencies(scope, v, proof, amk, current, meta, !replay);
-      const raw = v.owners.find(h => (h as any).owner_kind === 'stage_order' && (h as any).owner_id === proof.project_id), old = raw ? validateStageOrderHead(raw, scope) : null;
+      const raw = v.owners.find(h => (h as HeadIdentity).owner_kind === 'stage_order' && (h as HeadIdentity).owner_id === proof.project_id), old = raw ? validateStageOrderHead(raw, scope) : null;
       const cert = await prepareStageOrderPrefix(scope, v, amk, current, meta, true, true);
       if (old && old.history.some(p => !stageOrderSequences(cert, scope, v).has(p.server_sequence)))
         fail('missing_history');
@@ -219,7 +221,7 @@ export class BrowserStageOrderRuntime {
     return this.commit(await this.prepare(scope, sequence));
   }
   async read(input: BrowserSyncScope, project: string): Promise<string[] | null> {
-    const scope = snapshotBrowserSyncScope(input), { lease, current } = await this.guard(scope), v = await this.inventory(scope), raw = v.owners.find(h => (h as any).owner_kind === 'stage_order' && (h as any).owner_id === project);
+    const scope = snapshotBrowserSyncScope(input), { lease, current } = await this.guard(scope), v = await this.inventory(scope), raw = v.owners.find(h => (h as HeadIdentity).owner_kind === 'stage_order' && (h as HeadIdentity).owner_id === project);
     if (!raw)
       return null;
     const h = validateStageOrderHead(raw, scope);

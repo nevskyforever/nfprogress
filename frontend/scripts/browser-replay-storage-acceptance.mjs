@@ -136,7 +136,7 @@ try {
     for (const [name, anchor] of [['rollback', rollback], ['lineage', drift]]) {
       try { await rt.store.start(anchor); codes[name] = null } catch (e) { codes[name] = e.code }
     }
-    const open = indexedDB.open('worta-web-replay', 2)
+    const open = indexedDB.open('worta-web-replay', 3)
     await new Promise(resolve => { open.onsuccess = resolve })
     const db = open.result
     const replace = row => new Promise((resolve, reject) => {
@@ -174,7 +174,7 @@ try {
   }, fixture.scope)
   assert.equal(identityMismatch, 'corrupt_record'); checks.push('account-identity-binding')
   const version = await page.evaluate(async () => {
-    const open = indexedDB.open('worta-web-replay', 3)
+    const open = indexedDB.open('worta-web-replay', 4)
     await new Promise((resolve, reject) => { open.onsuccess = resolve; open.onerror = () => reject(open.error) })
     const db = open.result; db.close()
     try { await rt.module.openBrowserReplayStorage(rt.scope, new AbortController().signal, () => true); return null } catch (e) { return e.code }
@@ -184,13 +184,13 @@ try {
   context = await chromium.launchPersistentContext(malformed, { headless: true })
   page = await tab()
   const schema = await page.evaluate(async scope => {
-    const open = indexedDB.open('worta-web-replay', 2)
+    const open = indexedDB.open('worta-web-replay', 3)
     open.onupgradeneeded = () => open.result.createObjectStore('unknown').put('preserve', 'sentinel')
     await new Promise((resolve, reject) => { open.onsuccess = resolve; open.onerror = () => reject(open.error) }); open.result.close()
     const { openBrowserReplayStorage } = await import('/src/platform/web/replayStorage.ts')
     let code
     try { await openBrowserReplayStorage(scope, new AbortController().signal, () => true) } catch (e) { code = e.code }
-    const read = indexedDB.open('worta-web-replay', 2)
+    const read = indexedDB.open('worta-web-replay', 3)
     await new Promise(resolve => { read.onsuccess = resolve })
     const db = read.result, request = db.transaction('unknown').objectStore('unknown').get('sentinel')
     const sentinel = await new Promise(resolve => { request.onsuccess = () => resolve(request.result) }); db.close()

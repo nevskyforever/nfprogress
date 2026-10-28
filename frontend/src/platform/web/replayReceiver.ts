@@ -95,7 +95,7 @@ export async function withReceivedBrowserAccountHistory<T>(input: ReceiveInput, 
 /** Receipt-only result never labels existing owner proofs as zero. */
 export function receiveBrowserAccountHistory(input: ReceiveInput): Promise<BrowserAccountReceiveResult> {
   return withReceivedBrowserAccountHistory(input, async (_storage, snapshot) => {
-    if (snapshot.manifest!.metadata_cursor) throw new BrowserReplayError('metadata_owner_state_present')
+    if (snapshot.manifest!.applied_cursor) throw new BrowserReplayError('metadata_owner_state_present')
     return { kind: 'received_ciphertext', cursor: snapshot.manifest!.receive_cursor, events: snapshot.rows.length, generation: snapshot.manifest!.generation,
       ready: false, declarationAllowed: false, writerAuthorized: false, projectOpened: false, ownerProofs: 0 }
   })

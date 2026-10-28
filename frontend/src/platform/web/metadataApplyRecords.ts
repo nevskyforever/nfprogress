@@ -17,7 +17,7 @@ export interface BrowserMetadataHead {
 }
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(v)
 // Proof references retain exact server wire. Only the payload timestamps are canonical.
-const wireTimestamp = (value: unknown): boolean => { try { return typeof value === 'string' && timestamp(canonicalizeSyncTimestamp(value)) } catch { return false } }
+export const wireTimestamp = (value: unknown): boolean => { try { return typeof value === 'string' && timestamp(canonicalizeSyncTimestamp(value)) } catch { return false } }
 const positive = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) > 0
 const exact = (v: unknown, keys: string[]): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).sort().join(',') === keys.sort().join(',')
 function fail(): never { throw new BrowserPersistenceError('corrupt_record') }

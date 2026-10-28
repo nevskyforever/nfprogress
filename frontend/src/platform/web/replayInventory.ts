@@ -1,33 +1,47 @@
 import { BrowserPersistenceError } from './persistence'
 import { validateBrowserInboxRecord, validateBrowserSyncCursor, type BrowserInboxRecord, type BrowserSyncScope } from './syncDurability'
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
-import { validateBrowserMetadataHead, type BrowserMetadataHead } from './metadataApplyRecords'
+import type { BrowserMetadataHead, BrowserMetadataProof } from './metadataApplyRecords'
+import { validateBrowserOwnerHead, stageOwnerId, type BrowserStageHead, type BrowserStageProof } from './stageRecords'
+import type { BrowserStageOrderHead, BrowserStageOrderProof } from './stageOrderRecords'
 import { REPLAY_LIMITS, replayExact, replaySame, replayUuid, validateReplayManifest, type ReplayManifest } from './replayRecords'
 
 export interface ReplaySnapshot {
-  manifest: ReplayManifest | null; rows: BrowserInboxRecord[]; bindings: BrowserProjectBinding[]; owners: BrowserMetadataHead[]
+  manifest: ReplayManifest | null; rows: BrowserInboxRecord[]; bindings: BrowserProjectBinding[]; owners: Array<BrowserMetadataHead | BrowserStageHead | BrowserStageOrderHead>
 }
-export function assertReplayMetadataTransition(before: ReplaySnapshot, after: ReplaySnapshot, sequence: number, status: unknown): void {
+/** Derived coverage is never a qualified cursor or owner certificate. */
+export function replayCoverage(manifest: ReplayManifest, row: BrowserInboxRecord) {
+  const sequence = row.server_sequence
+  return { ...manifest, applied_cursor: sequence, metadata_cursor: row.state === 'applied' && sequence === (manifest.metadata_cursor ?? 0) + 1 ? sequence : manifest.metadata_cursor,
+    revision: manifest.revision + 1 }
+}
+export function replayAppliedProof(row: BrowserInboxRecord): BrowserMetadataProof | BrowserStageProof | BrowserStageOrderProof | undefined {
+  return row.state === 'applied' ? row.applied_proof : row.state === 'stage_proven' ? row.stage_proof : row.state === 'stage_order_proven' ? row.stage_order_proof : undefined
+}
+export function assertReplayOwnerTransition(before: ReplaySnapshot, after: ReplaySnapshot, sequence: number, status: unknown): void {
   if (status === 'already_applied') { if (!replaySame(before, after)) fail(); return }
-  const manifest = before.manifest!, previous = before.rows[sequence - 1], row = after.rows[sequence - 1]
-  if (status !== 'applied' || !previous || previous.state !== 'received' || !row || row.state !== 'applied'
-    || sequence !== (manifest.metadata_cursor ?? 0) + 1 || !replaySame(after.manifest, { ...manifest, metadata_cursor: sequence, revision: manifest.revision + 1 })) fail()
-  const wire = { ...row } as Record<string, unknown>; delete wire.applied_proof
+  const manifest = before.manifest!, previous = before.rows[sequence - 1], row = after.rows[sequence - 1], proof = row && replayAppliedProof(row)
+  if (status !== 'applied' || !previous || previous.state !== 'received' || !proof
+    || sequence !== (manifest.applied_cursor ?? 0) + 1 || !replaySame(after.manifest, replayCoverage(manifest, row!))) fail()
+  const wire = { ...row } as Record<string, unknown>
+  for (const key of ['applied_proof', 'stage_proof', 'stage_order_proof']) delete wire[key]
   if (!replaySame({ ...wire, record_version: 1, state: 'received' }, previous)
     || !replaySame(before.rows.filter(value => value.server_sequence !== sequence), after.rows.filter(value => value.server_sequence !== sequence))) fail()
-  const project = row.applied_proof.project_id
-  if (!replaySame(before.owners.filter(head => head.owner_id !== project), after.owners.filter(head => head.owner_id !== project))
-    || !replaySame(before.bindings.filter(binding => binding.project_id !== project), after.bindings.filter(binding => binding.project_id !== project))) fail()
-  const oldBinding = before.bindings.find(binding => binding.project_id === project)
-  if (oldBinding && !replaySame(oldBinding, after.bindings.find(binding => binding.project_id === project))) fail()
+  const ownerId = proof.owner_kind === 'stage' ? stageOwnerId(proof.project_id, proof.stage_id) : proof.project_id
+  const other = (head: ReplaySnapshot['owners'][number]) => head.owner_kind !== proof.owner_kind || head.owner_id !== ownerId
+  if (!replaySame(before.owners.filter(other), after.owners.filter(other))) fail()
+  const oldBinding = before.bindings.find(binding => binding.project_id === proof.project_id)
+  if (proof.owner_kind !== 'project_metadata' || oldBinding) {
+    if (!replaySame(before.bindings, after.bindings)) fail()
+  } else if (!replaySame(before.bindings, after.bindings.filter(binding => binding.project_id !== proof.project_id))) fail()
 }
 export const replayEmptyStores = ['outbox', 'receipts', 'localProjects', 'localNotes', 'legacyNoteHistory', 'legacyNoteIntents']
 function fail(): never { throw new BrowserPersistenceError('corrupt_record') }
 const range = (account: string) => IDBKeyRange.bound([account], [account, []])
 
-/** Complete account snapshot, with structural joins only. Crypto is owned by Metadata reauthentication. */
+/** Complete account snapshot, with structural joins only. Crypto is owned by the existing family certificates. */
 export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, check: () => void,
-  result: (snapshot: ReplaySnapshot) => void, abort: (error: unknown) => void, version: 1 | 2 = 2): void {
+  result: (snapshot: ReplaySnapshot) => void, abort: (error: unknown) => void, version: 1 | 2 | 3 = 3): void {
   const bound = range(s.accountId), rows: BrowserInboxRecord[] = []
   const identity = tx.objectStore('identities').get(s.canonicalUserId), alias = tx.objectStore('identities').index('local_account_id').get(s.accountId)
   const binding = tx.objectStore('accountBindings').get(s.accountId), cursors = tx.objectStore('cursors').getAll(bound)
@@ -45,37 +59,52 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         || !replaySame(alias.result, i) || !replayExact(b, ['record_version', 'local_account_id', 'canonical_user_id'])
         || b.record_version !== 1 || b.local_account_id !== s.accountId || b.canonical_user_id !== s.canonicalUserId) fail()
       const manifest = manifests.result.length ? validateReplayManifest(manifests.result[0], s, version) : null
-      const checkpoint = validateBrowserSyncCursor(cursors.result[0], s), metadata = manifest?.metadata_cursor ?? 0
+      const checkpoint = validateBrowserSyncCursor(cursors.result[0], s), metadata = manifest?.metadata_cursor ?? 0, applied = version === 3 ? manifest?.applied_cursor ?? 0 : metadata
       if (checkpoint.ack_cursor !== 0 || checkpoint.proven_prefix !== 0 || checkpoint.next_local_ordinal !== 1
         || checkpoint.pull_cursor !== rows.length || !manifest && (rows.length || cursors.result.length || bindings.result.length || owners.result.length)
         || manifest && (i === undefined || !cursors.result.length || manifest.receive_cursor !== rows.length)) fail()
-      const imported = bindings.result.map(raw => validateBrowserProjectBinding(raw, s)), heads = owners.result.map(raw => validateBrowserMetadataHead(raw, s))
+      const imported = bindings.result.map(raw => validateBrowserProjectBinding(raw, s)), heads = owners.result.map(raw => validateBrowserOwnerHead(raw, s))
+      if (version < 3 && heads.some(head => head.owner_kind !== 'project_metadata')) fail()
       let ciphertextBytes = 0
       const ids = new Set<string>()
       for (const [index, row] of rows.entries()) {
-        if (row.server_sequence !== index + 1 || ids.has(row.event_id) || (row.server_sequence <= metadata) !== (row.state === 'applied')) fail()
+        if (row.server_sequence !== index + 1 || ids.has(row.event_id) || (row.server_sequence <= applied) !== !!replayAppliedProof(row)) fail()
         ids.add(row.event_id)
         const wire = JSON.parse(row.wire_item) as { event: { project_id: string }; object: { ciphertext: string } }
         ciphertextBytes += Math.floor(wire.object.ciphertext.length * 3 / 4)
-        if (row.state === 'applied') {
-          const head = heads.find(value => value.owner_id === wire.event.project_id)
-          if (!head || !replaySame(head.history.find(proof => proof.event_id === row.event_id), row.applied_proof)) fail()
+        const proof = replayAppliedProof(row)
+        if (proof) {
+          const head = heads.find(value => value.owner_kind === proof.owner_kind && value.owner_id === (proof.owner_kind === 'stage' ? stageOwnerId(proof.project_id, proof.stage_id) : proof.project_id))
+          if (!head || !replaySame(head.history.find(value => value.event_id === row.event_id), proof)) fail()
+          if (proof.owner_kind !== 'project_metadata') {
+            const metadataHead = heads.find(value => value.owner_kind === 'project_metadata' && value.owner_id === proof.project_id)
+            const dependency = metadataHead?.history.find(value => value.event_id === proof.metadata_event_id)
+            if (!dependency || dependency.server_sequence >= proof.server_sequence) fail()
+            if (proof.owner_kind === 'stage_order') for (const stage of proof.stage_dependencies) for (const id of stage.event_ids) {
+              const head = heads.find(value => value.owner_kind === 'stage' && value.project_id === proof.project_id && value.stage_id === stage.stage_id)
+              const parent = head?.history.find(value => value.event_id === id)
+              if (!parent || parent.server_sequence >= proof.server_sequence) fail()
+            }
+          }
         }
       }
+      const metadataPrefix = rows.findIndex(row => row.state !== 'applied')
+      if (metadata !== (metadataPrefix < 0 ? rows.length : metadataPrefix)) fail()
       for (const record of imported) {
         const remote = manifest?.anchor.registry.projects.find(project => project.project_id === record.project_id)
         if (!remote || remote.bootstrap_id !== record.bootstrap_id || record.mode !== 'import_remote' || record.phase !== 'captured' || record.remote_state !== 'active' || record.remote_high_water !== manifest!.anchor.registry.current_cursor
-          || !heads.some(head => head.owner_id === record.project_id)) fail()
+          || !heads.some(head => head.owner_kind === 'project_metadata' && head.owner_id === record.project_id)) fail()
       }
       for (const head of heads) {
-        if (!imported.some(record => record.project_id === head.owner_id && record.bootstrap_id === head.bootstrap_id)) fail()
+        const project = head.owner_kind === 'project_metadata' ? head.owner_id : head.project_id
+        if (!imported.some(record => record.project_id === project && record.bootstrap_id === head.bootstrap_id)) fail()
         for (const proof of head.history) {
           const row = rows.find(value => value.event_id === proof.event_id)
-          if (!row || row.state !== 'applied' || !replaySame(row.applied_proof, proof) || !['create', 'update'].includes(proof.operation)
+          if (!row || !replaySame(replayAppliedProof(row), proof) || !['create', 'update'].includes(proof.operation)
             || proof.protocol_version !== 3 || proof.source_device_id === s.deviceId) fail()
         }
         const genesis = head.history.find(proof => proof.operation === 'create')
-        if (!genesis || genesis.source_device_id !== manifest!.anchor.registry.projects.find(project => project.project_id === head.owner_id)?.origin_device_id) fail()
+        if (!genesis || genesis.source_device_id !== manifest!.anchor.registry.projects.find(record => record.project_id === project)?.origin_device_id) fail()
       }
       bytes += new TextEncoder().encode(JSON.stringify({ manifest, imported, heads })).length + REPLAY_LIMITS.controlReserveBytes
       if (manifest && (ciphertextBytes !== manifest.ciphertext_bytes || bytes > REPLAY_LIMITS.inventoryBytes)) fail()
@@ -90,7 +119,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       if (!cursor) { finish(); return }
       if (rows.length >= REPLAY_LIMITS.events) fail()
       const row = validateBrowserInboxRecord(cursor.value, s)
-      if (!(row.state === 'received' && row.record_version === 1 || version === 2 && row.state === 'applied' && row.record_version === 2)
+      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version === 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6))
         || row.protocol_version !== 3 || !replaySame(cursor.primaryKey, [s.accountId, row.server_sequence])) fail()
       bytes += new TextEncoder().encode(JSON.stringify(row)).length
       if (bytes > REPLAY_LIMITS.inventoryBytes) fail()
@@ -100,7 +129,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
 }
 
 /** Versionchange has no HTTP/crypto and never invents bindings, heads or applied outcomes. */
-export function migrateReplayV1(tx: IDBTransaction, names: readonly string[], check: () => void, abort: (error: unknown) => void): void {
+export function migrateReplay(tx: IDBTransaction, names: readonly string[], check: () => void, abort: (error: unknown) => void, version: 1 | 2): void {
   const all = new Map<string, unknown[]>(); let remaining = names.length, bytes = 0
   const validate = () => {
     try {
@@ -120,12 +149,12 @@ export function migrateReplayV1(tx: IDBTransaction, names: readonly string[], ch
       const updates: ReplayManifest[] = []
       for (const scope of scopes) scheduleReplaySnapshot(tx, scope, check, snapshot => {
         try {
-          if (snapshot.manifest) updates.push({ ...snapshot.manifest, record_version: 2, contract_version: 2, metadata_cursor: 0 })
+          if (snapshot.manifest) updates.push({ ...snapshot.manifest, record_version: 3, contract_version: 3, metadata_cursor: snapshot.manifest.metadata_cursor ?? 0, applied_cursor: snapshot.manifest.metadata_cursor ?? 0 })
           if (--pending) return
           check()
           for (const manifest of updates) tx.objectStore('replayManifest').put(manifest)
         } catch (error) { abort(error) }
-      }, abort, 1)
+      }, abort, version)
     } catch (error) { abort(error) }
   }
   for (const name of names) {

@@ -1,7 +1,6 @@
 import {validateStageOrderHead} from './stageOrderRecords';
-import {timestamp} from '@/cloud/projectMetadataCodec';
 import type { V3Descriptor } from '@/api/encryptedSyncV3';
-import { validateBrowserMetadataHead } from './metadataApplyRecords';
+import { validateBrowserMetadataHead, wireTimestamp } from './metadataApplyRecords';
 import { immutableWireIdentity, type BrowserSyncScope } from './syncDurability';
 import { BrowserPersistenceError } from './persistence';
 export interface BrowserStageProof {
@@ -56,7 +55,7 @@ export function validateStageProof(value: unknown, scope: BrowserSyncScope): Bro
   const p = value as unknown as BrowserStageProof, d = p.reference;
   if (p.record_version !== 1 || p.owner_kind !== 'stage' || p.account_id !== scope.accountId || !id(p.project_id) || !id(p.stage_id) || ![p.bootstrap_id, p.event_id, p.source_device_id, p.metadata_event_id].every(uuid) || !positive(p.server_sequence) || !positive(p.revision) || p.generation !== p.revision || p.protocol_version !== 3 || ![1, 2].includes(p.codec_version) || !['create', 'update'].includes(p.operation) || p.codec_version === 2 && p.operation === 'create' || !Array.isArray(p.parent_event_ids) || p.parent_event_ids.length !== (p.operation === 'create' ? 0 : 1) || !p.parent_event_ids.every(s => uuid(s) && s !== p.event_id) || p.operation === 'create' && p.revision !== 1 || p.operation === 'update' && p.revision < 2 || typeof p.wire_digest !== 'string' || !/^[0-9a-f]{64}$/.test(p.wire_digest))
     bad();
-  if (!exact(d, ['event_id', 'device_id', 'server_sequence', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at']) || d.event_id !== p.event_id || d.device_id !== p.source_device_id || d.server_sequence !== p.server_sequence || d.project_id !== p.project_id || d.entity_id !== p.stage_id || d.entity_type !== 'stage' || d.operation !== 'upsert' || d.revision !== p.revision || d.deleted_at !== null || !timestamp(d.updated_at))
+  if (!exact(d, ['event_id', 'device_id', 'server_sequence', 'project_id', 'entity_id', 'entity_type', 'operation', 'revision', 'updated_at', 'deleted_at']) || d.event_id !== p.event_id || d.device_id !== p.source_device_id || d.server_sequence !== p.server_sequence || d.project_id !== p.project_id || d.entity_id !== p.stage_id || d.entity_type !== 'stage' || d.operation !== 'upsert' || d.revision !== p.revision || d.deleted_at !== null || !wireTimestamp(d.updated_at))
     bad();
   return structuredClone(p);
 }
