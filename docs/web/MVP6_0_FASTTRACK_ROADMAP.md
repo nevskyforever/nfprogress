@@ -15,6 +15,13 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01A1 — bounded full-history admission
+
+The account-wide validator now admits exactly one terminal peer-origin Content
+update after supported Legacy history, with canonical encrypted payload and
+parent checks. This creates no owner proof and does not dispatch or open a
+project. Next: sequential owner composition through the existing v5 adapter.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03J — replay v5 Content adapter
 
 Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`. Explicit single-event

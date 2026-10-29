@@ -16,6 +16,7 @@ import type { AccountMasterKey } from '@/crypto'
 import { reauthenticateReplayNotes } from './replayNoteProof'
 import { BrowserLocalAuthority } from './localAuthority'
 import { BrowserLegacyNoteApply } from './legacyNoteApply'
+import { openNoteTransport } from './noteTransport'
 
 export interface ReplayMetadataResult {
   readonly kind: 'metadata_owner_applied'; readonly cursor: number; readonly ownerProofs: number; readonly projects: number
@@ -32,43 +33,37 @@ export interface MetadataPort {
   transaction(expected: ReplaySnapshot, sequence: number, server: () => Promise<void>): BrowserSyncTransaction
 }
 
-/** Force the genuine owner certificates over every retained applied row. */
-export async function reauthenticateReplayOwners(scope: BrowserSyncScope, snapshot: ReplaySnapshot, amk: AccountMasterKey,
-  current: () => boolean, structural = true, notes: ReadonlySet<number> = new Set()): Promise<void> {
-  const inventory = { rows: snapshot.rows, bindings: snapshot.bindings, owners: snapshot.owners, out: [], receipts: [], history: [],
-    cursor: { pull_cursor: snapshot.manifest!.receive_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 } }
-  const meta = await prepareMetadataPrefix(scope, inventory, amk, current, true)
-  const certificates = new Map<string, ReadonlySet<number>>([['applied', verifiedMetadataSequences(meta, scope, inventory)]])
-  if (structural) {
-    certificates.set('stage_proven', stageSequences(await prepareStagePrefix(scope, inventory, amk, current, meta, true), scope, inventory))
-    certificates.set('stage_order_proven', stageOrderSequences(await prepareStageOrderPrefix(scope, inventory, amk, current, meta, true), scope, inventory))
-  }
-  let authenticated = 0
-  for (const row of snapshot.rows) if (row.state !== 'received') {
-    if (!(row.state === 'note_proven' || row.state === 'content_note_proven' ? notes.has(row.server_sequence) : certificates.get(row.state)?.has(row.server_sequence)))
-      throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
-    authenticated++
-  }
-  if (authenticated !== snapshot.manifest!.applied_cursor) throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
-  if (!current()) throw new BrowserReplayError('session_closed')
-}
-
-/** No reducer: the existing Metadata/Structural commits and prefix verifiers own every outcome. */
-export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSyncScope, signal: AbortSignal, current: () => boolean,
-  auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural = false, initialNotes = false): Promise<ReplayMetadataResult | ReplayStructuralResult | ReplayInitialNoteResult> {
-  const context = auth.requireContext(), lease = keys.leaseForAccount(scope.accountId)
-  const check = () => {
-    if (signal.aborted || !current() || !auth.isCurrent(context) || !lease?.isCurrent() || lease.localAccountId !== scope.accountId
-      || lease.canonicalUserId !== scope.canonicalUserId || lease.authEpoch !== context.authEpoch) throw new BrowserReplayError('session_closed')
-  }
-  check()
-  let snapshot = await port.read(); check()
-  if (!snapshot.manifest) throw new BrowserReplayError('metadata_history_incomplete')
+/** Account-wide admission only. It neither advances coverage nor creates an owner proof. */
+export async function assertReplayHistoryAdmissible(snapshot: ReplaySnapshot, scope: BrowserSyncScope,
+  structural = false, initialNotes = false, terminalContentAmk?: AccountMasterKey): Promise<void> {
+  if (!snapshot.manifest || snapshot.manifest.phase !== 'received'
+    || snapshot.rows.length !== snapshot.manifest.anchor.registry.current_cursor || !snapshot.rows.length)
+    throw new BrowserReplayError('metadata_history_incomplete')
   const anchor = snapshot.manifest.anchor
-  if (snapshot.manifest.phase !== 'received' || snapshot.rows.length !== anchor.registry.current_cursor || !snapshot.rows.length) throw new BrowserReplayError('metadata_history_incomplete')
-  // Whole-account admissibility; an unsupported earlier event is never filtered.
-  for (const row of snapshot.rows) {
+  for (const [index, row] of snapshot.rows.entries()) {
     const event = JSON.parse(row.wire_item).event as V3Descriptor
+    if (row.server_sequence !== index + 1 || event.server_sequence !== row.server_sequence)
+      throw new BrowserReplayError('history_gap')
+    const terminal = terminalContentAmk && row.server_sequence === snapshot.rows.length
+      && event.entity_type === 'note' && event.operation === 'event'
+    if (terminal) {
+      const previous = snapshot.rows.slice(0, -1).filter(value => {
+        const prior = JSON.parse(value.wire_item).event as V3Descriptor
+        return prior.entity_type === 'note' && prior.project_id === event.project_id && prior.entity_id === event.entity_id
+      }).at(-1)
+      if (row.protocol_version !== 3 || row.state !== 'received' || !previous || previous.protocol_version !== 3
+        || !['received', 'note_proven'].includes(previous.state) || event.device_id === scope.deviceId
+        || event.device_id !== anchor.registry.projects.find(project => project.project_id === event.project_id)?.origin_device_id
+        || event.deleted_at !== null || event.revision !== (JSON.parse(previous.wire_item).event as V3Descriptor).revision + 1
+        || (JSON.parse(previous.wire_item).event as V3Descriptor).operation !== 'upsert')
+        throw new BrowserReplayError('unsupported_content_cohort')
+      const prior = await openNoteTransport(scope, terminalContentAmk, 3, previous.wire_item, 'legacy')
+      const content = await openNoteTransport(scope, terminalContentAmk, 3, row.wire_item, 'content_note_v1')
+      if (content.content?.event.mutation !== 'update'
+        || content.plaintext.header.parent_event_id !== prior.plaintext.header.event_id)
+        throw new BrowserReplayError('unsupported_content_cohort')
+      continue
+    }
     if (row.protocol_version !== 3 || !(initialNotes ? ['note', 'project_metadata', 'stage', 'stage_order'] : structural ? ['project_metadata', 'stage', 'stage_order'] : ['project_metadata']).includes(event.entity_type)) throw new BrowserReplayError('unsupported_history_family')
     if (event.entity_type === 'note' && event.operation === 'delete') {
       if (event.deleted_at === null) throw new BrowserReplayError('unsupported_metadata_operation')
@@ -108,6 +103,44 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
       }
     }
   }
+}
+
+/** Force the genuine owner certificates over every retained applied row. */
+export async function reauthenticateReplayOwners(scope: BrowserSyncScope, snapshot: ReplaySnapshot, amk: AccountMasterKey,
+  current: () => boolean, structural = true, notes: ReadonlySet<number> = new Set()): Promise<void> {
+  const inventory = { rows: snapshot.rows, bindings: snapshot.bindings, owners: snapshot.owners, out: [], receipts: [], history: [],
+    cursor: { pull_cursor: snapshot.manifest!.receive_cursor, ack_cursor: 0, proven_prefix: 0, next_local_ordinal: 1 } }
+  const meta = await prepareMetadataPrefix(scope, inventory, amk, current, true)
+  const certificates = new Map<string, ReadonlySet<number>>([['applied', verifiedMetadataSequences(meta, scope, inventory)]])
+  if (structural) {
+    certificates.set('stage_proven', stageSequences(await prepareStagePrefix(scope, inventory, amk, current, meta, true), scope, inventory))
+    certificates.set('stage_order_proven', stageOrderSequences(await prepareStageOrderPrefix(scope, inventory, amk, current, meta, true), scope, inventory))
+  }
+  let authenticated = 0
+  for (const row of snapshot.rows) if (row.state !== 'received') {
+    if (!(row.state === 'note_proven' || row.state === 'content_note_proven' ? notes.has(row.server_sequence) : certificates.get(row.state)?.has(row.server_sequence)))
+      throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
+    authenticated++
+  }
+  if (authenticated !== snapshot.manifest!.applied_cursor) throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
+  if (!current()) throw new BrowserReplayError('session_closed')
+}
+
+/** No reducer: the existing Metadata/Structural commits and prefix verifiers own every outcome. */
+export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSyncScope, signal: AbortSignal, current: () => boolean,
+  auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural = false, initialNotes = false): Promise<ReplayMetadataResult | ReplayStructuralResult | ReplayInitialNoteResult> {
+  const context = auth.requireContext(), lease = keys.leaseForAccount(scope.accountId)
+  const check = () => {
+    if (signal.aborted || !current() || !auth.isCurrent(context) || !lease?.isCurrent() || lease.localAccountId !== scope.accountId
+      || lease.canonicalUserId !== scope.canonicalUserId || lease.authEpoch !== context.authEpoch) throw new BrowserReplayError('session_closed')
+  }
+  check()
+  let snapshot = await port.read(); check()
+  if (!snapshot.manifest) throw new BrowserReplayError('metadata_history_incomplete')
+  const anchor = snapshot.manifest.anchor
+  if (snapshot.manifest.phase !== 'received' || snapshot.rows.length !== anchor.registry.current_cursor || !snapshot.rows.length) throw new BrowserReplayError('metadata_history_incomplete')
+  // Whole-account admission remains identical for existing owner composition.
+  await assertReplayHistoryAdmissible(snapshot, scope, structural, initialNotes)
   const server = async () => {
     check()
     const registry = await auth.authorized(token => cloudProjectsApi.listBootstraps(token, signal)); check()

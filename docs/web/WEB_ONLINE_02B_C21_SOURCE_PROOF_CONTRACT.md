@@ -693,6 +693,16 @@ All negative flags and security/release gates remain; no Content cohort or full
 project opening is claimed.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01A1 — full-history admissibility
+
+`assertReplayHistoryAdmissible` keeps the original Metadata/Structural/Legacy
+admission path and optionally checks one last Content Note update. It checks
+the complete account sequence, supported predecessors, peer source, live Legacy
+predecessor, revision and authenticated Content/Legacy parent. The function
+does not apply owners or advance coverage; `composeReplayMetadata` retains its
+old family boundary. Ordered owner dispatch and real server delivery remain
+separate acceptance slices.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03J — versioned Content replay adapter
 
 Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`, branch `6.0`.

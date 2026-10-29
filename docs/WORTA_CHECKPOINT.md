@@ -164,6 +164,26 @@ independent run was triggered. Added the exact script path to both filters; the
 existing workflow jobs and checks are unchanged. CI1 remains locally complete,
 with independent acceptance pending a new six-job run.
 
+Independent acceptance subsequently reported by the owner: GitHub Actions run
+**40914006787 — 6/6 SUCCESS** for 03J and CI1/CI2 (`ab81adb3`). Replay v5 and
+the Content adapter are accepted; production ordered dispatch remains separate.
+
+## 2026-10-29 — WEB.ONLINE.02B.03K.01A1 — full-history Content admission
+
+Added a separate account-wide admission check for one terminal peer-origin
+Content update of a live Legacy Note. It preserves the existing Metadata,
+Stage, StageOrder and Legacy checks, verifies sequence and source, then uses the
+canonical encrypted Note transport to check the Content update and parent.
+The existing owner composition still rejects Content. No owner commit, coverage,
+readiness or server route is changed; ordered application remains the next slice.
+Focused producer-fixture tests PASS (7 admission cases; 34 tests across admission,
+Content adapter and structural regression). Full local prepush PASS before test
+runner inclusion: 831 frontend Vitest, Chromium, build/typecheck, 269 isolated
+PostgreSQL16 tests and one backup/restore. Updated frontend runner PASS: 838
+Vitest / 31 files plus Chromium, typecheck and build. Final structural guard
+relocation passed focused tests, typecheck and changed-file ESLint; no backend
+or CI job count change. Independent CI for this slice is pending.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03J — replay v5 Content adapter
 
 Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`. Explicit single-event
