@@ -137,6 +137,25 @@ slices не меняют его автоматически; фактическа
 
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03J.CI1 — Frontend Vite startup
+
+Independent run **40903059578 — 5/6 SUCCESS; Frontend admin FAILURE**: the
+Content replay Chromium test reached `vite_timeout` before browser checks. The
+old harness inferred readiness from a URL appearing within one stdout chunk,
+did not drain stderr, and did not robustly handle child startup/cleanup. The
+logs establish the readiness timeout, not which of those weaknesses caused it.
+The harness now starts the existing Vite configuration in-process, awaits its
+listening server and reads the bound loopback port directly. Startup is bounded
+at 30 seconds, failures retain diagnostics, and server/profile cleanup runs on
+success and failure, including late startup after timeout. No application,
+replay schema, owner or security gate changed.
+
+Two focused CI-environment Chromium runs passed 15 tests each; changed-script
+ESLint and `git diff --check` passed. Final local prepush PASS: 831 Vitest /
+30 files, browser acceptance, typecheck/build, 269 PostgreSQL16 regressions and
+one backup/restore test. 03J remains locally implemented and independently
+unaccepted until a new CI run succeeds; no readiness or release gate is changed.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03J — replay v5 Content adapter
 
 Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`. Explicit single-event

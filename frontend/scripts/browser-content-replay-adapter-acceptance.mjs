@@ -2,18 +2,29 @@ import assert from 'node:assert/strict'
 import { readFile, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { spawn } from 'node:child_process'
+import { createServer } from 'vite'
 import { chromium } from '@playwright/test'
 const fixture = JSON.parse(await readFile(process.argv[2], 'utf8'))
 const directory = await mkdtemp(join(tmpdir(), 'worta-content-replay-'))
-const vite = spawn(process.execPath, ['node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '0'], { stdio: ['ignore', 'pipe', 'pipe'] })
-let context
+let context, vite, startupTimer
 try {
-  const origin = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(Error('vite_timeout')), 30000)
-    vite.stdout.on('data', data => { const match = data.toString().match(/http:\/\/127\.0\.0\.1:\d+/); if (match) { clearTimeout(timer); resolve(match[0]) } })
-    vite.on('exit', code => reject(Error(`vite_exit_${code}`)))
-  })
+  const startup = (async () => {
+    vite = await createServer({ logLevel: 'error', server: { host: '127.0.0.1', port: 0, strictPort: true } })
+    await vite.listen()
+    const address = vite.httpServer?.address()
+    if (!address || typeof address === 'string') throw Error('vite_missing_listening_address')
+    return `http://127.0.0.1:${address.port}`
+  })()
+  let origin
+  try {
+    origin = await Promise.race([startup, new Promise((_, reject) => {
+      startupTimer = setTimeout(() => reject(Error('vite_startup_timeout: server did not listen within 30000ms')), 30000)
+    })])
+  } catch (error) {
+    // A late listen after timeout must not leave a server behind.
+    void startup.then(() => vite?.close()).catch(() => vite?.close())
+    throw error
+  } finally { clearTimeout(startupTimer) }
   async function launch() {
     context = await chromium.launchPersistentContext(directory, { headless: true })
     const page = await context.newPage(); await page.goto(`${origin}/scripts/browser-cloud-account-harness.html`)
@@ -128,4 +139,4 @@ try {
   const refusal = await page.evaluate(async () => { const old = indexedDB.open('worta-web-replay', 4); return new Promise(resolve => { old.onerror = () => resolve(old.error.name); old.onsuccess = () => { old.result.close(); resolve('unsafe') } }) })
   assert.equal(refusal, 'VersionError')
   console.log(JSON.stringify({ pass: true, scenarios: 14, server: 'mocked ordinary v3 responses; no capability qualification' }))
-} finally { await context?.close(); vite.kill(); await rm(directory, { recursive: true, force: true }) }
+} finally { try { await context?.close() } finally { try { await vite?.close() } finally { await rm(directory, { recursive: true, force: true }) } } }
