@@ -66,7 +66,8 @@ try {
       encryptedSyncV3Api.pullRaw = async (_token, _device, since) => JSON.stringify({ protocol_version: 3, encrypted_sync_version: 3,
         items: f.stores.inbox.slice(since).map(row => JSON.parse(row.wire_item)), next_cursor: 3, has_more: false })
       const store = await openBrowserReplayStorage(f.scope, new AbortController().signal, () => true)
-      window.adapter = { store, run: () => store.applyContentUpdate(3, auth, bindings, keys) }
+      window.adapter = { store, run: () => store.applyContentUpdate(3, auth, bindings, keys),
+        orderedRun: () => store.applyOrderedContentUpdate(auth, bindings, keys) }
       return store.read()
     }, fixture)
   }
@@ -135,8 +136,9 @@ try {
   await context.close()
   page = await launch(); assert.deepEqual(await attach(page), applied)
   assert.equal((await page.evaluate(() => adapter.run())).status, 'already_applied')
+  assert.equal((await page.evaluate(() => adapter.orderedRun())).contentProofs, 1)
   assert.deepEqual(await page.evaluate(() => adapter.store.read()), applied)
   const refusal = await page.evaluate(async () => { const old = indexedDB.open('worta-web-replay', 4); return new Promise(resolve => { old.onerror = () => resolve(old.error.name); old.onsuccess = () => { old.result.close(); resolve('unsafe') } }) })
   assert.equal(refusal, 'VersionError')
-  console.log(JSON.stringify({ pass: true, scenarios: 14, server: 'mocked ordinary v3 responses; no capability qualification' }))
+  console.log(JSON.stringify({ pass: true, scenarios: 15, server: 'mocked ordinary v3 responses; no capability qualification' }))
 } finally { try { await context?.close() } finally { try { await vite?.close() } finally { await rm(directory, { recursive: true, force: true }) } } }

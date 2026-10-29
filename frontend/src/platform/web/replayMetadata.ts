@@ -28,6 +28,9 @@ export interface ReplayStructuralResult extends Omit<ReplayMetadataResult, 'kind
 export interface ReplayInitialNoteResult extends Omit<ReplayStructuralResult, 'kind'> {
   readonly kind: 'initial_legacy_notes_applied'; readonly noteProofs: number
 }
+export interface ReplayOrderedContentResult extends Omit<ReplayInitialNoteResult, 'kind'> {
+  readonly kind: 'bounded_ordered_content_update_applied'; readonly contentProofs: 1
+}
 export interface MetadataPort {
   read(): Promise<ReplaySnapshot>
   transaction(expected: ReplaySnapshot, sequence: number, server: () => Promise<void>): BrowserSyncTransaction
@@ -51,7 +54,7 @@ export async function assertReplayHistoryAdmissible(snapshot: ReplaySnapshot, sc
         const prior = JSON.parse(value.wire_item).event as V3Descriptor
         return prior.entity_type === 'note' && prior.project_id === event.project_id && prior.entity_id === event.entity_id
       }).at(-1)
-      if (row.protocol_version !== 3 || row.state !== 'received' || !previous || previous.protocol_version !== 3
+      if (row.protocol_version !== 3 || !['received', 'content_note_proven'].includes(row.state) || !previous || previous.protocol_version !== 3
         || !['received', 'note_proven'].includes(previous.state) || event.device_id === scope.deviceId
         || event.device_id !== anchor.registry.projects.find(project => project.project_id === event.project_id)?.origin_device_id
         || event.deleted_at !== null || event.revision !== (JSON.parse(previous.wire_item).event as V3Descriptor).revision + 1
@@ -127,8 +130,9 @@ export async function reauthenticateReplayOwners(scope: BrowserSyncScope, snapsh
 }
 
 /** No reducer: the existing Metadata/Structural commits and prefix verifiers own every outcome. */
-export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSyncScope, signal: AbortSignal, current: () => boolean,
-  auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural = false, initialNotes = false): Promise<ReplayMetadataResult | ReplayStructuralResult | ReplayInitialNoteResult> {
+async function composeReplayOwners(port: MetadataPort, scope: BrowserSyncScope, signal: AbortSignal, current: () => boolean,
+  auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext,
+  structural: boolean, initialNotes: boolean, terminalContent: boolean): Promise<ReplayMetadataResult | ReplayStructuralResult | ReplayInitialNoteResult | ReplayOrderedContentResult> {
   const context = auth.requireContext(), lease = keys.leaseForAccount(scope.accountId)
   const check = () => {
     if (signal.aborted || !current() || !auth.isCurrent(context) || !lease?.isCurrent() || lease.localAccountId !== scope.accountId
@@ -139,8 +143,11 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
   if (!snapshot.manifest) throw new BrowserReplayError('metadata_history_incomplete')
   const anchor = snapshot.manifest.anchor
   if (snapshot.manifest.phase !== 'received' || snapshot.rows.length !== anchor.registry.current_cursor || !snapshot.rows.length) throw new BrowserReplayError('metadata_history_incomplete')
-  // Whole-account admission remains identical for existing owner composition.
-  await assertReplayHistoryAdmissible(snapshot, scope, structural, initialNotes)
+  if (terminalContent && snapshot.manifest.contract_version !== 5) throw new BrowserReplayError('unsupported_content_cohort')
+  // Authenticate the entire account history before the first owner commit.
+  if (terminalContent) await lease!.use(amk => assertReplayHistoryAdmissible(snapshot, scope, true, true, amk))
+  else await assertReplayHistoryAdmissible(snapshot, scope, structural, initialNotes)
+  check()
   const server = async () => {
     check()
     const registry = await auth.authorized(token => cloudProjectsApi.listBootstraps(token, signal)); check()
@@ -167,6 +174,7 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
   }
   await reauthenticate()
   for (const row of snapshot.rows) {
+    if (terminalContent && row.server_sequence === snapshot.rows.length) break
     if (row.state !== 'received') continue // Only after actual owner proof reauthentication above.
     check()
     const reference = JSON.parse(row.wire_item).event as V3Descriptor
@@ -200,6 +208,16 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
     }
     snapshot = await port.read(); check()
   }
+  if (terminalContent) {
+    const sequence = snapshot.rows.length
+    if (snapshot.manifest!.applied_cursor !== sequence - 1 && snapshot.manifest!.applied_cursor !== sequence)
+      throw new BrowserReplayError('content_prefix_incomplete')
+    const { applyReplayContentUpdate } = await import('./replayContentUpdate')
+    await applyReplayContentUpdate(port, scope, sequence, signal, current, auth, bindings, keys)
+    snapshot = await port.read(); check()
+    if (snapshot.manifest!.applied_cursor !== sequence || snapshot.rows[sequence - 1]?.state !== 'content_note_proven')
+      throw new BrowserReplayError('content_not_applied')
+  }
   await reauthenticate(); await server()
   if (!replaySame(await port.read(), snapshot)) throw new BrowserReplayError('metadata_inventory_changed')
   check()
@@ -209,8 +227,21 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
   const result = { cursor: snapshot.manifest!.receive_cursor, generation: snapshot.manifest!.generation,
     ownerProofs: snapshot.manifest!.applied_cursor!, projects: snapshot.owners.filter(head => head.owner_kind === 'project_metadata').length,
     projectOpened: false as const, ready: false as const, declarationAllowed: false as const, writerAuthorized: false as const }
+  if (terminalContent) return { ...result, kind: 'bounded_ordered_content_update_applied', metadataProofs, stageProofs,
+    stageOrderProofs, noteProofs: snapshot.rows.filter(row => row.state === 'note_proven').length, contentProofs: 1 }
   return initialNotes ? { ...result, kind: 'initial_legacy_notes_applied', metadataProofs, stageProofs, stageOrderProofs,
     noteProofs: snapshot.rows.filter(row => row.state === 'note_proven').length }
     : structural ? { ...result, kind: 'structural_owners_applied', metadataProofs, stageProofs, stageOrderProofs }
     : { ...result, kind: 'metadata_owner_applied' }
+}
+
+export function composeReplayMetadata(port: MetadataPort, scope: BrowserSyncScope, signal: AbortSignal, current: () => boolean,
+  auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural = false, initialNotes = false): Promise<ReplayMetadataResult | ReplayStructuralResult | ReplayInitialNoteResult> {
+  return composeReplayOwners(port, scope, signal, current, auth, bindings, keys, structural, initialNotes, false) as Promise<ReplayMetadataResult | ReplayStructuralResult | ReplayInitialNoteResult>
+}
+
+/** One terminal peer Content update after the existing ordered owner prefix. */
+export function composeReplayOrderedContent(port: MetadataPort, scope: BrowserSyncScope, signal: AbortSignal, current: () => boolean,
+  auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<ReplayOrderedContentResult> {
+  return composeReplayOwners(port, scope, signal, current, auth, bindings, keys, true, true, true) as Promise<ReplayOrderedContentResult>
 }

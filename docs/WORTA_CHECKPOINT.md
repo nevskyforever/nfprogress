@@ -184,6 +184,22 @@ Vitest / 31 files plus Chromium, typecheck and build. Final structural guard
 relocation passed focused tests, typecheck and changed-file ESLint; no backend
 or CI job count change. Independent CI for this slice is pending.
 
+Independent acceptance reported by the owner: **40925410328 — 6/6 SUCCESS**
+for A1 (`20c8c4b281772d849df4512e021f5a11e8f9a8ee`).
+
+## 2026-10-29 — WEB.ONLINE.02B.03K.01A2 — ordered Content owner composition
+
+An internal ordered replay path now checks the complete v5 account inventory
+with A1 admission, applies the existing Metadata/Stage/StageOrder/Legacy owners
+in server order, then invokes the accepted Content adapter for one terminal
+peer-origin update. Each owner retains its own atomic CAS/proof commit. The
+Content adapter rechecks original server wire and authenticates durable proofs;
+retry after a lost response uses those proofs without another write. A failed
+Content owner may leave only the genuinely applied prefix. Existing Metadata
+composition still rejects Content. The browser acceptance uses isolated v3
+responses, so ordinary server delivery and reader capability qualification
+remain separate. Replay schema v5 and all negative readiness/release gates stay.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03J — replay v5 Content adapter
 
 Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`. Explicit single-event

@@ -15,6 +15,15 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01A2 — ordered owner composition
+
+One bounded terminal peer Content update can now follow the existing ordered
+Metadata/Structural/Legacy owner prefix inside replay v5. Full-history A1
+admission runs before any commit; the real Content adapter owns final proof and
+full server-wire recheck. Chromium restart with isolated v3 responses and
+genuine owner fixtures cover retry and proof reauthentication. Real server gate
+integration and browser reader readiness remain later slices.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01A1 — bounded full-history admission
 
 The account-wide validator now admits exactly one terminal peer-origin Content

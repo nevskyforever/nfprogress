@@ -155,6 +155,7 @@ frontend_checks() {
     src/platform/web/replayReceiver.spec.ts \
     src/platform/web/replayStructural.spec.ts \
     src/platform/web/replayContentUpdate.spec.ts \
+    src/platform/web/replayOrderedContent.spec.ts \
     src/platform/web/replayHistoryAdmissibility.spec.ts \
     src/platform/web/replaySourceSeed.spec.ts \
     src/platform/web/stageApply.spec.ts \

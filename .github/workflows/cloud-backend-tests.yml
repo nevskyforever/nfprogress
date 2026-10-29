@@ -807,7 +807,7 @@ jobs:
       - name: Verify encrypted local Web Documents contracts
         env:
           WORTA_CONTENT_CHROMIUM: "1"
-        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts src/platform/web/replayStructural.spec.ts src/platform/web/replayContentUpdate.spec.ts src/platform/web/replayHistoryAdmissibility.spec.ts src/platform/web/replaySourceSeed.spec.ts --maxWorkers=1
+        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts src/platform/web/replayStructural.spec.ts src/platform/web/replayContentUpdate.spec.ts src/platform/web/replayOrderedContent.spec.ts src/platform/web/replayHistoryAdmissibility.spec.ts src/platform/web/replaySourceSeed.spec.ts --maxWorkers=1
         working-directory: frontend
       - name: Verify encrypted Web Documents and v11 to v12 migration in Chromium
         working-directory: frontend

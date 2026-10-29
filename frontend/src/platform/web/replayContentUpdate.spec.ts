@@ -133,7 +133,7 @@ it('single-event adapter reauthenticates real source and Content owner, then ret
         rows.replayManifest = [{ ...manifest, record_version: 4, contract_version: 4, ciphertext_bytes: wireBytes }]
         await writeFile(path, JSON.stringify({ scope, key: [...amk], anchor: manifest.anchor, stores: rows }), { mode: 0o600 })
         const output = execFileSync(process.execPath, ['scripts/browser-content-replay-adapter-acceptance.mjs', path], { timeout: 60000, encoding: 'utf8' })
-        expect(JSON.parse(output.trim().split('\n').at(-1)!)).toMatchObject({ pass: true, scenarios: 14 })
+        expect(JSON.parse(output.trim().split('\n').at(-1)!)).toMatchObject({ pass: true, scenarios: 15 })
       } finally { await rm(directory, { recursive: true, force: true }) }
     }
     expect(await run()).toMatchObject({ status: 'applied', projectOpened: false, ready: false })

@@ -4,7 +4,7 @@ import { assertReplayOwnerTransition, replayCoverage, migrateReplay, scheduleRep
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { RuntimeKeyContext } from '@/auth/keyContext'
-import { composeReplayMetadata, type ReplayMetadataResult, type ReplayStructuralResult, type ReplayInitialNoteResult } from './replayMetadata'
+import { composeReplayMetadata, composeReplayOrderedContent, type ReplayMetadataResult, type ReplayStructuralResult, type ReplayInitialNoteResult } from './replayMetadata'
 import { seedReplayNoteSource, type ReplaySourceSeedResult } from './replaySourceSeed'
 import { prepareBrowserRemoteProjectImport } from './projectBindings'
 import { BrowserLocalAuthority } from './localAuthority'
@@ -216,6 +216,13 @@ class BrowserReplayStorage {
     return applyReplayContentUpdate(this.ownerPort(), this.scope, sequence, this.signal,
       () => { try { this.check(); return true } catch { return false } }, auth, bindings, keys).finally(() => { unAuth(); unKey() })
   }
+  applyOrderedContentUpdate(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext) {
+    const stop = () => { void this.close() }
+    const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
+    return composeReplayOrderedContent(this.ownerPort(), this.scope, this.signal,
+      () => { try { this.check(); return true } catch { return false } }, auth, bindings, keys)
+      .finally(() => { unAuth(); unKey() })
+  }
   private ownerPort(): MetadataPort {
     return { read: () => this.read(), transaction: (expected, sequence, server) => async (scope, _stores, mode, schedule) => {
       if (!replaySame(scope, this.scope)) fail()
@@ -317,7 +324,7 @@ class BrowserReplayStorage {
   }
 }
 
-export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata' | 'applyStructure' | 'seedNoteSource' | 'applyInitialNotes' | 'applyContentUpdate'>
+export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata' | 'applyStructure' | 'seedNoteSource' | 'applyInitialNotes' | 'applyContentUpdate' | 'applyOrderedContentUpdate'>
 
 export async function openBrowserReplayStorage(input: BrowserSyncScope, signal: AbortSignal, current: () => boolean): Promise<ReplayStorage> {
   const scope = snapshotBrowserSyncScope(input)

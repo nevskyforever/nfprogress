@@ -693,6 +693,19 @@ All negative flags and security/release gates remain; no Content cohort or full
 project opening is claimed.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01A2 — ordered owner composition
+
+`composeReplayOrderedContent` reuses the existing Metadata/Stage/StageOrder/
+Legacy commit loop after A1 full-account admission and calls
+`applyReplayContentUpdate` only at the terminal sequence. The final adapter
+performs full original-wire reconciliation, CAS, source/projection/head/proof
+verification and retry authentication. `content_note_proven` is admitted only
+for recovery; owner proof verification remains mandatory. An owner failure may
+retain previously authenticated prefix commits, never unproven coverage. This
+is a bounded internal replay route with isolated v3 replies, not proof of a
+qualified Web recipient or real server delivery. Existing readiness blockers
+and frozen writer/release gates remain.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01A1 — full-history admissibility
 
 `assertReplayHistoryAdmissible` keeps the original Metadata/Structural/Legacy
