@@ -208,6 +208,40 @@ backend tests, typecheck/build and encrypted-blob backup/restore. Changed ESLint
 workflow/static and diff checks pass. Independent new-commit CI is pending;
 Linux/x86-64 is not locally established.
 
+## Slice 3D implementation — 2026-10-29
+
+Owner-reported independent run **40820462050 — 6/6 SUCCESS** accepts 03C SHA
+`7f29c55b9b943a9087eafbe81a8b05836a8e5ced`. A subsequent documentation-only
+commit `d1aa18d9255fa21c1b3fe64829de6c3f4cb26560` did not change code.
+
+The source seed still derives exactly the original bootstrap Note cohort by
+`initial_max_server_sequence` and verifies its count, origin and encrypted
+creates. Later Note events no longer alter that membership. The whole-account
+composer admits only updates of Note IDs already present in that cohort, from
+the supported origin device. It invokes the existing `BrowserLegacyNoteApplyRuntime`
+in server order; its clean causal path verifies parent, revision, current source,
+retained candidate and genuine owner outcome. Fork/conflict results are rejected
+by the replay adapter rather than being promoted to an applied proof.
+
+The v4 inventory retains one immutable encrypted candidate per applied event,
+one current head and encrypted Note row per Note ID, plus the full proof chain.
+It joins each update to its exact prior event and source revision, checks the
+latest candidate against the current Note row and permits only the owner's
+single-event atomic delta. Reauthentication opens every retained candidate,
+checks its AEAD/projection and proof, authenticates the unchanged seed and
+decrypts the current source through the readonly local owner. Fresh full server
+reconciliation remains mandatory before any result. No new record format,
+physical store or migration is introduced; `worta-web-replay` stays **v4**.
+
+Real Chromium/FastAPI/PostgreSQL 16 acceptance passed **19 scenarios** with
+genuine producers, two projects, multi-update chains, restarts, quota rollback,
+lost commit response, corrupted source/history/proof and wrong-parent,
+revision-gap/fork, lock/logout and changed-wire refusals. Full local prepush
+passed 816 Vitest, 268 PostgreSQL tests, six Chromium scripts, build and
+backup/restore. 03D does not support deletion, Content Note,
+Resolution, complex conflicts or full project opening. All negative security,
+writer and release gates remain; new independent CI is pending.
+
 ## Slice 3C implementation — 2026-10-28
 
 Owner-reported independent acceptance of 03B: `7fdcde1515a3eb777c0eef27a7b97e03a8bc95ac`,

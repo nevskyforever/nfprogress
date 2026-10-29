@@ -81,8 +81,41 @@ export async function seedSourceAccount(page, username, options = {}) {
               entity_type: 'stage_order', operation: 'upsert', revision: 1, updated_at: order.header.updated_at, deleted_at: null }, object: encoded(envelope) }] })
         }
       }
-      return { projects, source, count: firstNotes.length + items.length + (options.stage ? 1 : 0) + (options.stageOrder ? 1 : 0),
-        firstNoteIds: firstNotes.map(item => item.event.entity_id) }
+      const noteHeads = firstNotes.map(item => item.event.event_id), revisions = firstNotes.map(() => 1), updates = []
+      for (const [ordinal, index] of (options.postInitialUpdates ?? []).entries()) {
+        if (!firstNotes[index]) throw Error('fixture_update_note_missing')
+        const project = index === 2 ? projects[1] : projects[0], revision = ++revisions[index]
+        const updated_at = `2026-01-${String(2 + ordinal).padStart(2, '0')}T00:00:00.000000Z`
+        const event = { event_id: crypto.randomUUID(), project_id: project.project_id, entity_id: firstNotes[index].event.entity_id,
+          entity_type: 'note', operation: 'upsert', revision, updated_at, deleted_at: null }
+        const parent = noteHeads[index]
+        const sealed = await sealNoteSyncEvent(amk, me.id, event, parent, { ...note, id: event.entity_id,
+          project_id: project.project_id, title: `PRIVATE_SEED_UPDATED_TITLE_${index}_${revision}`,
+          content: `PRIVATE_SEED_UPDATED_CONTENT_${index}_${revision}`, updated_at, metadata: {} })
+        const pushed = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3,
+          device_id: source, items: [{ event: sealed.event, object: encoded(sealed.object) }] })
+        noteHeads[index] = event.event_id
+        updates.push({ event_id: event.event_id, note_id: event.entity_id, project_id: project.project_id,
+          parent_event_id: parent, revision, server_sequence: pushed.results[0].server_sequence })
+      }
+      let malformed = null
+      if (options.malformedUpdate) {
+        const project = projects[0], kind = options.malformedUpdate
+        if (!['wrong_parent', 'revision_gap', 'fork'].includes(kind) || revisions[0] < 2) throw Error('fixture_malformed_update')
+        const revision = kind === 'revision_gap' ? revisions[0] + 2 : kind === 'fork' ? revisions[0] : revisions[0] + 1
+        const parent = kind === 'revision_gap' ? noteHeads[0] : firstNotes[0].event.event_id
+        const updated_at = '2026-01-20T00:00:00.000000Z'
+        const event = { event_id: crypto.randomUUID(), project_id: project.project_id, entity_id: firstNotes[0].event.entity_id,
+          entity_type: 'note', operation: 'upsert', revision, updated_at, deleted_at: null }
+        const sealed = await sealNoteSyncEvent(amk, me.id, event, parent, { ...note, id: event.entity_id,
+          project_id: project.project_id, title: `PRIVATE_SEED_BAD_${kind}`, content: `PRIVATE_SEED_BAD_CONTENT_${kind}`,
+          updated_at, metadata: {} })
+        const pushed = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3,
+          device_id: source, items: [{ event: sealed.event, object: encoded(sealed.object) }] })
+        malformed = { kind, event_id: event.event_id, parent_event_id: parent, revision, server_sequence: pushed.results[0].server_sequence }
+      }
+      return { projects, source, count: firstNotes.length + items.length + (options.stage ? 1 : 0) + (options.stageOrder ? 1 : 0) + updates.length + (malformed ? 1 : 0),
+        firstNoteIds: firstNotes.map(item => item.event.entity_id), updates, malformed }
     } finally { amk.fill(0); recoveryKey.fill(0) }
   }, { username, options })
 }

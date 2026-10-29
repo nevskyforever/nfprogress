@@ -35,12 +35,24 @@ export function assertReplayOwnerTransition(before: ReplaySnapshot, after: Repla
     if (!replaySame({ ...original, record_version: 1, state: 'received' }, previous)) fail()
     const sourceBefore = before.sources?.find(value => value.project_id === project)
     const sourceAfter = after.sources?.find(value => value.project_id === project)
+    const noteBefore = before.notes?.find(value => value.project_id === project && value.note_id === note)
     const noteAfter = after.notes?.find(value => value.project_id === project && value.note_id === note)
+    const prior = before.noteHistory?.filter(value => value.project_id === project && value.note_id === note) ?? []
+    const next = after.noteHistory?.filter(value => value.project_id === project && value.note_id === note) ?? []
+    const oldHead = prior.find((value): value is BrowserNoteHead => value.record_kind === 'head')
+    const newHead = next.find((value): value is BrowserNoteHead => value.record_kind === 'head')
+    const oldCandidates = prior.filter((value): value is BrowserNoteCandidate => value.record_kind === 'candidate')
+    const newCandidates = next.filter((value): value is BrowserNoteCandidate => value.record_kind === 'candidate')
     if (!sourceBefore || !sourceAfter || sourceAfter.source_revision !== sourceBefore.source_revision + 1
       || sourceAfter.source_revision !== proof.source_revision || !noteAfter
-      || (before.notes ?? []).some(value => value.note_id === note)
+      || (proof.mutation === 'create' ? !!noteBefore || !!oldHead || oldCandidates.length !== 0
+        : proof.mutation !== 'update' || !noteBefore || !oldHead || oldHead.linear_head_event_id !== proof.header.parent_event_id)
+      || !newHead || newHead.head_revision !== (oldHead?.head_revision ?? 0) + 1
+      || newHead.linear_head_event_id !== row.event_id || newCandidates.length !== oldCandidates.length + 1
+      || oldCandidates.some(value => !newCandidates.some(candidate => replaySame(candidate, value)))
       || !replaySame(before.sources?.filter(value => value.project_id !== project), after.sources?.filter(value => value.project_id !== project))
-      || !replaySame(before.notes, after.notes?.filter(value => value.note_id !== note))
+      || !replaySame(before.notes?.filter(value => value.project_id !== project || value.note_id !== note),
+        after.notes?.filter(value => value.project_id !== project || value.note_id !== note))
       || !replaySame(before.noteHistory?.filter(value => value.project_id !== project || value.note_id !== note),
         after.noteHistory?.filter(value => value.project_id !== project || value.note_id !== note))) fail()
     return
@@ -97,12 +109,18 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       const notes = localNotes.result.map(raw => validateLocalNoteRecord(raw, s, raw.project_id))
       const history = validateNoteHistorySet(s, noteHistory.result)
       const noteProofs = rows.filter(row => row.state === 'note_proven')
+      const noteKey = (project: string, note: string) => JSON.stringify([project, note])
+      const noteKeys = new Set(noteProofs.map(row => noteKey(row.note_proof.header.project_id, row.note_proof.header.entity_id)))
+      const candidates = history.filter((record): record is BrowserNoteCandidate => record.record_kind === 'candidate')
+      const noteHeads = history.filter((record): record is BrowserNoteHead => record.record_kind === 'head')
       if (version < 4 && (notes.length || history.length) || sources.length !== (manifest?.source_seeds?.length ?? 0) || sources.some(row => row.deleted
         || !manifest?.source_seeds?.some(seed => seed.project_id === row.project_id))
         || new Set(sources.map(row => row.project_id)).size !== sources.length) fail()
-      if (noteProofs.length !== notes.length || history.length !== noteProofs.length * 2
-        || history.some(record => !['candidate', 'head'].includes(record.record_kind))
-        || notes.some(note => !noteProofs.some(row => row.note_proof.header.entity_id === note.note_id && row.note_proof.header.project_id === note.project_id))) fail()
+      if (notes.length !== noteKeys.size || candidates.length !== noteProofs.length || noteHeads.length !== noteKeys.size
+        || history.length !== candidates.length + noteHeads.length
+        || notes.some(note => !noteKeys.has(noteKey(note.project_id, note.note_id)))
+        || candidates.some(candidate => !noteProofs.some(row => row.event_id === candidate.event_id))
+        || noteHeads.some(head => !noteKeys.has(noteKey(head.project_id, head.note_id)))) fail()
       for (const source of sources) {
         const appliedNotes = noteProofs.filter(row => row.note_proof.header.project_id === source.project_id)
         if (source.source_revision !== appliedNotes.length + 1 || appliedNotes.some((row, index) => row.note_proof.source_revision !== index + 2)) fail()
@@ -126,17 +144,23 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         if (row.state === 'note_proven') {
           const p = row.note_proof, seed = manifest?.source_seeds?.find(value => value.project_id === p.header.project_id)
           const retained = JSON.parse(row.wire_item), { device_id: sourceDevice, server_sequence: sourceSequence, ...event } = retained.event
-          const candidate = history.find((value): value is BrowserNoteCandidate => value.record_kind === 'candidate' && value.event_id === row.event_id)
-          const head = history.find((value): value is BrowserNoteHead => value.record_kind === 'head' && value.project_id === p.header.project_id && value.note_id === p.header.entity_id)
+          const candidate = candidates.find(value => value.event_id === row.event_id)
+          const sameNote = noteProofs.filter(value => value.server_sequence <= row.server_sequence
+            && value.note_proof.header.project_id === p.header.project_id && value.note_proof.header.entity_id === p.header.entity_id)
+          const previous = sameNote.at(-2), isInitial = row.server_sequence <= (seed?.initial_max_server_sequence ?? 0)
+          const isLatest = !noteProofs.some(value => value.server_sequence > row.server_sequence
+            && value.note_proof.header.project_id === p.header.project_id && value.note_proof.header.entity_id === p.header.entity_id)
           const note = notes.find(value => value.note_id === p.header.entity_id)
           if (!seed || p.outcome !== 'applied' || p.bootstrap_id !== seed.bootstrap_id || p.reference.device_id !== seed.origin_device_id
-            || row.server_sequence > seed.initial_max_server_sequence || p.header.revision !== 1 || p.mutation !== 'create'
+            || (isInitial ? !!previous || p.header.revision !== 1 || p.mutation !== 'create' || p.header.parent_event_id !== null
+              : !previous || p.mutation !== 'update' || p.header.revision !== previous.note_proof.header.revision + 1
+                || p.header.parent_event_id !== previous.event_id)
             || !candidate || candidate.record_version !== 1 || candidate.origin !== 'peer' || candidate.bootstrap_id !== seed.bootstrap_id
             || candidate.source_device_id !== sourceDevice || sourceSequence !== row.server_sequence
             || !replaySame(JSON.parse(candidate.wire_item), { event, object: retained.object })
-            || candidate.projection === null || !replaySame(candidate.projection, note) || candidate.projection_digest !== p.local_note_digest
-            || candidate.projection.source_revision !== p.source_revision || !head || head.linear_head_event_id !== row.event_id
-            || !replaySame(head.tip_event_ids, [row.event_id]) || !replaySame(p.reference, JSON.parse(row.wire_item).event)) fail()
+            || !replaySame(candidate.header, p.header) || candidate.projection === null || candidate.projection_digest !== p.local_note_digest
+            || candidate.projection.source_revision !== p.source_revision || !replaySame(p.reference, retained.event)) fail()
+          if (isLatest && !replaySame(candidate.projection, note)) fail()
         }
         if (proof) {
           const head = heads.find(value => value.owner_kind === proof.owner_kind && value.owner_id === (proof.owner_kind === 'stage' ? stageOwnerId(proof.project_id, proof.stage_id) : proof.project_id))
@@ -152,6 +176,11 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
             }
           }
         }
+      }
+      for (const head of noteHeads) {
+        const own = noteProofs.filter(row => row.note_proof.header.project_id === head.project_id && row.note_proof.header.entity_id === head.note_id)
+        if (!own.length || head.head_revision !== own.length || head.linear_head_event_id !== own.at(-1)!.event_id
+          || !replaySame(head.tip_event_ids, [own.at(-1)!.event_id])) fail()
       }
       const metadataPrefix = rows.findIndex(row => row.state !== 'applied')
       if (metadata !== (metadataPrefix < 0 ? rows.length : metadataPrefix)) fail()

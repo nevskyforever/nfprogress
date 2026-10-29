@@ -75,7 +75,12 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
     if (event.device_id !== anchor.registry.projects.find(project => project.project_id === event.project_id)?.origin_device_id) throw new BrowserReplayError('metadata_origin_mismatch')
     if (event.entity_type === 'note') {
       const seed = snapshot.manifest.source_seeds?.find(value => value.project_id === event.project_id)
-      if (!seed || row.server_sequence > seed.initial_max_server_sequence || event.revision !== 1 || row.state !== 'received' && row.state !== 'note_proven')
+      const initial = snapshot.rows.some(value => value.server_sequence <= (seed?.initial_max_server_sequence ?? 0)
+        && JSON.parse(value.wire_item).event.entity_type === 'note'
+        && JSON.parse(value.wire_item).event.project_id === event.project_id
+        && JSON.parse(value.wire_item).event.entity_id === event.entity_id)
+      if (!seed || row.state !== 'received' && row.state !== 'note_proven'
+        || (row.server_sequence <= seed.initial_max_server_sequence ? event.revision !== 1 : event.revision < 2 || !initial))
         throw new BrowserReplayError('unsupported_initial_note_history')
     }
   }

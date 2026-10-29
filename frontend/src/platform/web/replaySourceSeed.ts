@@ -52,8 +52,9 @@ export async function authenticateReplaySourceSeed(scope: BrowserSyncScope, snap
       if (owner && owner !== event.project_id) fail('source_seed_note_identity_collision')
       noteOwners.set(event.entity_id, event.project_id)
       if (event.project_id === projectId) {
-        if (row.server_sequence > remote.initial_max_server_sequence) fail('source_seed_unsupported_note_history')
-        initial.push(row)
+        // The bootstrap pins only its original cohort. Later events are
+        // admitted by the Note owner and its causal history, never by the seed.
+        if (row.server_sequence <= remote.initial_max_server_sequence) initial.push(row)
       }
     }
     if (event.project_id === projectId && event.entity_type === 'project_metadata') metadataRows.push(row)

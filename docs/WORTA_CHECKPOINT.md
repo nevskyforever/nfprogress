@@ -128,6 +128,41 @@ slices не меняют его автоматически; фактическа
 
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03D — sequential Legacy Note updates
+
+**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**
+Предыдущий код 03C (`7f29c55b9b943a9087eafbe81a8b05836a8e5ced`)
+принят владельцем: run **40820462050 — 6/6 SUCCESS**. Документационный
+`d1aa18d9255fa21c1b3fe64829de6c3f4cb26560` закрепил правило отчётности.
+03D остаётся внутренней работой этапа **2 из 6 — Полное открытие проектов в Web**.
+
+Из полной серверной истории Web теперь применяет последовательные Legacy Note
+updates уже подтверждённых первоначальных заметок. Граница bootstrap-cohort
+остаётся неизменной: поздние события не получают от неё полномочий. Настоящий
+`BrowserLegacyNoteApplyRuntime` проверяет их parent, revision, AEAD и локальный
+source, атомарно обновляет зашифрованную заметку, source, candidate/head history,
+inbox proof и производное покрытие. Replay inventory проверяет каждую причинную
+цепочку и текущую проекцию; после перезапуска доказательства и исходный серверный
+wire повторно аутентифицируются. Ошибочная ревизия, неверный parent и fork
+останавливают replay без ложного proof.
+
+Схема `worta-web-replay` остаётся **v4**, новых миграций нет. Content Note,
+Resolution, удаления, сложные конфликты, другие семейства и полноценное открытие
+проекта ещё заблокированы. ACK, push, capability и writer не включены;
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+`projectOpened=false`, Registration CLOSED и PUBLIC RELEASE BLOCKED сохранены.
+C21/C22/C23/PF6.0/RC обязательны. Исторический официальный процент не меняется.
+
+Целевой реальный Chromium/FastAPI/PostgreSQL 16 тест прошёл **19 сценариев**:
+два проекта, три заметки, четыре последовательных update, Metadata/Stage/StageOrder,
+обрыв и рестарт между изменениями, повтор без дублей, повреждения, lock/logout
+и три настоящих отклоняемых события. `local_acceptance.sh prepush` PASS:
+**816 Vitest / 29 файлов**, typecheck/build, шесть frontend Chromium scripts,
+**268 PostgreSQL/backend тестов** и реальный backup/restore. ESLint изменённых
+файлов, синтаксис и `git diff --check` PASS. Новый независимый CI ещё ожидается.
+Следующий внутренний срез — отдельная проверенная
+композиция удаления или Content Note без расширения полномочий bootstrap.
+
 ## 2026-10-28 — WEB.ONLINE.02B.03C — initial Legacy Note owner replay
 
 **LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**

@@ -25,11 +25,13 @@ export async function reauthenticateReplayNotes(scope: BrowserSyncScope, snapsho
   for (const row of rows) {
     if (!current()) throw new BrowserReplayError('session_closed')
     const proof = row.note_proof
-    if (proof.outcome !== 'applied' || proof.mutation !== 'create' || proof.header.revision !== 1) throw new BrowserReplayError('note_proof_reauthentication_failed')
+    const seed = snapshot.manifest?.source_seeds?.find(value => value.project_id === proof.header.project_id)
+    const initial = row.server_sequence <= (seed?.initial_max_server_sequence ?? 0)
+    if (!seed || proof.outcome !== 'applied' || (initial ? proof.mutation !== 'create' || proof.header.revision !== 1
+      : proof.mutation !== 'update' || proof.header.revision < 2)) throw new BrowserReplayError('note_proof_reauthentication_failed')
     await verifyStoredNoteProof(scope, amk, row)
     const candidate = snapshot.noteHistory?.find((record): record is BrowserNoteCandidate => record.record_kind === 'candidate' && record.event_id === row.event_id)
     if (!candidate || candidate.record_version !== 1 || candidate.origin !== 'peer'
-      || !replaySame(candidate.projection, snapshot.notes?.find(note => note.note_id === proof.header.entity_id))
       || await noteProofDigest(candidate.projection) !== proof.local_note_digest) throw new BrowserReplayError('note_proof_reauthentication_failed')
     await openHistoryCandidate(scope, candidate, amk)
     sequences.add(row.server_sequence)

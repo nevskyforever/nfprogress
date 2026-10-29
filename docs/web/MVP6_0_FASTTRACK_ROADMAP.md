@@ -14,6 +14,25 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-29 — WEB.ONLINE.02B.03D: sequential Legacy Note updates
+
+**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.** Owner-reported
+run **40820462050 — 6/6 SUCCESS** accepts 03C SHA `7f29c55b9b943a9087eafbe81a8b05836a8e5ced`.
+03D is bounded internal work in MVP product stage 2 of 6. Initial bootstrap Note
+membership remains fixed; later updates qualify only through the genuine Legacy
+Note owner, parent/revision causality, AEAD, source and durable history. Replay v4
+holds one candidate per proven event and the latest head/projection per Note.
+Recovery rechecks server wire and all owner proofs after restart. The real
+Chromium/FastAPI/PostgreSQL acceptance passed 19 scenarios, including multiple
+updates in two projects, interruption, restart, corruption, wrong parent,
+revision gap, fork, AMK lock and logout refusal. Full local prepush passed
+816 Vitest, typecheck/build, six Chromium scripts, 268 PostgreSQL tests and
+backup/restore. New independent CI remains pending. No ACK, capability, push, writer or full project
+opening is enabled. Content Notes, Resolution, deletion and other project
+families remain blocked; C21/C22/C23/PF6.0/RC and all negative gates remain.
+The next internal slice needs a separate accepted owner composition for one
+remaining Note family or deletion cohort.
+
 ## 2026-10-28 — WEB.ONLINE.02B.03C: initial Legacy Note owner replay
 
 **LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**
