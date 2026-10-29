@@ -692,6 +692,55 @@ Chromium, Vitest, typecheck/build and full prepush were NOT RUN at this STOP.
 All negative flags and security/release gates remain; no Content cohort or full
 project opening is claimed.
 
+
+## 2026-10-29 — WEB.ONLINE.02B.03I — STOP: replay Content record composition
+
+Starting baseline `eec525001e3894a86076b390ec9cdce005cc3dd4`, clean `6.0`.
+Option A remains approved and Option B rejected. 03E remains independently
+accepted at `737a8dfd4cca3d34f299a3549d96f45388619ff2`, run
+**40844792258 — 6/6 SUCCESS**. No production dispatcher was added in 03I.
+
+The earlier recipient gate is not the only prerequisite: this task permits a
+legitimately capable isolated test recipient, without qualifying Web readiness.
+The remaining concrete compatibility boundary is the closed replay v4 owner
+record/transaction contract:
+
+- `replayInventory.ts::scheduleReplaySnapshot` admits Note inbox3
+  `note_proven` and candidate1; its applied coverage and latest projection joins
+  only count Legacy proofs. `assertReplayOwnerTransition` has no Content branch.
+- The real `BrowserContentNoteApplyRuntime` delegates to the shared causal owner
+  and produces inbox7 `content_note_proven`, candidate2 and its authenticated
+  transport/dependency proof. These must survive the same atomic transaction.
+- `replayNoteProof.ts::reauthenticateReplayNotes` only authenticates Legacy
+  proofs/candidate1; adding a dispatch call or allowing a new state string would
+  not authenticate Content source/projection/coverage after restart.
+- J `BrowserV10Transport.replayInboundPage` requires the page end to equal the
+  durable pull cursor. It does not authorize arbitrary earlier-page replay.
+  Receiver zero-origin server reconciliation remains a distinct read-only
+  comparison; it cannot be substituted for J or used as an apply certificate.
+
+**STOP / NOT IMPLEMENTED:** no complete production composition or Content replay
+success is claimed. This is a replay compatibility contract gap, not evidence
+that the ordinary protocol or recipient security gate needs changing. A replay
+schema upgrade was allowed by the task, but none was implemented or validated;
+there is no positive production result or migration in this execution.
+
+Next concrete implementation: versioned replay Content proof/source adapter,
+preferably replay v5 so old v4 clients refuse incompatible derived records.
+Define and implement only one peer-origin linear Content update of an existing
+live Legacy Note: candidate2 + transport proof + inbox7 + source revision +
+projection + head + contiguous coverage in one CAS transaction; reauthenticate
+all joins after fresh ordinary pull/server reconciliation. Preserve every v4
+ciphertext/proof on upgrade; test migration rollback, old-client refusal, lost
+commit response and restart. Then wire ordered production dispatch through that
+adapter. No new reducer, sync engine, recovery endpoint or server-gate bypass.
+
+Both target readiness blockers remain unresolved, as do the other eight.
+Replay remains v4; developer v12, SQLite and PostgreSQL are unchanged.
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+`projectOpened=false`, Registration CLOSED and PUBLIC RELEASE BLOCKED remain.
+C21/C22/C23/PF6.0/RC, product stage 2/6 and historical progress 89,36% remain.
+
 ## 9. F — Device, compression and release boundaries
 
 ### Owner decision 03H — unified ordinary sync (Option A)

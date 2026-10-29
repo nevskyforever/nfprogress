@@ -136,6 +136,30 @@ slices не меняют его автоматически; фактическа
 
 
 
+
+## 2026-10-29 — WEB.ONLINE.02B.03I — STOP: replay Content compatibility
+
+Baseline `eec525001e3894a86076b390ec9cdce005cc3dd4`; no production dispatcher
+was implemented. Option A remains approved; Option B remains rejected. 03E is
+accepted (SHA `737a8dfd4cca3d34f299a3549d96f45388619ff2`, run 40844792258,
+6/6 SUCCESS). Replay v4 admits Legacy inbox3/candidate1 and authenticates only
+Legacy Note proofs. The real Content owner commits inbox7/candidate2 plus a
+transport proof; v4 transition, coverage and restart validators cannot accept
+that complete commit. J current-page replay also cannot replace zero-origin
+server reconciliation. See the [compatibility evidence and next slice](web/WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md#2026-10-29--webonline02b03i--stop-replay-content-record-composition).
+
+Next implementation: versioned Content proof/source adapter with atomic CAS,
+coverage, migration preservation and restart reauthentication, followed by its
+ordered production dispatch. No migration was implemented. Both target blockers
+and all readiness flags remain negative. Focused existing Vitest regressions:
+**300 passed / 5 files** (Content owner, v10 transport/recovery, receiver and
+Structural replay). These establish existing component behavior, not new
+production acceptance. Chromium/PostgreSQL integration, backup/restore,
+typecheck/build, ESLint and prepush NOT RUN: no runtime implementation to accept.
+Documentation diff check PASS. Developer v12, SQLite/PostgreSQL and all
+C21/C22/C23/PF6.0/RC/security/release gates remain unchanged; projectOpened=false,
+product stage 2/6 and historical progress 89,36% remain.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03H — owner decision: unified sync path
 
 **OWNER DECISION — OPTION A APPROVED / OPTION B REJECTED.** Desktop and Web
