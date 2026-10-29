@@ -49,7 +49,7 @@ beforeEach(async () => {
   // Unit tests cover receiver orchestration only. Native IDB atomicity/schema
   // and restart are exercised by the real Chromium/PostgreSQL acceptance.
   store = {
-    applyMetadata: vi.fn(), applyStructure: vi.fn(), seedNoteSource: vi.fn(),
+    applyMetadata: vi.fn(), applyStructure: vi.fn(), applyInitialNotes: vi.fn(), seedNoteSource: vi.fn(),
     start: vi.fn(async () => {
       state.manifest ??= { record_version: 4, contract_version: 4, metadata_cursor: 0, applied_cursor: 0, source_seeds: [], account_id: scope.accountId, canonical_user_id: scope.canonicalUserId,
         device_id: scope.deviceId, generation: crypto.randomUUID(), anchor, receive_cursor: 0, ciphertext_bytes: 0, phase: 'receiving', revision: 1 }

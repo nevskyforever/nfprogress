@@ -2,8 +2,13 @@ import { assertReplayOwnerTransition, replayCoverage, migrateReplay, scheduleRep
 import type { NormalUserAuthRuntime } from '@/auth/userAuth'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import type { RuntimeKeyContext } from '@/auth/keyContext'
-import { composeReplayMetadata, type ReplayMetadataResult, type ReplayStructuralResult } from './replayMetadata'
+import { composeReplayMetadata, type ReplayMetadataResult, type ReplayStructuralResult, type ReplayInitialNoteResult } from './replayMetadata'
 import { seedReplayNoteSource, type ReplaySourceSeedResult } from './replaySourceSeed'
+import { prepareBrowserRemoteProjectImport } from './projectBindings'
+import { BrowserLocalAuthority } from './localAuthority'
+import { cloudProjectsApi } from '@/api/cloudProjects'
+import { encryptedSyncV2Api } from '@/api/encryptedSyncV2'
+import { encryptedSyncV3Api } from '@/api/encryptedSyncV3'
 import type { LocalProjectRecord } from './localAuthorityRecords'
 import { BrowserPersistenceError, persistenceError, runBrowserTransaction } from './persistence'
 import { BrowserSyncDurability, snapshotBrowserSyncScope,
@@ -121,11 +126,67 @@ class BrowserReplayStorage {
   applyStructure(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<ReplayStructuralResult> {
     return this.applyOwners(auth, bindings, keys, true) as Promise<ReplayStructuralResult>
   }
+  async applyInitialNotes(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext): Promise<ReplayInitialNoteResult> {
+    const snapshot = await this.read(), projects = new Set(snapshot.rows.filter(row => JSON.parse(row.wire_item).event.entity_type === 'note')
+      .map(row => JSON.parse(row.wire_item).event.project_id as string))
+    // All source admissions finish before the first Note outcome. A later restart
+    // never needs to recreate one from an already mutated source.
+    for (const projectId of projects) if (!snapshot.bindings.some(binding => binding.project_id === projectId)) {
+      await this.seedNoteSource(projectId, auth, bindings, keys)
+      await this.admitInitialNoteBinding(projectId, auth, keys)
+    }
+    return this.applyOwners(auth, bindings, keys, true, true) as Promise<ReplayInitialNoteResult>
+  }
+  private async admitInitialNoteBinding(projectId: string, auth: NormalUserAuthRuntime, keys: RuntimeKeyContext): Promise<void> {
+    const stop = () => { void this.close() }
+    const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
+    try {
+      const context = auth.requireContext(), lease = keys.leaseForAccount(this.scope.accountId)
+      const check = () => { this.check(); if (!auth.isCurrent(context) || !lease?.isCurrent() || lease.localAccountId !== this.scope.accountId
+        || lease.canonicalUserId !== this.scope.canonicalUserId || lease.authEpoch !== context.authEpoch) throw new BrowserPersistenceError('closed') }
+      check()
+      const before = await this.read(), manifest = before.manifest, seed = manifest?.source_seeds?.find(value => value.project_id === projectId)
+      if (!manifest || !seed || !before.sources?.some(value => value.project_id === projectId) || before.bindings.some(value => value.project_id === projectId)
+        || before.rows.some(row => row.state !== 'received')) throw new BrowserPersistenceError('stale_authority')
+      const server = async () => {
+        check()
+        const registry = await auth.authorized(token => cloudProjectsApi.listBootstraps(token, this.signal)); check()
+        const mode = await auth.authorized(token => encryptedSyncV2Api.capabilities(token, this.signal)); check()
+        if (!replaySame(replayAnchor(registry.value, mode.value), manifest.anchor)) throw new BrowserPersistenceError('stale_authority')
+        const tail = await auth.authorized(token => encryptedSyncV3Api.pullRaw(token, this.scope.deviceId, manifest.anchor.registry.current_cursor, 1, this.signal)); check()
+        const { page } = prepareReplayPage(tail.value, manifest.anchor.registry.current_cursor, this.scope, manifest.anchor)
+        if (page.items.length || page.has_more) throw new BrowserPersistenceError('stale_authority')
+      }
+      await server()
+      const record = prepareBrowserRemoteProjectImport(this.scope, { project_id: projectId, bootstrap_id: seed.bootstrap_id,
+        remote_state: 'active', remote_high_water: manifest.anchor.registry.current_cursor })
+      await this.run('readwrite', (tx, result, abort) => this.load(tx, now => {
+        try {
+          check()
+          if (!replaySame(now, before)) throw new BrowserPersistenceError('stale_authority')
+          tx.objectStore('projectBindings').add(record)
+          result(undefined)
+        } catch (error) { abort(error) }
+      }, abort))
+    } finally { unAuth(); unKey() }
+  }
   seedNoteSource(projectId: string, auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding,
     keys: RuntimeKeyContext): Promise<ReplaySourceSeedResult> {
     const stop = () => { void this.close() }
     const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
-    return seedReplayNoteSource({ read: () => this.read(), commit: async (expected: ReplaySnapshot, row: LocalProjectRecord,
+    return seedReplayNoteSource({ read: () => this.read(), readSource: async (expected, projectId) => {
+      const transaction: BrowserSyncTransaction = (scope, _stores, mode, schedule) => {
+        if (!replaySame(scope, this.scope) || mode !== 'readonly') fail()
+        return this.run(mode, (tx, result, abort) => this.load(tx, before => {
+          try { if (!replaySame(before, expected)) throw new BrowserPersistenceError('stale_authority'); schedule(tx, result, abort) }
+          catch (error) { abort(error) }
+        }, abort))
+      }
+      const local = new BrowserLocalAuthority(transaction).bind(auth, bindings, keys)
+      const source = await local.readSnapshot(this.scope, projectId)
+      const project = await local.withDecryptedSnapshot(this.scope, source.token, async value => structuredClone(value.project))
+      return { source, project }
+    }, commit: async (expected: ReplaySnapshot, row: LocalProjectRecord,
       reference: ReplaySourceSeedReference, server: () => Promise<void>) => {
       await server()
       await this.run('readwrite', (tx, result, abort) => this.load(tx, before => {
@@ -142,7 +203,7 @@ class BrowserReplayStorage {
     } }, this.scope, projectId, this.signal, () => { try { this.check(); return true } catch { return false } },
     auth, bindings, keys).finally(() => { unAuth(); unKey() })
   }
-  private applyOwners(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural: boolean) {
+  private applyOwners(auth: NormalUserAuthRuntime, bindings: AuthoritativeAccountBinding, keys: RuntimeKeyContext, structural: boolean, initialNotes = false) {
     const stop = () => { void this.close() }
     const unAuth = auth.onInvalidated(stop), unKey = keys.onInvalidated(stop)
     return composeReplayMetadata({ read: () => this.read(), transaction: (expected, sequence, server) => async (scope, _stores, mode, schedule) => {
@@ -170,7 +231,7 @@ class BrowserReplayStorage {
           }, abort)
         } catch (error) { abort(error) }
       }, abort))
-    } }, this.scope, this.signal, () => { try { this.check(); return true } catch { return false } }, auth, bindings, keys, structural).finally(() => { unAuth(); unKey() })
+    } }, this.scope, this.signal, () => { try { this.check(); return true } catch { return false } }, auth, bindings, keys, structural, initialNotes).finally(() => { unAuth(); unKey() })
   }
   async start(input: ReplayAnchor): Promise<ReplaySnapshot> {
     const anchor = replayAnchor(input.registry, input.transport), s = this.scope
@@ -244,7 +305,7 @@ class BrowserReplayStorage {
   }
 }
 
-export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata' | 'applyStructure' | 'seedNoteSource'>
+export type ReplayStorage = Pick<BrowserReplayStorage, 'start' | 'read' | 'commitPage' | 'finish' | 'close' | 'applyMetadata' | 'applyStructure' | 'seedNoteSource' | 'applyInitialNotes'>
 
 export async function openBrowserReplayStorage(input: BrowserSyncScope, signal: AbortSignal, current: () => boolean): Promise<ReplayStorage> {
   const scope = snapshotBrowserSyncScope(input)

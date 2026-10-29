@@ -30,7 +30,7 @@ const encoded = (object: { crypto_version: number; aad_version: number; nonce: U
 const row = (event: Record<string, unknown>, object: ReturnType<typeof encoded>, sequence: number): BrowserReceivedInboxRecord => ({
   record_version: 1, account_id: scope.accountId, device_id: scope.deviceId, event_id: event.event_id as string,
   server_sequence: sequence, protocol_version: 3, state: 'received', wire_item: JSON.stringify({ event: { ...event, device_id: source, server_sequence: sequence }, object }) })
-const run = () => seedReplayNoteSource({ read: async () => structuredClone(state), commit }, scope, project,
+const run = () => seedReplayNoteSource({ read: async () => structuredClone(state), readSource: vi.fn(), commit }, scope, project,
   new AbortController().signal, () => active, auth, bindings, keys)
 async function appendMetadataUpdate(deviceId = source): Promise<void> {
   const genesis = JSON.parse(state.rows[1]!.wire_item).event

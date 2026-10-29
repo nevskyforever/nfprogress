@@ -1,6 +1,6 @@
 # WEB.ONLINE.02B — C21 Online-Only source/proof contract
 
-**Status: DESIGN COMPLETE. Slices 1/2/3A independently accepted; slice 3B private Note source seed implemented locally. Later slices remain deferred.**
+**Status: DESIGN COMPLETE. Slices 1/2/3A/3B independently accepted; slice 3C initial Legacy Note owner replay implemented locally. Later slices remain deferred.**
 The original design review used clean `6.0` baseline
 `57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28, and introduced no
 production code or migration. Subsequent explicitly authorized implementation
@@ -207,6 +207,56 @@ Local evidence: focused **18 seed Vitest**, real Chromium/FastAPI/PostgreSQL
 backend tests, typecheck/build and encrypted-blob backup/restore. Changed ESLint,
 workflow/static and diff checks pass. Independent new-commit CI is pending;
 Linux/x86-64 is not locally established.
+
+## Slice 3C implementation — 2026-10-28
+
+Owner-reported independent acceptance of 03B: `7fdcde1515a3eb777c0eef27a7b97e03a8bc95ac`,
+run **40734155479 — 6/6 SUCCESS**. The next bounded cohort is ordinary initial
+Legacy Note creates only. `applyCloudInitialNotes()` reuses the complete account
+receiver and strict server-order replay; a Note at sequence 1 must be genuinely
+applied before a later Metadata genesis at sequence 4 can advance coverage.
+
+The only early admission is a technical `import_remote` binding derived from the
+03B authenticated source seed and a freshly checked active registry/transport/
+server tail. Admission is CAS-protected and does not create an owner proof or
+advance either cursor. `BrowserLegacyNoteApplyRuntime.prepare/commit` then
+authenticates the original Legacy wire and writes its existing source, local
+Note, candidate/head history and inbox `note_proven` proof atomically. The
+replay adapter adds only derived coverage in the same IndexedDB transaction.
+Imported Metadata and Stage/StageOrder keep their original owner/proof paths.
+
+The isolated physical replay database remains **v4** with the same thirteen
+stores and manifest shape: Note records already had dedicated stores and the
+genuine owner proof format. The strict inventory now permits only initial
+peer-origin `create` outcomes tied to exact source seed, bootstrap, server
+sequence, original wire, source revision and one encrypted projection per Note.
+It still forbids outbox, receipts and intents. Existing v1/v2/v3 migration
+paths retain their prior checks and no v12/SQLite/PostgreSQL migration occurs.
+Old v4 code with its empty-Note-store invariant refuses a Note-bearing cache;
+it cannot silently treat the new state as an empty source.
+
+On restart, a fresh full server comparison precedes owner reauthentication.
+The source is opened with the existing readonly local authority and checked
+against authenticated Metadata genesis; every retained Note proof is checked
+against AEAD wire and its history candidate/projection. A lost response after
+commit can resume from the next unproven event. Quota, missing rows, damaged
+wire/source/history/proof, foreign identity, registry drift, lock and offline
+state cannot create a false applied result. `initial_legacy_notes_applied`
+reports genuine Note and Structural proof counts but always
+`projectOpened=false`. No general Note update/delete, Content, Resolution,
+conflict or fork support is claimed. No ACK, capability, push, writer or UI
+opening is activated. C21/C22/C23/PF6.0/RC and all negative gates remain.
+
+LOCAL-FIRST passed: **816 Vitest / 29 files**, typecheck/build, six existing
+frontend Chromium scripts, **267 isolated PostgreSQL backend tests**, one
+encrypted-blob backup/restore and the new **23-scenario** genuine
+FastAPI/PostgreSQL/Chromium Note replay acceptance. The latter covers two
+projects, three Legacy creates before Metadata, real Stage/StageOrder proofs,
+restart between Notes and after completion, quota/key rollback, lost response,
+corrupt wire/source/history/proof and server/offline refusal, with no plaintext
+storage or reader write requests. Final focused **91 Vitest / 4 files**,
+changed-file ESLint, syntax and diff checks passed. Linux x86-64 was not run
+locally; independent CI of the new commit is pending.
 
 ## 1. Decision and authority
 
@@ -592,12 +642,13 @@ measuring duration. No capability/gate activation is implicit in these slices.
 | 5. Native family owner cores/adapters | One family per task: shared core extraction and browser execution/storage feasibility, then account catalog, Documents/Maps, Progress and Game in actual dependency order | Desktop behavior and real producer outputs match; owner parity/negative cases, encrypted browser records and atomic ledger/projection/reward joins. Cannot count a codec or Tauri mock as browser owner support. |
 | 6. Complete read-only project publication | Coverage/closure for every encountered family and auxiliary material, stable server checks, correct UI and lifecycle | Real Chromium/FastAPI/PostgreSQL server replay, cold cache and restart, all required project data restored; mixed unsupported account history blocks; network has no plaintext/ACK/push/declaration. Full-read acceptance still does not authorize writer or release. |
 
-With Stage/StageOrder composition implemented in **3A**, the next minimum is
-**03B**, the private encrypted source-seed owner under section 6. No ordinary
-local initializer or synthetic revision qualifies. Owned-generation advancement
-must still be specified before accepting a changed server snapshot. Recommended model:
-**GPT-6 Sol / High**. Native shared-core feasibility and any positive Note
-capability lifecycle are separate later tasks, never hidden inside storage work.
+With Stage/StageOrder composition in **3A**, private source seed in **3B** and
+initial Legacy Note owner replay in **3C**, the next minimum is one explicitly
+bounded later Note/Content/Resolution continuation cohort under slice 4. No
+ordinary local initializer or synthetic revision qualifies. Owned-generation
+advancement must still be specified before accepting a changed server snapshot.
+Recommended model: **GPT-6 Sol / High**. Native shared-core feasibility and any
+positive Note capability lifecycle remain separate later tasks.
 
 ## 11. Contract review references and verification
 

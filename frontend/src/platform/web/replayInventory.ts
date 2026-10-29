@@ -4,12 +4,14 @@ import { validateBrowserProjectBinding, type BrowserProjectBinding } from './pro
 import type { BrowserMetadataHead, BrowserMetadataProof } from './metadataApplyRecords'
 import { validateBrowserOwnerHead, stageOwnerId, type BrowserStageHead, type BrowserStageProof } from './stageRecords'
 import type { BrowserStageOrderHead, BrowserStageOrderProof } from './stageOrderRecords'
-import { validateLocalProjectRecord, type LocalProjectRecord } from './localAuthorityRecords'
+import { validateLocalProjectRecord, validateLocalNoteRecord, type LocalProjectRecord, type LocalNoteRecord } from './localAuthorityRecords'
+import { validateNoteHistorySet, type BrowserNoteHistoryRecord, type BrowserNoteCandidate, type BrowserNoteHead } from './noteHistoryRecords'
 import { REPLAY_LIMITS, replayExact, replaySame, replayUuid, validateReplayManifest, type ReplayManifest } from './replayRecords'
 
 export interface ReplaySnapshot {
   manifest: ReplayManifest | null; rows: BrowserInboxRecord[]; bindings: BrowserProjectBinding[]; owners: Array<BrowserMetadataHead | BrowserStageHead | BrowserStageOrderHead>
   sources?: LocalProjectRecord[]
+  notes?: LocalNoteRecord[]; noteHistory?: BrowserNoteHistoryRecord[]
 }
 /** Derived coverage is never a qualified cursor or owner certificate. */
 export function replayCoverage(manifest: ReplayManifest, row: BrowserInboxRecord) {
@@ -22,7 +24,28 @@ export function replayAppliedProof(row: BrowserInboxRecord): BrowserMetadataProo
 }
 export function assertReplayOwnerTransition(before: ReplaySnapshot, after: ReplaySnapshot, sequence: number, status: unknown): void {
   if (status === 'already_applied') { if (!replaySame(before, after)) fail(); return }
-  const manifest = before.manifest!, previous = before.rows[sequence - 1], row = after.rows[sequence - 1], proof = row && replayAppliedProof(row)
+  const manifest = before.manifest!, previous = before.rows[sequence - 1], row = after.rows[sequence - 1]
+  if (row?.state === 'note_proven') {
+    const proof = row.note_proof, project = proof.header.project_id, note = proof.header.entity_id
+    if (status !== 'applied' || previous?.state !== 'received' || proof.outcome !== 'applied'
+      || sequence !== (manifest.applied_cursor ?? 0) + 1 || !replaySame(after.manifest, replayCoverage(manifest, row))
+      || !replaySame(before.bindings, after.bindings) || !replaySame(before.owners, after.owners)
+      || !replaySame(before.rows.filter(value => value.server_sequence !== sequence), after.rows.filter(value => value.server_sequence !== sequence))) fail()
+    const original = { ...row } as Record<string, unknown>; delete original.note_proof
+    if (!replaySame({ ...original, record_version: 1, state: 'received' }, previous)) fail()
+    const sourceBefore = before.sources?.find(value => value.project_id === project)
+    const sourceAfter = after.sources?.find(value => value.project_id === project)
+    const noteAfter = after.notes?.find(value => value.project_id === project && value.note_id === note)
+    if (!sourceBefore || !sourceAfter || sourceAfter.source_revision !== sourceBefore.source_revision + 1
+      || sourceAfter.source_revision !== proof.source_revision || !noteAfter
+      || (before.notes ?? []).some(value => value.note_id === note)
+      || !replaySame(before.sources?.filter(value => value.project_id !== project), after.sources?.filter(value => value.project_id !== project))
+      || !replaySame(before.notes, after.notes?.filter(value => value.note_id !== note))
+      || !replaySame(before.noteHistory?.filter(value => value.project_id !== project || value.note_id !== note),
+        after.noteHistory?.filter(value => value.project_id !== project || value.note_id !== note))) fail()
+    return
+  }
+  const proof = row && replayAppliedProof(row)
   if (status !== 'applied' || !previous || previous.state !== 'received' || !proof
     || sequence !== (manifest.applied_cursor ?? 0) + 1 || !replaySame(after.manifest, replayCoverage(manifest, row!))) fail()
   const wire = { ...row } as Record<string, unknown>
@@ -33,12 +56,13 @@ export function assertReplayOwnerTransition(before: ReplaySnapshot, after: Repla
   const other = (head: ReplaySnapshot['owners'][number]) => head.owner_kind !== proof.owner_kind || head.owner_id !== ownerId
   if (!replaySame(before.owners.filter(other), after.owners.filter(other))) fail()
   if (!replaySame(before.sources, after.sources)) fail()
+  if (!replaySame(before.notes, after.notes) || !replaySame(before.noteHistory, after.noteHistory)) fail()
   const oldBinding = before.bindings.find(binding => binding.project_id === proof.project_id)
   if (proof.owner_kind !== 'project_metadata' || oldBinding) {
     if (!replaySame(before.bindings, after.bindings)) fail()
   } else if (!replaySame(before.bindings, after.bindings.filter(binding => binding.project_id !== proof.project_id))) fail()
 }
-export const replayEmptyStores = ['outbox', 'receipts', 'localNotes', 'legacyNoteHistory', 'legacyNoteIntents']
+export const replayEmptyStores = ['outbox', 'receipts', 'legacyNoteIntents']
 function fail(): never { throw new BrowserPersistenceError('corrupt_record') }
 const range = (account: string) => IDBKeyRange.bound([account], [account, []])
 
@@ -50,8 +74,9 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
   const binding = tx.objectStore('accountBindings').get(s.accountId), cursors = tx.objectStore('cursors').getAll(bound)
   const manifests = tx.objectStore('replayManifest').getAll(bound), bindings = tx.objectStore('projectBindings').getAll(bound), owners = tx.objectStore('ownerHeads').getAll(bound)
   const projects = tx.objectStore('localProjects').getAll(bound)
+  const localNotes = tx.objectStore('localNotes').getAll(bound), noteHistory = tx.objectStore('legacyNoteHistory').getAll(bound)
   const counts = replayEmptyStores.map(name => tx.objectStore(name).count(bound))
-  let pending = 9 + counts.length, bytes = 0
+  let pending = 11 + counts.length, bytes = 0
   const finish = () => {
     try {
       check(); if (--pending) return
@@ -69,9 +94,19 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         || manifest && (i === undefined || !cursors.result.length || manifest.receive_cursor !== rows.length)) fail()
       const imported = bindings.result.map(raw => validateBrowserProjectBinding(raw, s)), heads = owners.result.map(raw => validateBrowserOwnerHead(raw, s))
       const sources = projects.result.map(raw => validateLocalProjectRecord(raw, s))
-      if (sources.length !== (manifest?.source_seeds?.length ?? 0) || sources.some(row => row.deleted || row.source_revision !== 1
+      const notes = localNotes.result.map(raw => validateLocalNoteRecord(raw, s, raw.project_id))
+      const history = validateNoteHistorySet(s, noteHistory.result)
+      const noteProofs = rows.filter(row => row.state === 'note_proven')
+      if (version < 4 && (notes.length || history.length) || sources.length !== (manifest?.source_seeds?.length ?? 0) || sources.some(row => row.deleted
         || !manifest?.source_seeds?.some(seed => seed.project_id === row.project_id))
         || new Set(sources.map(row => row.project_id)).size !== sources.length) fail()
+      if (noteProofs.length !== notes.length || history.length !== noteProofs.length * 2
+        || history.some(record => !['candidate', 'head'].includes(record.record_kind))
+        || notes.some(note => !noteProofs.some(row => row.note_proof.header.entity_id === note.note_id && row.note_proof.header.project_id === note.project_id))) fail()
+      for (const source of sources) {
+        const appliedNotes = noteProofs.filter(row => row.note_proof.header.project_id === source.project_id)
+        if (source.source_revision !== appliedNotes.length + 1 || appliedNotes.some((row, index) => row.note_proof.source_revision !== index + 2)) fail()
+      }
       for (const seed of manifest?.source_seeds ?? []) {
         const genesis = rows.find(row => row.event_id === seed.genesis_event_id)
         if (!genesis || !sources.some(source => source.project_id === seed.project_id)) fail()
@@ -83,11 +118,26 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       let ciphertextBytes = 0
       const ids = new Set<string>()
       for (const [index, row] of rows.entries()) {
-        if (row.server_sequence !== index + 1 || ids.has(row.event_id) || (row.server_sequence <= applied) !== !!replayAppliedProof(row)) fail()
+        if (row.server_sequence !== index + 1 || ids.has(row.event_id) || (row.server_sequence <= applied) !== (!!replayAppliedProof(row) || row.state === 'note_proven')) fail()
         ids.add(row.event_id)
         const wire = JSON.parse(row.wire_item) as { event: { project_id: string }; object: { ciphertext: string } }
         ciphertextBytes += Math.floor(wire.object.ciphertext.length * 3 / 4)
         const proof = replayAppliedProof(row)
+        if (row.state === 'note_proven') {
+          const p = row.note_proof, seed = manifest?.source_seeds?.find(value => value.project_id === p.header.project_id)
+          const retained = JSON.parse(row.wire_item), { device_id: sourceDevice, server_sequence: sourceSequence, ...event } = retained.event
+          const candidate = history.find((value): value is BrowserNoteCandidate => value.record_kind === 'candidate' && value.event_id === row.event_id)
+          const head = history.find((value): value is BrowserNoteHead => value.record_kind === 'head' && value.project_id === p.header.project_id && value.note_id === p.header.entity_id)
+          const note = notes.find(value => value.note_id === p.header.entity_id)
+          if (!seed || p.outcome !== 'applied' || p.bootstrap_id !== seed.bootstrap_id || p.reference.device_id !== seed.origin_device_id
+            || row.server_sequence > seed.initial_max_server_sequence || p.header.revision !== 1 || p.mutation !== 'create'
+            || !candidate || candidate.record_version !== 1 || candidate.origin !== 'peer' || candidate.bootstrap_id !== seed.bootstrap_id
+            || candidate.source_device_id !== sourceDevice || sourceSequence !== row.server_sequence
+            || !replaySame(JSON.parse(candidate.wire_item), { event, object: retained.object })
+            || candidate.projection === null || !replaySame(candidate.projection, note) || candidate.projection_digest !== p.local_note_digest
+            || candidate.projection.source_revision !== p.source_revision || !head || head.linear_head_event_id !== row.event_id
+            || !replaySame(head.tip_event_ids, [row.event_id]) || !replaySame(p.reference, JSON.parse(row.wire_item).event)) fail()
+        }
         if (proof) {
           const head = heads.find(value => value.owner_kind === proof.owner_kind && value.owner_id === (proof.owner_kind === 'stage' ? stageOwnerId(proof.project_id, proof.stage_id) : proof.project_id))
           if (!head || !replaySame(head.history.find(value => value.event_id === row.event_id), proof)) fail()
@@ -108,7 +158,8 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       for (const record of imported) {
         const remote = manifest?.anchor.registry.projects.find(project => project.project_id === record.project_id)
         if (!remote || remote.bootstrap_id !== record.bootstrap_id || record.mode !== 'import_remote' || record.phase !== 'captured' || record.remote_state !== 'active' || record.remote_high_water !== manifest!.anchor.registry.current_cursor
-          || !heads.some(head => head.owner_kind === 'project_metadata' && head.owner_id === record.project_id)) fail()
+          || !(heads.some(head => head.owner_kind === 'project_metadata' && head.owner_id === record.project_id)
+            || manifest?.source_seeds?.some(seed => seed.project_id === record.project_id))) fail()
       }
       for (const head of heads) {
         const project = head.owner_kind === 'project_metadata' ? head.owner_id : head.project_id
@@ -121,12 +172,12 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         const genesis = head.history.find(proof => proof.operation === 'create')
         if (!genesis || genesis.source_device_id !== manifest!.anchor.registry.projects.find(record => record.project_id === project)?.origin_device_id) fail()
       }
-      bytes += new TextEncoder().encode(JSON.stringify({ manifest, imported, heads, sources })).length + REPLAY_LIMITS.controlReserveBytes
+      bytes += new TextEncoder().encode(JSON.stringify({ manifest, imported, heads, sources, notes, history })).length + REPLAY_LIMITS.controlReserveBytes
       if (manifest && (ciphertextBytes !== manifest.ciphertext_bytes || bytes > REPLAY_LIMITS.inventoryBytes)) fail()
-      result({ manifest, rows, bindings: imported, owners: heads, sources })
+      result({ manifest, rows, bindings: imported, owners: heads, sources, notes, noteHistory: history })
     } catch (error) { abort(error) }
   }
-  for (const request of [identity, alias, binding, cursors, manifests, bindings, owners, projects, ...counts]) request.onsuccess = finish
+  for (const request of [identity, alias, binding, cursors, manifests, bindings, owners, projects, localNotes, noteHistory, ...counts]) request.onsuccess = finish
   const scan = tx.objectStore('inbox').openCursor(bound)
   scan.onsuccess = () => {
     try {
@@ -134,7 +185,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       if (!cursor) { finish(); return }
       if (rows.length >= REPLAY_LIMITS.events) fail()
       const row = validateBrowserInboxRecord(cursor.value, s)
-      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version >= 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6))
+      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version >= 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6) || version >= 4 && row.state === 'note_proven' && row.record_version === 3)
         || row.protocol_version !== 3 || !replaySame(cursor.primaryKey, [s.accountId, row.server_sequence])) fail()
       bytes += new TextEncoder().encode(JSON.stringify(row)).length
       if (bytes > REPLAY_LIMITS.inventoryBytes) fail()

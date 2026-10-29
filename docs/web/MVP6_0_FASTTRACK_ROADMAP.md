@@ -14,11 +14,52 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-28 — WEB.ONLINE.02B.03C: initial Legacy Note owner replay
+
+**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**
+The 03B SHA `7fdcde1515a3eb777c0eef27a7b97e03a8bc95ac` is independently
+accepted by owner-reported run **40734155479 — 6/6 SUCCESS**. The accepted six
+MVP product stages in the checkpoint are unchanged. This is a bounded internal
+step in stage 2.
+
+The complete server account feed now admits the genuine initial Legacy Note
+create cohort through `BrowserLegacyNoteApplyRuntime`, in exact server order
+before later Metadata genesis where necessary. A server-authenticated seed and
+fresh registry permit a technical `import_remote` binding before the first
+Note; it does not stand in for a Metadata proof. The existing owner commits
+encrypted source/Note, candidate/head history, inbox `note_proven` and derived
+coverage atomically under full inventory/generation CAS. Imported Metadata and
+Stage still use their own owners and proofs. Restart rechecks server wire,
+source AEAD, genesis/cohort and each genuine Note/history proof; exact retry
+performs no write. The physical replay schema remains **v4** with no new store
+or migration; developer v12, Desktop SQLite and PostgreSQL are untouched.
+
+Only ordinary initial Legacy creates are supported. Subsequent Legacy updates
+or deletes, Content Notes, Resolution, forks, conflicts, other data families,
+changed server generations and full project UI stay blocked. No capability,
+ACK, push or writer activation occurs. `projectOpened=false`, all readiness
+and writer flags false, Registration CLOSED, PUBLIC RELEASE BLOCKED and
+C21/C22/C23/PF6.0/RC remain mandatory. Official progress **89,36%**.
+
+Local prepush passed **816 Vitest / 29 files**, typecheck/build, six frontend
+Chromium scripts, **267 PostgreSQL backend tests** and one real backup/restore.
+The new isolated FastAPI/PostgreSQL/Chromium acceptance passed **23 scenarios**
+with three genuine Notes, Metadata, Stage and StageOrder, two complete browser
+restarts, partial-cohort continuation, quota/key rollback, corruption and
+server-drift refusals, exact readonly source text and zero reader writes.
+Focused final **91 Vitest / 4 files**, changed ESLint, syntax and diff checks
+passed. Linux x86-64 remains unverified locally; new independent CI is pending.
+
+Next minimum within stage 2: specify and implement one supported continuation
+cohort for subsequent Legacy/Content/Resolution Note history with genuine
+source, dependency and conflict proofs; keep unsupported account history
+blocked. Recommended **GPT-6 Sol / High**.
+
 
 
 ## 2026-10-28 — WEB.ONLINE.02B.03B: private encrypted Note source seed
 
-**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**
+**LOCAL COMPLETE; INDEPENDENT CI 40734155479 — 6/6 SUCCESS; FULL PROJECT OPEN BLOCKED.**
 Baseline `57abfbc785c9e8c849e2b6fbc9f78208ab7b47a8` and owner-reported
 **40675867782 — 6/6 SUCCESS** accept 03A. The separate published documentation
 commit `77a8d349` establishes the six user-facing MVP stages in the checkpoint;

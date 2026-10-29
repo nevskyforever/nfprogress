@@ -14,6 +14,8 @@ import { openNoteTransport } from './noteTransport'
 import { reauthenticateReplayOwners } from './replayMetadata'
 import { BrowserReplayError, prepareReplayPage, replayAnchor, replaySame, type ReplaySourceSeedReference } from './replayRecords'
 import type { ReplaySnapshot } from './replayInventory'
+import { reauthenticateReplayNotes } from './replayNoteProof'
+import type { LocalSourceSnapshot } from './localAuthority'
 import { immutableWireIdentity, type BrowserSyncScope } from './syncDurability'
 import type { AccountMasterKey } from '@/crypto'
 
@@ -23,13 +25,14 @@ export interface ReplaySourceSeedResult {
 }
 interface SeedPort {
   read(): Promise<ReplaySnapshot>
+  readSource(expected: ReplaySnapshot, projectId: string): Promise<{ source: LocalSourceSnapshot; project: NativeLocalProject }>
   commit(expected: ReplaySnapshot, row: LocalProjectRecord, reference: ReplaySourceSeedReference, server: () => Promise<void>): Promise<void>
 }
 interface Evidence { project: NativeLocalProject; reference: ReplaySourceSeedReference }
 const fail = (code: string): never => { throw new BrowserReplayError(code) }
 
 /** Authenticates the server's actual bootstrap cohort; it never applies any Note. */
-async function derive(scope: BrowserSyncScope, snapshot: ReplaySnapshot, projectId: string, amk: AccountMasterKey,
+export async function authenticateReplaySourceSeed(scope: BrowserSyncScope, snapshot: ReplaySnapshot, projectId: string, amk: AccountMasterKey,
   current: () => boolean): Promise<Evidence> {
   const manifest = snapshot.manifest
   if (!manifest) throw new BrowserReplayError('source_seed_ineligible')
@@ -102,7 +105,7 @@ async function derive(scope: BrowserSyncScope, snapshot: ReplaySnapshot, project
     const item = JSON.parse(row.wire_item), event = item.event as V3Descriptor
     if (row.protocol_version !== 3 || event.device_id !== remote.origin_device_id || event.project_id !== projectId
       || event.operation !== 'upsert' || event.revision !== 1 || event.deleted_at !== null
-      || noteIds.has(event.entity_id) || row.state !== 'received') fail('source_seed_cohort_mismatch')
+      || noteIds.has(event.entity_id) || !['received', 'note_proven'].includes(row.state)) fail('source_seed_cohort_mismatch')
     const opened = await openNoteTransport(scope, amk, row.protocol_version, row.wire_item, 'legacy')
     if (opened.plaintext.mutation !== 'create' || opened.plaintext.header.parent_event_id !== null
       || opened.plaintext.note.project_id !== projectId || opened.plaintext.note.id !== event.entity_id) fail('source_seed_cohort_mismatch')
@@ -142,14 +145,18 @@ export async function seedReplayNoteSource(port: SeedPort, scope: BrowserSyncSco
     if (page.items.length || page.has_more) fail('server_changed')
   }
   const prepared = await lease!.use(async amk => {
-    await reauthenticateReplayOwners(scope, snapshot, amk, () => { try { check(); return true } catch { return false } })
+    const noteSequences = snapshot.rows.some(row => row.state === 'note_proven')
+      ? await reauthenticateReplayNotes(scope, snapshot, amk, () => { try { check(); return true } catch { return false } }, id => port.readSource(snapshot, id))
+      : new Set<number>()
+    await reauthenticateReplayOwners(scope, snapshot, amk, () => { try { check(); return true } catch { return false } }, true, noteSequences)
     for (const previous of snapshot.manifest!.source_seeds ?? []) {
-      const evidence = await derive(scope, snapshot, previous.project_id, amk, () => { try { check(); return true } catch { return false } })
+      const evidence = await authenticateReplaySourceSeed(scope, snapshot, previous.project_id, amk, () => { try { check(); return true } catch { return false } })
       const row = snapshot.sources?.find(source => source.project_id === previous.project_id)
-      if (!row || !replaySame(previous, evidence.reference)
-        || !replaySame(await openEmptyLocalProject(scope, row, amk), evidence.project)) fail('source_seed_reauthentication_failed')
+      if (!row || !replaySame(previous, evidence.reference)) fail('source_seed_reauthentication_failed')
+      const project = row!.source_revision === 1 ? await openEmptyLocalProject(scope, row, amk) : (await port.readSource(snapshot, previous.project_id)).project
+      if (!replaySame(project, evidence.project)) fail('source_seed_reauthentication_failed')
     }
-    const evidence = await derive(scope, snapshot, projectId, amk, () => { try { check(); return true } catch { return false } })
+    const evidence = await authenticateReplaySourceSeed(scope, snapshot, projectId, amk, () => { try { check(); return true } catch { return false } })
     if (snapshot.manifest!.source_seeds?.some(seed => seed.project_id === projectId)) return { evidence, row: null }
     return { evidence, row: await sealEmptyLocalProject(scope, evidence.project, amk) }
   })
@@ -160,12 +167,16 @@ export async function seedReplayNoteSource(port: SeedPort, scope: BrowserSyncSco
     snapshot = await port.read(); check()
   }
   await lease!.use(async amk => {
-    await reauthenticateReplayOwners(scope, snapshot, amk, () => { try { check(); return true } catch { return false } })
-    const evidence = await derive(scope, snapshot, projectId, amk, () => { try { check(); return true } catch { return false } })
+    const noteSequences = snapshot.rows.some(row => row.state === 'note_proven')
+      ? await reauthenticateReplayNotes(scope, snapshot, amk, () => { try { check(); return true } catch { return false } }, id => port.readSource(snapshot, id))
+      : new Set<number>()
+    await reauthenticateReplayOwners(scope, snapshot, amk, () => { try { check(); return true } catch { return false } }, true, noteSequences)
+    const evidence = await authenticateReplaySourceSeed(scope, snapshot, projectId, amk, () => { try { check(); return true } catch { return false } })
     const seed = snapshot.manifest?.source_seeds?.find(value => value.project_id === projectId)
     const row = snapshot.sources?.find(value => value.project_id === projectId)
-    if (!seed || !row || !replaySame(seed, evidence.reference)
-      || !replaySame(await openEmptyLocalProject(scope, row, amk), evidence.project)) fail('source_seed_reauthentication_failed')
+    if (!seed || !row || !replaySame(seed, evidence.reference)) fail('source_seed_reauthentication_failed')
+    const project = row!.source_revision === 1 ? await openEmptyLocalProject(scope, row, amk) : (await port.readSource(snapshot, projectId)).project
+    if (!replaySame(project, evidence.project)) fail('source_seed_reauthentication_failed')
   })
   await server(); check()
   return { kind: 'encrypted_note_source_seed', status: prepared.row ? 'seeded' : 'already_seeded',
