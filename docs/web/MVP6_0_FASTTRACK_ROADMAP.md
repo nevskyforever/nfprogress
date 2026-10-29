@@ -14,6 +14,19 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-29 — WEB.ONLINE.02B.03G: delivery contract
+
+Design complete; [proposed contract](WEB_ONLINE_02B_03G_CIPHERTEXT_DELIVERY_CONTRACT.md) recommends B: session-authorized
+opaque history delivery without SyncDevice enrollment. Implementation remains
+STOP pending explicit owner approval and a section9 contract amendment. Ordinary
+pull and all-device writer gates stay unchanged; existing incomplete devices
+continue to block writers. A requires genuine full ordinary1/Resolution2 readiness.
+03E remains accepted (run 40844792258, 6/6 SUCCESS); 03F is not implemented.
+Next minimum after approval: G1 backend delivery/shared materialization and PG16
+parity/security tests, then receiver integration, then bounded Content owner.
+No runtime/schema changes or test reruns in this design task. Source/link review
+and diff checks only; all negative flags, release gates and 89,36% remain.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03F: STOP before Content composition
 
 03E SHA `737a8dfd4cca3d34f299a3549d96f45388619ff2` is independently accepted

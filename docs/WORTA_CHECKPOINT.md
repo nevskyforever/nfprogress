@@ -136,6 +136,19 @@ slices не меняют его автоматически; фактическа
 
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03G — delivery contract: conditional GO
+
+Design complete; [proposed contract](web/WEB_ONLINE_02B_03G_CIPHERTEXT_DELIVERY_CONTRACT.md) recommends B: session-authorized
+opaque history delivery without SyncDevice enrollment. Implementation remains
+STOP pending explicit owner approval and a section9 contract amendment. Ordinary
+pull and all-device writer gates stay unchanged; existing incomplete devices
+continue to block writers. A requires genuine full ordinary1/Resolution2 readiness.
+03E remains accepted (run 40844792258, 6/6 SUCCESS); 03F is not implemented.
+Next minimum after approval: G1 backend delivery/shared materialization and PG16
+parity/security tests, then receiver integration, then bounded Content owner.
+No runtime/schema changes or test reruns in this design task. Source/link review
+and diff checks only; all negative flags, release gates and 89,36% remain.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03F — STOP: Content recipient capability contract
 
 Baseline `737a8dfd4cca3d34f299a3549d96f45388619ff2` on clean `6.0`.
