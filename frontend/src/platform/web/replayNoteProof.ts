@@ -28,7 +28,7 @@ export async function reauthenticateReplayNotes(scope: BrowserSyncScope, snapsho
     const seed = snapshot.manifest?.source_seeds?.find(value => value.project_id === proof.header.project_id)
     const initial = row.server_sequence <= (seed?.initial_max_server_sequence ?? 0)
     if (!seed || proof.outcome !== 'applied' || (initial ? proof.mutation !== 'create' || proof.header.revision !== 1
-      : proof.mutation !== 'update' || proof.header.revision < 2)) throw new BrowserReplayError('note_proof_reauthentication_failed')
+      : !['update', 'delete'].includes(proof.mutation) || proof.header.revision < 2)) throw new BrowserReplayError('note_proof_reauthentication_failed')
     await verifyStoredNoteProof(scope, amk, row)
     const candidate = snapshot.noteHistory?.find((record): record is BrowserNoteCandidate => record.record_kind === 'candidate' && record.event_id === row.event_id)
     if (!candidate || candidate.record_version !== 1 || candidate.origin !== 'peer'

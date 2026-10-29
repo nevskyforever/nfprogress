@@ -46,7 +46,9 @@ export function assertReplayOwnerTransition(before: ReplaySnapshot, after: Repla
     if (!sourceBefore || !sourceAfter || sourceAfter.source_revision !== sourceBefore.source_revision + 1
       || sourceAfter.source_revision !== proof.source_revision || !noteAfter
       || (proof.mutation === 'create' ? !!noteBefore || !!oldHead || oldCandidates.length !== 0
-        : proof.mutation !== 'update' || !noteBefore || !oldHead || oldHead.linear_head_event_id !== proof.header.parent_event_id)
+        : (proof.mutation !== 'update' && proof.mutation !== 'delete') || !noteBefore || noteBefore.deleted
+          || !oldHead || oldHead.linear_head_event_id !== proof.header.parent_event_id)
+      || noteAfter.deleted !== (proof.mutation === 'delete')
       || !newHead || newHead.head_revision !== (oldHead?.head_revision ?? 0) + 1
       || newHead.linear_head_event_id !== row.event_id || newCandidates.length !== oldCandidates.length + 1
       || oldCandidates.some(value => !newCandidates.some(candidate => replaySame(candidate, value)))
@@ -153,13 +155,14 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
           const note = notes.find(value => value.note_id === p.header.entity_id)
           if (!seed || p.outcome !== 'applied' || p.bootstrap_id !== seed.bootstrap_id || p.reference.device_id !== seed.origin_device_id
             || (isInitial ? !!previous || p.header.revision !== 1 || p.mutation !== 'create' || p.header.parent_event_id !== null
-              : !previous || p.mutation !== 'update' || p.header.revision !== previous.note_proof.header.revision + 1
-                || p.header.parent_event_id !== previous.event_id)
+              : !previous || previous.note_proof.mutation === 'delete' || !['update', 'delete'].includes(p.mutation)
+                || p.header.revision !== previous.note_proof.header.revision + 1 || p.header.parent_event_id !== previous.event_id)
             || !candidate || candidate.record_version !== 1 || candidate.origin !== 'peer' || candidate.bootstrap_id !== seed.bootstrap_id
             || candidate.source_device_id !== sourceDevice || sourceSequence !== row.server_sequence
             || !replaySame(JSON.parse(candidate.wire_item), { event, object: retained.object })
             || !replaySame(candidate.header, p.header) || candidate.projection === null || candidate.projection_digest !== p.local_note_digest
-            || candidate.projection.source_revision !== p.source_revision || !replaySame(p.reference, retained.event)) fail()
+            || candidate.projection.source_revision !== p.source_revision || candidate.projection.deleted !== (p.mutation === 'delete')
+            || !replaySame(p.reference, retained.event)) fail()
           if (isLatest && !replaySame(candidate.projection, note)) fail()
         }
         if (proof) {

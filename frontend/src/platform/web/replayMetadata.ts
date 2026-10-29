@@ -70,7 +70,9 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
   for (const row of snapshot.rows) {
     const event = JSON.parse(row.wire_item).event as V3Descriptor
     if (row.protocol_version !== 3 || !(initialNotes ? ['note', 'project_metadata', 'stage', 'stage_order'] : structural ? ['project_metadata', 'stage', 'stage_order'] : ['project_metadata']).includes(event.entity_type)) throw new BrowserReplayError('unsupported_history_family')
-    if (event.operation !== 'upsert' || event.deleted_at !== null) throw new BrowserReplayError('unsupported_metadata_operation')
+    if (event.entity_type === 'note' && event.operation === 'delete') {
+      if (event.deleted_at === null) throw new BrowserReplayError('unsupported_metadata_operation')
+    } else if (event.operation !== 'upsert' || event.deleted_at !== null) throw new BrowserReplayError('unsupported_metadata_operation')
     if (event.device_id === scope.deviceId) throw new BrowserReplayError('metadata_self_echo_unsupported')
     if (event.device_id !== anchor.registry.projects.find(project => project.project_id === event.project_id)?.origin_device_id) throw new BrowserReplayError('metadata_origin_mismatch')
     if (event.entity_type === 'note') {
@@ -79,8 +81,16 @@ export async function composeReplayMetadata(port: MetadataPort, scope: BrowserSy
         && JSON.parse(value.wire_item).event.entity_type === 'note'
         && JSON.parse(value.wire_item).event.project_id === event.project_id
         && JSON.parse(value.wire_item).event.entity_id === event.entity_id)
+      const previous = snapshot.rows.filter(value => value.server_sequence < row.server_sequence).filter(value => {
+        const prior = JSON.parse(value.wire_item).event
+        return prior.entity_type === 'note' && prior.project_id === event.project_id && prior.entity_id === event.entity_id
+      }).at(-1)
+      const priorEvent = previous ? JSON.parse(previous.wire_item).event : null
       if (!seed || row.state !== 'received' && row.state !== 'note_proven'
-        || (row.server_sequence <= seed.initial_max_server_sequence ? event.revision !== 1 : event.revision < 2 || !initial))
+        || (row.server_sequence <= seed.initial_max_server_sequence ? event.revision !== 1 || event.operation !== 'upsert'
+          : event.revision < 2 || !initial || !priorEvent || priorEvent.operation === 'delete'))
+        throw new BrowserReplayError('unsupported_initial_note_history')
+      if (event.operation === 'delete' && row.server_sequence <= seed.initial_max_server_sequence)
         throw new BrowserReplayError('unsupported_initial_note_history')
     }
   }

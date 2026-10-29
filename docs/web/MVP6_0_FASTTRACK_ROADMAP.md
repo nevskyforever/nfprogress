@@ -14,6 +14,26 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-29 — WEB.ONLINE.02B.03E: Legacy Note deletion replay
+
+**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.** This
+bounded slice reuses the real Legacy Note owner for supported peer-origin
+tombstones of Notes already established by the accepted initial cohort and
+sequential-update path. Deletes are bound to the exact preceding live event;
+duplicate deletes and later events after a tombstone fail closed. The owner's
+atomic commit and durable proof formats are unchanged. Replay storage remains
+v4 without a migration. Real Chromium/FastAPI/PostgreSQL 16 acceptance passed
+23 scenarios with genuine encrypted delete events, restart, two projects and
+mixed live/deleted Notes; invalid delete parent, revision gap, unknown Note ID
+and repeated deletion fail without an applied proof. Full local prepush passed
+816 Vitest, 269 PostgreSQL tests, six Chromium scripts, typecheck/build and
+backup/restore.
+No complete project opening, writer, ACK, capability or release readiness is
+claimed. Independent CI for this SHA remains pending; C21/C22/C23/PF6.0/RC and
+all release gates remain mandatory. The next slice requires acceptance of its
+own bounded owner contract (Content Notes or Resolution); do not infer broad
+delete or full-project support from this case.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03D: sequential Legacy Note updates
 
 **LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.** Owner-reported

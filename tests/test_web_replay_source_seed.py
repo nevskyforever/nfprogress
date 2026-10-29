@@ -155,3 +155,55 @@ def test_browser_replay_note_updates_real_api_postgresql(cloud_client, tmp_path)
             server.should_exit = True
             thread.join(timeout=15)
             api_socket.close()
+
+
+def test_browser_replay_note_deletion_real_api_postgresql(cloud_client, tmp_path):
+    client, engine = cloud_client
+    create_user(engine, username='NoteDeletion', email='notedeletion@example.test')
+    for kind in ('wrong_parent', 'revision_gap', 'unknown_note', 'repeat'):
+        suffix = kind.replace('_', '')
+        create_user(engine, username=f'NoteDelete{suffix}', email=f'notedelete{suffix}@example.test')
+    for suffix in ('WrongParent', 'RevisionGap', 'Fork'):
+        create_user(engine, username=f'NoteUpdates{suffix}', email=f'notedeletion{suffix.lower()}@example.test')
+    api_socket = socket.socket()
+    api_socket.bind(('127.0.0.1', 0))
+    api_port = api_socket.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(client.app, lifespan='off', access_log=False, log_level='warning'))
+    thread = threading.Thread(target=server.run, kwargs={'sockets': [api_socket]}, daemon=True)
+    thread.start()
+    with socket.socket() as port_socket:
+        port_socket.bind(('127.0.0.1', 0))
+        vite_port = port_socket.getsockname()[1]
+    with (tmp_path / 'vite-deletion.log').open('w+') as log:
+        vite = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', str(vite_port), '--strictPort'], cwd=ROOT / 'frontend', stdout=log, stderr=log)
+        try:
+            for _ in range(100):
+                try:
+                    urllib.request.urlopen(f'http://127.0.0.1:{vite_port}/scripts/browser-cloud-account-harness.html', timeout=1).close()
+                    if server.started:
+                        break
+                except OSError:
+                    pass
+                time.sleep(.1)
+            else:
+                raise AssertionError('isolated backend/Vite did not start')
+            result = subprocess.run(['node', 'scripts/browser-replay-note-deletion-acceptance.mjs',
+                f'http://127.0.0.1:{vite_port}', f'http://127.0.0.1:{api_port}'],
+                cwd=ROOT / 'frontend', capture_output=True, text=True, timeout=300)
+            assert result.returncode == 0, result.stdout + result.stderr
+            evidence = json.loads(result.stdout.strip().splitlines()[-1])
+            assert evidence['pass'] and evidence['noteProofs'] == 9 and evidence['tombstones'] == 2
+            assert evidence['readerWrites'] == 0
+            print(f"Legacy Note deletion replay: {evidence['scenarios']} Chromium scenarios; two tombstones; zero reader writes")
+            with Session(engine) as session:
+                for device in session.query(SyncDevice):
+                    assert device.last_ack_sequence == 0
+                    assert device.note_ordinary_reader_version == 0
+                for row in session.query(EncryptedObject):
+                    assert b'PRIVATE_SEED_BAD_CONTENT_' not in row.ciphertext
+        finally:
+            vite.terminate()
+            vite.wait(timeout=15)
+            server.should_exit = True
+            thread.join(timeout=15)
+            api_socket.close()

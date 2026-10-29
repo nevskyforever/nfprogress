@@ -136,6 +136,41 @@ slices не меняют его автоматически; фактическа
 
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03E — Legacy Note deletion replay
+
+**LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.** Starting
+SHA `07d3fc6c46661542b31cf8acdc88e980780d3cb1`; 03D was independently accepted
+by run **40830080899 — 6/6 SUCCESS** at SHA
+`d0676a5893602289c311a628ceb041d8ec886290`. This is a bounded internal slice
+of product stage **2 of 6 — Full project opening in Web**.
+
+The existing Legacy Note owner now replays supported peer-origin deletes of
+Notes already established by the initial cohort. It validates the original
+server event and tombstone through the existing owner path, binds each delete
+to its exact preceding live Note event, and rejects duplicate deletes or any
+subsequent event after deletion. The existing atomic owner commit creates the
+real candidate/head/history/inbox proof; full inventory and post-restart
+reauthentication verify the tombstone projection against the original wire.
+The fixture uses genuine encrypted delete producers and preserves account-wide
+sequence ordering. No local synthetic proof or new reducer is used.
+
+`worta-web-replay` remains **v4**; no database migration or store was added.
+The real Chromium/FastAPI/PostgreSQL 16 acceptance covers 23 scenarios across
+two projects, three Notes (two tombstoned, one live), multi-update chains,
+restart, replay retry, interrupted/quota-refused atomicity, lost commit
+response, corruption, session/lock/offline refusals, and genuine encrypted
+delete events with wrong parent, revision gap, unknown Note ID and repeated
+deletion; each malformed delete remains received without a false proof. Full
+`local_acceptance.sh prepush` PASS: 816 Vitest / 29 files, typecheck/build,
+six Chromium acceptance scripts, 269 PostgreSQL tests and backup/restore.
+Changed-file ESLint, Python/Node syntax, YAML workflow validation and
+`git diff --check` PASS. Content Notes,
+Resolution, complex conflicts and full project opening remain blocked.
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+`projectOpened=false`, Registration CLOSED and PUBLIC RELEASE BLOCKED remain;
+there is no ACK, capability, push, writer activation or readiness transition.
+The official progress and all C21/C22/C23/PF6.0/RC restrictions remain unchanged.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03D — sequential Legacy Note updates
 
 **LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.**

@@ -242,6 +242,39 @@ backup/restore. 03D does not support deletion, Content Note,
 Resolution, complex conflicts or full project opening. All negative security,
 writer and release gates remain; new independent CI is pending.
 
+## 03E — supported Legacy Note tombstone replay
+
+03E adds only peer-origin delete events for Notes already present in the
+authenticated initial Legacy Note cohort. The account-wide receiver continues
+to validate the entire server history in sequence; it does not filter later
+events around an unsupported family. For a Note, a delete descriptor must
+carry a tombstone timestamp and follow that same Note's live prior event with
+the next owner revision. The initial cohort remains create-only. A delete
+cannot be repeated, and no event after a delete is admitted by this slice.
+
+`BrowserLegacyNoteApplyRuntime` remains the only reducer/authority for the
+delete. Its normal prepare/commit validates AEAD, original wire/header,
+account/project/source identity, causal parent and tombstone projection. The
+existing transaction atomically commits encrypted Note/source projection,
+candidate, head/history, inbox `note_proven` and derived contiguous coverage.
+The replay adapter admits only this exact owner delta in the full-inventory
+CAS and later reauthenticates it against the retained ciphertext and server
+snapshot. Repeated replay and restart validate existing proofs without
+duplicating them. Failed or interrupted commits leave the prior state intact.
+
+The physical `worta-web-replay` schema remains **v4** with its existing stores
+and proof formats; no migration, SQLite, IndexedDB developer-v12 or PostgreSQL
+schema change is introduced. Genuine producer tests exercise two projects,
+two tombstoned Notes and one still-live Note alongside sequential updates.
+Content Notes, Resolution, resurrection, complex conflict branches and full
+project opening remain unsupported. No ACK, capability declaration, push,
+writer activation or `projectOpened` success is produced by this slice.
+Real Chromium/FastAPI/PostgreSQL 16 acceptance passed 23 scenarios, including
+genuine encrypted malformed deletes for wrong parent, revision gap, unknown
+Note ID and repeated deletion; each remains unproven and the prior committed
+state is preserved. Full prepush passed 816 Vitest, 269 PostgreSQL tests, six
+Chromium scripts, typecheck/build and backup/restore.
+
 ## Slice 3C implementation — 2026-10-28
 
 Owner-reported independent acceptance of 03B: `7fdcde1515a3eb777c0eef27a7b97e03a8bc95ac`,

@@ -98,6 +98,21 @@ export async function seedSourceAccount(page, username, options = {}) {
         updates.push({ event_id: event.event_id, note_id: event.entity_id, project_id: project.project_id,
           parent_event_id: parent, revision, server_sequence: pushed.results[0].server_sequence })
       }
+      const deletions = []
+      for (const [ordinal, index] of (options.postInitialDeletes ?? []).entries()) {
+        if (!firstNotes[index]) throw Error('fixture_delete_note_missing')
+        const project = index === 2 ? projects[1] : projects[0], revision = ++revisions[index]
+        const parent = noteHeads[index], deleted_at = `2026-02-${String(2 + ordinal).padStart(2, '0')}T00:00:00.000000Z`
+        const event = { event_id: crypto.randomUUID(), project_id: project.project_id, entity_id: firstNotes[index].event.entity_id,
+          entity_type: 'note', operation: 'delete', revision, updated_at: deleted_at, deleted_at }
+        const sealed = await sealNoteSyncEvent(amk, me.id, event, parent, { id: event.entity_id, project_id: project.project_id,
+          stage_id: null, source_type: 'project', source_map_id: null, source_node_id: null, content_format: 'html', deleted_at })
+        const pushed = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3,
+          device_id: source, items: [{ event: sealed.event, object: encoded(sealed.object) }] })
+        noteHeads[index] = event.event_id
+        deletions.push({ event_id: event.event_id, note_id: event.entity_id, project_id: project.project_id,
+          parent_event_id: parent, revision, deleted_at, server_sequence: pushed.results[0].server_sequence })
+      }
       let malformed = null
       if (options.malformedUpdate) {
         const project = projects[0], kind = options.malformedUpdate
@@ -114,8 +129,26 @@ export async function seedSourceAccount(page, username, options = {}) {
           device_id: source, items: [{ event: sealed.event, object: encoded(sealed.object) }] })
         malformed = { kind, event_id: event.event_id, parent_event_id: parent, revision, server_sequence: pushed.results[0].server_sequence }
       }
-      return { projects, source, count: firstNotes.length + items.length + (options.stage ? 1 : 0) + (options.stageOrder ? 1 : 0) + updates.length + (malformed ? 1 : 0),
-        firstNoteIds: firstNotes.map(item => item.event.entity_id), updates, malformed }
+      let malformedDelete = null
+      if (options.malformedDelete) {
+        const kind = options.malformedDelete, project = projects[0]
+        if (!['wrong_parent', 'revision_gap', 'unknown_note', 'repeat'].includes(kind)) throw Error('fixture_malformed_delete')
+        if (kind === 'repeat' && !deletions.some(value => value.note_id === firstNotes[0].event.entity_id)) throw Error('fixture_repeat_delete_requires_delete')
+        const noteId = kind === 'unknown_note' ? 'unknown-delete-note' : firstNotes[0].event.entity_id
+        const prior = deletions.find(value => value.note_id === noteId), parent = kind === 'wrong_parent' || kind === 'unknown_note'
+          ? crypto.randomUUID() : prior?.event_id ?? noteHeads[0]
+        const revision = kind === 'revision_gap' ? revisions[0] + 2 : kind === 'repeat' ? revisions[0] + 1 : revisions[0] + 1
+        const deleted_at = '2026-03-20T00:00:00.000000Z'
+        const event = { event_id: crypto.randomUUID(), project_id: project.project_id, entity_id: noteId,
+          entity_type: 'note', operation: 'delete', revision, updated_at: deleted_at, deleted_at }
+        const sealed = await sealNoteSyncEvent(amk, me.id, event, parent, { id: noteId, project_id: project.project_id,
+          stage_id: null, source_type: 'project', source_map_id: null, source_node_id: null, content_format: 'html', deleted_at })
+        const pushed = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3,
+          device_id: source, items: [{ event: sealed.event, object: encoded(sealed.object) }] })
+        malformedDelete = { kind, event_id: event.event_id, parent_event_id: parent, revision, server_sequence: pushed.results[0].server_sequence }
+      }
+      return { projects, source, count: firstNotes.length + items.length + (options.stage ? 1 : 0) + (options.stageOrder ? 1 : 0) + updates.length + deletions.length + (malformed ? 1 : 0) + (malformedDelete ? 1 : 0),
+        firstNoteIds: firstNotes.map(item => item.event.entity_id), updates, deletions, malformed, malformedDelete }
     } finally { amk.fill(0); recoveryKey.fill(0) }
   }, { username, options })
 }
