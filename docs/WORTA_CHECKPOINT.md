@@ -136,18 +136,45 @@ slices не меняют его автоматически; фактическа
 
 
 
-## 2026-10-29 — WEB.ONLINE.02B.03G — delivery contract: conditional GO
+## 2026-10-29 — WEB.ONLINE.02B.03H — owner decision: unified sync path
 
-Design complete; [proposed contract](web/WEB_ONLINE_02B_03G_CIPHERTEXT_DELIVERY_CONTRACT.md) recommends B: session-authorized
-opaque history delivery without SyncDevice enrollment. Implementation remains
-STOP pending explicit owner approval and a section9 contract amendment. Ordinary
-pull and all-device writer gates stay unchanged; existing incomplete devices
-continue to block writers. A requires genuine full ordinary1/Resolution2 readiness.
-03E remains accepted (run 40844792258, 6/6 SUCCESS); 03F is not implemented.
-Next minimum after approval: G1 backend delivery/shared materialization and PG16
-parity/security tests, then receiver integration, then bounded Content owner.
-No runtime/schema changes or test reruns in this design task. Source/link review
-and diff checks only; all negative flags, release gates and 89,36% remain.
+**OWNER DECISION — OPTION A APPROVED / OPTION B REJECTED.** Desktop and Web
+share the existing C21 server sync protocol; Desktop remains offline-first and
+Web online-only with its own auth session. An auth session is not a registered
+sync device. Web gains only capabilities its real readers have implemented and
+independently passed. No separate recovery/history API, synthetic device, early
+capability declaration, gate bypass, or second history transport may be used
+or implemented as fallback. Preserve client-side E2EE/zero knowledge and
+ordinary server device/capability gates. No runtime or schema changed here.
+
+03E remains independently accepted (SHA
+`737a8dfd4cca3d34f299a3549d96f45388619ff2`, run **40844792258 — 6/6 SUCCESS**).
+03F remains STOP: ordinary server pull refuses Content history until the real
+recipient capability contract is met. 03G's separate ciphertext delivery
+proposal is retained as historical research and **rejected by the owner**.
+
+Current `BrowserNoteReaderReadiness` remains negative and lists ten unaccepted
+production/readiness blockers. Existing Content ordinary owner, Resolution
+continuation/prefix and mixed-recovery code/tests provide bounded owner-level
+mechanisms; they do not demonstrate complete production dispatch, account-page
+replay, every recovery case, or server-gate acceptance. The blocker labels are
+a conservative static checklist, not proof that every named mechanism is wholly
+absent; each must be retired only by its own genuine producer/consumer acceptance.
+
+**Next implementation slice:** integrate and accept production v10 ordinary
+reader dispatch with account-wide ordered page replay through the existing
+protected pull, real owner dispatch and current recovery path. Test genuine mixed
+history and restart on a legitimately registered capable test device; prove
+ordinary unready recipients still fail. Do not PUT capabilities or change
+readiness in that slice. Then address orphan/dependency continuation and the
+remaining Resolution/source/self-echo/device-orchestration contracts in small
+dependency-ordered slices. Only after genuine prerequisites are accepted may a
+separate task consider a capability declaration. Full project opening and all
+stage-2 acceptance remain blocked; active product stage is 2/6 and official
+progress **89,36%**.
+
+Validation: document/link consistency and `git diff --check`; no application
+tests run. C21/C22/C23/PF6.0/RC and all negative/release flags remain.
 
 ## 2026-10-29 — WEB.ONLINE.02B.03F — STOP: Content recipient capability contract
 
@@ -174,13 +201,11 @@ modifies its capability columns would hide this missing production contract.
 No reducer, fake proof, schema change, fixture bypass or application edit was made.
 Replay remains v4; developer v12, SQLite and PostgreSQL schemas are unchanged.
 
-Next minimum requires an owner-approved contract decision: either complete
-and independently accept the genuine reader/readiness prerequisites before
-recipient declaration, or separately design and approve a bounded authenticated
-read-only ciphertext delivery contract that makes no ordinary1/Resolution2
-claim. The latter is a backend contract change and is not authorized by 03F;
-neither option may silently relax existing C21 gates. Only then resume the
-bounded Content update composition and its real restart acceptance.
+03H resolves the prerequisite: use unified ordinary protected sync (Option A);
+the separate delivery option is rejected. Continue with the production
+dispatch/page-replay slice described in 03H. Do not declare reader readiness or
+resume capability-gated production Content pull until every required genuine
+reader prerequisite is implemented and independently accepted.
 
 Validation: existing `tests/test_cloud_c18_content_note_gate.py` **4 passed**
 on disposable Docker PostgreSQL 16, including incomplete-recipient pull refusal,

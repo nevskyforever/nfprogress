@@ -14,18 +14,27 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
-## 2026-10-29 — WEB.ONLINE.02B.03G: delivery contract
+## 2026-10-29 — WEB.ONLINE.02B.03H: unified sync owner decision
 
-Design complete; [proposed contract](WEB_ONLINE_02B_03G_CIPHERTEXT_DELIVERY_CONTRACT.md) recommends B: session-authorized
-opaque history delivery without SyncDevice enrollment. Implementation remains
-STOP pending explicit owner approval and a section9 contract amendment. Ordinary
-pull and all-device writer gates stay unchanged; existing incomplete devices
-continue to block writers. A requires genuine full ordinary1/Resolution2 readiness.
-03E remains accepted (run 40844792258, 6/6 SUCCESS); 03F is not implemented.
-Next minimum after approval: G1 backend delivery/shared materialization and PG16
-parity/security tests, then receiver integration, then bounded Content owner.
-No runtime/schema changes or test reruns in this design task. Source/link review
-and diff checks only; all negative flags, release gates and 89,36% remain.
+**Option A approved; Option B rejected.** Desktop and Web use the existing C21
+server sync protocol; Desktop is offline-first and Web online-only with an
+independent auth session. Auth is not a sync device or family capability. No
+separate recovery/history endpoint or fallback may be implemented. Ordinary
+device/capability gates remain authoritative. The 03G endpoint design is kept
+as historical research only. 03E remains accepted (run 40844792258, 6/6
+SUCCESS); 03F remains STOP at `content_note_reader_required`.
+
+Readiness still has ten explicit blockers; existing Content ordinary owner,
+Resolution continuation/prefix and mixed-recovery code are not full production
+dispatch or readiness evidence. The next implementation slice is ordinary v10
+production dispatch plus account-wide ordered page replay through protected
+pull, proven with genuine mixed history/restart and server gate parity. It must
+leave capability PUT/readiness activation disabled and preserve refusal for
+unready recipients. Subsequent slices address dependency recovery, remaining
+Resolution lineage, tombstone/resurrection, local author/self-echo receipts and
+multi-device orchestration. A capability declaration is a later separate task,
+only after all prerequisites have accepted coverage. Full project opening and
+stage 2 remain incomplete; all negative gates and 89,36% remain unchanged.
 
 ## 2026-10-29 — WEB.ONLINE.02B.03F: STOP before Content composition
 
@@ -40,11 +49,11 @@ missing production contract. Replay stays v4 and no schema or application change
 were made. Four existing gate tests passed on isolated Docker PostgreSQL 16;
 Content Chromium acceptance and full prepush were NOT RUN at this STOP.
 
-Next: obtain a separate owner-approved recipient delivery/readiness contract
-before resuming bounded Content composition. Complete genuine readiness first,
-or separately approve a bounded read-only delivery design without a false full
-reader claim; do not implement either implicitly. Full project opening and all
-security/release gates remain blocked; official progress stays **89,36%**.
+03H resolves the architecture decision: implement genuine reader prerequisites
+through the unified ordinary protected sync path (Option A); the separate
+delivery proposal is rejected. Continue with the production dispatch/page-replay
+slice above. Do not alter gates or declare readiness. Full project opening and
+all security/release gates remain blocked; official progress stays **89,36%**.
 
 ## 2026-10-29 — WEB.ONLINE.02B.03E: Legacy Note deletion replay
 

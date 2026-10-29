@@ -1,10 +1,18 @@
-# WEB.ONLINE.02B.03G — bounded ciphertext delivery (design only)
+# WEB.ONLINE.02B.03G — bounded ciphertext delivery (historical design only)
+
+> **REJECTED BY OWNER — OPTION B MUST NOT BE IMPLEMENTED.** The owner selected
+> Option A: Desktop and Web use the existing unified C21 sync protocol. The
+> endpoint proposal below, including `GET /api/v3/recovery/encrypted/history`,
+> was not approved and is prohibited under the current decision. Do not use it
+> as an implementation path or automatic fallback. This document is retained
+> only as historical analysis; current implementation planning is in the
+> checkpoint and C21 source/proof contract.
 
 Baseline: `e2060541fb15c0bf1954ba6557878f71ac459bf9`, clean `6.0`.
 03E: owner-reported run **40844792258 — 6/6 SUCCESS**. 03F remains STOP.
-**Decision: conditional GO for B as a separately approved API contract;
-implementation/activation STOP until explicit owner approval.** No endpoint,
-capability, schema or runtime change is authorized by this document alone.
+**Historical status at authoring:** B was proposed for owner review. The later
+03H owner decision supersedes that recommendation: A is approved and B rejected.
+No endpoint, capability, schema or runtime change was authorized or made.
 
 ## Evidence and A/B decision
 
@@ -22,9 +30,9 @@ currently provides no recovery-delivery exception; B requires its explicit amend
 | A: full readiness | Accept production v10 dispatch and paged replay; orphan/dependency recovery; tombstone resurrection; further Resolution chains; local-author-after-Resolution; own Content/Resolution chains and receipts; multi-device orchestration and server gate verification. Then independently qualify ordinary1/Resolution2 before an explicit declaration task. | Several separately accepted C21 cohorts, not one update slice. No defensible time estimate from this bounded review. Map/document/progress/game/compression claims still need their own dependent gates; Note readiness does not qualify them. False early declarations could unblock other writers unsafely. |
 | B: session-authorized opaque recovery delivery | Add a distinct delivery contract and shared materialization path; retain negative readiness and all existing sync gates. Owners still decide what can be applied. | Bounded backend plus receiver work. Main risks are accidentally enrolling a sync device, partial account history, divergence from normal pull integrity, and resource amplification. |
 
-Prefer B to unblock independently testable read-only owner composition. It grants
-an already authenticated account holder access to their ciphertext, never a
-claim that any client can apply it. It does not finish A or authorize writing.
+The original design review preferred B for bounded read-only composition. That
+recommendation is historical and superseded. It must not be treated as approval
+or implementation guidance under the current owner decision.
 
 ## Proposed API (not implemented)
 
@@ -158,12 +166,11 @@ proof. Replay v4 compatibility must be established in its separate owner slice.
 | G2 receiver integration only | Real Chromium restart: full zero-origin wire reconciliation, no enrollment, duplicate/gap/truncation, changed registry, session/logout/AMK/network/abort, bounded retry/quota rollback and v12 preservation; ciphertext-only storage and zero ACK/push/capability requests. No owner outcome from receipt. |
 | F resumed: one Content update | Genuine Legacy create -> one Content update through existing Content owner; full proof/source/candidate/coverage join and recovery, negative dependency/parent/version/fork/tombstone cases. Full required Local-First acceptance; all readiness flags remain false. |
 
-**Owner approval needed:** explicitly approve this new session-authorized recovery
-endpoint and its non-enrolled client identity, shared materializer refactor,
-resource-accounting policy, and narrow amendment to section9 of 02B. This approves
-delivery only; no weakening of ordinary pull, all-device writers or reader claims.
-Until then: implementation STOP. A remains the fallback if that new contract is
-not approved. No migration or runtime change occurred in 03G.
+**Historical approval request — closed by owner decision 03H:** the proposed
+session-authorized recovery endpoint, non-enrolled delivery identity, shared
+materializer path and section-9 amendment were rejected as Option B. They must
+not be implemented. Option A is not a fallback: it is the selected architecture.
+No migration or runtime change occurred in 03G.
 
 `ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
 `projectOpened=false`; Registration CLOSED; PUBLIC RELEASE BLOCKED.

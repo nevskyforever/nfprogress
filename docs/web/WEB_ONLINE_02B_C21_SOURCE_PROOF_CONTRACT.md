@@ -694,6 +694,18 @@ project opening is claimed.
 
 ## 9. F — Device, compression and release boundaries
 
+### Owner decision 03H — unified ordinary sync (Option A)
+
+Desktop and Web use the same primary C21 server sync protocol. Desktop remains
+offline-first; Web remains online-only and authenticates with its own session.
+Authentication is not sync-device registration and grants no family capability.
+Web may use ordinary protected pull only through genuine registered-device and
+capability contracts already enforced by the server. The owner rejected the
+separate ciphertext-delivery endpoint proposed in the historical 03G design;
+that endpoint is not approved, must not be implemented, and is not an automatic
+fallback. This decision does not enable any Web reader claim, writer, or project
+opening result.
+
 Current server `SyncService.pull_encrypted()` enforces registered recipient,
 transport mode, sticky compression support and applicable recipient Note/Map/
 Document/Progress capability requirements over account history. Existing family
@@ -709,12 +721,54 @@ trailing/concatenated stream and codec/version failures reject as today.
 
 Capability declarations advertise supported reader contracts and cannot be
 inferred from account replay success. Conversely, a registered/capable device
-does not prove that this account was completely applied. The current negative
-`BrowserNoteReaderReadiness` remains unchanged. Its production dispatch, replay,
-orphan/tombstone/further-chain/own-source/all-device blockers must be closed by
-genuine producer/consumer acceptance before any future declaration task. New
-browsers whose retained histories require such declarations stay blocked until
-that work is accepted. There is no read-only pull bypass in this contract.
+does not prove that this account was completely applied. Authorization alone
+does not prove the browser can synchronize any particular family. The current
+negative `BrowserNoteReaderReadiness` remains unchanged; its source lists ten
+blockers. Existing Content ordinary owner, Resolution continuation/prefix and
+mixed-recovery implementations are bounded local owner mechanisms, not proof of
+complete production dispatch, account-page replay, all recovery cases, or the
+server gate. The list is a conservative readiness checklist; each blocker needs
+specific genuine producer/consumer acceptance and must not be removed merely
+because adjacent owner code exists.
+
+The current readiness source names these unresolved acceptance items:
+
+- `production_v10_reader_dispatch_incomplete` and
+  `transport_v10_page_replay_incomplete`: production owner dispatch and ordered
+  account-wide page replay are not jointly accepted.
+- `orphan_dependency_recovery_not_accepted`: dependent/orphan recovery is not
+  accepted as complete for readiness.
+- `tombstone_resurrection_not_accepted`: resurrection after deletion is
+  deliberately rejected by the current tested path.
+- `further_resolution_chains_not_accepted` and
+  `local_author_after_resolution_not_accepted`: later Resolution lineage and
+  local-author continuation remain outside accepted readiness.
+- `own_content_self_echo_not_qualified` and
+  `own_resolution_author_chain_not_accepted`: own-device Content/Resolution
+  lineage needs genuine source/receipt-chain acceptance.
+- `multi_device_reader_orchestration_not_proven`: complete reader behavior
+  across registered devices has not been accepted.
+- `server_note_gate_not_checked`: the dormant diagnostic does not verify the
+  current server Note gate; ordinary pull still enforces it.
+
+This is the runtime's current negative readiness contract and its acceptance
+meaning, not a claim that no related helper or bounded owner code exists.
+Existing tests directly exercise fail-closed behavior for selected cases,
+including tombstone resurrection, local author after Resolution, missing
+sequence, identity revocation and absence of network/capability/ACK calls. Those
+tests do not close a broader item until production-flow acceptance covers it.
+
+The immediate implementation slice is production v10 ordinary reader dispatch
+and account-wide ordered page replay through the existing protected pull and
+owner/recovery path. Acceptance must include genuine mixed history, restart and
+server gate parity on a legitimately registered capable test device, while
+confirming unready recipients remain refused. This slice does not PUT
+capabilities or change readiness. Follow with orphan/dependency recovery and
+the remaining Resolution lineage, tombstone/resurrection, local-author,
+self-echo/receipt and multi-device orchestration contracts in dependency order.
+Only after all required reader claims have real accepted coverage may a separate
+task consider capability declaration. No separate recovery transport exists;
+there is no bypass of recipient readiness.
 
 No PUT capabilities/reader-ready, ACK, auto-bootstrap/cutover, push, cloud writer,
 ordinary local editor write or outbound Game effect is authorized. Keep
