@@ -156,6 +156,14 @@ ESLint and `git diff --check` passed. Final local prepush PASS: 831 Vitest /
 one backup/restore test. 03J remains locally implemented and independently
 unaccepted until a new CI run succeeds; no readiness or release gate is changed.
 
+## 2026-10-29 — WEB.ONLINE.02B.03J.CI2 — Restore Frontend CI trigger
+
+The CI1 fix was pushed, but its changed acceptance script was missing from the
+`push` and `pull_request` path filters in `cloud-backend-tests.yml`, so no new
+independent run was triggered. Added the exact script path to both filters; the
+existing workflow jobs and checks are unchanged. CI1 remains locally complete,
+with independent acceptance pending a new six-job run.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03J — replay v5 Content adapter
 
 Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`. Explicit single-event
