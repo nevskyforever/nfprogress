@@ -134,6 +134,7 @@ backend_checks() {
     tests/test_web_replay_metadata.py \
     tests/test_web_replay_structural.py \
     tests/test_web_replay_source_seed.py \
+    tests/test_web_replay_ordered_content.py \
     tests/test_cloud_encrypted_schema.py \
     tests/test_cloud_encrypted_sync.py \
     tests/test_cloud_encrypted_sync_v2.py \

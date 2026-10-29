@@ -15,6 +15,7 @@ on:
       - 'frontend/scripts/browser-replay-metadata-acceptance.mjs'
       - 'frontend/scripts/browser-replay-structural-acceptance.mjs'
       - 'frontend/scripts/browser-replay-source-seed-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-ordered-content-server-acceptance.mjs'
       - 'frontend/scripts/replay-source-seed-fixture.mjs'
       - 'frontend/scripts/replay-structural-fixture.mjs'
       - 'frontend/scripts/replay-metadata-fixture.mjs'
@@ -63,6 +64,7 @@ on:
       - 'tests/test_web_replay_metadata.py'
       - 'tests/test_web_replay_structural.py'
       - 'tests/test_web_replay_source_seed.py'
+      - 'tests/test_web_replay_ordered_content.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -136,6 +138,7 @@ on:
       - 'frontend/scripts/browser-replay-metadata-acceptance.mjs'
       - 'frontend/scripts/browser-replay-structural-acceptance.mjs'
       - 'frontend/scripts/browser-replay-source-seed-acceptance.mjs'
+      - 'frontend/scripts/browser-replay-ordered-content-server-acceptance.mjs'
       - 'frontend/scripts/replay-source-seed-fixture.mjs'
       - 'frontend/scripts/replay-structural-fixture.mjs'
       - 'frontend/scripts/replay-metadata-fixture.mjs'
@@ -184,6 +187,7 @@ on:
       - 'tests/test_web_replay_metadata.py'
       - 'tests/test_web_replay_structural.py'
       - 'tests/test_web_replay_source_seed.py'
+      - 'tests/test_web_replay_ordered_content.py'
       - 'tests/test_c18_content_action_integration.py'
       - 'frontend/src/**'
       - 'frontend/src-tauri/**'
@@ -287,6 +291,7 @@ jobs:
               tests/test_web_replay_metadata.py
               tests/test_web_replay_structural.py
               tests/test_web_replay_source_seed.py
+              tests/test_web_replay_ordered_content.py
               tests/test_cloud_c18_content_note_acceptance.py
               tests/test_cloud_c18_map_gate.py
               tests/test_cloud_c18_map_acceptance.py

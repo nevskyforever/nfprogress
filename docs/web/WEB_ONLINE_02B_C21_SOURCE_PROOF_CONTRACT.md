@@ -693,6 +693,18 @@ All negative flags and security/release gates remain; no Content cohort or full
 project opening is claimed.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01B — bounded real-server proof
+
+The production session can invoke `applyOrderedContentUpdate` behind the
+existing account-wide durable receiver and protected v3 pull. An isolated
+FastAPI/PostgreSQL 16 account demonstrates legal API-created source and
+recipient devices, real ciphertext producers, the unready recipient's HTTP 409
+gate, and one explicitly qualified test recipient's bounded owner application.
+On Chromium restart the receiver rechecks original server history and all
+durable v5 proofs; changed history and damaged cache fail without new coverage.
+This does not permit a production Web capability PUT. Ordinary1/Resolution2
+reader readiness and all other C21 gates remain separate prerequisites.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01A2 — ordered owner composition
 
 `composeReplayOrderedContent` reuses the existing Metadata/Stage/StageOrder/

@@ -4,7 +4,8 @@ export async function seedSourceAccount(page, username, options = {}) {
     const cryptoApi = await import('/src/crypto/index.ts'), { encodeBase64Url } = await import('/src/api/base64url.ts')
     const { accountCryptoApi } = await import('/src/api/accountCrypto.ts')
     const { sealProjectMetadataEvent } = await import('/src/cloud/projectMetadataCodec.ts')
-    const { sealNoteSyncEvent } = await import('/src/cloud/encryptedSyncProtocol.ts')
+    const { sealNoteSyncEvent, createNoteSyncPlaintext } = await import('/src/cloud/encryptedSyncProtocol.ts')
+    const { frameContentNote } = await import('/src/cloud/contentNoteCodec.ts')
     const { sealStructuralEvent } = await import('/src/cloud/stageCodec.ts')
     const metadata = (await (await fetch('/src/cloud/__fixtures__/projectMetadataV2.json')).json())[0].event
     const note = (await (await fetch('/src/cloud/__fixtures__/noteSyncPlaintextV1.json')).json()).plaintext.note
@@ -37,10 +38,13 @@ export async function seedSourceAccount(page, username, options = {}) {
           title: `PRIVATE_SEED_NOTE_${index}`, content: `PRIVATE_SEED_CONTENT_${index}`, metadata: {} })
         firstNotes.push({ event: sealed.event, object: encoded(sealed.object) })
       }
-      const accepted = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3, device_id: source, items: firstNotes })
-      await api(`/api/v1/cloud/projects/${projects[0].project_id}/bootstrap/complete`, 'POST', { bootstrap_id: projects[0].bootstrap_id, device_id: source, initial_event_count: 2, initial_max_server_sequence: accepted.results[1].server_sequence })
-      await api(`/api/v1/cloud/projects/${projects[1].project_id}/bootstrap/complete`, 'POST', { bootstrap_id: projects[1].bootstrap_id, device_id: source,
-        initial_event_count: options.secondProjectNote ? 1 : 0, initial_max_server_sequence: options.secondProjectNote ? accepted.results[2].server_sequence : 0 })
+      const finishInitialNotes = async () => {
+        const accepted = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3, device_id: source, items: firstNotes })
+        await api(`/api/v1/cloud/projects/${projects[0].project_id}/bootstrap/complete`, 'POST', { bootstrap_id: projects[0].bootstrap_id, device_id: source, initial_event_count: 2, initial_max_server_sequence: accepted.results[1].server_sequence })
+        await api(`/api/v1/cloud/projects/${projects[1].project_id}/bootstrap/complete`, 'POST', { bootstrap_id: projects[1].bootstrap_id, device_id: source,
+          initial_event_count: options.secondProjectNote ? 1 : 0, initial_max_server_sequence: options.secondProjectNote ? accepted.results[2].server_sequence : 0 })
+      }
+      if (!options.contentUpdate) await finishInitialNotes()
       const items = [], heads = new Map()
       for (let index = 0; index < (options.metadataCount ?? 102); index++) {
         const project = projects[index % 2], previous = heads.get(project.project_id), event = structuredClone(metadata)
@@ -81,6 +85,8 @@ export async function seedSourceAccount(page, username, options = {}) {
               entity_type: 'stage_order', operation: 'upsert', revision: 1, updated_at: order.header.updated_at, deleted_at: null }, object: encoded(envelope) }] })
         }
       }
+      // This bounded server cohort puts owner prerequisites before its initial Note events.
+      if (options.contentUpdate) await finishInitialNotes()
       const noteHeads = firstNotes.map(item => item.event.event_id), revisions = firstNotes.map(() => 1), updates = []
       for (const [ordinal, index] of (options.postInitialUpdates ?? []).entries()) {
         if (!firstNotes[index]) throw Error('fixture_update_note_missing')
@@ -147,8 +153,40 @@ export async function seedSourceAccount(page, username, options = {}) {
           device_id: source, items: [{ event: sealed.event, object: encoded(sealed.object) }] })
         malformedDelete = { kind, event_id: event.event_id, parent_event_id: parent, revision, server_sequence: pushed.results[0].server_sequence }
       }
-      return { projects, source, count: firstNotes.length + items.length + (options.stage ? 1 : 0) + (options.stageOrder ? 1 : 0) + updates.length + deletions.length + (malformed ? 1 : 0) + (malformedDelete ? 1 : 0),
-        firstNoteIds: firstNotes.map(item => item.event.entity_id), updates, deletions, malformed, malformedDelete }
+      let content = null
+      let laterEvent = null
+      if (options.contentUpdate) {
+        if (updates.length || deletions.length || malformed || malformedDelete) throw Error('fixture_content_requires_initial_note')
+        await api('/api/v3/sync/encrypted/note-reader-capabilities', 'PUT', { device_id: source,
+          reader_transport_version: 3, frame_version: 1, codec8_version: 1, compression_zero: true,
+          ordinary_reader_version: 1, resolution_reader_version: 2 })
+        const project = projects[0], initial = firstNotes[0].event, updated_at = '2026-01-10T00:00:00.000000Z'
+        const event = { event_id: crypto.randomUUID(), project_id: project.project_id, entity_id: initial.entity_id,
+          entity_type: 'note', operation: 'upsert', revision: 2, updated_at, deleted_at: null }
+        const { plaintext } = createNoteSyncPlaintext(event, initial.event_id, { ...note, id: initial.entity_id,
+          project_id: project.project_id, title: 'PRIVATE_CONTENT_UPDATE', content: 'PRIVATE_CONTENT_UPDATE_BODY',
+          updated_at, metadata: {} })
+        const frame = frameContentNote({ version: 1, account_id: me.id, device_id: source,
+          dependencies: { bootstrap_id: project.bootstrap_id, metadata_event_id: heads.get(project.project_id).event_id,
+            stage_event_ids: [] }, event: plaintext })
+        const sealed = await cryptoApi.encryptObjectBytes(amk, { userId: me.id, projectId: project.project_id,
+          entityId: event.entity_id, entityType: 'note' }, frame)
+        frame.fill(0)
+        const pushed = await api('/api/v3/sync/encrypted/push', 'POST', { protocol_version: 3, encrypted_sync_version: 3,
+          device_id: source, items: [{ event: { ...event, operation: 'event' }, object: encoded(sealed) }] })
+        content = { event_id: event.event_id, server_sequence: pushed.results[0].server_sequence }
+        const later = structuredClone(metadata), previous = heads.get(project.project_id)
+        Object.assign(later.header, { account_id: me.id, project_id: project.project_id, entity_id: project.project_id,
+          bootstrap_id: project.bootstrap_id, device_id: source, event_id: crypto.randomUUID(), operation: 'update',
+          revision: previous.revision + 1, generation: previous.generation + 1, parent_event_ids: [previous.event_id] })
+        later.metadata.name = 'PRIVATE_LATER_SERVER_HISTORY'
+        const envelope = await sealProjectMetadataEvent(amk, later), h = later.header
+        laterEvent = { event: { event_id: h.event_id, project_id: h.project_id, entity_id: h.entity_id,
+          entity_type: 'project_metadata', operation: 'upsert', revision: h.revision, updated_at: h.updated_at, deleted_at: null },
+        object: encoded(envelope) }
+      }
+      return { projects, source, count: firstNotes.length + items.length + (options.stage ? 1 : 0) + (options.stageOrder ? 1 : 0) + updates.length + deletions.length + (malformed ? 1 : 0) + (malformedDelete ? 1 : 0) + (content ? 1 : 0),
+        firstNoteIds: firstNotes.map(item => item.event.entity_id), updates, deletions, malformed, malformedDelete, content, laterEvent }
     } finally { amk.fill(0); recoveryKey.fill(0) }
   }, { username, options })
 }

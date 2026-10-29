@@ -15,6 +15,16 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01B — real server acceptance
+
+The bounded ordered Content route now has an isolated real FastAPI/PostgreSQL 16
+and Chromium acceptance through the ordinary protected v3 pull. A registered
+recipient without Note readiness is rejected by the server. Test-only explicit
+qualification permits one Metadata/Structural/Legacy/Content history, whose
+owner proofs survive browser restart and fresh server verification. This does
+not qualify production Web reader capabilities or open a complete project.
+Next: a separate reader-readiness slice covering remaining C21 blockers.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01A2 — ordered owner composition
 
 One bounded terminal peer Content update can now follow the existing ordered

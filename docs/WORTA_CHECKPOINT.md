@@ -187,6 +187,23 @@ or CI job count change. Independent CI for this slice is pending.
 Independent acceptance reported by the owner: **40925410328 — 6/6 SUCCESS**
 for A1 (`20c8c4b281772d849df4512e021f5a11e8f9a8ee`).
 
+## 2026-10-29 — WEB.ONLINE.02B.03K.01B — real server Content replay acceptance
+
+03K.01A2 at `fc820f37d5023410ff53a94fc7431c73ad90e5ae` was independently
+accepted by GitHub Actions run `40935338569` (6/6 SUCCESS). This slice connects
+the existing ordered replay v5 composition to the ordinary protected v3 pull
+through `BrowserCloudAccountSession`. An isolated FastAPI/PostgreSQL 16 and real
+Chromium profile produce and receive Metadata, Stage, StageOrder, initial Legacy
+Notes and one terminal Content update. The unqualified registered recipient gets
+the real HTTP 409 `content_note_reader_required`; a separately qualified test
+recipient receives and applies the history. The test checks durable owner proofs,
+restart reauthentication, duplicate-free retry, interrupted pull, damaged local
+ciphertext and a subsequently changed server history. Test-only capability
+qualification uses existing APIs; production Web performs no declaration.
+Replay remains v5. This bounded acceptance does not establish full browser
+reader readiness, project opening, ACK, push or writer authorization. Independent
+CI acceptance of this slice is pending; all release/security gates stay negative.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01A2 — ordered Content owner composition
 
 An internal ordered replay path now checks the complete v5 account inventory
