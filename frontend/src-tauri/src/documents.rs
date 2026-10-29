@@ -2747,6 +2747,51 @@ mod tests {
     }
 
     #[test]
+    fn linked_word_record_progress_survives_restart_and_repeat() {
+        let _guard = DATA_DIR_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let root = std::env::temp_dir().join(format!("worta-record-word-{}", std::process::id()));
+        let previous = std::env::var_os("NFPROGRESS_DATA_DIR");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        std::env::set_var("NFPROGRESS_DATA_DIR", &root);
+        let result = (|| -> Result<(), String> {
+            let (db, _) = open()?;
+            db.execute("INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('p','Book',100,0,'symbols','активен',?)", [serde_json::json!({"name":"Book","status":"активен","work_method":"app","unit":"symbols","goal":100,"total":0,"stages":[]}).to_string()]).map_err(|e| e.to_string())?;
+            db.execute("INSERT INTO project_order(project_id,position) VALUES('p',0)", []).map_err(|e| e.to_string())?;
+            drop(db);
+            let initial = serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Initial"}]}]});
+            let edited = serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Edited manuscript"}]}]});
+            save_document(DocumentSaveCommand { project_id:"p".into(), stage_id:None, content:initial.clone(), expected_heads:None })?;
+            let word = root.join("test.docx");
+            fs::write(&word, build_docx(&initial)?).map_err(|e| e.to_string())?;
+            bind_document_file(DocumentFileCommand { project_id:"p".into(), stage_id:None, path:word.to_string_lossy().into_owned() })?;
+            let saved = save_document(DocumentSaveCommand { project_id:"p".into(), stage_id:None, content:edited.clone(), expected_heads:None })?;
+            let recorded = record_document_progress(DocumentProgressCommand { project_id:"p".into(), stage_id:None, content:Some(edited.clone()), expected_heads:Some(saved["expected_heads"].clone()) })?;
+            assert!(recorded["progress"].is_object());
+            let repeat = record_document_progress(DocumentProgressCommand { project_id:"p".into(), stage_id:None, content:Some(edited.clone()), expected_heads:Some(recorded["document"]["expected_heads"].clone()) })?;
+            assert!(repeat["progress"].is_null());
+            let reopened = get_document(DocumentScope { project_id:"p".into(), stage_id:None, expected_heads:None })?;
+            assert_eq!(reopened["content"], edited);
+            assert_eq!(symbols(&parse_docx(&fs::read(&word).map_err(|e| e.to_string())?)?.0), symbols(&initial));
+            let db = rusqlite::Connection::open(root.join("nfprogress.db")).map_err(|e| e.to_string())?;
+            let count: i64 = db.query_row("SELECT COUNT(*) FROM progress_entries WHERE project_id='p'", [], |r| r.get(0)).map_err(|e| e.to_string())?;
+            assert_eq!(count, 1);
+            drop(db);
+            let proposal = resolve_external_binding(ExternalDecisionCommand { project_id:"p".into(), stage_id:None, choice:"compare".into() })?;
+            assert_eq!(proposal["sync_state"], "external_proposal");
+            resolve_external_binding(ExternalDecisionCommand { project_id:"p".into(), stage_id:None, choice:"cloud".into() })?;
+            assert_eq!(symbols(&parse_docx(&fs::read(&word).map_err(|e| e.to_string())?)?.0), symbols(&edited));
+            fs::rename(&word, root.join("missing.docx")).map_err(|e| e.to_string())?;
+            assert!(resolve_external_binding(ExternalDecisionCommand { project_id:"p".into(), stage_id:None, choice:"cloud".into() }).is_err());
+            assert_eq!(get_document(DocumentScope { project_id:"p".into(), stage_id:None, expected_heads:None })?["content"], edited);
+            Ok(())
+        })();
+        if let Some(value) = previous { std::env::set_var("NFPROGRESS_DATA_DIR", value); } else { std::env::remove_var("NFPROGRESS_DATA_DIR"); }
+        let _ = fs::remove_dir_all(&root);
+        result.unwrap();
+    }
+
+    #[test]
     fn linked_word_self_write_is_immediately_reported_as_synced() {
         let _env_guard = DATA_DIR_ENV_LOCK
             .lock()

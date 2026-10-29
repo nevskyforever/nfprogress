@@ -30,6 +30,7 @@ vi.mock('@/api/documents', () => ({
     get: vi.fn(),
     link: vi.fn(),
     recordProgress: vi.fn(),
+    resolveExternal: vi.fn(),
     save: vi.fn(),
     writeDocx: vi.fn(),
     writeDocxContent: vi.fn(),
@@ -93,6 +94,7 @@ describe('DocumentEditorView custom editor integration', () => {
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     vi.mocked(documentsApi.recordProgress).mockReset()
+    vi.mocked(documentsApi.resolveExternal).mockReset()
     vi.mocked(documentsApi.external).mockReset()
     vi.mocked(documentsApi.acceptWord).mockReset()
     vi.mocked(documentsApi.parseWord).mockReset()
@@ -283,7 +285,7 @@ describe('DocumentEditorView custom editor integration', () => {
       sync_state: 'synced',
       last_synced_hash: 'word-hash',
     })
-    vi.mocked(documentsApi.writeDocxContent).mockResolvedValue(syncedDocument)
+    vi.mocked(documentsApi.resolveExternal).mockResolvedValue(syncedDocument)
     const wrapper = mountEditor(projectFixture(), linkedDocument)
     await flushPromises()
     await vi.advanceTimersByTimeAsync(5000)
@@ -296,14 +298,9 @@ describe('DocumentEditorView custom editor integration', () => {
 
     const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
     expect(api.getJSON()).toMatchObject(initialContent)
-    expect(documentsApi.writeDocxContent).toHaveBeenCalledOnce()
-    expect(vi.mocked(documentsApi.writeDocxContent).mock.calls[0]?.[0]).toEqual({ projectId: 'project-id' })
-    expect(vi.mocked(documentsApi.writeDocxContent).mock.calls[0]?.[1]).toMatchObject(initialContent)
-    expect(documentsApi.acceptWord).toHaveBeenCalledWith(
-      { projectId: 'project-id' },
-      expect.any(Object),
-      'word-hash',
-    )
+    expect(documentsApi.resolveExternal).toHaveBeenCalledOnce()
+    expect(documentsApi.resolveExternal).toHaveBeenCalledWith({ projectId: 'project-id' }, 'cloud')
+    expect(documentsApi.acceptWord).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(5000)
     await flushPromises()

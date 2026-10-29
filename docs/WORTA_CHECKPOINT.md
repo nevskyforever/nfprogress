@@ -12390,3 +12390,12 @@ product slice remains the encrypted Web projects/stages repository connected
 to the existing Vue UI. Web progress stays **89.36%**; `ready=false`,
 `declarationAllowed=false`, `writerAuthorized=false`, registration CLOSED,
 PUBLIC RELEASE BLOCKED and C21/C22/C23/PF6.0/RC gates remain unchanged.
+
+## 2026-10-30 — 5.3.10 follow-up queue
+
+The following reported issues are separate follow-up tasks and have not been
+investigated or fixed by HOTFIX.GAME.01B:
+
+* Global streak: missing damage, resurrection and notifications; repeated
+  damage on subsequent days; negative health; and status not updating.
+* Shop cart: quantities can exceed the permitted item limit.
