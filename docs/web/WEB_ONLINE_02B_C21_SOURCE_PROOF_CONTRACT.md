@@ -693,6 +693,54 @@ All negative flags and security/release gates remain; no Content cohort or full
 project opening is claimed.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03J — versioned Content replay adapter
+
+Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`, branch `6.0`.
+Replay **v5** adds an explicit `applyContentUpdate(sequence, ...)` adapter; no
+production ordered dispatch or UI activation is included. It accepts one
+peer-origin Content ordinary1 update of a live, owner-proven Legacy Note.
+It reuses `BrowserContentNoteApplyRuntime`/Legacy causal planner and the existing
+full-inventory transaction port. Inbox7, candidate2/transport proof, encrypted
+source/projection, Note head and coverage commit in the same native transaction.
+Full original account wire is freshly compared via ordinary protected v3 pull;
+registry/mode, auth/AMK and inventory/generation are checked before publication.
+Reauthentication uses genuine Content validators and the owner's Metadata/Stage
+prerequisites. Receipt or coverage alone never grants readiness or project open.
+
+Migration validates v1–v4 inventories and only upgrades the manifest contract;
+all ciphertext, source seeds, owner proofs and records are retained. Stores and
+indexes are unchanged. v4 clients fail with IndexedDB VersionError against v5.
+Developer `worta-web` v12, SQLite and PostgreSQL schemas remain unchanged.
+
+Focused acceptance: genuine Legacy -> Content owner records, retry without
+rewrites, wrong parent/revision/ciphertext, partial source/projection/head/proof/
+transport/coverage rejection, aborted commit, network/registry/cancellation.
+Native Chromium closes and relaunches its real profile, upgrades populated v4,
+checks migration quota rollback, owner quota/abort rollback, unchanged retained
+records, ciphertext-only persistence, restart proof authentication and old-client
+refusal (14 browser checks). Browser v3 replies in this isolated adapter test are
+mocked: it proves storage/owner composition, not production server delivery or
+Web capability qualification. Server regressions remain separately required.
+**LOCAL COMPLETE / INDEPENDENT CI PENDING (adapter scope only).** Final
+`local_acceptance.sh prepush` PASS: 831 Vitest / 30 files, the additional native
+adapter run (15 focused tests / 14 browser checks), typecheck/build, seven frontend
+Chromium scripts, 269 isolated PostgreSQL16 regressions (including eight existing
+real-API browser suites), and one encrypted-blob backup/restore test. Changed-file
+ESLint, workflow/shell validation, document links and `git diff --check` PASS.
+Earlier failures were stale v4 manifest/version expectations in test fixtures;
+these were corrected to v5, and the final complete prepush passed. Native Content
+adapter replies remain mocked as stated above; no full production dispatch or
+Content server-delivery acceptance is inferred. New browser test adds about three
+seconds locally to the existing Frontend admin job; six jobs/limits are retained.
+
+Option A remains approved; Option B rejected. All ten readiness blockers remain
+unresolved pending their own production acceptance. `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, `projectOpened=false`,
+Registration CLOSED, PUBLIC RELEASE BLOCKED and C21/C22/C23/PF6.0/RC remain.
+Product stage 2/6 and historical progress 89,36% are unchanged. Next slice:
+connect ordered production dispatch to this adapter under ordinary server gates;
+Content create/delete/conflict/self-echo/Resolution and writer remain blocked.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03I — STOP: replay Content record composition
 
 Starting baseline `eec525001e3894a86076b390ec9cdce005cc3dd4`, clean `6.0`.

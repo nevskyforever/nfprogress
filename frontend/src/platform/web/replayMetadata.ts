@@ -27,7 +27,7 @@ export interface ReplayStructuralResult extends Omit<ReplayMetadataResult, 'kind
 export interface ReplayInitialNoteResult extends Omit<ReplayStructuralResult, 'kind'> {
   readonly kind: 'initial_legacy_notes_applied'; readonly noteProofs: number
 }
-interface MetadataPort {
+export interface MetadataPort {
   read(): Promise<ReplaySnapshot>
   transaction(expected: ReplaySnapshot, sequence: number, server: () => Promise<void>): BrowserSyncTransaction
 }
@@ -45,7 +45,7 @@ export async function reauthenticateReplayOwners(scope: BrowserSyncScope, snapsh
   }
   let authenticated = 0
   for (const row of snapshot.rows) if (row.state !== 'received') {
-    if (!(row.state === 'note_proven' ? notes.has(row.server_sequence) : certificates.get(row.state)?.has(row.server_sequence)))
+    if (!(row.state === 'note_proven' || row.state === 'content_note_proven' ? notes.has(row.server_sequence) : certificates.get(row.state)?.has(row.server_sequence)))
       throw new BrowserReplayError(structural ? 'structural_proof_reauthentication_failed' : 'metadata_proof_reauthentication_failed')
     authenticated++
   }

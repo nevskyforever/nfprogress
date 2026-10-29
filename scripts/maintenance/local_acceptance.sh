@@ -154,6 +154,7 @@ frontend_checks() {
     src/platform/web/cloudRead.spec.ts \
     src/platform/web/replayReceiver.spec.ts \
     src/platform/web/replayStructural.spec.ts \
+    src/platform/web/replayContentUpdate.spec.ts \
     src/platform/web/replaySourceSeed.spec.ts \
     src/platform/web/stageApply.spec.ts \
     src/platform/web/stageOrderApply.spec.ts \
@@ -232,6 +233,11 @@ frontend_checks() {
     return "$status"
   }
   node scripts/browser-replay-storage-acceptance.mjs http://127.0.0.1:5173 || {
+    local status=$?
+    cleanup_vite
+    return "$status"
+  }
+  WORTA_CONTENT_CHROMIUM=1 npm exec vitest run src/platform/web/replayContentUpdate.spec.ts || {
     local status=$?
     cleanup_vite
     return "$status"

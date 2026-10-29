@@ -1,3 +1,4 @@
+import { contentHistoryJoin } from './contentNoteProof'
 import { BrowserPersistenceError } from './persistence'
 import { validateBrowserInboxRecord, validateBrowserSyncCursor, type BrowserInboxRecord, type BrowserSyncScope } from './syncDurability'
 import { validateBrowserProjectBinding, type BrowserProjectBinding } from './projectBindings'
@@ -14,6 +15,11 @@ export interface ReplaySnapshot {
   notes?: LocalNoteRecord[]; noteHistory?: BrowserNoteHistoryRecord[]
 }
 /** Derived coverage is never a qualified cursor or owner certificate. */
+export function replayNoteOutcome(row: BrowserInboxRecord) {
+  if (row.state === 'note_proven') return row.note_proof
+  if (row.state === 'content_note_proven') return row.content_note_proof
+  throw new BrowserPersistenceError('corrupt_record')
+}
 export function replayCoverage(manifest: ReplayManifest, row: BrowserInboxRecord) {
   const sequence = row.server_sequence
   return { ...manifest, applied_cursor: sequence, metadata_cursor: row.state === 'applied' && sequence === (manifest.metadata_cursor ?? 0) + 1 ? sequence : manifest.metadata_cursor,
@@ -25,13 +31,17 @@ export function replayAppliedProof(row: BrowserInboxRecord): BrowserMetadataProo
 export function assertReplayOwnerTransition(before: ReplaySnapshot, after: ReplaySnapshot, sequence: number, status: unknown): void {
   if (status === 'already_applied') { if (!replaySame(before, after)) fail(); return }
   const manifest = before.manifest!, previous = before.rows[sequence - 1], row = after.rows[sequence - 1]
-  if (row?.state === 'note_proven') {
-    const proof = row.note_proof, project = proof.header.project_id, note = proof.header.entity_id
+  if (row?.state === 'note_proven' || row?.state === 'content_note_proven') {
+    if (row.state === 'content_note_proven') {
+      if (row.content_note_proof.mutation !== 'update') fail()
+      contentHistoryJoin({ accountId: manifest.account_id, canonicalUserId: manifest.canonical_user_id, deviceId: manifest.device_id }, row, after.noteHistory ?? [])
+    }
+    const proof = replayNoteOutcome(row), project = proof.header.project_id, note = proof.header.entity_id
     if (status !== 'applied' || previous?.state !== 'received' || proof.outcome !== 'applied'
       || sequence !== (manifest.applied_cursor ?? 0) + 1 || !replaySame(after.manifest, replayCoverage(manifest, row))
       || !replaySame(before.bindings, after.bindings) || !replaySame(before.owners, after.owners)
       || !replaySame(before.rows.filter(value => value.server_sequence !== sequence), after.rows.filter(value => value.server_sequence !== sequence))) fail()
-    const original = { ...row } as Record<string, unknown>; delete original.note_proof
+    const original = { ...row } as Record<string, unknown>; delete original.note_proof; delete original.content_note_proof
     if (!replaySame({ ...original, record_version: 1, state: 'received' }, previous)) fail()
     const sourceBefore = before.sources?.find(value => value.project_id === project)
     const sourceAfter = after.sources?.find(value => value.project_id === project)
@@ -48,6 +58,7 @@ export function assertReplayOwnerTransition(before: ReplaySnapshot, after: Repla
       || (proof.mutation === 'create' ? !!noteBefore || !!oldHead || oldCandidates.length !== 0
         : (proof.mutation !== 'update' && proof.mutation !== 'delete') || !noteBefore || noteBefore.deleted
           || !oldHead || oldHead.linear_head_event_id !== proof.header.parent_event_id)
+      || !replaySame(newCandidates.find(candidate => candidate.event_id === row.event_id)?.projection, noteAfter)
       || noteAfter.deleted !== (proof.mutation === 'delete')
       || !newHead || newHead.head_revision !== (oldHead?.head_revision ?? 0) + 1
       || newHead.linear_head_event_id !== row.event_id || newCandidates.length !== oldCandidates.length + 1
@@ -82,7 +93,7 @@ const range = (account: string) => IDBKeyRange.bound([account], [account, []])
 
 /** Complete account snapshot, with structural joins only. Crypto is owned by the existing family certificates. */
 export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, check: () => void,
-  result: (snapshot: ReplaySnapshot) => void, abort: (error: unknown) => void, version: 1 | 2 | 3 | 4 = 4): void {
+  result: (snapshot: ReplaySnapshot) => void, abort: (error: unknown) => void, version: 1 | 2 | 3 | 4 | 5 = 5): void {
   const bound = range(s.accountId), rows: BrowserInboxRecord[] = []
   const identity = tx.objectStore('identities').get(s.canonicalUserId), alias = tx.objectStore('identities').index('local_account_id').get(s.accountId)
   const binding = tx.objectStore('accountBindings').get(s.accountId), cursors = tx.objectStore('cursors').getAll(bound)
@@ -110,9 +121,9 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       const sources = projects.result.map(raw => validateLocalProjectRecord(raw, s))
       const notes = localNotes.result.map(raw => validateLocalNoteRecord(raw, s, raw.project_id))
       const history = validateNoteHistorySet(s, noteHistory.result)
-      const noteProofs = rows.filter(row => row.state === 'note_proven')
+      const noteProofs = rows.filter(row => row.state === 'note_proven' || row.state === 'content_note_proven')
       const noteKey = (project: string, note: string) => JSON.stringify([project, note])
-      const noteKeys = new Set(noteProofs.map(row => noteKey(row.note_proof.header.project_id, row.note_proof.header.entity_id)))
+      const noteKeys = new Set(noteProofs.map(row => noteKey(replayNoteOutcome(row).header.project_id, replayNoteOutcome(row).header.entity_id)))
       const candidates = history.filter((record): record is BrowserNoteCandidate => record.record_kind === 'candidate')
       const noteHeads = history.filter((record): record is BrowserNoteHead => record.record_kind === 'head')
       if (version < 4 && (notes.length || history.length) || sources.length !== (manifest?.source_seeds?.length ?? 0) || sources.some(row => row.deleted
@@ -124,8 +135,8 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         || candidates.some(candidate => !noteProofs.some(row => row.event_id === candidate.event_id))
         || noteHeads.some(head => !noteKeys.has(noteKey(head.project_id, head.note_id)))) fail()
       for (const source of sources) {
-        const appliedNotes = noteProofs.filter(row => row.note_proof.header.project_id === source.project_id)
-        if (source.source_revision !== appliedNotes.length + 1 || appliedNotes.some((row, index) => row.note_proof.source_revision !== index + 2)) fail()
+        const appliedNotes = noteProofs.filter(row => replayNoteOutcome(row).header.project_id === source.project_id)
+        if (source.source_revision !== appliedNotes.length + 1 || appliedNotes.some((row, index) => replayNoteOutcome(row).source_revision !== index + 2)) fail()
       }
       for (const seed of manifest?.source_seeds ?? []) {
         const genesis = rows.find(row => row.event_id === seed.genesis_event_id)
@@ -138,31 +149,34 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       let ciphertextBytes = 0
       const ids = new Set<string>()
       for (const [index, row] of rows.entries()) {
-        if (row.server_sequence !== index + 1 || ids.has(row.event_id) || (row.server_sequence <= applied) !== (!!replayAppliedProof(row) || row.state === 'note_proven')) fail()
+        if (row.server_sequence !== index + 1 || ids.has(row.event_id) || (row.server_sequence <= applied) !== (!!replayAppliedProof(row) || row.state === 'note_proven' || row.state === 'content_note_proven')) fail()
         ids.add(row.event_id)
         const wire = JSON.parse(row.wire_item) as { event: { project_id: string }; object: { ciphertext: string } }
         ciphertextBytes += Math.floor(wire.object.ciphertext.length * 3 / 4)
         const proof = replayAppliedProof(row)
-        if (row.state === 'note_proven') {
-          const p = row.note_proof, seed = manifest?.source_seeds?.find(value => value.project_id === p.header.project_id)
+        if (row.state === 'note_proven' || row.state === 'content_note_proven') {
+          if (row.state === 'content_note_proven') contentHistoryJoin(s, row, history)
+          const p = replayNoteOutcome(row), seed = manifest?.source_seeds?.find(value => value.project_id === p.header.project_id)
           const retained = JSON.parse(row.wire_item), { device_id: sourceDevice, server_sequence: sourceSequence, ...event } = retained.event
           const candidate = candidates.find(value => value.event_id === row.event_id)
           const sameNote = noteProofs.filter(value => value.server_sequence <= row.server_sequence
-            && value.note_proof.header.project_id === p.header.project_id && value.note_proof.header.entity_id === p.header.entity_id)
+            && replayNoteOutcome(value).header.project_id === p.header.project_id && replayNoteOutcome(value).header.entity_id === p.header.entity_id)
           const previous = sameNote.at(-2), isInitial = row.server_sequence <= (seed?.initial_max_server_sequence ?? 0)
           const isLatest = !noteProofs.some(value => value.server_sequence > row.server_sequence
-            && value.note_proof.header.project_id === p.header.project_id && value.note_proof.header.entity_id === p.header.entity_id)
+            && replayNoteOutcome(value).header.project_id === p.header.project_id && replayNoteOutcome(value).header.entity_id === p.header.entity_id)
           const note = notes.find(value => value.note_id === p.header.entity_id)
           if (!seed || p.outcome !== 'applied' || p.bootstrap_id !== seed.bootstrap_id || p.reference.device_id !== seed.origin_device_id
             || (isInitial ? !!previous || p.header.revision !== 1 || p.mutation !== 'create' || p.header.parent_event_id !== null
-              : !previous || previous.note_proof.mutation === 'delete' || !['update', 'delete'].includes(p.mutation)
-                || p.header.revision !== previous.note_proof.header.revision + 1 || p.header.parent_event_id !== previous.event_id)
-            || !candidate || candidate.record_version !== 1 || candidate.origin !== 'peer' || candidate.bootstrap_id !== seed.bootstrap_id
+              : !previous || replayNoteOutcome(previous).mutation === 'delete' || !['update', 'delete'].includes(p.mutation)
+                || p.header.revision !== replayNoteOutcome(previous).header.revision + 1 || p.header.parent_event_id !== previous.event_id)
+            || !candidate || candidate.record_version !== (row.state === 'content_note_proven' ? 2 : 1) || candidate.origin !== 'peer' || candidate.bootstrap_id !== seed.bootstrap_id
             || candidate.source_device_id !== sourceDevice || sourceSequence !== row.server_sequence
-            || !replaySame(JSON.parse(candidate.wire_item), { event, object: retained.object })
+            || !replaySame(JSON.parse(candidate.wire_item), row.state === 'content_note_proven' ? retained : { event, object: retained.object })
             || !replaySame(candidate.header, p.header) || candidate.projection === null || candidate.projection_digest !== p.local_note_digest
+            || row.state === 'content_note_proven' && (p.mutation !== 'update' || !previous || previous.state !== 'note_proven' || previous.note_proof.mutation === 'delete')
             || candidate.projection.source_revision !== p.source_revision || candidate.projection.deleted !== (p.mutation === 'delete')
             || !replaySame(p.reference, retained.event)) fail()
+          if (previous?.state === 'content_note_proven') fail() // This v5 cohort ends at its single Content update.
           if (isLatest && !replaySame(candidate.projection, note)) fail()
         }
         if (proof) {
@@ -181,7 +195,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
         }
       }
       for (const head of noteHeads) {
-        const own = noteProofs.filter(row => row.note_proof.header.project_id === head.project_id && row.note_proof.header.entity_id === head.note_id)
+        const own = noteProofs.filter(row => replayNoteOutcome(row).header.project_id === head.project_id && replayNoteOutcome(row).header.entity_id === head.note_id)
         if (!own.length || head.head_revision !== own.length || head.linear_head_event_id !== own.at(-1)!.event_id
           || !replaySame(head.tip_event_ids, [own.at(-1)!.event_id])) fail()
       }
@@ -217,7 +231,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
       if (!cursor) { finish(); return }
       if (rows.length >= REPLAY_LIMITS.events) fail()
       const row = validateBrowserInboxRecord(cursor.value, s)
-      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version >= 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6) || version >= 4 && row.state === 'note_proven' && row.record_version === 3)
+      if (!(row.state === 'received' && row.record_version === 1 || version >= 2 && row.state === 'applied' && row.record_version === 2 || version >= 3 && (row.state === 'stage_proven' && row.record_version === 5 || row.state === 'stage_order_proven' && row.record_version === 6) || version >= 4 && row.state === 'note_proven' && row.record_version === 3 || version >= 5 && row.state === 'content_note_proven' && row.record_version === 7)
         || row.protocol_version !== 3 || !replaySame(cursor.primaryKey, [s.accountId, row.server_sequence])) fail()
       bytes += new TextEncoder().encode(JSON.stringify(row)).length
       if (bytes > REPLAY_LIMITS.inventoryBytes) fail()
@@ -227,7 +241,7 @@ export function scheduleReplaySnapshot(tx: IDBTransaction, s: BrowserSyncScope, 
 }
 
 /** Versionchange has no HTTP/crypto and never invents bindings, heads or applied outcomes. */
-export function migrateReplay(tx: IDBTransaction, names: readonly string[], check: () => void, abort: (error: unknown) => void, version: 1 | 2 | 3): void {
+export function migrateReplay(tx: IDBTransaction, names: readonly string[], check: () => void, abort: (error: unknown) => void, version: 1 | 2 | 3 | 4): void {
   const all = new Map<string, unknown[]>(); let remaining = names.length, bytes = 0
   const validate = () => {
     try {
@@ -247,8 +261,8 @@ export function migrateReplay(tx: IDBTransaction, names: readonly string[], chec
       const updates: ReplayManifest[] = []
       for (const scope of scopes) scheduleReplaySnapshot(tx, scope, check, snapshot => {
         try {
-          if (snapshot.manifest) updates.push({ ...snapshot.manifest, record_version: 4, contract_version: 4, metadata_cursor: snapshot.manifest.metadata_cursor ?? 0,
-            applied_cursor: snapshot.manifest.applied_cursor ?? snapshot.manifest.metadata_cursor ?? 0, source_seeds: [] })
+          if (snapshot.manifest) updates.push({ ...snapshot.manifest, record_version: 5, contract_version: 5, metadata_cursor: snapshot.manifest.metadata_cursor ?? 0,
+            applied_cursor: snapshot.manifest.applied_cursor ?? snapshot.manifest.metadata_cursor ?? 0, source_seeds: snapshot.manifest.source_seeds ?? [] })
           if (--pending) return
           check()
           for (const manifest of updates) tx.objectStore('replayManifest').put(manifest)

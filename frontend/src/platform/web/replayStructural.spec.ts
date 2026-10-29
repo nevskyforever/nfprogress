@@ -6,11 +6,11 @@ import { replayCoverage } from './replayInventory'
 import { replayAnchor, validateReplayManifest, type ReplayManifest } from './replayRecords'
 import type { BrowserInboxRecord } from './syncDurability'
 
-const manifest = (): ReplayManifest => ({ record_version: 4, contract_version: 4, metadata_cursor: 1, applied_cursor: 2, source_seeds: [],
+const manifest = (): ReplayManifest => ({ record_version: 5, contract_version: 5, metadata_cursor: 1, applied_cursor: 2, source_seeds: [],
   account_id: scope.accountId, device_id: scope.deviceId, canonical_user_id: scope.canonicalUserId, generation: crypto.randomUUID(),
   anchor: replayAnchor({ current_cursor: 3, projects: [] }, { supported_transport_version: 2, writer_transport_version: 3, cutover_epoch: 1 }),
   receive_cursor: 3, ciphertext_bytes: 0, phase: 'received', revision: 5 })
-it('v4 coverage validates separately from Metadata, retaining v2/v3 only for migration', () => {
+it('v5 coverage validates separately from Metadata, retaining v2/v3 only for migration', () => {
   const state = manifest(); expect(validateReplayManifest(state, scope)).toEqual(state)
   const old = { ...state, record_version: 2, contract_version: 2 }; delete old.applied_cursor; delete old.source_seeds
   expect(validateReplayManifest(old, scope, 2)).toEqual(old)

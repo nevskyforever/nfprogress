@@ -84,7 +84,7 @@ try {
     const failure = await page.evaluate(async ({ identity, kind, user }) => {
       const original = IDBObjectStore.prototype.put
       IDBObjectStore.prototype.put = function (value, ...args) {
-        if (this.name === 'replayManifest' && value.record_version === 4) {
+        if (this.name === 'replayManifest' && value.record_version === 5) {
           if (kind === 'quota') throw new DOMException('fixture', 'QuotaExceededError')
           this.transaction.abort(); throw new DOMException('fixture', 'AbortError')
         }
@@ -100,9 +100,9 @@ try {
     assert.deepEqual(await cache(page), v3); checks.push(`v3-v4-${kind}-migration-rollback`)
   }
   assert.equal((await page.evaluate(() => reader.receiveCloudAccountHistory(new AbortController().signal))).ownerProofs, 0)
-  const before = await cache(page); assert.equal(before.version, 4)
-  const migrated = structuredClone(v3); migrated.version = 4
-  migrated.rows.replayManifest = migrated.rows.replayManifest.map(value => ({ ...value, record_version: 4, contract_version: 4, source_seeds: [] }))
+  const before = await cache(page); assert.equal(before.version, 5)
+  const migrated = structuredClone(v3); migrated.version = 5
+  migrated.rows.replayManifest = migrated.rows.replayManifest.map(value => ({ ...value, record_version: 5, contract_version: 5, source_seeds: [] }))
   assert.deepEqual(before, migrated); checks.push('genuine-v3-to-v4-migration-preserves-all-ciphertext')
   phase = 'seed'
   for (const kind of ['quota', 'abort']) {
@@ -123,7 +123,7 @@ try {
   assert.deepEqual(first, { kind: 'encrypted_note_source_seed', status: 'seeded', projectOpened: false,
     ready: false, declarationAllowed: false, writerAuthorized: false })
   const seeded = await cache(page), manifest = seeded.rows.replayManifest[0]
-  assert.equal(seeded.version, 4); assert.equal(seeded.rows.localProjects.length, 1)
+  assert.equal(seeded.version, 5); assert.equal(seeded.rows.localProjects.length, 1)
   assert.equal(seeded.rows.localNotes.length, 0); assert.equal(seeded.rows.legacyNoteHistory.length, 0)
   assert.equal(manifest.source_seeds.length, 1); assert.equal(manifest.source_seeds[0].initial_event_count, 2)
   assert.equal(manifest.source_seeds[0].initial_max_server_sequence, 2)

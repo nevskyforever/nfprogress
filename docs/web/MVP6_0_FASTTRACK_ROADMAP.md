@@ -15,6 +15,29 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03J — replay v5 Content adapter
+
+Baseline `b7e1731a5b1479c2fbd9f19b30e890b9263ec537`. Explicit single-event
+adapter reuses the real Content/Legacy owner for one peer-origin update of a
+live Legacy Note. Inbox7/candidate2/transport proof, source/projection/head and
+coverage commit atomically; restart reauthenticates the proofs and freshly
+compares original server wire. Replay v1–v4 migration preserves existing records;
+only the replay schema/manifest advances to v5. Developer v12/SQLite/PostgreSQL
+are unchanged. See [contract and acceptance scope](WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md#2026-10-29--webonline02b03j--versioned-content-replay-adapter).
+
+The new native Chromium test uses real producer/owner records and a real profile
+restart with mocked ordinary v3 responses; it does not qualify server delivery
+or capabilities. **LOCAL COMPLETE / INDEPENDENT CI PENDING (adapter scope only).** Final prepush
+PASS: 831 Vitest / 30 files; additional native adapter run 15 focused tests / 14
+browser checks; seven frontend Chromium scripts; 269 PostgreSQL16 regressions
+and one backup/restore test; typecheck/build, changed-file ESLint, workflow/shell,
+links and diff checks PASS. Earlier stale v4 fixture expectations were corrected
+and the full prepush rerun passed. Six CI jobs and their limits are retained.
+Option A approved / B rejected, all ten readiness blockers, negative flags,
+projectOpened=false, closed registration/release and C21/C22/C23/PF6.0/RC remain.
+Active product stage 2/6; historical progress 89,36%. Production ordered dispatch
+is the next separate slice; no automatic Content/Resolution/writer activation.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03I — STOP: replay Content compatibility
 
 Baseline `eec525001e3894a86076b390ec9cdce005cc3dd4`; no production dispatcher

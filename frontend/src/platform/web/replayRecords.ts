@@ -15,7 +15,7 @@ export interface ReplaySourceSeedReference {
   initial_event_count: number; initial_max_server_sequence: number
 }
 export interface ReplayManifest {
-  record_version: 1 | 2 | 3 | 4; contract_version: 1 | 2 | 3 | 4; account_id: string; canonical_user_id: string; device_id: string
+  record_version: 1 | 2 | 3 | 4 | 5; contract_version: 1 | 2 | 3 | 4 | 5; account_id: string; canonical_user_id: string; device_id: string
   generation: string; anchor: ReplayAnchor; receive_cursor: number; ciphertext_bytes: number
   phase: 'receiving' | 'received'; revision: number
   metadata_cursor?: number
@@ -37,9 +37,9 @@ export function replayAnchor(registry: unknown, transport: unknown): ReplayAncho
   return anchor
 }
 
-export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, version: 1 | 2 | 3 | 4 = 4): ReplayManifest {
+export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, version: 1 | 2 | 3 | 4 | 5 = 5): ReplayManifest {
   try {
-    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision', ...(version >= 2 ? ['metadata_cursor'] : []), ...(version >= 3 ? ['applied_cursor'] : []), ...(version === 4 ? ['source_seeds'] : [])])
+    if (!replayExact(value, ['record_version', 'contract_version', 'account_id', 'canonical_user_id', 'device_id', 'generation', 'anchor', 'receive_cursor', 'ciphertext_bytes', 'phase', 'revision', ...(version >= 2 ? ['metadata_cursor'] : []), ...(version >= 3 ? ['applied_cursor'] : []), ...(version >= 4 ? ['source_seeds'] : [])])
       || value.record_version !== version || value.contract_version !== version || value.account_id !== scope.accountId
       || value.canonical_user_id !== scope.canonicalUserId || value.device_id !== scope.deviceId || !replayUuid(value.generation)
       || !safe(value.receive_cursor) || !safe(value.ciphertext_bytes) || value.ciphertext_bytes > REPLAY_LIMITS.ciphertextBytes
@@ -49,7 +49,7 @@ export function validateReplayManifest(value: unknown, scope: BrowserSyncScope, 
     if (value.receive_cursor > anchor.registry.current_cursor || value.phase === 'received' && value.receive_cursor !== anchor.registry.current_cursor) throw new Error()
     if (version >= 2 && (!safe(value.metadata_cursor) || value.metadata_cursor > value.receive_cursor)) throw new Error()
     if (version >= 3 && (!safe(value.applied_cursor) || value.applied_cursor > value.receive_cursor || (value.metadata_cursor as number) > value.applied_cursor)) throw new Error()
-    if (version === 4) {
+    if (version >= 4) {
       if (!Array.isArray(value.source_seeds) || value.source_seeds.length > 200) throw new Error()
       const projects = new Set<string>()
       for (const seed of value.source_seeds) {

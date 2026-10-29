@@ -803,7 +803,9 @@ jobs:
       - run: npm test -- --run src/diagnostics/diagnostics.spec.ts src/diagnostics/desktop.spec.ts src/components/settings/DiagnosticsCard.spec.ts src/components/developer/DeveloperModeDialog.spec.ts src/api/game.native.spec.ts src/api/game.spec.ts src/api/documents.native.spec.ts src/pages/SettingsPage.spec.ts src/stores/projects.spec.ts
         working-directory: frontend
       - name: Verify encrypted local Web Documents contracts
-        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts src/platform/web/replayStructural.spec.ts src/platform/web/replaySourceSeed.spec.ts --maxWorkers=1
+        env:
+          WORTA_CONTENT_CHROMIUM: "1"
+        run: npm test -- --run src/platform/web/localDocuments.spec.ts src/platform/web/localAuthority.spec.ts src/cloud/documentCodec.spec.ts src/platform/web/replayReceiver.spec.ts src/platform/web/replayStructural.spec.ts src/platform/web/replayContentUpdate.spec.ts src/platform/web/replaySourceSeed.spec.ts --maxWorkers=1
         working-directory: frontend
       - name: Verify encrypted Web Documents and v11 to v12 migration in Chromium
         working-directory: frontend
