@@ -136,6 +136,48 @@ slices не меняют его автоматически; фактическа
 
 
 
+## 2026-10-29 — WEB.ONLINE.02B.03F — STOP: Content recipient capability contract
+
+Baseline `737a8dfd4cca3d34f299a3549d96f45388619ff2` on clean `6.0`.
+03E is independently accepted: owner-reported run **40844792258 — 6/6 SUCCESS**.
+03F is **STOP / NOT IMPLEMENTED**, within product stage 2; no Content cohort
+has been added and full project opening remains blocked.
+
+The requested real server receiver is blocked before Content owner preparation.
+`SyncService.pull_encrypted()` rejects v3 pull with
+`content_note_reader_required` (409) whenever account history contains a Note
+`operation=event` and the recipient lacks `content_note_reader_ready()`.
+That predicate requires ordinary reader 1 **and Resolution reader 2**, frame 1,
+codec8 1, compression zero and transport 3. Identity-only
+`registerCloudReadDevice()` grants none of these claims. Registering such a new
+browser also prevents subsequent Content pushes through the all-device gate.
+The existing `BrowserNoteReaderReadiness` remains negative; claiming full
+Resolution support from one bounded update would be false evidence.
+
+Section 9 of the approved source/proof contract explicitly keeps these new
+browsers blocked and provides no read-only pull bypass. The task forbids Note
+capability PUT and gate changes. A fixture that predeclares the recipient or
+modifies its capability columns would hide this missing production contract.
+No reducer, fake proof, schema change, fixture bypass or application edit was made.
+Replay remains v4; developer v12, SQLite and PostgreSQL schemas are unchanged.
+
+Next minimum requires an owner-approved contract decision: either complete
+and independently accept the genuine reader/readiness prerequisites before
+recipient declaration, or separately design and approve a bounded authenticated
+read-only ciphertext delivery contract that makes no ordinary1/Resolution2
+claim. The latter is a backend contract change and is not authorized by 03F;
+neither option may silently relax existing C21 gates. Only then resume the
+bounded Content update composition and its real restart acceptance.
+
+Validation: existing `tests/test_cloud_c18_content_note_gate.py` **4 passed**
+on disposable Docker PostgreSQL 16, including incomplete-recipient pull refusal,
+all-device gate, exact opaque replay and strict capability metadata.
+`git diff --check` PASS. Chromium, Vitest, typecheck/build and full prepush
+NOT RUN: implementation stopped before code changes; no Content success claimed.
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+`projectOpened=false`, Registration CLOSED, PUBLIC RELEASE BLOCKED and
+C21/C22/C23/PF6.0/RC remain. Official progress stays **89,36%**.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03E — Legacy Note deletion replay
 
 **LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.** Starting

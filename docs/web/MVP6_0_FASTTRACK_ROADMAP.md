@@ -14,6 +14,25 @@ persistent user data and stores opaque ciphertext plus required protocol
 metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
+## 2026-10-29 — WEB.ONLINE.02B.03F: STOP before Content composition
+
+03E SHA `737a8dfd4cca3d34f299a3549d96f45388619ff2` is independently accepted
+by owner-reported run **40844792258 — 6/6 SUCCESS**. 03F is **NOT IMPLEMENTED**:
+a newly registered Web recipient cannot pull an account containing codec8 Note
+history without the full ordinary1/Resolution2 capability claim. Identity
+registration does not grant it; current readiness is negative and 03F forbids
+capability PUT or gate changes. Section 9 of the source/proof contract explicitly
+retains this barrier. No predeclared fixture recipient may stand in for the
+missing production contract. Replay stays v4 and no schema or application changes
+were made. Four existing gate tests passed on isolated Docker PostgreSQL 16;
+Content Chromium acceptance and full prepush were NOT RUN at this STOP.
+
+Next: obtain a separate owner-approved recipient delivery/readiness contract
+before resuming bounded Content composition. Complete genuine readiness first,
+or separately approve a bounded read-only delivery design without a false full
+reader claim; do not implement either implicitly. Full project opening and all
+security/release gates remain blocked; official progress stays **89,36%**.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03E: Legacy Note deletion replay
 
 **LOCAL COMPLETE; INDEPENDENT CI PENDING; FULL PROJECT OPEN BLOCKED.** This

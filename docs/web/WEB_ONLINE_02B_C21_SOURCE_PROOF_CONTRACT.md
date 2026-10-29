@@ -662,6 +662,36 @@ evidence invalidates publication. These requests are not a distributed transacti
 the result describes verified state **at T**, not a promise the server cannot
 change after the final request. Continuous changes cause bounded retry/failure.
 
+## 03F STOP — recipient contract prerequisite (2026-10-29)
+
+03E is independently accepted at `737a8dfd4cca3d34f299a3549d96f45388619ff2`,
+owner-reported run **40844792258 — 6/6 SUCCESS**. Bounded Content update
+composition is not implemented. The existing backend rejects v3 account pull
+with `content_note_reader_required` when any retained Note has operation `event`
+and the recipient does not satisfy `content_note_reader_ready()`. This predicate
+requires ordinary1 and Resolution2 together, plus frame/codec/compression/transport
+support. Web identity registration does not establish these capabilities.
+A new incomplete device also blocks new Content pushes via the all-device gate.
+
+This conflicts with 03F's required positive real receiver scenario while its
+capability PUT prohibition and the negative readiness contract remain in force.
+Owner preparation can be reused only after delivery; pure owner fixtures cannot
+prove server-to-browser production composition. Predeclaring a test recipient,
+mutating capability columns, bypassing pull or relabeling Content as Legacy
+cannot satisfy that criterion. Replay v4 validators additionally need full
+Content candidate2/transport proof/inbox7/CAS/recovery composition, but that work
+alone cannot remove this earlier gate.
+
+An explicit separate decision must precede implementation: accept genuine full
+reader readiness before capability declaration, or approve a separately designed
+bounded read-only ciphertext delivery contract without ordinary1/Resolution2
+claims. No such backend change, capability activation or new delivery protocol
+is authorized here. No replay/schema/application change was made. Four existing
+PostgreSQL Content gate tests passed in isolated Docker PostgreSQL 16;
+Chromium, Vitest, typecheck/build and full prepush were NOT RUN at this STOP.
+All negative flags and security/release gates remain; no Content cohort or full
+project opening is claimed.
+
 ## 9. F — Device, compression and release boundaries
 
 Current server `SyncService.pull_encrypted()` enforces registered recipient,
