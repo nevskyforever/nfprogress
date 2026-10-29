@@ -15,11 +15,27 @@ async function launch() {
   await context.route(url => url.pathname.startsWith('/api/'), async route => {
     const request = route.request(), url = new URL(request.url())
     if (phase === 'owner' && !url.pathname.startsWith('/api/v1/auth/')) requests.push({ method: request.method(), path: url.pathname })
-    if (phase === 'owner' && fault === 'interrupt' && url.pathname === '/api/v3/sync/encrypted/pull') return route.abort('failed')
+    if (phase === 'owner' && fault === 'interrupt' && url.pathname === '/api/v3/sync/encrypted/pull' && url.searchParams.get('since') === '100') return route.abort('failed')
+    if (phase === 'owner' && fault === 'lock' && url.pathname === '/api/v3/sync/encrypted/pull' && url.searchParams.get('since') === '100') {
+      await context.pages().at(-1).evaluate(() => reader.lock())
+      return route.abort('failed')
+    }
     const response = await route.fetch({ url: backend + url.pathname + url.search })
-    if (phase === 'owner' && url.pathname === '/api/v3/sync/encrypted/pull') requests.push({ method: request.method(), path: url.pathname, status: response.status() })
+    if (phase === 'owner' && url.pathname === '/api/v3/sync/encrypted/pull') requests.push({ method: request.method(), path: url.pathname, status: response.status(), since: url.searchParams.get('since') })
     if (phase === 'owner' && fault === 'registry' && url.pathname === '/api/v1/cloud/projects/bootstrap') {
       const value = await response.json(); value.current_cursor++
+      return route.fulfill({ response, json: value })
+    }
+    if (phase === 'owner' && fault === 'mode' && url.pathname === '/api/v2/sync/encrypted/capabilities') {
+      const value = await response.json(); value.writer_transport_version = 2
+      return route.fulfill({ response, json: value })
+    }
+    if (phase === 'owner' && ['gap', 'duplicate', 'order', 'wire'].includes(fault) && url.pathname === '/api/v3/sync/encrypted/pull' && url.searchParams.get('since') === '0') {
+      const value = await response.json()
+      if (fault === 'gap') value.items[1].event.server_sequence++
+      if (fault === 'duplicate') value.items[1] = structuredClone(value.items[0])
+      if (fault === 'order') [value.items[0], value.items[1]] = [value.items[1], value.items[0]]
+      if (fault === 'wire') value.items[0].object.ciphertext = 'AA'
       return route.fulfill({ response, json: value })
     }
     await route.fulfill({ response })
@@ -67,7 +83,7 @@ async function login(page, register = false) {
 }
 try {
   let page = await launch(); await page.evaluate(() => harness.createRecords(true))
-  const fixture = await seedSourceAccount(page, 'OrderedContentServer', { metadataCount: 2, stage: true, stageOrder: true, contentUpdate: true })
+  const fixture = await seedSourceAccount(page, 'OrderedContentServer', { metadataCount: 102, stage: true, stageOrder: true, contentUpdate: true })
   assert.equal(fixture.content.server_sequence, fixture.count)
   await login(page, true)
   const refused = await attempt(page, 'receiveCloudAccountHistory')
@@ -96,13 +112,28 @@ try {
   phase = 'owner'
   fault = 'interrupt'; assert.ok((await attempt(page, 'receiveCloudAccountHistory')).error)
   fault = null
-  assert.equal((await cache(page)).inbox.length, 0)
+  const partial = await cache(page)
+  assert.equal(partial.inbox.length, 100)
+  assert.equal(partial.replayManifest[0].receive_cursor, 100)
+  assert.equal(partial.replayManifest[0].applied_cursor, 0)
+  await context.close(); page = await launch(); await login(page)
+  assert.deepEqual(await cache(page), partial)
+  for (const kind of ['gap', 'duplicate', 'order', 'wire', 'mode', 'lock']) {
+    fault = kind
+    assert.ok((await attempt(page, 'receiveCloudAccountHistory')).error, kind)
+    assert.deepEqual(await cache(page), partial, kind)
+    if (kind === 'lock') await page.evaluate(() => reader.unlock('encryption-password'))
+  }
+  fault = null
   const seed = await page.evaluate(async project => reader.seedCloudNoteSource(project, new AbortController().signal), fixture.projects[0].project_id)
   assert.equal(seed.status, 'seeded')
   const before = await cache(page)
   assert.equal(before.replayManifest[0].applied_cursor, 0)
   assert.equal(before.inbox.length, fixture.count)
   assert.equal(before.inbox.at(-1).state, 'received')
+  assert.deepEqual(before.inbox.map(row => row.server_sequence), Array.from({ length: fixture.count }, (_, index) => index + 1))
+  assert.ok(requests.some(row => row.status === 200 && row.since === '0'))
+  assert.ok(requests.some(row => row.status === 200 && row.since === '100'))
   const original = before.inbox.at(-1), damaged = structuredClone(original), wire = JSON.parse(damaged.wire_item)
   wire.object.ciphertext = 'AA'; damaged.wire_item = JSON.stringify(wire)
   await putInbox(page, damaged)
@@ -146,5 +177,5 @@ try {
   assert.equal(errors.length, 0, errors.join('\n'))
   assert.ok(requests.some(row => row.path === '/api/v3/sync/encrypted/pull'))
   assert.equal(requests.some(row => row.method !== 'GET'), false)
-  console.log(JSON.stringify({ pass: true, scenarios: 10, events: fixture.count, recipient, readerWrites: 0 }))
+  console.log(JSON.stringify({ pass: true, scenarios: 16, events: fixture.count, recipient, readerWrites: 0 }))
 } finally { await context?.close(); await rm(directory, { recursive: true, force: true }) }

@@ -693,6 +693,15 @@ All negative flags and security/release gates remain; no Content cohort or full
 project opening is claimed.
 
 
+## 2026-10-30 — WEB.ONLINE.02B.03K.02A — real multipage recovery
+
+The existing v5 receiver is exercised with the normal 100-event page limit,
+107 genuine server events and an interruption before the second page. Restart
+reconciles the retained first page before receiving the remaining seven and
+applying owners. Fault injection checks gap, duplicate, order, ciphertext,
+transport and session failures; original server responses are used on the
+positive path. No new protocol or readiness declaration is introduced.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01B — bounded real-server proof
 
 The production session can invoke `applyOrderedContentUpdate` behind the

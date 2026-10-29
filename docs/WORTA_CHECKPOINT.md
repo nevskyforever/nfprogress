@@ -187,6 +187,18 @@ or CI job count change. Independent CI for this slice is pending.
 Independent acceptance reported by the owner: **40925410328 — 6/6 SUCCESS**
 for A1 (`20c8c4b281772d849df4512e021f5a11e8f9a8ee`).
 
+## 2026-10-30 — WEB.ONLINE.02B.03K.02A — multipage replay recovery
+
+03K.01B at `d4e980f08e3e41b2a73c975e19f7ab7a7d7c6672` was independently
+accepted: GitHub Actions `40945347355`, 6/6 SUCCESS. The real-server Chromium
+acceptance now uses 107 encrypted events and the existing 100-event page limit.
+It interrupts the second pull, restarts with 100 durable received rows and no
+applied coverage, reconciles the original wire, receives the tail and applies
+the existing owners. It checks replay after restart and refuses damaged, missing,
+duplicate or reordered wire, incompatible transport, lock and registry drift.
+Replay v5 and all negative readiness and release gates remain unchanged; this
+bounded test does not close `transport_v10_page_replay_incomplete`.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01B — real server Content replay acceptance
 
 03K.01A2 at `fc820f37d5023410ff53a94fc7431c73ad90e5ae` was independently

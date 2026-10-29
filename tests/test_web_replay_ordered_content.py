@@ -45,7 +45,7 @@ def test_bounded_ordered_content_real_server(cloud_client, tmp_path):
                 cwd=ROOT / 'frontend', capture_output=True, text=True, timeout=300)
             assert result.returncode == 0, result.stdout + result.stderr
             evidence = json.loads(result.stdout.strip().splitlines()[-1])
-            assert evidence['pass'] and evidence['events'] == 7 and evidence['readerWrites'] == 0
+            assert evidence['pass'] and evidence['events'] == 107 and evidence['readerWrites'] == 0
             with Session(engine) as session:
                 devices = list(session.query(SyncDevice))
                 assert len(devices) == 2

@@ -15,6 +15,12 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-30 — WEB.ONLINE.02B.03K.02A — multipage recovery
+
+Real v3 pull of 107 events exercises interruption after the first 100, Chromium
+restart, full wire reconciliation, ordered owner application and proof replay.
+This bounded acceptance does not establish full C21 transport readiness.
+
 ## 2026-10-29 — WEB.ONLINE.02B.03K.01B — real server acceptance
 
 The bounded ordered Content route now has an isolated real FastAPI/PostgreSQL 16
