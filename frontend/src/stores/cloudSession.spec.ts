@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/platform/runtime', () => ({ currentPlatform: vi.fn(() => 'tauri') }))
@@ -124,6 +124,8 @@ describe('desktop cloud session owner', () => {
     vi.mocked(currentPlatform).mockReturnValue('tauri')
   })
 
+  afterEach(() => vi.useRealTimers())
+
   async function noteSetup() {
     const instance = runtime()
     const connected = registry({ local: [bootstrapRecord()] })
@@ -136,6 +138,160 @@ describe('desktop cloud session owner', () => {
     vi.mocked(instance.retry).mockClear()
     return { instance, store, repository: new SQLiteNotesRepository(), connected }
   }
+
+  it('preserves a saved Note and retries bounded network failures until recovery', async () => {
+    const { instance, store, repository } = await noteSetup()
+    vi.useFakeTimers()
+    let localText = ''
+    bridge.invoke.mockImplementation(async (_command: string, args: { patch: { content: string } }) => {
+      localText = args.patch.content
+      return { id: 'n', content: localText }
+    })
+    const offline = new ApiError(0, 'network_error', 'offline')
+    vi.mocked(instance.retry).mockRejectedValueOnce(offline).mockRejectedValueOnce(offline).mockResolvedValueOnce(EMPTY_CYCLE)
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'saved offline' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(localText).toBe('saved offline')
+    expect(store.status).toBe('retryable_error')
+    expect(store.errorMessage).toBeTruthy()
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(299_999)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(instance.retry).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(299_999)
+    expect(instance.retry).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(instance.retry).toHaveBeenCalledTimes(3)
+    expect(store.status).toBe('completed')
+    expect(localText).toBe('saved offline')
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(3)
+    await store.dispose()
+  })
+
+  it('backs off returned network stage failures without parallel cycles or extra attempts on saves', async () => {
+    const { instance, store, repository } = await noteSetup()
+    vi.useFakeTimers()
+    bridge.invoke.mockResolvedValue({ id: 'n', content: 'saved' })
+    const networkResult = { ...EMPTY_CYCLE, errors: [{ stage: 'pull', code: 'network_error' }], hasRemainingWork: true }
+    const inFlight = deferred<NoteSyncProductionResult>()
+    vi.mocked(instance.retry).mockResolvedValueOnce(networkResult).mockReturnValueOnce(inFlight.promise)
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'one' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.status).toBe('retryable_error')
+    expect(store.errorMessage).toBeTruthy()
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'two' })
+    await vi.advanceTimersByTimeAsync(299_999)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(instance.retry).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(2)
+    inFlight.resolve(EMPTY_CYCLE)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.status).toBe('completed')
+    await store.dispose()
+  })
+
+  it.each(['lock', 'logout', 'pause'] as const)('cancels a scheduled recovery on %s', async action => {
+    const { instance, store } = await noteSetup()
+    vi.useFakeTimers()
+    vi.mocked(instance.retry).mockRejectedValueOnce(new ApiError(0, 'network_error', 'offline'))
+    await expect(store.retry()).rejects.toBeDefined()
+    if (action === 'lock') await store.lock()
+    else if (action === 'logout') await store.logout()
+    else await store.pauseProject(PROJECT)
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.dispose()
+  })
+
+  it('cancels a recovery already waiting behind bootstrap when sync is paused', async () => {
+    const { instance, store, connected } = await noteSetup()
+    vi.useFakeTimers()
+    vi.mocked(instance.retry).mockRejectedValueOnce(new ApiError(0, 'network_error', 'offline'))
+    await expect(store.retry()).rejects.toBeDefined()
+    const bootstrap = deferred<CloudProjectBootstrapProgress>()
+    vi.mocked(instance.bootstrapLocalProject).mockReturnValueOnce(bootstrap.promise)
+    const project = store.bootstrapProject(PROJECT)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(instance.bootstrapLocalProject).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(300_000)
+    await store.pauseProject(PROJECT)
+    bootstrap.resolve(progress(connected))
+    await project
+    await vi.advanceTimersByTimeAsync(0)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.dispose()
+  })
+
+  it.each([
+    new ApiError(401, 'invalid_token', 'unauthorized'),
+    new ApiError(503, 'note_readers_not_ready', 'blocked'),
+    new Error('corrupt data'),
+  ])('does not auto-retry authentication, capability or data failures', async error => {
+    const { instance, store } = await noteSetup()
+    vi.useFakeTimers()
+    vi.mocked(instance.retry).mockRejectedValueOnce(error)
+    await expect(store.retry()).rejects.toBeDefined()
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.dispose()
+  })
+
+  it('does not retry a network result mixed with a security blocker', async () => {
+    const { instance, store } = await noteSetup()
+    vi.useFakeTimers()
+    vi.mocked(instance.retry).mockResolvedValueOnce({ ...EMPTY_CYCLE, blocked: ['capability_blocked'], errors: [{ stage: 'pull', code: 'network_error' }] })
+    await store.retry()
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    expect(store.status).toBe('blocked')
+    await store.dispose()
+  })
+
+  it.each(['invalid_token', 'malformed_receipt', 'note_readers_not_ready'])('does not retry mixed network and %s stage errors', async code => {
+    const { instance, store } = await noteSetup()
+    vi.useFakeTimers()
+    vi.mocked(instance.retry).mockResolvedValueOnce({ ...EMPTY_CYCLE, errors: [{ stage: 'pull', code: 'network_error' }, { stage: 'apply', code }] })
+    await store.retry()
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.dispose()
+  })
+
+  it('makes at most one attempt per five minutes during a long outage', async () => {
+    const { instance, store } = await noteSetup()
+    vi.useFakeTimers()
+    vi.mocked(instance.retry).mockRejectedValue(new ApiError(0, 'network_error', 'offline'))
+    await expect(store.retry()).rejects.toBeDefined()
+    await vi.advanceTimersByTimeAsync(3_600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(13)
+    await store.logout()
+    await vi.advanceTimersByTimeAsync(600_000)
+    expect(instance.retry).toHaveBeenCalledTimes(13)
+    await store.dispose()
+  })
+
+  it('defers saves made during a failing cycle to the scheduled recovery', async () => {
+    const { instance, store, repository } = await noteSetup()
+    vi.useFakeTimers()
+    bridge.invoke.mockResolvedValue({ id: 'n', content: 'saved' })
+    let reject!: (error: Error) => void
+    vi.mocked(instance.retry).mockReturnValueOnce(new Promise((_, fail) => { reject = fail })).mockResolvedValueOnce(EMPTY_CYCLE)
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'one' })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'two' })
+    reject(new ApiError(0, 'network_error', 'offline'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(300_000)
+    expect(instance.retry).toHaveBeenCalledTimes(2)
+    expect(store.status).toBe('completed')
+    await store.dispose()
+  })
 
   it('starts a cycle only after a successful local note command; failed and incoming changes do not trigger it', async () => {
     const { instance, store, repository } = await noteSetup()

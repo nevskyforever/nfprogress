@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { encryptedSyncV2Api } from '@/api/encryptedSyncV2'
+import { ApiError } from '@/api/client'
 import { NormalUserAuthRuntime } from '@/auth/userAuth'
 import { NoteSyncV3Cycle } from './noteSyncV3Cycle'
 
@@ -66,6 +67,13 @@ async function setup(structuralEnabled = false, accountEnabled = false, contentE
 afterEach(() => vi.restoreAllMocks())
 
 describe('mode-3 Note and metadata cycle', () => {
+  it('retains a network failure separately from a capability blocker', async () => {
+    const h = await setup()
+    h.capabilities.mockRejectedValueOnce(new ApiError(0, 'network_error', 'offline'))
+    expect((await h.cycle.runOnce('local', DEVICE)).errors).toEqual([{ stage: 'preflight', code: 'network_error' }])
+    h.capabilities.mockRejectedValueOnce(new ApiError(503, 'note_readers_not_ready', 'blocked'))
+    expect((await h.cycle.runOnce('local', DEVICE)).errors).toEqual([{ stage: 'preflight', code: 'note_readers_not_ready' }])
+  })
   it('continues every family through several blockers without migration consent',async()=>{
     const h=await setup(true,true,true,true,true,true)
     for(let pass=0;pass<2;pass++){

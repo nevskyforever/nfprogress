@@ -12,6 +12,7 @@ import {
 import { sealPendingNoteSyncIntents, type NoteSyncIntentRepository, type NoteSyncSealingPassResult } from './noteSyncIntent'
 import { NoteSyncUploader } from './noteSyncUpload'
 import { NoteSyncDeviceAckAdapter, type NoteSyncAckOnceResult } from './noteSyncDeviceAck'
+import { isSyncNetworkFailure } from './syncNetworkFailure'
 
 export interface NoteSyncOrchestratorOptions {
   readonly sealLimit?: number
@@ -322,6 +323,7 @@ export class NoteSyncOrchestrator {
   }
 
   private error(stage: string, error: unknown): { stage: string, code: string } {
-    return { stage, code: error instanceof Error ? error.name : 'unknown_error' }
+    return { stage, code: isSyncNetworkFailure(error) ? 'network_error'
+      : error instanceof Error && error.name !== 'network_error' ? error.name : 'unknown_error' }
   }
 }

@@ -1,4 +1,5 @@
 import type { ContentNoteReader } from './contentNoteReader'
+import { syncStageErrorCode } from './syncNetworkFailure'
 import { diagnostics } from '@/diagnostics/service'
 import type { AccountObjectReader } from './accountObjectReader'
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
@@ -84,7 +85,7 @@ export class NoteSyncV3Cycle {
       stages.push(name)
       try { await action(); return true }
       catch (error) {
-        errors.push({ stage: name, code: error instanceof Error && 'code' in error && typeof error.code === 'string' ? error.code : error instanceof Error ? error.name : 'unknown_error' })
+        errors.push({ stage: name, code: syncStageErrorCode(error) })
         hasRemainingWork = true
         abort ||= error instanceof StaleAuthContextError
           || (error instanceof Error && 'code' in error && error.code === 'sync_transport_mode_incompatible')

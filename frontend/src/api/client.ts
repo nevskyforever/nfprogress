@@ -33,6 +33,23 @@ type ApiRequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   maxResponseBytes?: number
 }
 
+async function readResponseBody<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read()
+  } catch (error) {
+    // Fetch can fail while consuming a response after the headers arrived.
+    // JSON syntax, limits and aborts remain distinct non-network failures.
+    if (error instanceof TypeError) {
+      const cause = error.cause
+      const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : undefined
+      const disconnected = typeof code === 'string' && ['UND_ERR_SOCKET', 'ECONNRESET', 'ECONNABORTED', 'ETIMEDOUT', 'EPIPE'].includes(code)
+        || /^(load failed|failed to fetch|networkerror.*|network request failed)$/i.test(error.message)
+      if (disconnected) throw new ApiError(0, 'network_error', 'Не удалось подключиться к nfprogress API.', error)
+    }
+    throw error
+  }
+}
+
 async function boundedJson(response: Response, maximumBytes: number): Promise<unknown> {
   if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1) throw new TypeError('Invalid API response size limit.')
   const contentLength = response.headers.get('Content-Length')
@@ -42,20 +59,20 @@ async function boundedJson(response: Response, maximumBytes: number): Promise<un
       throw new ApiResponseTooLargeError('API response exceeds size limit.')
     }
   }
-  if (!response.body) return JSON.parse(await response.text())
+  if (!response.body) return JSON.parse(await readResponseBody(() => response.text()))
   const reader = response.body.getReader()
   const chunks: Uint8Array[] = []
   let received = 0
   try {
     while (true) {
-      const { done, value } = await reader.read()
+      const { done, value } = await readResponseBody(() => reader.read())
       if (done) break
       received += value.byteLength
       if (received > maximumBytes) throw new ApiResponseTooLargeError('API response exceeds size limit.')
       chunks.push(value)
     }
   } catch (error) {
-    await reader.cancel(error)
+    await reader.cancel(error).catch(() => undefined)
     throw error
   } finally {
     reader.releaseLock()
@@ -161,7 +178,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     return undefined as T
   }
   if (maxResponseBytes !== undefined) return await boundedJson(response, maxResponseBytes) as T
-  return (await response.json()) as T
+  return (await readResponseBody(() => response.json())) as T
 }
 
 export async function apiBinaryRequest(path: string, options: ApiRequestOptions = {}): Promise<{ bytes: Uint8Array; headers: Headers }> {
@@ -177,7 +194,7 @@ export async function apiBinaryRequest(path: string, options: ApiRequestOptions 
     throw new ApiError(0, 'network_error', 'Не удалось подключиться к nfprogress API.', error)
   }
   if (!response.ok) throw await errorFromResponse(response)
-  return { bytes: new Uint8Array(await response.arrayBuffer()), headers: response.headers }
+  return { bytes: new Uint8Array(await readResponseBody(() => response.arrayBuffer())), headers: response.headers }
 }
 
 export function apiErrorMessage(error: unknown): string {

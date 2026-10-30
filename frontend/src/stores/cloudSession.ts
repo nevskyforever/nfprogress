@@ -32,6 +32,7 @@ import {
   type CloudRegistryReconciliation,
 } from '@/cloud/projectBootstrap'
 import { NoteSyncRuntime, type NoteSyncRuntimeUnlockResult } from '@/cloud/noteSyncRuntime'
+import { isSyncNetworkFailure } from '@/cloud/syncNetworkFailure'
 import type { NoteSyncProductionResult } from '@/cloud/noteSyncTransportRouter'
 import type { MetadataAuthorityView, MetadataDecisionKind, MetadataMigrationStatus } from '@/infrastructure/sqlite/projectMetadataMigrationRepository'
 import type { ProjectMetadata } from '@/cloud/projectMetadataCodec'
@@ -194,6 +195,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   let unlockFlight: { readonly epoch: number, readonly promise: Promise<void> } | null = null
   let unlocked = false
   let lifecycleEpoch = 0
+  let recoveryTimer: ReturnType<typeof setTimeout> | null = null
+  let recoveryGeneration = 0
   let noteListener: Promise<() => void> | null = null
   const pendingNoteProjects = new Set<string>()
   const readyNoteProjects = new Set<string>()
@@ -260,6 +263,27 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     return lifecycleEpoch === epoch
   }
 
+  function stopRecovery(): void {
+    recoveryGeneration += 1
+    if (recoveryTimer !== null) clearTimeout(recoveryTimer)
+    recoveryTimer = null
+  }
+
+  function scheduleRecovery(epoch: number, generation: number): void {
+    if (!current(epoch) || generation !== recoveryGeneration || !unlocked || !authenticated.value
+      || !canRunCycle.value || readyNoteProjects.size === 0 || recoveryTimer !== null) return
+    // Native sealed-outbox retries can be deferred for up to five minutes,
+    // including across restarts. Do not report a successful recovery before
+    // those durable rows become eligible for another upload.
+    const delay = 300_000
+    recoveryTimer = setTimeout(() => {
+      recoveryTimer = null
+      if (!current(epoch) || generation !== recoveryGeneration || !unlocked || !authenticated.value
+        || !canRunCycle.value || readyNoteProjects.size === 0) return
+      void retry(undefined, generation).catch(() => undefined)
+    }, delay)
+  }
+
   function setFailure(error: unknown, epoch = lifecycleEpoch): void {
     if (!current(epoch)) return
     errorMessage.value = safeErrorMessage(error)
@@ -267,6 +291,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     hasRemainingWork.value = false
     if (isAuthenticationFailure(error)) {
       lifecycleEpoch += 1
+      stopRecovery()
       clearPending()
       resetVisibleSession()
       busy.value = false
@@ -296,6 +321,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function login(accountUsername: string, accountPassword: string): Promise<void> {
     const activeRuntime = requireRuntime()
     const epoch = ++lifecycleEpoch
+    stopRecovery()
     unlocked = false
     pendingNoteProjects.clear()
     busy.value = true
@@ -404,9 +430,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     else status.value = 'completed'
   }
 
-  async function runCycle(operation: () => Promise<NoteSyncProductionResult>, correlation?: string): Promise<void> {
+  async function runCycle(operation: () => Promise<NoteSyncProductionResult>, correlation?: string, requiredRecovery?: number): Promise<void> {
     const epoch = lifecycleEpoch
     if (syncFlight?.epoch === epoch) return syncFlight.promise
+    const recoveryToken = recoveryGeneration
     const previousProject = projectFlight?.epoch === epoch ? projectFlight.promise : null
     status.value = 'syncing'
     errorMessage.value = null
@@ -415,6 +442,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
       try {
         if (previousProject) await previousProject.catch(() => undefined)
         if (!current(epoch)) return
+        if (requiredRecovery !== undefined && (requiredRecovery !== recoveryGeneration
+          || !unlocked || !canRunCycle.value || readyNoteProjects.size === 0)) {
+          if (status.value === 'syncing') status.value = canRunCycle.value ? 'ready' : 'blocked'
+          return
+        }
         const result = await diagnostics.run('sync', 'sync_cycle', async correlation => {
           const result = await operation()
           diagnostics.record('sync', 'sync_cycle', 'sync_result', correlation, { count: result.blocked.length, pending: result.errors.length, retry: result.hasRemainingWork }, result.blocked.length || result.errors.length ? 'warning' : 'info')
@@ -448,8 +480,21 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
           if(current(epoch)&&((result.cycle.metadataApply?.applied??0)+(result.cycle.structuralApply?.applied??0)+mapsChanged+documentsChanged+progressChanged)>0)announceDataChange('projects')
         }
         applyCycle(result, epoch)
+        if (current(epoch) && recoveryToken === recoveryGeneration) {
+          if (result.blocked.length === 0 && result.errors.length > 0
+            && result.errors.every(error => error.code === 'network_error')) {
+            errorMessage.value = 'Не удалось связаться с сервером. Можно безопасно повторить операцию.'
+            scheduleRecovery(epoch, recoveryToken)
+          } else {
+            stopRecovery()
+          }
+        }
       } catch (error) {
         setFailure(error, epoch)
+        if (current(epoch) && recoveryToken === recoveryGeneration) {
+          if (isSyncNetworkFailure(error)) scheduleRecovery(epoch, recoveryToken)
+          else stopRecovery()
+        }
         throw error
       } finally {
         if (syncFlight?.promise === promise) syncFlight = null
@@ -552,6 +597,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     blockedEvents.value = [...new Set(registry.reasons.map(safeRegistryReason))]
     blockedEventCodes.value = [...new Set(registry.reasons.map(technicalCode))]
     canRunCycle.value = registry.readyForNormalCycle
+    if (!canRunCycle.value || readyNoteProjects.size === 0) stopRecovery()
     hasRemainingWork.value = !registry.readyForNormalCycle
   }
 
@@ -661,18 +707,22 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function pauseProject(projectId: string): Promise<void> {
     const epoch = lifecycleEpoch
+    stopRecovery()
+    readyNoteProjects.delete(projectId)
     const registry = await requireRuntime().setProjectPaused(projectId, true)
     if (current(epoch)) await applyRegistry(registry, epoch)
   }
 
-  async function retry(correlation?: string): Promise<void> {
+  async function retry(correlation?: string, requiredRecovery?: number): Promise<void> {
     if (!hasProvisionedKey.value) throw new Error('Encryption provisioning is required before sync.')
     if (!unlocked || !authenticated.value) throw new Error('Cloud session must be unlocked before sync.')
-    await diagnostics.run('sync', 'retry', () => runCycle(() => requireRuntime().retry(), correlation), correlation)
+    await diagnostics.run('sync', 'retry', () => runCycle(() => requireRuntime().retry(), correlation, requiredRecovery), correlation)
   }
 
   function queueNoteSync(projectId: string): void {
     if (!unlocked || !authenticated.value) return
+    // The durable local outbox will be scanned by the already scheduled retry.
+    if (recoveryTimer !== null) return
     const epoch = lifecycleEpoch
     pendingNoteProjects.add(projectId)
     if (noteFlight?.epoch === epoch) return
@@ -680,6 +730,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     promise = Promise.resolve().then(async () => {
       try {
         while (current(epoch) && unlocked && pendingNoteProjects.size) {
+          if (recoveryTimer !== null) {
+            // These writes are already durable and will be included in recovery.
+            pendingNoteProjects.clear()
+            return
+          }
           // Wait for any earlier work before consuming the batch: a write may have
           // committed after that cycle's outbox scan and requires a fresh cycle.
           while (current(epoch)) {
@@ -689,6 +744,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
             await prior.catch(() => undefined)
           }
           if (!current(epoch) || !unlocked) return
+          if (recoveryTimer !== null) {
+            pendingNoteProjects.clear()
+            return
+          }
           const batch = [...pendingNoteProjects]
           pendingNoteProjects.clear()
           const connected = batch.some(id => readyNoteProjects.has(id))
@@ -863,6 +922,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function lock(): Promise<void> {
     const epoch = ++lifecycleEpoch
+    stopRecovery()
     unlocked = false
     pendingNoteProjects.clear()
     readyNoteProjects.clear()
@@ -885,6 +945,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function logout(): Promise<void> {
     const epoch = ++lifecycleEpoch
+    stopRecovery()
     unlocked = false
     pendingNoteProjects.clear()
     readyNoteProjects.clear()
@@ -902,6 +963,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function dispose(): Promise<void> {
     ++lifecycleEpoch
+    stopRecovery()
     unlocked = false
     pendingNoteProjects.clear()
     readyNoteProjects.clear()

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { apiErrorMessage, apiRequest } from './client'
+import { ApiResponseTooLargeError, apiErrorMessage, apiRequest } from './client'
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -46,6 +46,21 @@ describe('apiRequest', () => {
       code: 'conflict',
       message: 'Проект с таким именем уже существует.',
     })
+  })
+
+  it('does not classify malformed or oversized JSON as a connection error', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('{bad', { status: 200 }))
+      .mockResolvedValueOnce(new Response('{bad', { status: 200 }))
+      .mockResolvedValueOnce(new Response('123456', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(apiRequest('/invalid')).rejects.toBeInstanceOf(SyntaxError)
+    await expect(apiRequest('/invalid', { maxResponseBytes: 64 })).rejects.toBeInstanceOf(SyntaxError)
+    await expect(apiRequest('/large', { maxResponseBytes: 2 })).rejects.toBeInstanceOf(ApiResponseTooLargeError)
+    const damaged = new Response('{}', { status: 200 })
+    vi.spyOn(damaged, 'json').mockRejectedValueOnce(new TypeError('invalid content encoding'))
+    fetchMock.mockResolvedValueOnce(damaged)
+    await expect(apiRequest('/damaged')).rejects.toThrow('invalid content encoding')
   })
 })
 

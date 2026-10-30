@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NormalUserAuthRuntime } from '@/auth/userAuth'
+import { ApiError } from '@/api/client'
 import { NoteSyncOrchestrator } from './noteSyncOrchestrator'
 import { NoteSyncV2Cycle } from './noteSyncV2Cycle'
 
@@ -49,6 +50,13 @@ async function setup(account = 'local') {
 }
 
 describe('dormant mode-2 Note sync cycle', () => {
+  it('reports a network preflight failure without converting capability errors into retries', async () => {
+    const h = await setup()
+    h.capabilities.capabilities.mockRejectedValueOnce(new ApiError(0, 'network_error', 'offline'))
+    expect((await h.cycle.runOnce('local', DEVICE)).errors).toEqual([{ stage: 'preflight', code: 'network_error' }])
+    h.capabilities.capabilities.mockRejectedValueOnce(new ApiError(503, 'note_readers_not_ready', 'blocked'))
+    expect((await h.cycle.runOnce('local', DEVICE)).errors).toEqual([{ stage: 'preflight', code: 'note_readers_not_ready' }])
+  })
   it('runs the complete ordered cycle, including mixed streams and orphan retry', async () => {
     const h = await setup()
     h.inbox.pullOnce.mockImplementationOnce(async () => { h.calls.push('pull'); return { ...PAGE, committed_cursor: 2, has_more: true } })

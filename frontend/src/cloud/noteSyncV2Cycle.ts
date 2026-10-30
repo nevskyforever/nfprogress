@@ -1,5 +1,6 @@
 import { encryptedSyncV2Api, parseV2Capabilities } from '@/api/encryptedSyncV2'
 import { ApiError } from '@/api/client'
+import { syncStageErrorCode } from './syncNetworkFailure'
 import type { AuthoritativeAccountBinding } from '@/auth/accountBinding'
 import { KeyNotProvisionedError, type AuthoritativeKeyContextLease, type RuntimeKeyContext } from '@/auth/keyContext'
 import { NormalUserAuthRuntime, StaleAuthContextError, type AuthContextSnapshot } from '@/auth/userAuth'
@@ -103,7 +104,7 @@ export class NoteSyncV2Cycle {
         ...(mixedApply?.blocked ?? []),
       ])], errors, hasRemainingWork })
     const fail = (stage: string, error: unknown): void => {
-      errors.push({ stage, code: error instanceof Error ? ('code' in error && typeof error.code === 'string' ? error.code : error.name) : 'unknown_error' })
+      errors.push({ stage, code: syncStageErrorCode(error) })
       hasRemainingWork = true
     }
     const stage = async (name: string, action: () => Promise<void>): Promise<boolean> => {

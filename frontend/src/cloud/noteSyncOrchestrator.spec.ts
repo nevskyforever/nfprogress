@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { NormalUserAuthRuntime, StaleAuthContextError } from '@/auth/userAuth'
 import { NoteSyncOrchestrator } from './noteSyncOrchestrator'
+import { ApiError } from '@/api/client'
 
 const USER = '123e4567-e89b-42d3-a456-426614174099'
 const DEVICE = '123e4567-e89b-42d3-a456-426614174001'
@@ -42,6 +43,13 @@ async function orchestrator(mixed = false) {
 }
 
 describe('bounded Notes sync orchestration', () => {
+  it('preserves the transport classification without treating authorization as network loss', async () => {
+    const { h, value } = await orchestrator()
+    h.deviceAck.registerOnce.mockRejectedValueOnce(new ApiError(0, 'network_error', 'offline'))
+    expect((await value.runOnce('local', DEVICE)).errors).toEqual([{ stage: 'register_device', code: 'network_error' }])
+    h.deviceAck.registerOnce.mockRejectedValueOnce(new ApiError(401, 'unauthorized', 'expired'))
+    expect((await value.runOnce('local', DEVICE)).errors).toEqual([{ stage: 'register_device', code: 'ApiError' }])
+  })
   it('runs the protected components in order for an empty cycle', async () => {
     const { h, value } = await orchestrator()
     const result = await value.runOnce('local', DEVICE)
