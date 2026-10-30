@@ -29,14 +29,15 @@ def test_game_mutation_routes_reach_the_classified_sqlite_boundary():
     """Discover today's AND future command names from the real desktop API.
 
     This is a call-graph boundary guard, not a manually copied command-name list.
-    A new mutating method or a direct game_state write outside the two audited
+    A new mutating method or a direct game_state write outside the audited
     transactional sinks fails even if its API string was never listed in a test.
     """
     api=(ROOT/'frontend/src/api/game.ts').read_text()
     routes=set(re.findall(r"(?:nativeCommand|nativeGame\s*<\s*GameCommandResponse\s*>)\s*\(\s*['\"]([^'\"]+)['\"]",api))
     assert len(routes)>25
     lib=rust_functions((ROOT/'frontend/src-tauri/src/lib.rs').read_text(),routes)
-    service=rust_functions((ROOT/'frontend/src-tauri/src/game.rs').read_text().split('#[cfg(test)]\nmod tests',1)[0])
+    game_source=(ROOT/'frontend/src-tauri/src/game.rs').read_text().split('#[cfg(test)]\nmod tests',1)[0]
+    service=rust_functions(game_source)
     def guarded(name,seen=frozenset()):
         if name in {'mutate_portable_sqlite','process_pending_events'}:
             return True
@@ -56,7 +57,11 @@ def test_game_mutation_routes_reach_the_classified_sqlite_boundary():
             else:
                 assert guarded(call),(route,call)
     sinks={name for name,(_,_,raw) in service.items() if re.search(r'(?:UPDATE|INSERT INTO) game_state',raw)}
-    assert sinks=={'process_pending_events','mutate_portable_sqlite'}
+    assert sinks=={'process_pending_events','mutate_portable_sqlite','refresh_global_loss'}
+    # Calendar loss is called inside the transaction owned by the event processor.
+    processor=service['process_pending_events'][1]
+    assert processor.index('.transaction()') < processor.index('refresh_global_loss(&transaction') < processor.index('transaction.commit()')
+    assert len(re.findall(r'\brefresh_global_loss\s*\(',game_source))==2  # definition and transactional call
     guard=(ROOT/'nfprogress/core/sqlite/migrations/037_game_action_ledgers.sql').read_text()
     assert 'AFTER UPDATE OF payload_json ON game_state' in guard
     assert 'INSERT INTO cloud_game_local_mutations' in guard

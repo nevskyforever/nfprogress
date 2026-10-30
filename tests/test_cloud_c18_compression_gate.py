@@ -88,7 +88,7 @@ def test_upgrade_populated_old_registry_safe_defaults_and_reversible_before_acti
     headers=_headers(login(client).json()['access_token']);device=str(uuid4())
     assert client.put(f'/api/v1/sync/devices/{device}',headers=headers).status_code==200
     config=Config(str(ROOT/'alembic.ini'))
-    assert ScriptDirectory.from_config(config).get_heads()==['legal_acceptances']
+    assert ScriptDirectory.from_config(config).get_heads()==['game_loss_v2']
     command.downgrade(config,'c18_cover_readers')
     with engine.connect() as db:
         before=db.execute(text('SELECT user_id,device_id,last_ack_sequence FROM sync_devices')).all()
@@ -102,7 +102,14 @@ def test_upgrade_populated_old_registry_safe_defaults_and_reversible_before_acti
         assert db.execute(text('SELECT compression_id1_required FROM sync_user_state')).scalar_one() is False
         assert {c['name'] for c in inspect(db).get_columns('sync_devices')}==columns|{'compression_id1'}
         assert {c['name'] for c in inspect(db).get_columns('sync_user_state')}==state_columns|{'compression_id1_required'}
-        assert inspect(db).get_check_constraints('sync_devices')==constraints
+        # The later Game v2 migration extends precisely these two checks.
+        expected = [dict(c) for c in constraints]
+        assert {'ck_sync_devices_account_game_codec_version', 'ck_sync_devices_account_game_reader_version'} <= {c['name'] for c in expected}
+        for c in expected:
+            if c['name'] in {'ck_sync_devices_account_game_codec_version', 'ck_sync_devices_account_game_reader_version'}:
+                assert c['sqltext'].endswith('ARRAY[0, 1])')
+                c['sqltext'] = c['sqltext'].replace('ARRAY[0, 1])', 'ARRAY[0, 1, 2])')
+        assert inspect(db).get_check_constraints('sync_devices')==expected
     accept_current_legal_documents(client,headers)
     assert declare(client,headers,device).status_code==204
     command.downgrade(config,'c18_cover_readers');command.upgrade(config,'head')

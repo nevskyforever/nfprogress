@@ -155,7 +155,7 @@ def test_disposable_postgresql_and_encrypted_blob_backup_restore(tmp_path, monke
                 assert connection.scalar(text('SELECT id FROM users')) == user_id
                 assert connection.scalar(text('SELECT count(*) FROM encrypted_blobs')) == 1
                 assert connection.scalar(text('SELECT count(*) FROM encrypted_objects')) == 1
-                assert connection.scalar(text('SELECT version_num FROM alembic_version')) == 'legal_acceptances'
+                assert connection.scalar(text('SELECT version_num FROM alembic_version')) == 'game_loss_v2'
                 restored_encrypted = connection.execute(text(
                     'SELECT user_id,event_id,crypto_version,aad_version,nonce,ciphertext,stored_at '
                     'FROM encrypted_objects WHERE user_id=:user_id'), {'user_id': user_id}).one()

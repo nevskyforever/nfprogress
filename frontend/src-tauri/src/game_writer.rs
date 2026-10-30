@@ -394,6 +394,12 @@ mod tests {
         source["gamer"]["health"]=json!(100.0);
         let (mut db,path,scope,_)=seed_with_source(true,Some(source));
         let before:String=db.query_row("SELECT payload_json FROM game_state",[],|r|r.get(0)).unwrap();
+        let tip_before=game_sync::tips(&db,"local","account").unwrap();
+        {let tx=db.transaction().unwrap();assert!(crate::game::refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());}
+        assert_eq!(db.query_row("SELECT payload_json FROM game_state",[],|r|r.get::<_,String>(0)).unwrap(),before);
+        assert_eq!(game_sync::tips(&db,"local","account").unwrap(),tip_before);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_events WHERE revision=2 AND scope='account'",[],|r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_write_intents",[],|r|r.get::<_,i64>(0)).unwrap(),0);
         {let tx=db.transaction().unwrap();assert!(crate::game::refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
         let after:String=db.query_row("SELECT payload_json FROM game_state",[],|r|r.get(0)).unwrap();
         assert_eq!(serde_json::from_str::<Value>(&after).unwrap()["gamer"]["health"],85.0);
