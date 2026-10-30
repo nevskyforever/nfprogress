@@ -211,6 +211,7 @@ pub fn loss_after(before: &Value, writing_day: &str) -> Result<Value> {
     after["lost_day"] = json!(crate::streaks::date_from_days(last + 2));
     after["lost_length"] = json!(history.len());
     after["freezes"] = json!(0);
+    after["maximum"] = json!(before["maximum"].as_u64().unwrap_or(0).max(history.len() as u64));
     Ok(after)
 }
 pub fn validate(e: &Value) -> Result<()> {

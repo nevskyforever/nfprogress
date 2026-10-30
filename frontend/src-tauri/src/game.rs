@@ -4254,6 +4254,7 @@ mod tests {
         assert_eq!(loss_state(&db)["gamer"]["health"],85.0);
         assert_eq!(loss_state(&db)["global_streak"]["last_global_streak_lose_len"],3);
         assert_eq!(loss_state(&db)["notifications"]["new"].as_array().unwrap().len(),1);
+        assert!(loss_state(&db)["notifications"]["new"][0]["fields"]["text"].as_str().unwrap().contains("Урон: 15 HP. Здоровье: 100 → 85 HP"));
         let fields=loss_state(&db)["global_streak"].as_object().unwrap().clone();
         assert_eq!(crate::streaks::canonical_global_status(&fields,"2026-10-05"),"Lose 3");
         assert_eq!(crate::streaks::canonical_global_status(&fields,"2026-10-06"),"No");
@@ -4275,6 +4276,7 @@ mod tests {
             {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
             assert_eq!(loss_state(&db)["gamer"]["health"],expected);
             assert_eq!(loss_state(&db)["notifications"]["new"].as_array().unwrap().len(),if potions>0 {2}else{1});
+            if potions>0 { assert!(loss_state(&db)["notifications"]["new"][1]["fields"]["text"].as_str().unwrap().contains("Зелье воскрешения")); }
             assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Зелье воскрешения"],left);
             assert!(!refresh_global_loss(&db,"2026-10-06","2026-10-06T00:00:00.000000Z").unwrap());
             assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Зелье воскрешения"],left);

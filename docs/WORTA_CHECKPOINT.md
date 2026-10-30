@@ -12399,3 +12399,16 @@ investigated or fixed by HOTFIX.GAME.01B:
 * Global streak: missing damage, resurrection and notifications; repeated
   damage on subsequent days; negative health; and status not updating.
 * Shop cart: quantities can exceed the permitted item limit.
+
+## 2026-10-30 — HOTFIX.GAME.02 standalone global streak loss
+
+Starting `6.0` SHA: `d7a6969cb28012b7296412733db059478462c699`.
+
+* **A — causal event** (`24b16b3f`): Account Game v2 admits only a standalone `global_streak` loss with empty `project_action_ids`, zero reward, exact before/after, a stable identity based on the lost series, and a verified single Game parent. v1 frames remain readable. The server requires all registered devices to declare account Game reader/codec v2 before Game publication. Project Game and other account actions retain their existing checks.
+* **B — effect** (`0e6a3edb`): The calendar refresh records a loss without Progress. Health loses five points per day of the series, clamps at zero, and consumes at most one revival potion when lethal. The same transition produces local state and C21 replay, with a durable loss marker in the streak and one immutable event. It runs in the Game transaction, including when the app is restarted.
+* **C — visibility** (`4fcfc043`): The existing notification history records loss and, if applicable, revival under stable event IDs. The loss status appears on its effective day and clears on the next day; reads and replay do not create duplicate notices.
+* **D — isolated acceptance**: Local Rust tests cover normal day continuation, 100→85 HP for a three-day loss, repeated and later days, a separately seeded independent series, lethal damage with/without a potion, restart, stale/malformed events and exact replay. PostgreSQL 16 acceptance covers a loss without Progress, two-device convergence, repeated delivery and a new Progress entry without repeated damage. The existing reward/conflict/compensation acceptance remains part of the final local regression.
+
+Local acceptance: 48 Game Rust tests plus the final three targeted loss tests passed; 55 relevant Vitest tests and the final 43 codec tests passed; the frontend production build passed; PostgreSQL 16 foundation/capability tests (16), the isolated loss/two-device test (1), and the existing reward/conflict/compensation two-device test (1) passed. `git diff --check` passed. The existing help/localization test suite remains outside this hotfix: its translation catalog has an unrelated backlog and the translation generator could not reach its external service in this environment.
+
+The native action is intentionally limited to **loss**; it does not claim support for other deferred Game action families. The opaque server still stores no plaintext Game state. Apple Silicon local results do not establish Linux or x86-64 compatibility; independent CI acceptance remains separate and was not polled.

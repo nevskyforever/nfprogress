@@ -258,7 +258,8 @@ def test_game_real_postgresql_two_devices_reward_once_and_bidirectional(cloud_cl
     frozen = emit_game(client,tmp_path,token,a,ia,user,amk,expected_status=409)
     assert len(frozen) == 2
     with engine.connect() as db:
-        assert db.execute(text("SELECT count(*) FROM sync_events WHERE entity_type IN ('project_game','account_game')")).scalar() == 8
+        # The overdue one-day global series now emits its own loss event.
+        assert db.execute(text("SELECT count(*) FROM sync_events WHERE entity_type IN ('project_game','account_game')")).scalar() == 9
     assert client.get('/api/v3/sync/encrypted/progress-reader-capabilities', headers=headers).json()['ready']
     assert client.put('/api/v3/sync/encrypted/game-reader-capabilities', headers=headers,
         json=declaration(c)).status_code == 204
@@ -441,6 +442,82 @@ def test_game_real_postgresql_two_devices_reward_once_and_bidirectional(cloud_cl
         assert rejected['error']=='stage_tombstone_child_manifest_incomplete',rejected
         assert command(tmp_path,path,identity,user,'pending',sealed=False)==[]
     with engine.connect() as db:
-        assert db.execute(text("SELECT count(*) FROM sync_events WHERE entity_type IN ('project_game','account_game')")).scalar() == 22
+        assert db.execute(text("SELECT count(*) FROM sync_events WHERE entity_type IN ('project_game','account_game')")).scalar() == 23
         columns = {r[0] for r in db.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name='sync_events'"))}
         assert not columns.intersection({'coins','experience','inventory','reward_id','game_action','total_symbols'})
+
+
+def test_global_loss_without_progress_converges_on_two_devices(cloud_client,tmp_path):
+    client, engine = cloud_client
+    user = str(create_user(engine));token = login(client).json()['access_token'];headers = _headers(token)
+    a, ia = provision(tmp_path, 'game-A', user, True);b, ib = provision(tmp_path, 'game-B', user, False)
+    for identity in (ia, ib):
+        assert client.put(f"/api/v1/sync/devices/{identity['device_id']}", headers=headers).status_code == 200
+    with sqlite3.connect(a) as db:
+        register_remote_apply_authorization_guard(db)
+        db.execute("UPDATE projects SET goal=1000,infinite=0,payload_json=json_set(payload_json,'$.total',100,'$.progress_entries',json('[]'))")
+    boot = bootstrap(tmp_path, a, ia, 'bootstrap_prepare')['bootstrap_id']
+    assert client.post(f'/api/v1/cloud/projects/{PROJECT_ID}/bootstrap', headers=headers,
+        json=dict(bootstrap_id=boot, device_id=ia['device_id'])).status_code == 200
+    bootstrap(tmp_path, a, ia, 'bootstrap_prepare_capture', bootstrap_id=boot, remote_high_water=0)
+    assert client.post(f'/api/v1/cloud/projects/{PROJECT_ID}/bootstrap/complete', headers=headers,
+        json=dict(bootstrap_id=boot, device_id=ia['device_id'], initial_event_count=0, initial_max_server_sequence=0)).status_code == 200
+    bootstrap(tmp_path, a, ia, 'bootstrap_confirm_active', bootstrap_id=boot, remote_high_water=0)
+    assert client.post('/api/v2/sync/encrypted/cutover', headers=headers, json=dict(expected_cutover_epoch=0)).status_code == 200
+    for identity in (ia, ib):
+        assert client.post('/api/v3/sync/encrypted/reader-ready', headers=headers,
+            json=dict(device_id=identity['device_id'], reader_transport_version=3)).status_code == 204
+    assert client.post('/api/v3/sync/encrypted/cutover', headers=headers, json=dict(expected_cutover_epoch=1)).status_code == 200
+    amk = list(os.urandom(32));native(tmp_path, a, ia, user, 'begin')
+    meta, _ = publish(client, tmp_path, token, a, ia, user, amk)
+    assert sync(client, tmp_path, token, a, ia, user, amk)['view']['state'] == 'active'
+    bootstrap(tmp_path, b, ib, 'bootstrap_import', bootstrap_id=boot, remote_high_water=1,
+        display_name=meta['metadata']['name'], authenticated_metadata=meta['metadata'])
+    assert sync(client, tmp_path, token, b, ib, user, amk)['view']['state'] == 'active'
+    for path, identity in ((a, ia), (b, ib)):
+        support(client, headers, identity['device_id'])
+        assert game(tmp_path, path, identity, user, 'init') is True
+        assert client.put('/api/v3/sync/encrypted/game-reader-capabilities', headers=headers,
+            json=declaration(identity['device_id'])).status_code == 204
+    with sqlite3.connect(b) as db:
+        register_remote_apply_authorization_guard(db)
+        db.execute("UPDATE projects SET payload_json=json_set(payload_json,'$.total',0,'$.progress_entries',json('[]'))")
+    progress(tmp_path, a, ia, user, 'begin');emit_progress(client, tmp_path, token, a, ia, user, amk)
+    for path, identity in ((a, ia), (b, ib)):
+        assert receive_progress(client, tmp_path, token, path, identity, user, amk) == ['applied']
+    source = dict(gamer=json.loads((ROOT/'frontend/src/cloud/__fixtures__/gameLegacyDefaultsV1.json').read_text()))
+    source['global_streak'] = dict(global_streaks=['2026-10-01','2026-10-02','2026-10-03'],
+                                   max_global_streak=3,global_streak_status='Go')
+    assert game(tmp_path,a,ia,user,'init',source=source) is True
+    command(tmp_path,a,ia,user,'begin',now=NOW)
+    assert len(emit_game(client,tmp_path,token,a,ia,user,amk)) == 2
+    for path,identity in ((a,ia),(b,ib)):
+        receive_mixed(client,tmp_path,token,path,identity,user,amk)
+    assert projections(a) == projections(b)
+    before = game(tmp_path,a,ia,user,'state')
+    assert before['gamer']['health'] == 100
+    assert game(tmp_path,a,ia,user,'loss',writing_day='2026-10-04',now='2026-10-04T00:00:00.000000Z') is False
+    assert game(tmp_path,a,ia,user,'loss',writing_day='2026-10-05',now='2026-10-05T00:00:00.000000Z') is True
+    pending=command(tmp_path,a,ia,user,'pending',sealed=False)
+    assert len(pending)==1 and pending[0]['event']['action']['project_action_ids']==[]
+    requests=emit_game(client,tmp_path,token,a,ia,user,amk)
+    assert len(requests)==1
+    for path,identity in ((a,ia),(b,ib)):
+        receive_mixed(client,tmp_path,token,path,identity,user,amk)
+        assert game(tmp_path,path,identity,user,'state')['gamer']['health']==85
+        assert game(tmp_path,path,identity,user,'state')['notifications']['new'][0]['fields']['notification_id'].startswith('streak-loss:')
+        assert game(tmp_path,path,identity,user,'loss',writing_day='2026-10-06',now='2026-10-06T00:00:00.000000Z') is False
+    assert projections(a)==projections(b)
+    assert command(tmp_path,b,ib,user,'pending',sealed=False)==[]
+    for endpoint,body in requests:
+        response=client.post(endpoint,headers=headers,json=body)
+        assert response.status_code==200 and response.json()['results'][0]['duplicate']
+    for path,identity in ((a,ia),(b,ib)):
+        receive_mixed(client,tmp_path,token,path,identity,user,amk)
+        assert game(tmp_path,path,identity,user,'state')['gamer']['health']==85
+    heads=progress(tmp_path,a,ia,user,'view')['owners'][0]['tips']
+    assert 'entry' in progress(tmp_path,a,ia,user,'manual',expected=heads,total=120)
+    assert game(tmp_path,a,ia,user,'process')['processed']==1
+    assert game(tmp_path,a,ia,user,'state')['gamer']['health']==85
+    with sqlite3.connect(a) as db:
+        assert db.execute("SELECT COUNT(*) FROM cloud_game_events WHERE json_extract(CAST(substr(canonical_frame,21) AS TEXT),'$.action.kind')='global_streak'").fetchone()[0]==1

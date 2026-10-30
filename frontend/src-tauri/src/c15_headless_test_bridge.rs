@@ -663,6 +663,12 @@ fn game_bridge(request:&Value)->Value {
             db.execute("INSERT INTO game_state(id,schema_version,payload_json,updated_at) VALUES(1,2,?1,'2026-10-04T00:00:00.000000Z') ON CONFLICT(id) DO UPDATE SET payload_json=excluded.payload_json",[source.to_string()]).map_err(|e|e.to_string())?;Ok(json!(true))
         },
         "process"=>Ok(json!(crate::game::process_pending_events(&mut db,100)?)),
+        "loss"=>{
+            let tx=db.transaction().map_err(|e|e.to_string())?;
+            let result=crate::game::refresh_global_loss(&tx,required_string(request,"writing_day"),required_string(request,"now"))?;
+            tx.commit().map_err(|e|e.to_string())?;
+            Ok(json!(result))
+        },
         "state"=>{let raw:String=db.query_row("SELECT payload_json FROM game_state WHERE id=1",[],|r|r.get(0)).map_err(|e|e.to_string())?;serde_json::from_str(&raw).map_err(|_|"test_game_json".into())},
         "complete"=>{let p=required_string(request,"project_id").to_string();if let Some(s)=request["stage_id"].as_str(){crate::complete_stage_sqlite(&mut db,crate::StageIdCommand{project_id:p,stage_id:s.into()})}else{crate::complete_project_sqlite(&mut db,crate::ProjectIdCommand{project_id:p})}},
         "inventory"=>serde_json::to_value(crate::game::GameApplicationService::inventory_sqlite(&mut db,required_string(request,"category").into(),required_string(request,"item_id").into(),required_i64(request,"count"),required_string(request,"operation")).map_err(|e|e.to_string())?).map_err(|e|e.to_string()),

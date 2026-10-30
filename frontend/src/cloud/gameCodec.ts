@@ -86,7 +86,7 @@ function validateLoss(a: Record<string, unknown>) {
   if (!last || !before.enabled || (a.project_action_ids as unknown[]).length || canonical(a.reward) !== canonical({coins:'0.000000',experience:'0.000000'})) fail()
   const lossDay = new Date(Date.parse(last + 'T00:00:00Z') + 2 * 86400000).toISOString().slice(0,10)
   if (String(a.writing_day) < lossDay || before.lost_day !== null && before.lost_day >= last) fail()
-  if (canonical(after) !== canonical({...before, history:[], freezes:0, lost_day:lossDay, lost_length:before.history.length})) fail()
+  if (canonical(after) !== canonical({...before, history:[], freezes:0, maximum:Math.max(before.maximum,before.history.length), lost_day:lossDay, lost_length:before.history.length})) fail()
 }
 function streak(v: unknown) {
   const s = exact(v, ['history', 'maximum', 'freezes', 'enabled', 'last_reward_day', 'lost_day', 'lost_length'])
