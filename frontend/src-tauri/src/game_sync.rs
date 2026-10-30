@@ -1070,7 +1070,10 @@ pub fn apply(
         }
         let payload=if !conflict&&!descended {
             let mut value=if project {crate::game_projection::materialize_project(&current,text(h,"project_id")?,h["stage_id"].as_str(),&snapshot)?} else {crate::game_projection::materialize_account(&current,&snapshot)?};
-            if e["version"]==2 && e["action"]["kind"]=="global_streak" { value["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":h["updated_at"]}); }
+            if e["version"]==2 && e["action"]["kind"]=="global_streak" {
+                value["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":h["updated_at"]});
+                crate::game::append_loss_notifications(&current,&mut value,id,text(h,"updated_at")?)?;
+            }
             Some(canonical(&value))
         } else {None};
         if own&&!matching&&!explicit{retain_blocker(tx,a,&key,id,"game_legacy_local_conflict")?;}

@@ -236,6 +236,26 @@ pub(crate) fn apply_ledger_rule_fixture(state: &mut Value, event_type: &str, del
     apply_event(state,event_type,"ledger-rule-fixture",delta,context,"p")
 }
 
+/// The immutable loss identity also keys notifications, including remote replay.
+pub(crate) fn append_loss_notifications(before:&Value,after:&mut Value,id:&str,now:&str)->Result<(),String>{
+    let length=after["global_streak"]["last_global_streak_lose_len"].as_u64().ok_or("invalid_game_payload")?;
+    let old=before["gamer"]["health"].as_f64().ok_or("invalid_game_payload")?;
+    let new=after["gamer"]["health"].as_f64().ok_or("invalid_game_payload")?;
+    let damage=old.max(0.0).min(length as f64*5.0);
+    let old_potions=before["gamer"]["items"]["Зелья"]["Зелье воскрешения"].as_u64().unwrap_or(0);
+    let new_potions=after["gamer"]["items"]["Зелья"]["Зелье воскрешения"].as_u64().unwrap_or(0);
+    let revived=old_potions==new_potions+1 && new>0.0;
+    let root=after.as_object_mut().ok_or("invalid_game_payload")?;
+    let notices=root.entry("notifications").or_insert_with(||json!({"new":[],"read":[]}));
+    let existing=notices["new"].as_array().into_iter().flatten().chain(notices["read"].as_array().into_iter().flatten())
+        .filter_map(|v|v["fields"]["notification_id"].as_str()).map(str::to_owned).collect::<std::collections::HashSet<_>>();
+    let unread=notices["new"].as_array_mut().ok_or("invalid_game_payload")?;
+    let messages=[(format!("streak-loss:{id}"),format!("🥺 СТРИК ПОТЕРЯН: {length} д. Урон: {damage} HP. Здоровье: {old} → {new} HP."),true),
+        (format!("streak-revival:{id}"),format!("💀 Зелье воскрешения спасло вас! Здоровье восстановлено до {new} HP."),revived)];
+    for (key,text,emit) in messages {if emit&&!existing.contains(&key){unread.push(json!({"__type__":"Notification","fields":{"notification_id":key,"text":text,"tag":"game","date_create":now}}));}}
+    Ok(())
+}
+
 /// Calendar maintenance is also invoked when no Progress event exists.
 /// An emptied series is the durable processed-loss marker; the immutable cloud
 /// action adds its stable identity when Game synchronization is active.
@@ -271,6 +291,10 @@ pub(crate) fn refresh_global_loss(connection: &Connection, day: &str, now: &str)
     // capture_loss already froze its exact payload; timestamp is local-only and
     // maintained by the common materializer below, before an intent is retained.
     after["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":now});
+    let id=if let Some(account)=connection.query_row("SELECT canonical_user_id FROM cloud_account_bindings LIMIT 1",[],|r|r.get::<_,String>(0)).optional().map_err(|e|e.to_string())? {
+        crate::game_sync::loss_id(&account,&streak)
+    } else {format!("{}:{}",lost["lost_day"].as_str().unwrap_or(day),lost["lost_length"].as_u64().unwrap_or(0))};
+    append_loss_notifications(&before,&mut after,&id,now)?;
     connection.execute("UPDATE game_state SET schema_version=2,payload_json=?1,updated_at=?2 WHERE id=1",params![after.to_string(),now]).map_err(|e|e.to_string())?;
     Ok(true)
 }
@@ -4229,9 +4253,14 @@ mod tests {
         {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
         assert_eq!(loss_state(&db)["gamer"]["health"],85.0);
         assert_eq!(loss_state(&db)["global_streak"]["last_global_streak_lose_len"],3);
+        assert_eq!(loss_state(&db)["notifications"]["new"].as_array().unwrap().len(),1);
+        let fields=loss_state(&db)["global_streak"].as_object().unwrap().clone();
+        assert_eq!(crate::streaks::canonical_global_status(&fields,"2026-10-05"),"Lose 3");
+        assert_eq!(crate::streaks::canonical_global_status(&fields,"2026-10-06"),"No");
         for day in ["2026-10-05","2026-10-06","2026-10-10"] {assert!(!refresh_global_loss(&db,day,"2026-10-10T00:00:00.000000Z").unwrap());}
         drop(db);let mut db=crate::sqlite::open_database(&path).unwrap();
         assert_eq!(loss_state(&db)["gamer"]["health"],85.0);
+        assert_eq!(loss_state(&db)["notifications"]["new"].as_array().unwrap().len(),1);
         let mut next=loss_state(&db);next["global_streak"]["global_streaks"]=json!(["2026-10-11","2026-10-12"]);
         db.execute("UPDATE game_state SET payload_json=?1",[next.to_string()]).unwrap();
         {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-14","2026-10-14T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
@@ -4245,6 +4274,7 @@ mod tests {
             let (mut db,path)=loss_database(health,potions);
             {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
             assert_eq!(loss_state(&db)["gamer"]["health"],expected);
+            assert_eq!(loss_state(&db)["notifications"]["new"].as_array().unwrap().len(),if potions>0 {2}else{1});
             assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Зелье воскрешения"],left);
             assert!(!refresh_global_loss(&db,"2026-10-06","2026-10-06T00:00:00.000000Z").unwrap());
             assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Зелье воскрешения"],left);

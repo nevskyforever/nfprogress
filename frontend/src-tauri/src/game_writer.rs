@@ -68,6 +68,7 @@ pub fn capture_loss(db: &Connection, before: &Value, day: &str, now: &str) -> Re
     let next=game_sync::transition(&event,&std::collections::BTreeMap::from([(parents[0].clone(),base)]))?;
     let mut out=game_projection::materialize_account(before,&next)?;
     out["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":now});
+    crate::game::append_loss_notifications(before,&mut out,&id,now)?;
     game_sync::preserve(db,&scope.account_id,&event,"unsealed")?;
     if game_sync::rebuild_chain(db,&scope.account_id,"account",&id)?!=next { return Err("game_invalid_rule".into()); }
     db.execute("DELETE FROM cloud_game_tips WHERE account_id=?1 AND owner_key='account'",[&scope.account_id]).map_err(sql)?;
@@ -396,6 +397,7 @@ mod tests {
         {let tx=db.transaction().unwrap();assert!(crate::game::refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
         let after:String=db.query_row("SELECT payload_json FROM game_state",[],|r|r.get(0)).unwrap();
         assert_eq!(serde_json::from_str::<Value>(&after).unwrap()["gamer"]["health"],85.0);
+        assert_eq!(serde_json::from_str::<Value>(&after).unwrap()["notifications"]["new"].as_array().unwrap().len(),1);
         let (id,frame):(String,Vec<u8>)=db.query_row("SELECT event_id,canonical_frame FROM cloud_game_events WHERE revision=2 AND scope='account'",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
         let event=game_codec::unframe(&frame,false).unwrap();
         assert_eq!(event["version"],2);assert_eq!(event["action"]["project_action_ids"],json!([]));

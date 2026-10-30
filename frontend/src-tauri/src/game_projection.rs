@@ -335,11 +335,13 @@ pub(crate) fn streak_fields(base: &Value, global: bool) -> Result<Value> {
     o.insert(
         fields[2].into(),
         json!(if base["enabled"] == false {
-            "Off"
+            "Off".to_string()
+        } else if history.is_empty() && !base["lost_day"].is_null() && base["lost_length"].as_u64().unwrap_or(0)>0 {
+            format!("Lose {}",base["lost_length"].as_u64().unwrap_or(0))
         } else if history.is_empty() {
-            "No"
+            "No".to_string()
         } else {
-            "Active"
+            "Active".to_string()
         }),
     );
     o.insert(fields[3].into(), date(&base["last_reward_day"]));
