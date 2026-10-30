@@ -2,11 +2,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 vi.mock('@/platform/runtime', () => ({ currentPlatform: vi.fn(() => 'tauri') }))
+const bridge = vi.hoisted(() => ({ invoke: vi.fn(), listeners: new Set<(event: { payload: unknown }) => void>() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: bridge.invoke }))
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(async (_name: string, listener: (event: { payload: unknown }) => void) => {
+    bridge.listeners.add(listener)
+    return () => bridge.listeners.delete(listener)
+  }),
+  emit: vi.fn(async (_name: string, payload: unknown) => {
+    for (const listener of bridge.listeners) listener({ payload })
+  }),
+}))
 
 import type { CurrentUserCryptoRecord } from '@/api/accountCrypto'
 import { diagnostics } from '@/diagnostics/service'
 import { ApiError } from '@/api/client'
 import { currentPlatform } from '@/platform/runtime'
+import { SQLiteNotesRepository } from '@/infrastructure/sqlite/notesRepository'
+import { announceDataChange } from '@/services/dataChanges'
 import type { PendingAccountCryptoProvisioning } from '@/cloud/accountCryptoProvisioning'
 import { AccountCryptoProvisioningConflictError } from '@/cloud/accountCryptoProvisioning'
 import type { NoteSyncProductionResult } from '@/cloud/noteSyncTransportRouter'
@@ -103,10 +116,101 @@ function runtime(record: CurrentUserCryptoRecord = PROVISIONED): CloudSessionRun
 
 describe('desktop cloud session owner', () => {
   beforeEach(() => {
+    bridge.listeners.clear()
+    bridge.invoke.mockReset()
     setActivePinia(createPinia())
     configureCloudSessionRuntimeFactoryForTests(null)
     configureCloudSessionProjectLoaderForTests(async () => [])
     vi.mocked(currentPlatform).mockReturnValue('tauri')
+  })
+
+  async function noteSetup() {
+    const instance = runtime()
+    const connected = registry({ local: [bootstrapRecord()] })
+    vi.mocked(instance.unlock).mockResolvedValue({ identity: {} as never, registry: connected })
+    vi.mocked(instance.reconcileProjects).mockResolvedValue(connected)
+    configureCloudSessionProjectLoaderForTests(async () => [{ id: PROJECT, name: 'Project' }, { id: 'local-only', name: 'Local' }])
+    configureCloudSessionRuntimeFactoryForTests(() => instance)
+    const store = useCloudSessionStore(); store.initialize(); await store.login('user', 'password'); await store.unlock('key')
+    await vi.waitFor(() => expect(store.status).toBe('completed'))
+    vi.mocked(instance.retry).mockClear()
+    return { instance, store, repository: new SQLiteNotesRepository(), connected }
+  }
+
+  it('starts a cycle only after a successful local note command; failed and incoming changes do not trigger it', async () => {
+    const { instance, store, repository } = await noteSetup()
+    const write = deferred<{ id: string, content: string }>()
+    bridge.invoke.mockReturnValueOnce(write.promise)
+    const saved = repository.update({ projectId: PROJECT }, 'n', { content: 'local text' })
+    await Promise.resolve()
+    expect(instance.retry).not.toHaveBeenCalled()
+    write.resolve({ id: 'n', content: 'local text' })
+    expect(await saved).toMatchObject({ content: 'local text' })
+    await vi.waitFor(() => expect(instance.retry).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(store.status).toBe('completed'))
+    bridge.invoke.mockRejectedValueOnce(new Error('write failed'))
+    await expect(repository.update({ projectId: PROJECT }, 'n', { content: 'lost' })).rejects.toThrow('write failed')
+    announceDataChange('projects')
+    await Promise.resolve(); await Promise.resolve()
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.dispose()
+  })
+
+  it('coalesces writes during a cycle into a trailing cycle and preserves committed text on network failure', async () => {
+    const { instance, store, repository } = await noteSetup()
+    let text = ''
+    bridge.invoke.mockImplementation(async (_command: string, args: { patch: { content: string } }) => {
+      text = args.patch.content
+      return { id: 'n', content: text }
+    })
+    const firstCycle = deferred<NoteSyncProductionResult>()
+    vi.mocked(instance.retry).mockReturnValueOnce(firstCycle.promise).mockRejectedValueOnce(new ApiError(0, 'offline', 'offline'))
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'one' })
+    await vi.waitFor(() => expect(instance.retry).toHaveBeenCalledTimes(1))
+    await Promise.all(['two', 'three', 'four'].map(content => repository.update({ projectId: PROJECT }, 'n', { content })))
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    firstCycle.resolve(EMPTY_CYCLE)
+    await vi.waitFor(() => expect(instance.retry).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(store.status).toBe('retryable_error'))
+    expect(text).toBe('four')
+    expect(store.errorMessage).toBeTruthy()
+    await store.dispose()
+  })
+
+  it('does not schedule a local-only or locked project, and cancels queued saves on logout', async () => {
+    const { instance, store, repository } = await noteSetup()
+    bridge.invoke.mockResolvedValue({ id: 'n', content: 'saved' })
+    await repository.update({ projectId: 'local-only' }, 'n', { content: 'saved' })
+    await Promise.resolve(); await Promise.resolve()
+    expect(instance.retry).not.toHaveBeenCalled()
+    const active = deferred<NoteSyncProductionResult>()
+    vi.mocked(instance.retry).mockReturnValueOnce(active.promise)
+    const manual = store.retry()
+    await vi.waitFor(() => expect(instance.retry).toHaveBeenCalledTimes(1))
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'saved' })
+    await store.logout(); active.resolve(EMPTY_CYCLE); await manual
+    await Promise.resolve(); await Promise.resolve()
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.login('user', 'password')
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'locked' })
+    await Promise.resolve(); await Promise.resolve()
+    expect(instance.retry).toHaveBeenCalledTimes(1)
+    await store.dispose()
+  })
+
+  it.each(['bootstrap', 'import'] as const)('runs a committed note save after %s completes', async operation => {
+    const { instance, store, repository, connected } = await noteSetup()
+    const boot = deferred<CloudProjectBootstrapProgress>()
+    const worker = operation === 'bootstrap' ? instance.bootstrapLocalProject : instance.importRemoteProject
+    vi.mocked(worker).mockReturnValueOnce(boot.promise)
+    bridge.invoke.mockResolvedValue({ id: 'n', content: 'saved' })
+    const project = operation === 'bootstrap' ? store.bootstrapProject(PROJECT) : store.importProject(PROJECT, 'Project')
+    await vi.waitFor(() => expect(worker).toHaveBeenCalledTimes(1))
+    await repository.update({ projectId: PROJECT }, 'n', { content: 'saved' })
+    expect(instance.retry).not.toHaveBeenCalled()
+    boot.resolve(progress(connected)); await project
+    await vi.waitFor(() => expect(instance.retry).toHaveBeenCalledTimes(1))
+    await store.dispose()
   })
 
   it('starts one C21 cycle after unlocking a connected project, and never for local-only projects', async () => {

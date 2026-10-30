@@ -12,6 +12,7 @@ import type {
   XMindImportResponse,
 } from '@/types/notes'
 import { normalizeMindMapData } from '@/core/mindmap/normalization'
+import { announceLocalNoteWrite } from '@/services/localNoteWrites'
 
 function nativeScope(scope: NotesScope): { projectId: string; stageId: string | null } {
   return { projectId: scope.projectId, stageId: scope.stageId ?? null }
@@ -30,20 +31,25 @@ export class SQLiteNotesRepository implements NotesRepository {
 
   async create(scope: NotesScope,contentFormat?:'html'|'plain'): Promise<ProjectNote> {
     const note = await invoke<ProjectNote>('create_note', {...nativeScope(scope),...(contentFormat?{contentFormat}:{})})
+    announceLocalNoteWrite(scope.projectId)
     return note
   }
 
   async update(scope: NotesScope, noteId: string, patch: ProjectNotePatch): Promise<ProjectNote> {
     const note = await invoke<ProjectNote>('update_note', { ...nativeScope(scope), noteId, patch })
+    announceLocalNoteWrite(scope.projectId)
     return note
   }
 
   async delete(scope: NotesScope, noteId: string): Promise<void> {
     await invoke('delete_note', { ...nativeScope(scope), noteId })
+    announceLocalNoteWrite(scope.projectId)
   }
 
-  reorder(scope: NotesScope, noteIds: string[]): Promise<NoteOrderResponse> {
-    return invoke<NoteOrderResponse>('reorder_notes', { ...nativeScope(scope), noteIds })
+  async reorder(scope: NotesScope, noteIds: string[]): Promise<NoteOrderResponse> {
+    const result = await invoke<NoteOrderResponse>('reorder_notes', { ...nativeScope(scope), noteIds })
+    announceLocalNoteWrite(scope.projectId)
+    return result
   }
 
   mindMap(scope: NotesScope): Promise<MindMapResponse> {

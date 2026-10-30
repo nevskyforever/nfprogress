@@ -11,6 +11,7 @@ import { presentStatus, technicalCode } from '@/diagnostics/presentation'
 import type { StructuralDecision, StructuralView } from '@/infrastructure/sqlite/stageStructuralRepository'
 import { MetadataImportContinuationError } from '@/cloud/projectMetadataMigrationRuntime'
 import { announceDataChange } from '@/services/dataChanges'
+import { onLocalNoteWrite } from '@/services/localNoteWrites'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -193,6 +194,10 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   let unlockFlight: { readonly epoch: number, readonly promise: Promise<void> } | null = null
   let unlocked = false
   let lifecycleEpoch = 0
+  let noteListener: Promise<() => void> | null = null
+  const pendingNoteProjects = new Set<string>()
+  const readyNoteProjects = new Set<string>()
+  let noteFlight: { readonly epoch: number, readonly promise: Promise<void> } | null = null
 
   const supported = ref(false)
   const status = ref<CloudSessionStatus>('unavailable')
@@ -217,6 +222,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   function resetVisibleSession(): void {
     unlocked = false
+    pendingNoteProjects.clear()
+    readyNoteProjects.clear()
     username.value = null
     hasProvisionedKey.value = false
     errorMessage.value = null
@@ -278,6 +285,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     }
     supported.value = true
     if (runtime === null) runtime = runtimeFactory()
+    if (noteListener === null) {
+      noteListener = Promise.resolve().then(() => onLocalNoteWrite(queueNoteSync))
+      // Login awaits registration and reports failures through the existing status.
+      void noteListener.catch(() => undefined)
+    }
     if (status.value === 'unavailable') status.value = 'logged_out'
   }
 
@@ -285,11 +297,14 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     const activeRuntime = requireRuntime()
     const epoch = ++lifecycleEpoch
     unlocked = false
+    pendingNoteProjects.clear()
     busy.value = true
     errorMessage.value = null
     clearPending()
     projects.value = []
     try {
+      if (noteListener) await noteListener
+      if (!current(epoch)) return
       const result = await activeRuntime.login(accountUsername, accountPassword)
       if (!current(epoch)) return
       username.value = result.context.username
@@ -532,6 +547,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     }
 
     projects.value = next.sort((left, right) => (left.name ?? left.projectId).localeCompare(right.name ?? right.projectId))
+    readyNoteProjects.clear()
+    for (const record of registry.local) if (record.phase === 'ready') readyNoteProjects.add(record.project_id)
     blockedEvents.value = [...new Set(registry.reasons.map(safeRegistryReason))]
     blockedEventCodes.value = [...new Set(registry.reasons.map(technicalCode))]
     canRunCycle.value = registry.readyForNormalCycle
@@ -652,6 +669,37 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
     if (!hasProvisionedKey.value) throw new Error('Encryption provisioning is required before sync.')
     if (!unlocked || !authenticated.value) throw new Error('Cloud session must be unlocked before sync.')
     await diagnostics.run('sync', 'retry', () => runCycle(() => requireRuntime().retry(), correlation), correlation)
+  }
+
+  function queueNoteSync(projectId: string): void {
+    if (!unlocked || !authenticated.value) return
+    const epoch = lifecycleEpoch
+    pendingNoteProjects.add(projectId)
+    if (noteFlight?.epoch === epoch) return
+    let promise!: Promise<void>
+    promise = Promise.resolve().then(async () => {
+      try {
+        while (current(epoch) && unlocked && pendingNoteProjects.size) {
+          // Wait for any earlier work before consuming the batch: a write may have
+          // committed after that cycle's outbox scan and requires a fresh cycle.
+          while (current(epoch)) {
+            const prior = projectFlight?.epoch === epoch ? projectFlight.promise
+              : syncFlight?.epoch === epoch ? syncFlight.promise : null
+            if (!prior) break
+            await prior.catch(() => undefined)
+          }
+          if (!current(epoch) || !unlocked) return
+          const batch = [...pendingNoteProjects]
+          pendingNoteProjects.clear()
+          const connected = batch.some(id => readyNoteProjects.has(id))
+          if (!connected || !canRunCycle.value) continue
+          try { await retry() } catch { /* runCycle exposes the safe error state */ }
+        }
+      } finally {
+        if (noteFlight?.promise === promise) noteFlight = null
+      }
+    })
+    noteFlight = { epoch, promise }
   }
 
   async function inspectCatalog():Promise<void>{const epoch=lifecycleEpoch;const runtime=requireRuntime();if(!runtime.catalogAuthority)throw new Error('catalog_runtime_unavailable');const view=await runtime.catalogAuthority();if(current(epoch))catalogAuthority.value=view}
@@ -816,6 +864,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function lock(): Promise<void> {
     const epoch = ++lifecycleEpoch
     unlocked = false
+    pendingNoteProjects.clear()
+    readyNoteProjects.clear()
     clearPending()
     try {
       await requireRuntime().lock()
@@ -836,6 +886,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function logout(): Promise<void> {
     const epoch = ++lifecycleEpoch
     unlocked = false
+    pendingNoteProjects.clear()
+    readyNoteProjects.clear()
     clearPending()
     try {
       await runtime?.logout()
@@ -851,6 +903,11 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function dispose(): Promise<void> {
     ++lifecycleEpoch
     unlocked = false
+    pendingNoteProjects.clear()
+    readyNoteProjects.clear()
+    const listener = noteListener
+    noteListener = null
+    if (listener) void listener.then(unlisten => unlisten()).catch(() => undefined)
     clearPending()
     syncFlight = null
     projectFlight = null
