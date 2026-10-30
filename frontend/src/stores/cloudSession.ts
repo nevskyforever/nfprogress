@@ -190,6 +190,8 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   let pending: PendingAccountCryptoProvisioning | null = null
   let syncFlight: { readonly epoch: number, readonly promise: Promise<void> } | null = null
   let projectFlight: { readonly epoch: number, readonly promise: Promise<void> } | null = null
+  let unlockFlight: { readonly epoch: number, readonly promise: Promise<void> } | null = null
+  let unlocked = false
   let lifecycleEpoch = 0
 
   const supported = ref(false)
@@ -214,6 +216,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   const authenticated = computed(() => username.value !== null)
 
   function resetVisibleSession(): void {
+    unlocked = false
     username.value = null
     hasProvisionedKey.value = false
     errorMessage.value = null
@@ -281,6 +284,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function login(accountUsername: string, accountPassword: string): Promise<void> {
     const activeRuntime = requireRuntime()
     const epoch = ++lifecycleEpoch
+    unlocked = false
     busy.value = true
     errorMessage.value = null
     clearPending()
@@ -388,11 +392,14 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   async function runCycle(operation: () => Promise<NoteSyncProductionResult>, correlation?: string): Promise<void> {
     const epoch = lifecycleEpoch
     if (syncFlight?.epoch === epoch) return syncFlight.promise
+    const previousProject = projectFlight?.epoch === epoch ? projectFlight.promise : null
     status.value = 'syncing'
     errorMessage.value = null
     let promise!: Promise<void>
-    promise = (async () => {
+    promise = Promise.resolve().then(async () => {
       try {
+        if (previousProject) await previousProject.catch(() => undefined)
+        if (!current(epoch)) return
         const result = await diagnostics.run('sync', 'sync_cycle', async correlation => {
           const result = await operation()
           diagnostics.record('sync', 'sync_cycle', 'sync_result', correlation, { count: result.blocked.length, pending: result.errors.length, retry: result.hasRemainingWork }, result.blocked.length || result.errors.length ? 'warning' : 'info')
@@ -432,26 +439,39 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
       } finally {
         if (syncFlight?.promise === promise) syncFlight = null
       }
-    })()
+    })
     syncFlight = { epoch, promise }
     return promise
   }
 
-  async function unlock(encryptionPassword: string): Promise<void> {
+  function unlock(encryptionPassword: string): Promise<void> {
     const epoch = lifecycleEpoch
+    if (unlockFlight?.epoch === epoch) return unlockFlight.promise
+    if (unlocked) return Promise.resolve()
     busy.value = true
     errorMessage.value = null
-    try {
+    let promise!: Promise<void>
+    promise = (async () => { try {
       const result = await diagnostics.run('encryption', 'unlock', () => requireRuntime().unlock(encryptionPassword))
       if (!current(epoch)) return
       await applyRegistry(result.registry, epoch)
+      if (!current(epoch)) return
+      unlocked = true
       status.value = result.registry.readyForNormalCycle ? 'ready' : 'blocked'
+      if (result.registry.readyForNormalCycle && result.registry.local.some(project => project.phase === 'ready')) {
+        // The normal C21 cycle revalidates authentication, key lease and registry.
+        // Its failure is presented by runCycle; do not hold the unlock UI open.
+        void retry().catch(() => undefined)
+      }
     } catch (error) {
       setFailure(error, epoch)
       throw error
     } finally {
+      if (unlockFlight?.promise === promise) unlockFlight = null
       if (current(epoch)) busy.value = false
-    }
+    } })()
+    unlockFlight = { epoch, promise }
+    return promise
   }
 
   async function applyRegistry(registry: CloudRegistryReconciliation, epoch: number): Promise<void> {
@@ -559,12 +579,15 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
   ): Promise<void> {
     const epoch = lifecycleEpoch
     if (projectFlight?.epoch === epoch) return projectFlight.promise
+    const previousSync = syncFlight?.epoch === epoch ? syncFlight.promise : null
     busy.value = true
     errorMessage.value = null
     const report: CloudProjectBootstrapReporter = stage => setProjectStage(projectId, stage, epoch)
     let promise!: Promise<void>
-    promise = (async () => {
+    promise = Promise.resolve().then(async () => {
       try {
+        if (previousSync) await previousSync.catch(() => undefined)
+        if (!current(epoch)) return
         const result = await operation(report)
         if (!current(epoch)) return
         await applyRegistry(result.registry, epoch)
@@ -588,7 +611,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
         if (projectFlight?.promise === promise) projectFlight = null
         if (current(epoch)) busy.value = false
       }
-    })()
+    })
     projectFlight = { epoch, promise }
     return promise
   }
@@ -627,6 +650,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function retry(correlation?: string): Promise<void> {
     if (!hasProvisionedKey.value) throw new Error('Encryption provisioning is required before sync.')
+    if (!unlocked || !authenticated.value) throw new Error('Cloud session must be unlocked before sync.')
     await diagnostics.run('sync', 'retry', () => runCycle(() => requireRuntime().retry(), correlation), correlation)
   }
 
@@ -791,6 +815,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function lock(): Promise<void> {
     const epoch = ++lifecycleEpoch
+    unlocked = false
     clearPending()
     try {
       await requireRuntime().lock()
@@ -810,6 +835,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function logout(): Promise<void> {
     const epoch = ++lifecycleEpoch
+    unlocked = false
     clearPending()
     try {
       await runtime?.logout()
@@ -824,6 +850,7 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function dispose(): Promise<void> {
     ++lifecycleEpoch
+    unlocked = false
     clearPending()
     syncFlight = null
     projectFlight = null
