@@ -139,6 +139,39 @@ def test_stage_plain_explicit_notes_two_devices_and_missing_third_reader(cloud_c
         content(tmp_path,a,ia,user,'create',note_id=note_id,stage_id=stage_id,content_format=fmt)
     assert len(emit(client,tmp_path,token,a,ia,user,amk))==3
     for path,identity in ((a,ia),(b,ib)):receive(client,tmp_path,token,path,identity,user,amk)
+    # Sequential private-MVP round trip using production native writers and crypto.
+    first_text = 'Private MVP text from device A — 7461'
+    second_text = 'Private MVP update from device B — 9283'
+    content(tmp_path,a,ia,user,'edit',note_id='P2',patch=dict(content=first_text))
+    assert len(emit(client,tmp_path,token,a,ia,user,amk,lose=True))==1
+    for path,identity in ((a,ia),(b,ib)): receive(client,tmp_path,token,path,identity,user,amk)
+    with sqlite3.connect(b) as db:
+        assert json.loads(db.execute("SELECT payload_json FROM notes WHERE id='P2'").fetchone()[0])['content']==first_text
+    content(tmp_path,b,ib,user,'edit',note_id='P2',patch=dict(content=second_text))
+    # Before transport is attempted, a reopened SQLite database retains the edit and intent.
+    with sqlite3.connect(b) as db:
+        assert json.loads(db.execute("SELECT payload_json FROM notes WHERE id='P2'").fetchone()[0])['content']==second_text
+    assert content(tmp_path,b,ib,user,'pending')
+    assert len(emit(client,tmp_path,token,b,ib,user,amk,lose=True))==1
+    for path,identity in ((a,ia),(b,ib)): receive(client,tmp_path,token,path,identity,user,amk)
+    for path in (a,b):
+        with sqlite3.connect(path) as db:
+            assert json.loads(db.execute("SELECT payload_json FROM notes WHERE id='P2'").fetchone()[0])['content']==second_text
+    from sqlalchemy import text as sql_text
+    with engine.connect() as db:
+        ciphertexts=db.execute(sql_text('SELECT ciphertext FROM encrypted_objects')).scalars().all()
+        assert ciphertexts and all(first_text.encode() not in bytes(c) and second_text.encode() not in bytes(c) for c in ciphertexts)
+    create_user(engine,username='Other',email='other@example.test')
+    other_token=login(client,username='Other').json()['access_token']
+    other_device=str(uuid4())
+    assert client.put(f'/api/v1/sync/devices/{other_device}',headers=_headers(other_token)).status_code==200
+    listing=client.get('/api/v1/cloud/projects/bootstrap',headers=_headers(other_token))
+    assert listing.status_code==200 and listing.json()['projects']==[]
+    assert client.post('/api/v2/sync/encrypted/cutover',headers=_headers(other_token),json=dict(expected_cutover_epoch=0)).status_code==200
+    assert client.post('/api/v3/sync/encrypted/reader-ready',headers=_headers(other_token),json=dict(device_id=other_device,reader_transport_version=3)).status_code==204
+    assert client.post('/api/v3/sync/encrypted/cutover',headers=_headers(other_token),json=dict(expected_cutover_epoch=1)).status_code==200
+    other_page=client.get('/api/v3/sync/encrypted/pull',headers=_headers(other_token),params=dict(device_id=other_device,since=0,protocol_version=3,encrypted_sync_version=3,limit=100))
+    assert other_page.status_code==200 and other_page.json()['items']==[]
     content(tmp_path,a,ia,user,'edit',note_id='P2',patch=dict(title='Portable title',tags=['tag'],checklist=[dict(id='item',text='Check',checked=True)],color='coral',pinned=True,archived=True))
     assert len(emit(client,tmp_path,token,a,ia,user,amk))==1
     for path,identity in ((a,ia),(b,ib)):receive(client,tmp_path,token,path,identity,user,amk)
