@@ -283,7 +283,7 @@ fn numeric(v: &Value) -> Result<Value> {
             / 1_000_000.0
     ))
 }
-fn streak_fields(base: &Value, global: bool) -> Result<Value> {
+pub(crate) fn streak_fields(base: &Value, global: bool) -> Result<Value> {
     let history = base["history"].as_array().ok_or("invalid_game_payload")?;
     let mut entries = Vec::new();
     let mut previous: Option<&str> = None;

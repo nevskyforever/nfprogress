@@ -4,7 +4,7 @@
 //! a Rust-struct serialization.  This keeps migration payloads compatible with
 //! the Python oracle and makes unknown Game fields round-trip untouched.
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Map, Value};
 
 const EVENT_VERSION: i64 = 1;
@@ -236,6 +236,45 @@ pub(crate) fn apply_ledger_rule_fixture(state: &mut Value, event_type: &str, del
     apply_event(state,event_type,"ledger-rule-fixture",delta,context,"p")
 }
 
+/// Calendar maintenance is also invoked when no Progress event exists.
+/// An emptied series is the durable processed-loss marker; the immutable cloud
+/// action adds its stable identity when Game synchronization is active.
+pub(crate) fn refresh_global_loss(connection: &Connection, day: &str, now: &str) -> Result<bool,String> {
+    if !GameApplicationService::enabled(connection) { return Ok(false); }
+    let raw=connection.query_row("SELECT payload_json FROM game_state WHERE id=1",[],|r|r.get::<_,String>(0)).optional().map_err(|e|e.to_string())?;
+    let Some(raw)=raw else { return Ok(false); };
+    let before:Value=serde_json::from_str(&raw).map_err(|e|e.to_string())?;
+    let streak=crate::game_projection::streak_base(&before["global_streak"],true)?;
+    if streak["enabled"]!=true || streak["history"].as_array().is_none_or(|h|h.is_empty()) { return Ok(false); }
+    let last=streak["history"].as_array().and_then(|h|h.last()).and_then(|v|v["day"].as_str()).and_then(crate::streaks::date_days).ok_or("invalid_game_payload")?;
+    if crate::streaks::date_days(day).is_none_or(|today|today<last+2) { return Ok(false); }
+    let lost=crate::game_codec::loss_after(&streak,day)?;
+    let mut after=if let Some(after)=crate::game_writer::capture_loss(connection,&before,day,now)? { after } else {
+        let mut after=before.clone();
+        let g=after["gamer"].as_object_mut().ok_or("invalid_game_payload")?;
+        let mut inventory=Vec::new();
+        if let Some(categories)=g.get("items").and_then(Value::as_object) {
+            for (category,items) in categories { if let Some(items)=items.as_object() { for (key,count) in items { if count.as_u64().is_some_and(|n|n>0) { inventory.push(json!({"category":category,"item_id":key,"count":count})); } } } }
+        }
+        let max=number_field(g,"max_health",100.0).max(0.0);
+        let mut base=json!({"health":format!("{:.6}",number_field(g,"health",max).clamp(0.0,max)),"max_health":format!("{max:.6}"),"inventory":inventory});
+        crate::game_sync::loss_health(&mut base,lost["lost_length"].as_u64().ok_or("invalid_game_payload")?)?;
+        g.insert("health".into(),json!(base["health"].as_str().ok_or("invalid_game_payload")?.parse::<f64>().map_err(|_|"invalid_game_payload")?));
+        let potion=base["inventory"].as_array().and_then(|v|v.iter().find(|v|v["category"]=="Зелья"&&v["item_id"]=="Зелье воскрешения")).map(|v|v["count"].clone()).unwrap_or(json!(0));
+        // Preserve every unrelated legacy inventory entry and extension.
+        if g.get("items").and_then(|v|v.get("Зелья")).and_then(Value::as_object).is_some_and(|v|v.contains_key("Зелье воскрешения")) {
+            g["items"]["Зелья"]["Зелье воскрешения"]=potion;
+        }
+        after["global_streak"]=crate::game_projection::streak_fields(&lost,true)?;
+        after
+    };
+    // capture_loss already froze its exact payload; timestamp is local-only and
+    // maintained by the common materializer below, before an intent is retained.
+    after["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":now});
+    connection.execute("UPDATE game_state SET schema_version=2,payload_json=?1,updated_at=?2 WHERE id=1",params![after.to_string(),now]).map_err(|e|e.to_string())?;
+    Ok(true)
+}
+
 pub fn process_pending_events(
     connection: &mut Connection,
     limit: i64,
@@ -243,6 +282,10 @@ pub fn process_pending_events(
     let transaction = connection
         .transaction()
         .map_err(|error| error.to_string())?;
+    let day=crate::streaks::logical_writing_day(&transaction)?;
+    let now=GameApplicationService::now(&transaction).map_err(|e|e.to_string())?;
+    let now=format!("{}.000000Z",now.get(..19).ok_or("invalid_game_payload")?);
+    refresh_global_loss(&transaction,&day,&now)?;
     let mut statement = transaction
         .prepare("SELECT event_id,event_type,project_id,delta_symbols,context_json,version,attempt_count,stage_id,progress_id FROM domain_events WHERE consumer='game' AND processed_at IS NULL AND status != 'failed' ORDER BY created_at,event_id LIMIT ?1")
         .map_err(|error| error.to_string())?;
@@ -4167,6 +4210,47 @@ mod tests {
         index: usize,
     }
 
+    fn loss_database(health:f64,potions:u64) -> (Connection,std::path::PathBuf) {
+        let path=std::env::temp_dir().join(format!("game-loss-{}.db",crate::project_metadata_sync::new_event_id().unwrap()));
+        let db=crate::sqlite::open_database(&path).unwrap();
+        let mut source=json!({"gamer":serde_json::from_str::<Value>(include_str!("../../src/cloud/__fixtures__/gameLegacyDefaultsV1.json")).unwrap(),"global_streak":{"global_streaks":["2026-10-01","2026-10-02","2026-10-03"],"max_global_streak":3,"global_streak_status":"Go"}});
+        source["gamer"]["health"]=json!(health);
+        source["gamer"]["items"]["Зелья"]=json!({"Зелье воскрешения":potions,"Микро зелье здоровья":2});
+        db.execute("INSERT INTO game_state VALUES(1,2,?1,'now')",[source.to_string()]).unwrap();
+        (db,path)
+    }
+    fn loss_state(db:&Connection)->Value {
+        serde_json::from_str(&db.query_row("SELECT payload_json FROM game_state",[],|r|r.get::<_,String>(0)).unwrap()).unwrap()
+    }
+    #[test]
+    fn global_loss_calendar_once_restart_and_new_independent_series() {
+        let (mut db,path)=loss_database(100.0,0);
+        for day in ["2026-10-03","2026-10-04"] {assert!(!refresh_global_loss(&db,day,"2026-10-04T00:00:00.000000Z").unwrap());}
+        {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
+        assert_eq!(loss_state(&db)["gamer"]["health"],85.0);
+        assert_eq!(loss_state(&db)["global_streak"]["last_global_streak_lose_len"],3);
+        for day in ["2026-10-05","2026-10-06","2026-10-10"] {assert!(!refresh_global_loss(&db,day,"2026-10-10T00:00:00.000000Z").unwrap());}
+        drop(db);let mut db=crate::sqlite::open_database(&path).unwrap();
+        assert_eq!(loss_state(&db)["gamer"]["health"],85.0);
+        let mut next=loss_state(&db);next["global_streak"]["global_streaks"]=json!(["2026-10-11","2026-10-12"]);
+        db.execute("UPDATE game_state SET payload_json=?1",[next.to_string()]).unwrap();
+        {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-14","2026-10-14T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
+        assert_eq!(loss_state(&db)["gamer"]["health"],75.0);
+        assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Микро зелье здоровья"],2);
+        drop(db);std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn global_loss_lethal_damage_revives_once_or_clamps_to_zero() {
+        for (health,potions,expected,left) in [(10.0,2,100.0,1),(15.0,1,100.0,0),(10.0,0,0.0,0),(0.0,0,0.0,0)] {
+            let (mut db,path)=loss_database(health,potions);
+            {let tx=db.transaction().unwrap();assert!(refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
+            assert_eq!(loss_state(&db)["gamer"]["health"],expected);
+            assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Зелье воскрешения"],left);
+            assert!(!refresh_global_loss(&db,"2026-10-06","2026-10-06T00:00:00.000000Z").unwrap());
+            assert_eq!(loss_state(&db)["gamer"]["items"]["Зелья"]["Зелье воскрешения"],left);
+            drop(db);std::fs::remove_file(path).unwrap();
+        }
+    }
     #[test]
     fn developer_restore_uses_lost_length_and_ends_on_logical_yesterday() {
         let global = json!({

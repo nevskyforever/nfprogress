@@ -124,6 +124,22 @@ fn decimal(n: f64) -> Result<Value> {
 fn tenth(n: f64) -> f64 {
     (((n - 1e-9) * 10.0).ceil() / 10.0).max(0.0)
 }
+/// Legacy loss damage and GUI revival semantics, in the replayable account state.
+pub fn loss_health(state: &mut Value, length: u64) -> Result<()> {
+    let health=amount(&state["health"])?;
+    let max=amount(&state["max_health"])?;
+    let remaining=(health.min(max) - i128::from(length)*5_000_000).max(0);
+    state["health"]=json!(progress_codec::decimal(remaining));
+    if remaining==0 {
+        let inventory=state["inventory"].as_array_mut().ok_or("invalid_game_payload")?;
+        if let Some(i)=inventory.iter().position(|v|v["category"]=="Зелья"&&v["item_id"]=="Зелье воскрешения"&&v["count"].as_u64().is_some_and(|n|n>0)) {
+            let count=inventory[i]["count"].as_u64().ok_or("invalid_game_payload")?;
+            if count==1 { inventory.remove(i); } else { inventory[i]["count"]=json!(count-1); }
+            state["health"]=state["max_health"].clone();
+        }
+    }
+    Ok(())
+}
 /// Frozen native v1 inputs, including its historical float rounding convention.
 pub fn writing_reward(a: &Value, rule: &str) -> Result<Value> {
     let delta = float(&a["fact"]["delta"])?;
@@ -467,6 +483,7 @@ fn transition_with_source(
                     return Err("game_invalid_rule".into());
                 }
                 state["global_streak"] = codec::loss_after(&state["global_streak"], text(a,"writing_day")?)?;
+                loss_health(&mut state, a["after"]["lost_length"].as_u64().ok_or("invalid_game_payload")?)?;
             }
             "compensation" => {
                 let target = source.ok_or("game_parent_unknown")?;
@@ -1052,7 +1069,8 @@ pub fn apply(
             tx.execute("INSERT OR IGNORE INTO cloud_game_candidates VALUES(?1,?2,?3,?4,NULL,?5)",params![id,a,key,canonical(&current),text(h,"updated_at")?])?;
         }
         let payload=if !conflict&&!descended {
-            let value=if project {crate::game_projection::materialize_project(&current,text(h,"project_id")?,h["stage_id"].as_str(),&snapshot)?} else {crate::game_projection::materialize_account(&current,&snapshot)?};
+            let mut value=if project {crate::game_projection::materialize_project(&current,text(h,"project_id")?,h["stage_id"].as_str(),&snapshot)?} else {crate::game_projection::materialize_account(&current,&snapshot)?};
+            if e["version"]==2 && e["action"]["kind"]=="global_streak" { value["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":h["updated_at"]}); }
             Some(canonical(&value))
         } else {None};
         if own&&!matching&&!explicit{retain_blocker(tx,a,&key,id,"game_legacy_local_conflict")?;}
@@ -1315,6 +1333,18 @@ mod tests {
         e["header"]["parents"]=json!([parent]);e["header"]["revision"]=json!(2);
         e["action"]=json!({"kind":"global_streak","writing_day":"2026-10-05","project_action_ids":[],"before":base["global_streak"],"after":codec::loss_after(&base["global_streak"],"2026-10-05").unwrap(),"reward":{"coins":"0.000000","experience":"0.000000"}});
         (genesis,e,parent)
+    }
+    #[test]
+    fn global_loss_replay_health_and_inventory_follow_the_same_rule() {
+        let (g,e,parent)=loss_fixture();
+        for (health,potions,expected,left) in [("100.000000",0,"85.000000",0),("10.000000",2,"100.000000",1),("10.000000",0,"0.000000",0)] {
+            let mut base=g["action"]["base"].clone();base["health"]=json!(health);
+            base["inventory"]=if potions>0 {json!([{"category":"Зелья","item_id":"Зелье воскрешения","count":potions}])}else{json!([])};
+            let next=transition(&e,&BTreeMap::from([(parent.clone(),base)])).unwrap();
+            assert_eq!(next["health"],expected);
+            let actual=next["inventory"].as_array().unwrap().iter().find(|v|v["item_id"]=="Зелье воскрешения").map(|v|v["count"].as_u64().unwrap()).unwrap_or(0);
+            assert_eq!(actual,left);
+        }
     }
     #[test]
     fn standalone_loss_is_causal_versioned_and_replay_safe() {

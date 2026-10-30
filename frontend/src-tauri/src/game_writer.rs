@@ -66,7 +66,8 @@ pub fn capture_loss(db: &Connection, before: &Value, day: &str, now: &str) -> Re
     let event=json!({"version":2,"header":game_migration::header(db,scope,None,None,&id,&parents,"native-game-v1",now)?,"action":{"kind":"global_streak","writing_day":day,"project_action_ids":[],"before":base["global_streak"],"after":after,"reward":{"coins":"0.000000","experience":"0.000000"}}});
     // Validate before retaining anything. No optimistic state can outrun replay.
     let next=game_sync::transition(&event,&std::collections::BTreeMap::from([(parents[0].clone(),base)]))?;
-    let out=game_projection::materialize_account(before,&next)?;
+    let mut out=game_projection::materialize_account(before,&next)?;
+    out["gamer"]["last_health_recovery_at"]=json!({"__type__":"datetime","value":now});
     game_sync::preserve(db,&scope.account_id,&event,"unsealed")?;
     if game_sync::rebuild_chain(db,&scope.account_id,"account",&id)?!=next { return Err("game_invalid_rule".into()); }
     db.execute("DELETE FROM cloud_game_tips WHERE account_id=?1 AND owner_key='account'",[&scope.account_id]).map_err(sql)?;
@@ -297,7 +298,8 @@ mod tests {
         std::path::PathBuf,
         metadata::MetadataScope,
         Value,
-    ) {
+    ) {seed_with_source(infinite,None)}
+    fn seed_with_source(infinite:bool,initial:Option<Value>) -> (Connection,std::path::PathBuf,metadata::MetadataScope,Value) {
         let path = std::env::temp_dir().join(format!(
             "game-writer-{}.db",
             metadata::new_event_id().unwrap()
@@ -341,7 +343,7 @@ mod tests {
             NOW,
         )
         .unwrap();
-        let source = json!({"gamer":serde_json::from_str::<Value>(include_str!("../../src/cloud/__fixtures__/gameLegacyDefaultsV1.json")).unwrap()});
+        let source = initial.unwrap_or_else(||json!({"gamer":serde_json::from_str::<Value>(include_str!("../../src/cloud/__fixtures__/gameLegacyDefaultsV1.json")).unwrap()}));
         db.execute(
             "INSERT INTO game_state VALUES(1,2,?1,?2)",
             params![canonical(&source), NOW],
@@ -384,6 +386,31 @@ mod tests {
             2
         );
         (db, path, scope, f)
+    }
+    #[test]
+    fn active_account_loss_is_atomic_and_self_echo_matches() {
+        let mut source=json!({"gamer":serde_json::from_str::<Value>(include_str!("../../src/cloud/__fixtures__/gameLegacyDefaultsV1.json")).unwrap(),"global_streak":{"global_streaks":["2026-10-01","2026-10-02","2026-10-03"],"max_global_streak":3,"global_streak_status":"Go"}});
+        source["gamer"]["health"]=json!(100.0);
+        let (mut db,path,scope,_)=seed_with_source(true,Some(source));
+        let before:String=db.query_row("SELECT payload_json FROM game_state",[],|r|r.get(0)).unwrap();
+        {let tx=db.transaction().unwrap();assert!(crate::game::refresh_global_loss(&tx,"2026-10-05","2026-10-05T00:00:00.000000Z").unwrap());tx.commit().unwrap();}
+        let after:String=db.query_row("SELECT payload_json FROM game_state",[],|r|r.get(0)).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&after).unwrap()["gamer"]["health"],85.0);
+        let (id,frame):(String,Vec<u8>)=db.query_row("SELECT event_id,canonical_frame FROM cloud_game_events WHERE revision=2 AND scope='account'",[],|r|Ok((r.get(0)?,r.get(1)?))).unwrap();
+        let event=game_codec::unframe(&frame,false).unwrap();
+        assert_eq!(event["version"],2);assert_eq!(event["action"]["project_action_ids"],json!([]));
+        assert_eq!(db.query_row("SELECT payload_json FROM cloud_game_write_intents WHERE event_id=?1",[&id],|r|r.get::<_,String>(0)).unwrap(),after);
+        assert!(!crate::game::refresh_global_loss(&db,"2026-10-06","2026-10-06T00:00:00.000000Z").unwrap());
+        db.execute("INSERT INTO cloud_sync_account_inbox(account_id,event_id,canonical_user_id,scope,server_sequence,device_id,entity_id,entity_type,operation,sync_revision,updated_at,crypto_version,aad_version,nonce,ciphertext,received_at) VALUES('local',?1,?2,'account',20,?3,?4,'account_game','upsert',2,?5,2,2,zeroblob(24),zeroblob(32),?5)",params![id,scope.canonical_user_id,scope.device_id,event["header"]["entity_id"].as_str(),event["header"]["updated_at"].as_str()]).unwrap();
+        game_sync::seal(&db,"local",&id,&frame,&[0;24],&[0;32]).unwrap();
+        let mut privileged=crate::sqlite::open_privileged_remote_apply_database(&path).unwrap();
+        assert_eq!(game_sync::apply(&mut privileged,&scope,&frame,&[0;24],&[0;32],false).unwrap(),"applied");
+        assert_eq!(game_sync::apply(&mut privileged,&scope,&frame,&[0;24],&[0;32],false).unwrap(),"applied");
+        let current:String=db.query_row("SELECT payload_json FROM game_state",[],|r|r.get(0)).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&current).unwrap()["gamer"]["health"],85.0);
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM cloud_game_events WHERE revision=2 AND scope='account'",[],|r|r.get::<_,i64>(0)).unwrap(),1);
+        assert_ne!(before,after);
+        drop(privileged);drop(db);std::fs::remove_file(path).unwrap();
     }
     #[test]
     fn game_active_owner_migration_does_not_republish_accepted_bases() {
