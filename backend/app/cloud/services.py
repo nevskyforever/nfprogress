@@ -598,8 +598,8 @@ class SyncService:
     def game_reader_ready(cls, device) -> bool:
         return cls.progress_reader_ready(device) and all(
             getattr(device, f'{domain}_game_frame_version') == 1
-            and getattr(device, f'{domain}_game_codec_version') == 1
-            and getattr(device, f'{domain}_game_reader_version') == 1
+            and getattr(device, f'{domain}_game_codec_version') == (2 if domain == 'account' else 1)
+            and getattr(device, f'{domain}_game_reader_version') == (2 if domain == 'account' else 1)
             and getattr(device, f'{domain}_game_compression_zero')
             for domain in ('project', 'account')
         )

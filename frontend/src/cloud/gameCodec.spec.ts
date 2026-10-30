@@ -106,3 +106,23 @@ it('production project/account crypto separates Game scopes and every action ide
   await expect(decryptObjectBytes(amk, context, accountEnvelope as unknown as ObjectCryptoEnvelope)).rejects.toThrow()
   await expect(decryptAccountObject(amk, accountContext, { ...envelope, crypto_version: 2, aad_version: 2 })).rejects.toThrow()
 })
+
+it('admits only a versioned standalone loss with no fabricated progress references', () => {
+  const event = structuredClone(examples.find(v => v.name === 'global-streak')?.event ?? examples.find(v => v.event.action.kind === 'global_streak')!.event)
+  if (event.header.scope !== 'account' || event.action.kind !== 'global_streak') throw new Error('fixture')
+  const a = event.action
+  event.version = 2
+  a.project_action_ids = []
+  a.writing_day = '2026-10-03'
+  a.after = {...a.before, history:[], freezes:0, lost_day:'2026-10-03', lost_length:a.before.history.length}
+  a.reward = {coins:'0.000000', experience:'0.000000'}
+  expect(unframeGameEvent(frameGameEvent(event), 'account')).toEqual(event)
+  event.version = 1
+  expect(() => validateGameEvent(event)).toThrow()
+  event.version = 2
+  a.after.lost_length++
+  expect(() => validateGameEvent(event)).toThrow()
+  a.after.lost_length--
+  a.reward.coins = '1.000000'
+  expect(() => validateGameEvent(event)).toThrow()
+})

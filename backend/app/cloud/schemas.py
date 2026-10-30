@@ -856,6 +856,8 @@ class ProjectGameReaderSupport(BaseModel):
 
 class AccountGameReaderSupport(ProjectGameReaderSupport):
     codec_id: Literal[13]
+    codec_version: Literal[0, 1, 2]
+    reader_version: Literal[0, 1, 2]
 
 
 class GameReaderCapabilities(BaseModel):

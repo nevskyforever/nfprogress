@@ -55,7 +55,7 @@ export type AccountGameAction =
   | { kind: 'compensation'; target_action_id: string; reward: GameReward }
   | { kind: 'resolution'; selected_event_id: string }
 export interface ProjectGameEvent { version: 1; header: ProjectGameHeader; action: ProjectGameAction }
-export interface AccountGameEvent { version: 1; header: AccountGameHeader; action: AccountGameAction }
+export interface AccountGameEvent { version: 1 | 2; header: AccountGameHeader; action: AccountGameAction }
 export type GameEvent = ProjectGameEvent | AccountGameEvent
 export class GameCodecError extends Error { constructor(readonly code: string) { super(code) } }
 function fail(code = 'invalid_game_payload'): never { throw new GameCodecError(code) }
@@ -80,6 +80,14 @@ function heads(v: unknown, nonempty = false): asserts v is string[] {
   if (!Array.isArray(v) || v.length > GAME_LIMITS.parents || nonempty && !v.length || v.some((s, i) => !uuid(s) || i > 0 && String(v[i - 1]) >= String(s))) fail()
 }
 function reward(v: unknown, signed = false) { const r = exact(v, ['coins', 'experience']); amount(r.coins, signed); amount(r.experience, signed) }
+function validateLoss(a: Record<string, unknown>) {
+  const before = a.before as StreakBase, after = a.after as StreakBase
+  const last = before.history.at(-1)?.day
+  if (!last || !before.enabled || (a.project_action_ids as unknown[]).length || canonical(a.reward) !== canonical({coins:'0.000000',experience:'0.000000'})) fail()
+  const lossDay = new Date(Date.parse(last + 'T00:00:00Z') + 2 * 86400000).toISOString().slice(0,10)
+  if (String(a.writing_day) < lossDay || before.lost_day !== null && before.lost_day >= last) fail()
+  if (canonical(after) !== canonical({...before, history:[], freezes:0, lost_day:lossDay, lost_length:before.history.length})) fail()
+}
 function streak(v: unknown) {
   const s = exact(v, ['history', 'maximum', 'freezes', 'enabled', 'last_reward_day', 'lost_day', 'lost_length'])
   if (!Array.isArray(s.history) || s.history.length > GAME_LIMITS.days) fail('game_resource_limit')
@@ -106,7 +114,7 @@ export function validateGameEvent(value: unknown): asserts value is GameEvent {
   const e = exact(value, ['version', 'header', 'action']), raw = e.header as Record<string, unknown>
   const project = raw?.scope === 'project'
   const h = exact(raw, project ? [...COMMON, 'project_id', 'stage_id', 'bootstrap_id', 'metadata_event_id', 'stage_event_ids'] : [...COMMON, 'entity_type'])
-  if (e.version !== 1 || !uuid(h.account_id) || !uuid(h.device_id) || !uuid(h.event_id) || !identity(h.entity_id) || !timestamp(h.updated_at) || !integer(h.revision, Number.MAX_SAFE_INTEGER) || Number(h.revision) < 1 || !['legacy-game-v1', 'native-game-v1', 'python-game-v1'].includes(String(h.rule))) fail()
+  if (!(e.version === 1 || e.version === 2 && h.scope === 'account' && (e.action as Record<string, unknown>)?.kind === 'global_streak' && h.rule === 'native-game-v1') || !uuid(h.account_id) || !uuid(h.device_id) || !uuid(h.event_id) || !identity(h.entity_id) || !timestamp(h.updated_at) || !integer(h.revision, Number.MAX_SAFE_INTEGER) || Number(h.revision) < 1 || !['legacy-game-v1', 'native-game-v1', 'python-game-v1'].includes(String(h.rule))) fail()
   heads(h.parents)
   if (h.parents.includes(h.event_id)) fail()
   if (project) {
@@ -141,7 +149,7 @@ export function validateGameEvent(value: unknown): asserts value is GameEvent {
       case 'genesis': case 'adopt_local': exact(a, ['kind', 'base']); base(a.base); break
       case 'reward': exact(a, ['kind', 'reward_id', 'project_id', 'project_action_id', 'reward']); if (!identity(a.project_id) || !uuid(a.project_action_id) || a.reward_id !== `reward:${a.project_action_id}`) fail(); reward(a.reward); break
       case 'inventory': exact(a, ['kind', 'operation', 'category', 'item_id', 'count', 'unit_price', 'before_count', 'after_count', 'coins_delta']); if (!['buy', 'sell', 'use'].includes(String(a.operation)) || !identity(a.category) || !identity(a.item_id) || !integer(a.count, 10000) || Number(a.count) < 1 || !integer(a.before_count, 10000) || !integer(a.after_count, 10000) || a.after_count !== Number(a.before_count) + (a.operation === 'buy' ? Number(a.count) : -Number(a.count))) fail(); amount(a.unit_price); amount(a.coins_delta, true); break
-      case 'global_streak': exact(a, ['kind', 'writing_day', 'project_action_ids', 'before', 'after', 'reward']); if (!day(a.writing_day)) fail(); heads(a.project_action_ids, true); streak(a.before); streak(a.after); reward(a.reward); break
+      case 'global_streak': exact(a, ['kind', 'writing_day', 'project_action_ids', 'before', 'after', 'reward']); if (!day(a.writing_day)) fail(); heads(a.project_action_ids, e.version !== 2); streak(a.before); streak(a.after); reward(a.reward); if (e.version === 2) validateLoss(a); break
       case 'freeze': exact(a, ['kind', 'writing_day', 'project_id', 'project_action_id', 'before_count', 'after_count', 'before', 'after']); if (!day(a.writing_day) || !integer(a.before_count, 10000) || Number(a.before_count) < 1 || a.after_count !== Number(a.before_count) - 1) fail(); if (a.project_id === null ? a.project_action_id !== null || a.before === null || a.after === null : !identity(a.project_id) || !uuid(a.project_action_id) || a.before !== null || a.after !== null) fail(); if (a.project_id === null) { streak(a.before); streak(a.after) } break
       default: fail('game_action_unsupported')
     }

@@ -165,7 +165,7 @@ export const encryptedSyncV3Api = {
   }),
   gameReaderCapabilities:(token:string,deviceId:string):Promise<void>=>{
     if(!UUID.test(deviceId))fail()
-    return apiRequest('/api/v3/sync/encrypted/game-reader-capabilities',{method:'PUT',headers:headers(token),body:{device_id:deviceId,project:{frame_version:1,codec_id:12,codec_version:1,reader_version:1,compression_zero:true},account:{frame_version:1,codec_id:13,codec_version:1,reader_version:1,compression_zero:true}}})
+    return apiRequest('/api/v3/sync/encrypted/game-reader-capabilities',{method:'PUT',headers:headers(token),body:{device_id:deviceId,project:{frame_version:1,codec_id:12,codec_version:1,reader_version:1,compression_zero:true},account:{frame_version:1,codec_id:13,codec_version:2,reader_version:2,compression_zero:true}}})
   },
   gameReaderGate:(token:string):Promise<{ready:boolean;missing_devices:number}>=>apiRequest<unknown>('/api/v3/sync/encrypted/game-reader-capabilities',{headers:headers(token)}).then(value=>{
     if(!exact(value,['ready','missing_devices']))fail()

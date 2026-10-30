@@ -54,6 +54,9 @@ pub fn stable_action_id(account: &str, kind: &str, source: &Value) -> String {
         &h[20..]
     )
 }
+pub fn loss_id(account: &str, before: &Value) -> String {
+    stable_action_id(account, "global_streak_loss", before)
+}
 pub fn tips(db: &Connection, account: &str, key: &str) -> Result<Vec<String>> {
     let mut q = db.prepare("SELECT event_id FROM cloud_game_tips WHERE account_id=?1 AND owner_key=?2 ORDER BY event_id").map_err(sql)?;
     let rows = q
@@ -185,6 +188,7 @@ pub fn dependencies(db: &Connection, account: &str, user: &str, e: &Value) -> Re
             &json!([h["project_id"], h["stage_id"], a["completion_id"]]),
         )),
         Some("reward") => Some(stable_action_id(user, "reward", &a["project_action_id"])),
+        Some("global_streak") if e["version"] == 2 => Some(loss_id(user, &a["before"])),
         Some("compensation") => Some(stable_action_id(
             user,
             "compensation",
@@ -458,6 +462,12 @@ fn transition_with_source(
                     state["health"] = state["max_health"].clone();
                 }
             }
+            "global_streak" if e["version"] == 2 => {
+                if state["global_streak"] != a["before"] || h["event_id"] != loss_id(text(h,"account_id")?, &a["before"]) {
+                    return Err("game_invalid_rule".into());
+                }
+                state["global_streak"] = codec::loss_after(&state["global_streak"], text(a,"writing_day")?)?;
+            }
             "compensation" => {
                 let target = source.ok_or("game_parent_unknown")?;
                 if target["header"]["scope"] != "account"
@@ -528,6 +538,7 @@ fn transition_with_source(
     }
     if h["scope"] == "account" {
         let mut check = e.clone();
+        check["version"] = json!(1);
         check["header"]["parents"] = json!([]);
         check["header"]["revision"] = json!(1);
         check["header"]["rule"] = json!("legacy-game-v1");
@@ -1289,6 +1300,42 @@ mod tests {
             .iter()
             .map(|v| v["event"].clone())
             .collect()
+    }
+    fn loss_fixture() -> (Value, Value, String) {
+        let mut genesis=vectors().into_iter().find(|v|v["header"]["scope"]=="account"&&v["action"]["kind"]=="genesis").unwrap();
+        genesis["action"]["base"]["global_streak"]["history"]=json!([
+            {"day":"2026-10-01","frozen":false},{"day":"2026-10-02","frozen":false},{"day":"2026-10-03","frozen":false}]);
+        genesis["action"]["base"]["global_streak"]["maximum"]=json!(3);
+        let base=genesis["action"]["base"].clone();
+        let parent=genesis["header"]["event_id"].as_str().unwrap().to_string();
+        let mut e=genesis.clone();
+        let id=loss_id(e["header"]["account_id"].as_str().unwrap(),&base["global_streak"]);
+        e["version"]=json!(2);e["header"]["rule"]=json!("native-game-v1");
+        e["header"]["event_id"]=json!(id);e["header"]["entity_id"]=json!(format!("game:{id}"));
+        e["header"]["parents"]=json!([parent]);e["header"]["revision"]=json!(2);
+        e["action"]=json!({"kind":"global_streak","writing_day":"2026-10-05","project_action_ids":[],"before":base["global_streak"],"after":codec::loss_after(&base["global_streak"],"2026-10-05").unwrap(),"reward":{"coins":"0.000000","experience":"0.000000"}});
+        (genesis,e,parent)
+    }
+    #[test]
+    fn standalone_loss_is_causal_versioned_and_replay_safe() {
+        let (g,e,parent)=loss_fixture();let base=g["action"]["base"].clone();
+        let states=BTreeMap::from([(parent.clone(),base.clone())]);
+        let next=transition(&e,&states).unwrap();
+        assert_eq!(next["global_streak"]["lost_length"],3);
+        assert_eq!(next["global_streak"]["history"],json!([]));
+        assert_eq!(codec::unframe(&codec::frame(&e).unwrap(),false).unwrap(),e);
+        assert!(transition(&e,&BTreeMap::new()).is_err());
+        assert!(transition(&e,&BTreeMap::from([(parent,next)])).is_err());
+        for field in ["before","after","reward"] {
+            let mut bad=e.clone();bad["action"][field]=json!({});assert!(transition(&bad,&states).is_err());
+        }
+        let mut old=e.clone();old["version"]=json!(1);assert!(codec::validate(&old).is_err());
+        let mut early=e.clone();early["action"]["writing_day"]=json!("2026-10-04");assert!(transition(&early,&states).is_err());
+        let mut wrong=e.clone();wrong["header"]["event_id"]=g["header"]["device_id"].clone();wrong["header"]["entity_id"]=json!(format!("game:{}",wrong["header"]["event_id"].as_str().unwrap()));assert!(transition(&wrong,&states).is_err());
+        let (db,path)=setup();preserve(&db,ACCOUNT,&g,"unsealed").unwrap();assert!(preserve(&db,ACCOUNT,&e,"unsealed").unwrap());assert!(!preserve(&db,ACCOUNT,&e,"unsealed").unwrap());
+        assert_eq!(rebuild_chain(&db,ACCOUNT,"account",e["header"]["event_id"].as_str().unwrap()).unwrap(),transition(&e,&states).unwrap());
+        assert!(dependencies(&db,ACCOUNT,g["header"]["device_id"].as_str().unwrap(),&e).is_err());
+        drop(db);let _=std::fs::remove_file(path);
     }
     fn setup() -> (Connection, std::path::PathBuf) {
         let path =

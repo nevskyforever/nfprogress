@@ -47,6 +47,34 @@ fn completion_header(db:&Connection,scope:&metadata::MetadataScope,p:&str,s:Opti
     o.insert("entity_id".into(),json!(s.map(|s|format!("game:stage:{s}:{id}")).unwrap_or_else(||format!("game:project:{id}"))));
     Ok(h)
 }
+/// Standalone account action; the parent Game chain is the source of truth.
+/// Caller commits the returned compatibility state in the same transaction.
+pub fn capture_loss(db: &Connection, before: &Value, day: &str, now: &str) -> Result<Option<Value>> {
+    let mut q = db.prepare("SELECT m.account_id,b.canonical_user_id,s.device_id,m.lifecycle FROM cloud_game_migrations m JOIN cloud_account_bindings b ON b.local_account_id=m.account_id JOIN cloud_sync_state s ON s.account_id=m.account_id WHERE m.owner_key='account' LIMIT 2").map_err(sql)?;
+    let scopes = q.query_map([], |r| Ok((metadata::MetadataScope{account_id:r.get(0)?,canonical_user_id:r.get(1)?,device_id:r.get(2)?},r.get::<_,String>(3)?))).map_err(sql)?.collect::<rusqlite::Result<Vec<_>>>().map_err(sql)?;
+    if scopes.is_empty() { return Ok(None); }
+    if scopes.len()!=1 || scopes[0].1!="active" { return Err("game_noncommutative_conflict".into()); }
+    let scope=&scopes[0].0;
+    metadata::assert_runtime_scope(db,&scope.account_id,&scope.canonical_user_id,&scope.device_id).map_err(|_|"game_scope_mismatch")?;
+    let base=game_projection::account_base(before)?;
+    let parents=game_sync::tips(db,&scope.account_id,"account")?;
+    if parents.len()!=1 { return Err("game_noncommutative_conflict".into()); }
+    let proven=game_sync::rebuild_chain(db,&scope.account_id,"account",&parents[0])?;
+    if proven!=base { return Err("game_legacy_local_conflict".into()); }
+    let after=game_codec::loss_after(&base["global_streak"],day)?;
+    let id=game_sync::loss_id(&scope.canonical_user_id,&base["global_streak"]);
+    let event=json!({"version":2,"header":game_migration::header(db,scope,None,None,&id,&parents,"native-game-v1",now)?,"action":{"kind":"global_streak","writing_day":day,"project_action_ids":[],"before":base["global_streak"],"after":after,"reward":{"coins":"0.000000","experience":"0.000000"}}});
+    // Validate before retaining anything. No optimistic state can outrun replay.
+    let next=game_sync::transition(&event,&std::collections::BTreeMap::from([(parents[0].clone(),base)]))?;
+    let out=game_projection::materialize_account(before,&next)?;
+    game_sync::preserve(db,&scope.account_id,&event,"unsealed")?;
+    if game_sync::rebuild_chain(db,&scope.account_id,"account",&id)?!=next { return Err("game_invalid_rule".into()); }
+    db.execute("DELETE FROM cloud_game_tips WHERE account_id=?1 AND owner_key='account'",[&scope.account_id]).map_err(sql)?;
+    db.execute("INSERT INTO cloud_game_tips VALUES(?1,'account',?2)",params![scope.account_id,id]).map_err(sql)?;
+    db.execute("UPDATE cloud_game_projection SET head_event_id=?1,snapshot_json=?2,generation=?3 WHERE account_id=?4 AND owner_key='account'",params![id,canonical(&next),event["header"]["revision"].as_i64(),scope.account_id]).map_err(sql)?;
+    db.execute("INSERT INTO cloud_game_write_intents(account_id,event_id,payload_json,prior_payload_json) VALUES(?1,?2,?3,?4)",params![scope.account_id,id,out.to_string(),before.to_string()]).map_err(sql)?;
+    Ok(Some(out))
+}
 #[derive(Clone)]
 pub struct InventoryIntent {pub operation:String,pub category:String,pub item_id:String,pub count:i64}
 pub fn capture_inventory(db:&Connection,intent:&InventoryIntent,before_raw:&str,after:&Value,result:Option<&Value>,now:&str)->Result<bool>{

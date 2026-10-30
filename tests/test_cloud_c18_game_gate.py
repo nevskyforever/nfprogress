@@ -19,8 +19,8 @@ PATH = '/api/v3/sync/encrypted/game-reader-capabilities'
 
 def declaration(device):
     def reader(codec):
-        return dict(frame_version=1, codec_id=codec, codec_version=1,
-                    reader_version=1, compression_zero=True)
+        return dict(frame_version=1, codec_id=codec, codec_version=2 if codec == 13 else 1,
+                    reader_version=2 if codec == 13 else 1, compression_zero=True)
     return dict(device_id=device, project=reader(12), account=reader(13))
 
 
@@ -29,7 +29,7 @@ def test_game_capability_strict_schema():
     GameReaderCapabilities.model_validate(body)
     for domain in ('project', 'account'):
         for change in ({'codec_id': 8}, {'frame_version': True},
-                       {'codec_version': 1.0}, {'reader_version': 2},
+                       {'codec_version': 1.0}, {'reader_version': 3},
                        {'compression_zero': 1}, {'balance': 10}):
             invalid = deepcopy(body)
             invalid[domain].update(change)
@@ -65,6 +65,12 @@ def test_game_registered_all_device_gate_and_progress_dependency(cloud_client):
     assert client.get(PATH, headers=headers).json() == dict(ready=False, missing_devices=1)
     assert client.put(PATH, headers=headers, json=declaration(devices[2])).status_code == 204
     assert client.get(PATH, headers=headers).json() == dict(ready=True, missing_devices=0)
+    # A v1 reader still declares honestly but cannot authorize v2 publication.
+    legacy = declaration(devices[2])
+    legacy['account'].update(codec_version=1, reader_version=1)
+    assert client.put(PATH, headers=headers, json=legacy).status_code == 204
+    assert client.get(PATH, headers=headers).json() == dict(ready=False, missing_devices=1)
+    assert client.put(PATH, headers=headers, json=declaration(devices[2])).status_code == 204
     # Revoking an existing dependency blocks Game again, independent of Game declarations.
     assert client.put('/api/v3/sync/encrypted/progress-reader-capabilities', headers=headers,
                       json=dict(device_id=devices[2], frame_version=1, codec_id=11,
@@ -87,7 +93,7 @@ def test_game_forward_upgrade_preserves_registered_devices(cloud_client):
     device = str(uuid4())
     assert client.put(f'/api/v1/sync/devices/{device}', headers=headers).status_code == 200
     config = Config(str(ROOT / 'alembic.ini'))
-    assert ScriptDirectory.from_config(config).get_heads() == ['legal_acceptances']
+    assert ScriptDirectory.from_config(config).get_heads() == ['game_loss_v2']
     command.downgrade(config, 'c18_progress_readers')
     with engine.connect() as db:
         before = db.execute(text('SELECT user_id,device_id,last_ack_sequence,progress_reader_version FROM sync_devices')).all()
@@ -96,7 +102,7 @@ def test_game_forward_upgrade_preserves_registered_devices(cloud_client):
     with engine.connect() as db:
         assert db.execute(text('SELECT user_id,device_id,last_ack_sequence,progress_reader_version FROM sync_devices')).all() == before
         assert db.execute(text('SELECT project_game_frame_version,project_game_codec_version,project_game_reader_version,project_game_compression_zero,account_game_frame_version,account_game_codec_version,account_game_reader_version,account_game_compression_zero FROM sync_devices')).one() == (0, 0, 0, False, 0, 0, 0, False)
-        assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'legal_acceptances'
+        assert db.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'game_loss_v2'
     accept_current_legal_documents(client,headers)
     assert client.get(PATH, headers=headers).json() == dict(ready=False, missing_devices=1)
 
@@ -167,3 +173,19 @@ def test_game_opaque_publication_gate_blocks_both_domains_and_non_game_continuat
     config = Config(str(ROOT / 'alembic.ini'))
     with pytest.raises(RuntimeError, match='Game history'):
         command.downgrade(config, 'c18_progress_readers')
+
+
+def test_loss_reader_upgrade_and_safe_downgrade(cloud_client):
+    client, engine = cloud_client
+    create_user(engine)
+    headers = _headers(login(client).json()['access_token'])
+    device = str(uuid4())
+    assert client.put(f'/api/v1/sync/devices/{device}', headers=headers).status_code == 200
+    assert client.put(PATH, headers=headers, json=declaration(device)).status_code == 204
+    config = Config(str(ROOT / 'alembic.ini'))
+    command.downgrade(config, 'legal_acceptances')
+    with engine.connect() as db:
+        assert db.execute(text('SELECT account_game_codec_version,account_game_reader_version FROM sync_devices')).one() == (0, 0)
+    command.upgrade(config, 'head'); command.upgrade(config, 'head')
+    with engine.connect() as db:
+        assert str(db.execute(text('SELECT device_id FROM sync_devices')).scalar_one()) == device

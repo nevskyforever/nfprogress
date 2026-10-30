@@ -173,8 +173,8 @@ class SyncDevice(Base):
         CheckConstraint('project_game_codec_version IN (0, 1)', name='ck_sync_devices_project_game_codec_version'),
         CheckConstraint('project_game_reader_version IN (0, 1)', name='ck_sync_devices_project_game_reader_version'),
         CheckConstraint('account_game_frame_version IN (0, 1)', name='ck_sync_devices_account_game_frame_version'),
-        CheckConstraint('account_game_codec_version IN (0, 1)', name='ck_sync_devices_account_game_codec_version'),
-        CheckConstraint('account_game_reader_version IN (0, 1)', name='ck_sync_devices_account_game_reader_version'),
+        CheckConstraint('account_game_codec_version IN (0, 1, 2)', name='ck_sync_devices_account_game_codec_version'),
+        CheckConstraint('account_game_reader_version IN (0, 1, 2)', name='ck_sync_devices_account_game_reader_version'),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(

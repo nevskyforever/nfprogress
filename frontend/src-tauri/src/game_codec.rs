@@ -195,6 +195,24 @@ fn base(v: &Value) -> Result<()> {
     }
     streak(&v["global_streak"])
 }
+/// A loss consumes the prior series. Its identity/day is the first day on which
+/// the missed writing day is final, independent of when a device notices it.
+pub fn loss_after(before: &Value, writing_day: &str) -> Result<Value> {
+    streak(before)?;
+    let history = before["history"].as_array().ok_or("invalid_game_payload")?;
+    let last = history.last().and_then(|v| v["day"].as_str()).and_then(crate::streaks::date_days).ok_or("game_invalid_rule")?;
+    let today = crate::streaks::date_days(writing_day).ok_or("invalid_game_payload")?;
+    if before["enabled"] != true || last + 2 > today { return Err("game_invalid_rule".into()); }
+    if before["lost_day"].as_str().and_then(crate::streaks::date_days).is_some_and(|d| d >= last) {
+        return Err("game_invalid_rule".into());
+    }
+    let mut after = before.clone();
+    after["history"] = json!([]);
+    after["lost_day"] = json!(crate::streaks::date_from_days(last + 2));
+    after["lost_length"] = json!(history.len());
+    after["freezes"] = json!(0);
+    Ok(after)
+}
 pub fn validate(e: &Value) -> Result<()> {
     exact(e, &["version", "header", "action"])?;
     let h = &e["header"];
@@ -222,7 +240,7 @@ pub fn validate(e: &Value) -> Result<()> {
         keys.push("entity_type");
     }
     exact(h, &keys)?;
-    if e["version"] != 1
+    if !(e["version"] == 1 || e["version"] == 2 && !project && e["action"]["kind"] == "global_streak" && h["rule"] == "native-game-v1")
         || !uuid(&h["account_id"])
         || !uuid(&h["device_id"])
         || !uuid(&h["event_id"])
@@ -403,7 +421,12 @@ pub fn validate(e: &Value) -> Result<()> {
             if !day(&a["writing_day"]) {
                 return bad();
             }
-            heads(&a[refs], true)?;
+            heads(&a[refs], e["version"] != 2)?;
+            if e["version"] == 2 {
+                if a[refs] != json!([]) || a["reward"] != json!({"coins":"0.000000","experience":"0.000000"}) { return bad(); }
+                let expected = loss_after(&a["before"], a["writing_day"].as_str().ok_or("invalid_game_payload")?)?;
+                if a["after"] != expected { return bad(); }
+            }
             streak(&a["before"])?;
             streak(&a["after"])?;
             reward(&a["reward"], false)?;
