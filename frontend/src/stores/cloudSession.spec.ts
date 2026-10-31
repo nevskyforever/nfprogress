@@ -719,7 +719,12 @@ describe('desktop cloud session owner', () => {
     expect(store.projects[0]).toMatchObject({ origin: 'remote', status: 'import_available' })
 
     localProjects = [{ id: PROJECT, name: 'Импортированный роман' }]
+    const changes: string[] = []
+    const onChange = (event: Event) => changes.push((event as CustomEvent<string>).detail)
+    window.addEventListener('nfprogress:data-changed', onChange)
     await store.importProject(PROJECT, 'Импортированный роман')
+    window.removeEventListener('nfprogress:data-changed', onChange)
+    expect(changes).toContain('projects')
     expect(instance.importRemoteProject).toHaveBeenCalledWith(PROJECT, 'Импортированный роман', expect.any(Function))
     expect(store.projects[0]).toMatchObject({ status: 'initial_sync_completed', mode: 'import_remote' })
 

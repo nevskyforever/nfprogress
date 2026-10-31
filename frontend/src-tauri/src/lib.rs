@@ -1791,10 +1791,14 @@ fn reconcile_loaded_map_view_in_connection(
 fn map_response(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     reconcile_loaded_map_view(&project_id, stage_id.as_deref())?;
     let mut connection = open_projects_database()?;
-    require_projects_owner(&connection)?;
+    map_response_in_connection(&mut connection, project_id, stage_id)
+}
+
+fn map_response_in_connection(connection: &mut rusqlite::Connection, project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+    require_projects_owner(connection)?;
     // Keep rendered owners and CAS evidence in one read snapshot.
     connection.execute_batch("BEGIN DEFERRED").map_err(|e| e.to_string())?;
-    let repository = ProjectsRepository::new(&mut connection);
+    let repository = ProjectsRepository::new(connection);
     let project = repository
         .get_project(&project_id)
         .map_err(|error| error.to_string())?
@@ -1833,7 +1837,7 @@ fn map_response(project_id: String, stage_id: Option<String>) -> Result<serde_js
     } else {
         data.map(|value| mindmap::normalize(value)).transpose()?
     };
-    let notes = list_notes(project_id.clone(), stage_id.clone())?
+    let notes = list_notes_in_connection(connection, project_id.clone(), stage_id.clone())?
         .get("notes")
         .cloned()
         .unwrap_or_else(|| serde_json::json!([]));
@@ -1842,7 +1846,7 @@ fn map_response(project_id: String, stage_id: Option<String>) -> Result<serde_js
             stage.status == "завершен"
                 && !mindmap::has_content(stored_map(&stage.payload).as_ref(), &stage.name)
         });
-    let expected_heads=map_sync::expected(&connection,&project_id,stage_id.as_deref(),combined).map_err(|e|e.to_string())?;
+    let expected_heads=map_sync::expected(connection,&project_id,stage_id.as_deref(),combined).map_err(|e|e.to_string())?;
     connection.execute_batch("COMMIT").map_err(|e| e.to_string())?;
     Ok(
         serde_json::json!({"expected_heads":expected_heads,"project_id": project_id, "stage_id": stage_id, "name": name, "data": data, "combined": combined, "read_only": status == "завершен", "has_empty_completed_stage_map": empty_completed, "notes": notes}),
@@ -2123,7 +2127,11 @@ fn decorate_note(
 #[tauri::command]
 fn list_notes(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
     let connection = open_notes_database(false)?;
-    require_sqlite_notes_owner(&connection)?;
+    list_notes_in_connection(&connection, project_id, stage_id)
+}
+
+fn list_notes_in_connection(connection: &rusqlite::Connection, project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+    require_sqlite_notes_owner(connection)?;
     let mut notes = Vec::new();
     if let Some(stage_id) = stage_id.as_deref() {
         let mut statement = connection.prepare("SELECT payload_json FROM notes WHERE project_id = ?1 AND stage_id = ?2 ORDER BY json_extract(payload_json, '$.archived'), json_extract(payload_json, '$.pinned') DESC, json_extract(payload_json, '$.sort_order'), json_extract(payload_json, '$.created_at'), rowid").map_err(|error| error.to_string())?;
@@ -2155,7 +2163,7 @@ fn list_notes(project_id: String, stage_id: Option<String>) -> Result<serde_json
     let aggregate = stage_id.is_none();
     let notes = notes
         .into_iter()
-        .map(|note| decorate_note(&connection, note, aggregate))
+        .map(|note| decorate_note(connection, note, aggregate))
         .collect::<Result<Vec<_>, _>>()?;
     let stages = if aggregate {
         let mut rows = connection
@@ -5671,6 +5679,26 @@ mod tests {
         assert!(super::validate_progress_command("p", f64::INFINITY, None).is_err());
         assert!(super::validate_progress_command("p", 1.0, Some("")).is_err());
         assert!(super::validate_progress_command("p", 1.0, Some("s")).is_ok());
+    }
+
+    #[test]
+    fn map_response_reads_notes_without_opening_a_second_writer() {
+        let root = lifecycle_database_root("map-read");
+        fs::create_dir_all(&root).unwrap();
+        let database = root.join("test.db");
+        let mut connection = Connection::open(&database).unwrap();
+        super::sqlite::apply_migrations(&connection).unwrap();
+        super::initialize_fresh_desktop_database(&connection, &root).unwrap();
+        connection.execute("INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('p','Project',0,0,'symbols','active','{}')", []).unwrap();
+        let map = serde_json::json!({"nodeData":{"id":"map","topic":"Project","children":[]},"freeNodes":[{"id":"note","topic":"First","children":[],"nfprogressNote":true}]});
+        let transaction = connection.unchecked_transaction().unwrap();
+        reconcile_map_notes(&transaction, "p", None, &map, "now").unwrap();
+        transaction.commit().unwrap();
+
+        let response = super::map_response_in_connection(&mut connection, "p".into(), None).unwrap();
+        assert_eq!(response["notes"].as_array().unwrap().len(), 1);
+        drop(connection);
+        fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

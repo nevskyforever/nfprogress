@@ -686,7 +686,9 @@ export const useCloudSessionStore = defineStore('cloud-session', () => {
 
   async function importProject(projectId: string, displayName: string): Promise<void> {
     if (!projectBootstrapEnabled) throw new CloudProjectBootstrapBlockedError('project_bootstrap_disabled')
+    const epoch = lifecycleEpoch
     await diagnostics.run('projects', 'project_import', () => runProjectOperation(projectId, report => requireRuntime().importRemoteProject(projectId, displayName.trim(), report)))
+    if (current(epoch)) announceDataChange('projects')
   }
 
   async function resumeProject(projectId: string): Promise<void> {
