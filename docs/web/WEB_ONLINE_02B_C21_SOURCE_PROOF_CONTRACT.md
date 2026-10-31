@@ -1,6 +1,6 @@
 # WEB.ONLINE.02B — C21 Online-Only source/proof contract
 
-**Status: DESIGN COMPLETE. Slices 1/2/3A/3B independently accepted; slice 3C initial Legacy Note owner replay implemented locally. Later slices remain deferred.**
+**Status: DESIGN COMPLETE; reconciled against baseline `96ada25b` below. Bounded replay is implemented through v5 and 03K.02A; complete project opening and positive readiness remain blocked.**
 The original design review used clean `6.0` baseline
 `57abb27ed712378a836ba654bc3c1c107ac804d5`, 2026-10-28, and introduced no
 production code or migration. Subsequent explicitly authorized implementation
@@ -29,6 +29,60 @@ original design sections below distinguish the future full owner composition
 from this implemented receipt-only layer. Future owner records must have an
 explicit schema/record compatibility decision before v1's received-only refusal
 is broadened. No later slice is implicitly authorized.
+
+## Baseline reconciliation — `96ada25b`, 2026-10-31
+
+The original WEB.ONLINE.02B design task was completed in `a092ed2e`; it must
+not be reimplemented. Comparing `57abb27` with `96ada25b` shows subsequent
+authorized receipt, Metadata, Structural, source-seed, Legacy create/update/
+delete, Content adapter and ordered/multipage recovery work. This is a
+documentation reconciliation, not acceptance of another implementation slice.
+The implementation records below remain the evidence for their bounded cohorts.
+
+Current code uses `worta-web-replay` **v5**, the same thirteen stores, a
+100-event page and 200-event/32 MiB bounded account inventory. Metadata and
+Stage/StageOrder owners, encrypted bootstrap seed and supported Legacy history
+can compose with one bounded terminal peer Content update. 03K.02A tests real
+107-event reception, interrupted second-page recovery, restart and proof
+reauthentication. None of this qualifies arbitrary Content/Resolution history,
+all native families, an advancing owned generation, or full-project publication.
+`replayMetadata.ts` still returns `projectOpened=false`; the ten conservative
+blockers in `noteReaderReadiness.ts` still return `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`. A blocker is removed only
+by its own production acceptance, not by this document.
+
+The detailed owner matrix below retains source/dependency/proof requirements.
+For present composition status: Imported Metadata, Stage and StageOrder have
+bounded adapters; Legacy has the private seed and supported initial/update/
+tombstone paths; Content has the v5 single-terminal-update adapter; Resolution
+remains bounded local owner machinery without complete replay readiness. Maps,
+Documents, Progress, project/account Game, account catalog and cover material
+still require browser owner composition, not just codec or native-owner reuse.
+Do not reschedule the already implemented source seed or receipt schema.
+
+Later Desktop automatic-sync triggers and native fixes do not grant browser
+proofs. Account Game loss-v2 changes the real reader predicate: account codec
+and reader versions must be 2 while project versions remain 1; any future Game
+adapter must follow `SyncService.game_reader_ready` and actual codec support,
+not advertise the older capability from this historical matrix.
+
+Legal acceptance already existed at the original design baseline. Current
+protected sync routes use `get_current_accepted_user`; legal-document refusal
+is an authorization prerequisite, not a missing history event to skip. The VPS
+subsequently migrated to `game_loss_v2` and received only SELECT/INSERT on
+`user_document_acceptances`. Those operational changes do not create owner
+evidence or broaden source/proof authority. No new SQLite, IndexedDB or
+PostgreSQL migration is required by this documentation reconciliation; future
+new replay records still need an explicit version/atomic upgrade/refusal plan.
+
+The next minimum remains a separately scoped **reader** cohort through the
+existing ordinary receiver and owners, with genuine dependency/orphan recovery,
+restart and real protected-server acceptance before revisiting the matching
+readiness blocker. It must first state the exact admitted cohort and existing
+owner entry point; if that cohort needs a new record, specify compatibility
+before implementation. No new endpoint, independent sync engine, capability
+PUT, ACK, writer or whole-project claim follows from this review. Registration
+CLOSED, PUBLIC RELEASE BLOCKED and official progress **89.36%** remain.
 
 ## Slice 2 implementation record — WEB.ONLINE.02B.02, 2026-10-28
 
@@ -369,7 +423,7 @@ in a normal browser. AEAD/codecs alone never establish an applied outcome.
 | Imported Metadata — LOCAL | `importedMetadataApply.ts`, `metadataPrefixProof.ts`: original inbox wire, import binding, full Metadata parents/tips, bootstrap, no incompatible local publication | Metadata `ownerHeads` history plus `inbox.applied_proof`, committed together | Slice 2 now composes this real owner through replay v2 for the bounded peer-origin, coverless ordinary chain; see its implementation record above. This is narrower than all forms accepted by the preview reducer. Private post-F handoff has its own source/inventory checks. |
 | Stage — LOCAL | `stageApply.ts`: Metadata proof/certificate, same project/bootstrap, exact parent/tip/revision and original peer wire | Stage owner head plus inbox record5 `stage_proven`, one transaction | Reuse existing create/update/read owner. Delete, self-echo and competing heads are barriers; Stage codec support does not remove these limits. Mixed v10 admission still needs complete-inventory guarding. |
 | StageOrder — LOCAL | `stageOrderApply.ts`: Metadata plus all Stage heads, ancestry coverage and exact membership; unapplied Stage rows and tombstones are checked | StageOrder owner head plus inbox record6 `stage_order_proven` | Reuse existing owner. Missing/foreign Stage, changed membership, tombstone child manifest and unsupported history block. |
-| Legacy ordinary Note — LOCAL | `noteTransport.ts`, `legacyNoteApply.ts`, `localAuthority.ts`: Legacy plaintext codec over original v2/v3 receive identity, initial cohort, causal candidates/head, membership, source CAS, real own receipts if needed | Encrypted project/Note source, candidate/head history, applied/conflict inbox proof and source revision in the owner's transaction | Reuse source/causal/historical kernels extracted by Z2B1/B2/B2C. Cache-only replay seeding below is not implemented; historical Z2A virtual-inventory/batch work is also unfinished. Do not call local CRUD to manufacture authority. |
+| Legacy ordinary Note — LOCAL | `noteTransport.ts`, `legacyNoteApply.ts`, `localAuthority.ts`: Legacy plaintext codec over original v2/v3 receive identity, initial cohort, causal candidates/head, membership, source CAS, real own receipts if needed | Encrypted project/Note source, candidate/head history, applied/conflict inbox proof and source revision in the owner's transaction | Reuse source/causal/historical kernels extracted by Z2B1/B2/B2C. Private replay seed and bounded initial/update/tombstone composition are implemented (3B–3E); historical Z2A virtual-inventory/batch work remains distinct and unfinished. Do not call local CRUD to manufacture authority. |
 | Content Note v3 — LOCAL; native reader also exists | `contentNoteApply.ts`, `noteTransportPrerequisite.ts`: canonical codec8, Metadata/Stage ancestry, route identity, causal and source rules | Candidate/transport/dependency joins, encrypted source and Content inbox proof committed by the actual owner | Reuse browser owner for its accepted cohort. `cloud/contentNoteReader.ts` defaults to native apply. Unsupported routes, conflicts and own Content evidence stay explicit barriers. |
 | Note Resolution and descendants — LOCAL, bounded | `resolutionPlanner.ts` (including `BrowserResolutionApplyRuntime`), continuation, ordinary and prefix owners: all parents, conflict publications/closure, source-before/after, output identities, dependencies and immutable wire | Resolution4, GroupTransition2, encrypted output/source evidence, Head2 and inbox10 ResolutionProof1; actual F/H/O commits only | Preserve separate legacy-v2, raw Legacy-on-v3 and codec8 Resolution routes. Dedicated Legacy3 F/H/O/G/Q surfaces exist; default K still rejects relevant Legacy3 cohorts. Additional chains and broader source cohorts are not generally accepted. |
 | V10 transport/recovery — dormant | `v10Transport.ts`, `v10Recovery.ts`, `v10MixedRecovery.ts`: complete local inventory, exact received interval, earliest pending event, gaps, source witnesses and supported binding | J verifies existing inbox and committed interval; K invokes atomic owners, may advance a local qualified prefix | Reuse within exact accepted cohorts. J is not an HTTP receiver, and K is not a complete production dispatcher. Never replace default binding with the most permissive dormant binding. |
@@ -631,7 +685,7 @@ user edits. Cache absence/eviction is a normal requirement to reconnect/replay.
 | --- | --- |
 | Desktop SQLite | No migration. Native owner-core extraction must preserve current transactions and schema. |
 | Existing `worta-web` IndexedDB v12 | No upgrade, record conversion, import or cleanup. Keep version12 and historical refusal checks. |
-| Separate `worta-web-replay` IndexedDB | Initial receipt schema1 is now implemented under the explicit slice-1 authorization; this is a new database, not v12-to-v13. Later family schemas require explicit versioning/upgrade/refusal plans. |
+| Separate `worta-web-replay` IndexedDB | Authorized replay schema is now v5, with validated upgrades from v1–v4 and bounded owner records; this is separate from developer v12. Later family schemas require explicit versioning/upgrade/refusal plans. |
 | Production PostgreSQL | No migration or API/wire change required for the bounded active-bootstrap replay contract. Existing server gates stay mandatory. Unsupported legacy/lineage histories stop; broadening them may require a separate contract and cannot be assumed here. |
 
 Schema discovery must be strict. An unknown version, partial/corrupt schema or
@@ -919,7 +973,8 @@ CLOSED, PUBLIC RELEASE BLOCKED; C21/C22/C23/PF6.0/RC remain mandatory.
 ## 10. Small implementation slices and acceptance
 
 At the design baseline all slices below were future work. The implementation
-record above now covers slice 1 only. Each requires focused LOCAL-FIRST
+records now cover slices 1–3 and a bounded part of slice 4; use the baseline
+reconciliation above before selecting new work. Each requires focused LOCAL-FIRST
 tests first, relevant regressions/typecheck/build/lint, real Chromium for changed
 browser flows and disposable PostgreSQL16 for API integration. Keep six CI jobs
 and their budgets; place bounded new tests in existing appropriate groups after

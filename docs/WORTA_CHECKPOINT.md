@@ -1,5 +1,39 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-31 — WEB.ONLINE.02B resumed at current baseline
+
+Starting `96ada25b270a47bff8b56d5f244927a337d904d6`, clean branch `6.0`;
+local tracking and a direct `git ls-remote` check agree on `origin/6.0`.
+The original `57abb27` task was already completed by design commit `a092ed2e`
+and followed by explicitly authorized implementation through 03K.02A. This
+resumed docs-only task reconciles that work rather than recreating the design.
+The [source/proof contract](web/WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md)
+already contains the owner matrix, full-account replay, atomic proof/source
+boundary, recovery/security rules and implementation slices. Its stale status
+summary, Legacy seed row and replay-schema summary now reflect v5 and bounded
+Metadata/Structural/Legacy/terminal-Content composition. Roadmap is updated.
+
+The baseline diff includes later Desktop sync work, isolated-test fixes, native
+Game loss-v2 and VPS preparation/migration/legal-table permissions. None grants
+browser apply authority or positive capabilities. Legal acceptance is an
+existing protected-route prerequisite, not a new event/proof. The current Game
+reader predicate requires account codec/reader v2; a future browser owner must
+respect it. No new production code, database permission, schema or security gate
+was changed in this review; SQLite/PostgreSQL and developer IndexedDB v12 need
+no migration for it. Future replay schema changes require separate contracts.
+
+Complete project open, Resolution/further dependency recovery, native-family
+browser owners and owned-generation advancement remain unaccepted. Next is a
+separately scoped ordinary reader dependency/orphan cohort with genuine owners,
+protected-server and restart acceptance; do not repeat the accepted receipt,
+source seed or multipage recovery work. `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, Registration CLOSED,
+PUBLIC RELEASE BLOCKED and official progress **89.36%** remain. CI NOT POLLED.
+Checks passed: baseline/source comparison, new local link targets, preserved
+negative flags, `git diff --check` and maintained `local_acceptance.sh quick`.
+Runtime tests/builds, Chromium and database tests were not rerun for this
+documentation-only reconciliation; earlier evidence remains scoped to its SHA.
+
 ## Решение владельца, 2026-10-30 — рабочая WORTA прежде всего (закрытый пилот)
 
 **Действующий приоритет на ближайшие задания:** вернуть владельцу возможность

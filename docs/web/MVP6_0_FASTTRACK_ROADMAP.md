@@ -15,6 +15,26 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-31 — WEB.ONLINE.02B baseline reconciliation
+
+Baseline `96ada25b270a47bff8b56d5f244927a337d904d6` matches `origin/6.0`.
+The original source/proof design is already complete; receipt, Metadata,
+Stage/StageOrder, private source seed, bounded Legacy replay and the v5 terminal
+Content-update/restart path are implemented. Do not repeat those slices.
+See the [current contract status](WEB_ONLINE_02B_C21_SOURCE_PROOF_CONTRACT.md#baseline-reconciliation--96ada25b-2026-10-31).
+
+Next bounded implementation: specify one remaining reader dependency/orphan
+cohort, reuse existing ordinary receiver/owners and prove protected-server and
+restart behavior before revisiting its readiness blocker. This review neither
+authorizes that implementation nor removes any blocker. Resolution and native
+family browser composition, owned-generation advancement and full-project
+publication remain incomplete. Account Game now requires the actual account-v2
+reader predicate; legal-acceptance and VPS database rights do not qualify Web
+owners. No migration is needed for this documentation reconciliation.
+
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`,
+Registration CLOSED, PUBLIC RELEASE BLOCKED and progress **89.36%** remain.
+
 ## 2026-10-30 — WEB.ONLINE.02B.03K.02A — multipage recovery
 
 Real v3 pull of 107 events exercises interruption after the first 100, Chromium
