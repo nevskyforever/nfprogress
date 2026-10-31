@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 mode="${1:-quick}"
 container_name=""
 test_dsn=""
+test_profile=""
 
 usage() {
   printf 'Usage: %s {quick|backend|frontend|prepush}\n' "${0##*/}"
@@ -35,8 +36,42 @@ cleanup_postgres() {
   fi
 }
 
-trap cleanup_postgres EXIT
+cleanup_profile() {
+  [[ -n "$test_profile" ]] || return 0
+  if [[ ! -d "$test_profile" || -L "$test_profile" || ! -f "$test_profile/.worta-local-acceptance-owned" ]]; then
+    printf '[FAIL] refusing to remove an unverified test profile: %s\n' "$test_profile" >&2
+    return 1
+  fi
+  rm -rf -- "$test_profile"
+}
+
+cleanup() {
+  local result=0
+  cleanup_postgres || result=1
+  cleanup_profile || result=1
+  return "$result"
+}
+
+trap cleanup EXIT
 trap 'exit 130' INT TERM
+
+start_test_profile() {
+  local temp_root="${TMPDIR:-/tmp}"
+  test_profile="$(mktemp -d "${temp_root%/}/worta-local-acceptance.XXXXXXXX")"
+  [[ -n "$test_profile" && -d "$test_profile" && ! -L "$test_profile" ]] || {
+    printf '[FAIL] could not create an isolated test profile.\n' >&2
+    return 1
+  }
+  : > "$test_profile/.worta-local-acceptance-owned"
+  mkdir "$test_profile/tmp"
+  export NFPROGRESS_DATA_DIR="$test_profile/app"
+  export NFPROGRESS_TEST_DATA_DIR="$test_profile/app"
+  export NFPROGRESS_CLOUD_BLOB_DIR="$test_profile/blobs"
+  export NFPROGRESS_ENV=test NFPROGRESS_PLATFORM=web PYTHONDONTWRITEBYTECODE=1
+  export TMPDIR="$test_profile/tmp" TMP="$test_profile/tmp" TEMP="$test_profile/tmp"
+  unset NFPROGRESS_DATABASE_URL NFPROGRESS_TAURI_RUNTIME
+  printf '[PASS] task-owned test profile is isolated\n'
+}
 
 start_postgres() {
   command -v docker >/dev/null || { printf '[NOT RUN] Docker is unavailable.\n' >&2; return 1; }
@@ -111,6 +146,7 @@ backend_checks() {
   cd "$repo_root"
   start_postgres
   python3 -m pytest -q \
+    tests/test_backend_test_isolation.py \
     tests/test_cloud_c18_cover_gate.py \
     tests/test_cloud_c18_compression_gate.py \
     tests/test_cloud_c18_game_gate.py \
@@ -250,15 +286,19 @@ frontend_checks() {
 
 case "$mode" in
   quick)
+    start_test_profile
     step 'diff, changed Python syntax, shell syntax, and workflow YAML' quick_checks
     ;;
   backend)
+    start_test_profile
     step 'PostgreSQL migration and backend regression acceptance' backend_checks
     ;;
   frontend)
+    start_test_profile
     step 'frontend Vitest, typecheck, build, and Chromium acceptance' frontend_checks
     ;;
   prepush)
+    start_test_profile
     step 'quick static checks' quick_checks
     step 'frontend local acceptance' frontend_checks
     step 'PostgreSQL backend and backup/restore acceptance' backend_checks

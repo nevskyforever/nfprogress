@@ -185,6 +185,11 @@ def _legacy_services(runtime_config: RuntimeConfig) -> Services:
 
 def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     runtime_config = config or RuntimeConfig.from_env()
+    if runtime_config.environment == 'test' and (
+        runtime_config.data_dir is None
+        or (config is None and not (os.environ.get('NFPROGRESS_DATA_DIR') or '').strip())
+    ):
+        raise ValueError('NFPROGRESS_DATA_DIR is required in test mode.')
     cloud_database = CloudDatabase(runtime_config.database_url)
     services = None if runtime_config.cloud_only else _legacy_services(runtime_config)
 
