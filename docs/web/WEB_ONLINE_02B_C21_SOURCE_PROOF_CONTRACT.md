@@ -32,6 +32,14 @@ is broadened. No later slice is implicitly authorized.
 
 ## Late Metadata dependency reproduction — reader implementation STOP
 
+**Subsequent audit outcome A:** the [production writer audit](C21_FORWARD_METADATA_DEPENDENCY_AUDIT.md)
+shows that this order cannot be produced by the supported structural writer:
+queueing already requires the exact Metadata's server-derived apply ledger.
+The fixture below uses genuine codecs but manually pushes a future dependency;
+it is a negative semantic-order test, not a supported writer recovery case.
+Keep the existing refusal and do not expand v5 for it. The conditional
+staged-proof/schema proposal below is historical, not required implementation.
+
 At baseline `672c90ae`, a new real-server regression covers exactly one history:
 Metadata genesis1, Stage create2 naming Metadata update3 as its dependency,
 then that genuine Metadata update3. The server accepts opaque producer events;

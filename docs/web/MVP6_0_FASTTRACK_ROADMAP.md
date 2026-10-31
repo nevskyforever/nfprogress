@@ -15,6 +15,19 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-31 — forward dependency audit outcome A
+
+The [production writer audit](C21_FORWARD_METADATA_DEPENDENCY_AUDIT.md)
+establishes that Stage cannot reference an unsent Metadata revision: the exact
+dependency must already have server-derived applied authority before Stage is
+queued. This gate predates the integrated writer and persists across audited
+versions. The earlier late-Metadata fixture uses real codecs but manually
+bypasses the production writer ordering; it is a negative semantic-history
+test. Keep replay v5 fail-closed without forward-proof/schema expansion. The
+conditional forward-dependency design suggestion below is superseded for this
+cohort. Other reader blockers remain open; no next slice is started. Progress
+**89.36%**, all negative readiness flags and closed release/registration remain.
+
 ## 2026-10-31 — one dependency reproduction; implementation STOP
 
 The protected HTTP/PostgreSQL/Chromium reader now has a regression for Stage2

@@ -1,5 +1,33 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-31 — forward Metadata dependency audit: A
+
+Starting clean `6.0` at `eeeb4f276778084b40f28e417ea2b5fd03ebf9b5`;
+HEAD and tracking `origin/6.0` agree. The [writer audit](web/C21_FORWARD_METADATA_DEPENDENCY_AUDIT.md)
+classifies Stage2 → Metadata3 as semantically invalid for supported production
+writers, not a missing valid reader recovery cohort. Native Stage preparation
+selects the active Metadata head and requires that exact event's applied ledger
+before queueing. Metadata ledger evidence comes from authenticated server inbox
+history/self-echo, so the dependency already has its server sequence before
+Stage can be sent. Offline pending Metadata, retries, concurrent edits and
+restart do not replace that dependency with an unsent future ID. The same
+gate existed in the first structural substrate and integrated writer; audited
+SQLite migrations do not fabricate applied Metadata evidence.
+
+Correction to the prior reproduction's interpretation: it used genuine codecs,
+but manually chose a future dependency and pushed in an order the production
+writer refuses. Its real HTTP/restart refusal test remains useful negative
+evidence, not proof that supported writers require forward-dependency recovery.
+Retain the current v5 refusal; no staged-proof design, schema expansion or
+production fix is justified for this scenario. Broader orphan/Resolution
+readiness is unchanged. No runtime code, migrations or database permissions
+changed, and no runtime tests were repeated. `ready=false`,
+`declarationAllowed=false`, `writerAuthorized=false`, Registration CLOSED,
+PUBLIC RELEASE BLOCKED and progress **89.36%** remain. CI NOT POLLED.
+Checks PASS: `git diff --check`, maintained `local_acceptance.sh quick`, audit
+link targets and whitespace-normalized negative flags. Runtime tests/builds and
+HTTP/PostgreSQL/Chromium acceptance were not repeated for this docs-only audit.
+
 ## 2026-10-31 — WEB.ONLINE.02B late Metadata dependency: reader change STOP
 
 Starting clean `6.0` / `origin/6.0` at `672c90ae0ddca107cdb88101c1308204d4817f39`.
