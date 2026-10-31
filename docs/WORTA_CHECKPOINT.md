@@ -1,5 +1,43 @@
 # WORTA 6.0 — ПОЛНЫЙ ПРОЕКТНЫЙ ЧЕКПОИНТ
 
+## 2026-10-31 — WEB.ONLINE.02B late Metadata dependency: reader change STOP
+
+Starting clean `6.0` / `origin/6.0` at `672c90ae0ddca107cdb88101c1308204d4817f39`.
+Selected exactly one new cohort: Metadata genesis at sequence 1, Stage create at
+2 referencing the authentic Metadata revision at 3. Genuine existing codecs
+seal all events; the ordinary protected server accepts and returns their opaque
+wire. No mocked response, capability override, ready declaration or alternate
+recovery endpoint is used. The real browser session invokes the existing
+Metadata/Stage owners and fails with `missing_history` at Stage2, preserving
+all three exact wire items. Only Metadata1 has a real applied proof; receive
+cursor is 3 and applied cursor is 1. Chromium profile restart preserves that
+state. Interrupted fresh pull and subsequent ordinary retry preserve it too;
+neither operation returns a project-open result or fabricates a Stage proof.
+
+The missing dependency is present on the server, but later in its immutable
+ordering. `replayMetadata.ts` applies account order, `stageApply.ts` requires a
+real Metadata history certificate, and `replayInventory.ts` rejects a Stage
+proof if its Metadata sequence is not earlier. Contract section 6 prohibits
+family prepasses/topological reordering and later applied dependencies. This is
+not a retry or missing-download bug. A safe reader fix requires a separate
+proof-ordering/record compatibility decision; existing v5 cannot reopen such
+new proof state, so a schema compatibility/migration contract must precede any
+implementation. No production code, migration, capability or gate was changed.
+
+Minimum next decision: retain the explicit unsupported-order boundary (and
+ensure legitimate producers send Metadata before dependent Stage), or authorize
+a bounded new staged-dependency proof/replay compatibility contract for this
+single cohort. Do not rewrite server sequence or accept downloaded ciphertext
+as an applied certificate. Other dependency/Resolution cases remain untouched.
+`ready=false`, `declarationAllowed=false`, `writerAuthorized=false`, Registration
+CLOSED, PUBLIC RELEASE BLOCKED and official progress **89.36%** remain.
+Checks PASS: new late-dependency and existing Structural HTTP/PostgreSQL16/
+Chromium tests (2 tests; existing suite retains 43 scenarios), focused
+Structural/Stage owner Vitest (68), frontend typecheck/build, JavaScript syntax,
+maintained quick and diff checks. The disposable PostgreSQL container and
+browser profiles were removed. Tests qualify the safe refusal, not successful
+recovery or positive readiness. No GitHub Actions polling occurred.
+
 ## 2026-10-31 — WEB.ONLINE.02B resumed at current baseline
 
 Starting `96ada25b270a47bff8b56d5f244927a337d904d6`, clean branch `6.0`;

@@ -30,6 +30,29 @@ from this implemented receipt-only layer. Future owner records must have an
 explicit schema/record compatibility decision before v1's received-only refusal
 is broadened. No later slice is implicitly authorized.
 
+## Late Metadata dependency reproduction — reader implementation STOP
+
+At baseline `672c90ae`, a new real-server regression covers exactly one history:
+Metadata genesis1, Stage create2 naming Metadata update3 as its dependency,
+then that genuine Metadata update3. The server accepts opaque producer events;
+the ordinary protected reader receives all three unchanged. Real Metadata/Stage
+owners apply only genesis1 and return `missing_history` at Stage2. A Chromium
+restart, interrupted server reconciliation and fresh retry preserve all wire
+and the sole genuine prefix proof; no project result is returned. Reader
+capability/declaration, ACK and other writes are absent. No Note/Resolution
+cohort is exercised or broadened.
+
+`stageApply.ts::structuralMetadataDependency` requires the real Metadata owner
+certificate; `replayInventory.ts` additionally requires its sequence to precede
+the Stage proof. Together with section 6's ordered dispatcher, this is an
+explicit unsupported history, not a recoverable page-download omission. A
+dispatch-only prepass would violate both that contract and durable v5 reopen
+validation. Supporting this ordering requires a separately accepted staged-proof
+and schema compatibility contract before implementation; no such change is
+authorized or implemented here. Retaining the current refusal and requiring
+producer dependency order is the existing safe behavior. The readiness blocker
+is not closed by this negative test.
+
 ## Baseline reconciliation — `96ada25b`, 2026-10-31
 
 The original WEB.ONLINE.02B design task was completed in `a092ed2e`; it must

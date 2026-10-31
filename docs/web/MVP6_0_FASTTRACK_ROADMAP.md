@@ -15,6 +15,20 @@ metadata. LOCAL-FIRST is still mandatory for Codex development and acceptance;
 it does not require offline-first runtime behavior in Web.
 
 
+## 2026-10-31 — one dependency reproduction; implementation STOP
+
+The protected HTTP/PostgreSQL/Chromium reader now has a regression for Stage2
+depending on real Metadata3 after Metadata genesis1. Existing owners preserve
+all ciphertext and only the genuine prefix proof across restart and interrupted
+server reconciliation, returning `missing_history`. No readiness is substituted.
+Replay v5 explicitly requires earlier Metadata proof sequences; changing only
+dispatch would produce a durable state rejected on reopen. Reader implementation
+is STOP pending an explicit proof-ordering and schema compatibility decision
+for this single cohort. No migration, production fix or other recovery scenario
+is introduced. Keep the current rejection or separately authorize that contract;
+do not repeat completed page-download recovery or bypass server gates.
+Official progress **89.36%** and all negative capability/release flags remain.
+
 ## 2026-10-31 — WEB.ONLINE.02B baseline reconciliation
 
 Baseline `96ada25b270a47bff8b56d5f244927a337d904d6` matches `origin/6.0`.

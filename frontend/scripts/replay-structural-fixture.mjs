@@ -47,6 +47,19 @@ export async function seedStructuralAccount(page, username, variant = 'ordinary'
         Object.assign(meta.header, { account_id: me.id, project_id: project.project_id, entity_id: project.project_id, bootstrap_id: project.bootstrap_id, device_id: source, event_id: crypto.randomUUID() })
         meta.metadata.name = 'PRIVATE_STRUCTURAL_PROJECT'; meta.metadata.stages_enabled = true
         await push(meta); metadataHeads.set(project.project_id, meta.header)
+        if (variant === 'late_metadata_dependency') {
+          const later = structuredClone(meta)
+          Object.assign(later.header, { event_id: crypto.randomUUID(), operation: 'update', revision: 2,
+            generation: 2, parent_event_ids: [meta.header.event_id] })
+          const dependent = structuredClone(stage)
+          Object.assign(dependent.header, { account_id: me.id, project_id: project.project_id,
+            entity_id: 'a', bootstrap_id: project.bootstrap_id, device_id: source,
+            event_id: crypto.randomUUID(), metadata_event_id: later.header.event_id,
+            operation: 'create', revision: 1, generation: 1, parent_event_ids: [] })
+          await push(dependent)
+          await push(later)
+          continue
+        }
         const heads = {}, creates = {}
         for (const id of ['a', 'b', 'a']) {
           const event = structuredClone(stage), old = heads[id]
